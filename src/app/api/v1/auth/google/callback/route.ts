@@ -20,6 +20,23 @@ function getSafeErrorName(error: unknown) {
   return error.name;
 }
 
+function getSafeErrorCode(error: unknown) {
+  if (!(error instanceof Error)) return "unknown_error";
+  const knownMessages: Record<string, string> = {
+    "La identidad de Google no es válida.": "invalid_google_identity",
+    "Google no confirmó el email de esta cuenta.": "google_email_not_verified",
+    "Este email ya está vinculado a otra cuenta de Google.": "google_account_conflict",
+    "No pudimos validar la cuenta de Google.": "passport_rejected_identity"
+  };
+  const knownCode = knownMessages[error.message];
+  if (knownCode) return knownCode;
+  if (/^ID token /.test(error.message)) return "invalid_google_id_token";
+  if (error.name === "TokenError") return "google_token_rejected";
+  if (error.name === "InternalOAuthError") return "google_provider_exchange_failed";
+  if (error.name.startsWith("Prisma")) return "database_error";
+  return "unclassified_error";
+}
+
 export async function GET(request: Request) {
   let stage = "state_validation";
   try {
@@ -45,7 +62,11 @@ export async function GET(request: Request) {
     });
     return response;
   } catch (error) {
-    console.error("[auth/google] callback failed", { stage, errorName: getSafeErrorName(error) });
+    console.error("[auth/google] callback failed", {
+      stage,
+      errorName: getSafeErrorName(error),
+      errorCode: getSafeErrorCode(error)
+    });
     const response = redirectToLogin(request);
     response.cookies.set(getGoogleStateCookieName(), "", {
       httpOnly: true,
