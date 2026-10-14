@@ -19,7 +19,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   ]);
 
   return (
-    <AdminShell title="CRM Araucana" eyebrow="Gestión comercial y operativa" action={<LogoutButton />} notice={params?.notice}>
+    <AdminShell title="Panel" eyebrow="Gestión comercial y operativa" action={<LogoutButton />} notice={params?.notice}>
       <div className="plain-card" style={{ marginBottom: 24 }}>
         <p className="eyebrow">Sesion activa</p>
         <p className="lead">Ingresaste como {user.email}. Gestioná usuarios y sus roles junto con rutas, salidas y reservas desde un solo lugar.</p>
