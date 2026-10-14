@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { extractBearerToken, toPublicUser } from "./session";
 
-describe("Supabase auth helpers", () => {
+describe("JWT auth helpers", () => {
   it("extracts JWT bearer tokens for native API clients", () => {
     expect(extractBearerToken("Bearer ey.jwt.token")).toBe("ey.jwt.token");
     expect(extractBearerToken("bearer ey.jwt.token")).toBe("ey.jwt.token");

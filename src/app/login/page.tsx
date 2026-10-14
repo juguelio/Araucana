@@ -1,12 +1,6 @@
 import { LoginForm } from "./login-form";
 
-export default async function LoginPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
-  const params = await searchParams;
-  const initialError = params?.error === "account"
-    ? "No pudimos vincular tu cuenta. Contactá a un administrador de Araucana."
-    : params?.error === "oauth"
-      ? "No se pudo completar el acceso con Google. Intentá otra vez."
-      : "";
+export default function LoginPage() {
   return (
     <main className="page-shell section">
       <div className="split">
@@ -18,7 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams?: Promi
               de turismo y transporte. La web y las apps usan la misma API.
             </p>
         </div>
-        <LoginForm initialError={initialError} />
+          <LoginForm />
       </div>
     </main>
   );

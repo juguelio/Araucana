@@ -16,7 +16,6 @@
 		6A7C5D272B00000200A1B001 /* DriverSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7C5D262B00000200A1B001 /* DriverSession.swift */; };
 		6A7C5D292B00000200A1B001 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7C5D282B00000200A1B001 /* LoginView.swift */; };
 		6A7C5D2B2B00000200A1B001 /* DriverDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7C5D2A2B00000200A1B001 /* DriverDashboardView.swift */; };
-		6A7C5D322B00000300A1B001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 6A7C5D332B00000300A1B001 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,7 +36,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6A7C5D322B00000300A1B001 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -103,7 +101,6 @@
 			productName = AraucanaChofer;
 			productReference = 6A7C5D0D2B00000100A1B001 /* AraucanaChofer.app */;
 			packageProductDependencies = (
-				6A7C5D332B00000300A1B001 /* Supabase */,
 			);
 			productType = "com.apple.product-type.application";
 		};
@@ -133,7 +130,6 @@
 			);
 			mainGroup = 6A7C5D042B00000100A1B001;
 			packageReferences = (
-				6A7C5D312B00000300A1B001 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			productRefGroup = 6A7C5D0E2B00000100A1B001 /* Products */;
 			projectDirPath = "";
@@ -143,22 +139,6 @@
 			);
 		};
 /* End PBXProject section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		6A7C5D312B00000300A1B001 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase/supabase-swift";
-			requirement = { kind = exactVersion; version = 2.55.4; };
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		6A7C5D332B00000300A1B001 /* Supabase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 6A7C5D312B00000300A1B001 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Supabase;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		6A7C5D0B2B00000100A1B001 /* Resources */ = {
@@ -323,8 +303,6 @@
 						CFBundleURLSchemes = (araucana-chofer);
 					},
 				);
-				INFOPLIST_KEY_SUPABASE_URL = "$(SUPABASE_URL)";
-				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -359,8 +337,6 @@
 						CFBundleURLSchemes = (araucana-chofer);
 					},
 				);
-				INFOPLIST_KEY_SUPABASE_URL = "$(SUPABASE_URL)";
-				INFOPLIST_KEY_SUPABASE_PUBLISHABLE_KEY = "$(SUPABASE_PUBLISHABLE_KEY)";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;

@@ -1,43 +1,28 @@
 # Araucana
 
-Aplicacion con Next.js, Prisma y PostgreSQL. La autenticacion web y nativa usa Supabase Auth con Google; los perfiles, roles y permisos operativos siguen en la base Postgres de Araucana.
+Aplicación con Next.js, Prisma y PostgreSQL en Neon. La autenticación usa Passport Local, contraseñas bcrypt y JWT firmados por el servidor. Neon almacena perfiles, permisos y sesiones revocables.
 
-## Configuracion de autenticacion
+## Autenticación
 
-1. En Supabase, habilitar Google como proveedor e ingresar el OAuth Client ID y Secret de Google. Deshabilitar email/password y cualquier otro proveedor para que Google sea el único método de acceso.
-2. En Google Cloud, registrar como redirect URI la URL que Supabase muestra para el proveedor (normalmente `https://<project-ref>.supabase.co/auth/v1/callback`).
-3. En Supabase Auth, agregar a la lista de Redirect URLs `http://localhost:3000/auth/callback` y el callback HTTPS del dominio de produccion.
-   Para la app de choferes, agregar también `araucana-chofer://login-callback`.
-4. Configurar las variables de `.env.example`. `SUPABASE_SECRET_KEY` es solo de servidor y se usa para revocar una identidad cuando un administrador elimina una cuenta.
-5. Ejecutar `npm run prisma:migrate` para asociar los perfiles con Supabase Auth.
+- El acceso web usa una cookie JWT `HttpOnly`, `Secure` en producción y `SameSite=Lax`.
+- Las apps nativas usan `Authorization: Bearer <token>`.
+- Los JWT vencen según `SESSION_DAYS` (30 días por defecto, hasta 90) y cada token tiene una sesión revocable en Neon.
+- Las contraseñas se almacenan con bcrypt. Se requieren al menos 12 caracteres y hasta 72 bytes UTF-8.
+- El registro crea cuentas `USER` inactivas; un administrador aprueba y asigna roles desde `/admin/usuarios`.
+- El alta inicial de un administrador existente se hace en `/inicializar-admin` con `AUTH_BOOTSTRAP_TOKEN`. El token solo funciona para una cuenta `ADMIN` que aún no tenga contraseña.
 
-Las cuentas nuevas se crean con rol `USER` e inactivas. Solo ven la pantalla de aprobación; las páginas públicas y reservas siguen disponibles sin iniciar sesión. Una cuenta existente se vincula por email Google verificado y conserva su rol y estado.
+## Variables de entorno
 
-### Primer administrador
+Configurar `DATABASE_URL`, `AUTH_JWT_SECRET` (secreto aleatorio de al menos 32 bytes), `AUTH_BOOTSTRAP_TOKEN` (secreto aleatorio de un solo uso) y, opcionalmente, `SESSION_DAYS`.
 
-Los registros de administradores existentes conservan su rol y estado al vincularse con el mismo email Google verificado. Si la base no tiene una cuenta administradora, después de registrarla el callback crea un perfil pendiente; promovelo manualmente en PostgreSQL:
+## API de autenticación
 
-```sql
-UPDATE "User"
-SET "role" = 'ADMIN', "isActive" = true
-WHERE lower("email") = lower('admin@tu-dominio.com');
-```
-
-Luego, volvé a iniciar sesión. A partir de ahí, el administrador puede activar cuentas y asignar `ADMIN`, `SECRETARY` o `DRIVER` desde `/admin/usuarios`.
-
-## API compartida
-
-La web y las apps nativas envían el access token de Supabase como Bearer:
-
-```http
-Authorization: Bearer <supabase-access-token>
-```
-
-- `GET /api/v1/auth/me` devuelve el perfil Araucana asociado a la identidad.
-- El cierre de sesión se realiza con el SDK de Supabase en web y en apps nativas.
+- `POST /api/v1/auth/register` crea una cuenta pendiente.
+- `POST /api/v1/auth/login` valida email y contraseña y devuelve un JWT.
+- `POST /api/v1/auth/refresh` rota un JWT vigente.
+- `POST /api/v1/auth/logout` revoca la sesión.
+- `GET /api/v1/auth/me` devuelve el usuario actual.
 - `GET /api/v1/users`, `GET /api/v1/openapi` y `GET /api/v1/docs`.
-
-Los endpoints protegidos validan la identidad contra Supabase Auth y consultan rol/estado en Postgres. No se autorizan permisos desde metadatos del usuario en Supabase. Las cuentas inactivas reciben `403 PENDING_APPROVAL`.
 
 ## Desarrollo
 

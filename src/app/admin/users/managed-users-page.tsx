@@ -38,7 +38,7 @@ export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUser
         <div className="form-actions"><button className="button" type="submit">Buscar</button></div>
       </form>
 
-      <p className="muted">Las cuentas se incorporan cuando se registran con Google. Revisá las pendientes y asignales un rol para habilitar el acceso.</p>
+      <p className="muted">Los registros con email y contraseña quedan pendientes. Revisá las cuentas y aprobá el acceso asignando el rol correspondiente.</p>
       <table className="data-table">
         <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Sueldo</th><th>Alta</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody>

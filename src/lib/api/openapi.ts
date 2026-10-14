@@ -48,6 +48,26 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
     },
     servers: [{ url: baseUrl }],
     paths: {
+      "/api/v1/auth/register": {
+        post: {
+          summary: "Registra una cuenta pendiente con email y contraseña.",
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { name: { type: "string" }, email: { type: "string", format: "email" }, password: { type: "string", minLength: 12, maxLength: 128 } } } } } },
+          responses: { "201": { description: "Cuenta pendiente de aprobación" }, "400": { description: "Datos inválidos" }, "409": { description: "Email ya registrado" } }
+        }
+      },
+      "/api/v1/auth/login": {
+        post: {
+          summary: "Inicia sesión y emite un JWT.",
+          requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { email: { type: "string", format: "email" }, password: { type: "string" } } } } } },
+          responses: { "200": { description: "Sesión creada" }, "401": { description: "Credenciales inválidas" } }
+        }
+      },
+      "/api/v1/auth/refresh": {
+        post: { summary: "Rota el JWT actual.", security: bearerSecurity, responses: { "200": { description: "Sesión renovada" }, "401": { description: "Sesión inválida" } } }
+      },
+      "/api/v1/auth/logout": {
+        post: { summary: "Revoca la sesión actual.", security: bearerSecurity, responses: { "200": { description: "Sesión cerrada" } } }
+      },
       "/api/v1/auth/me": {
         get: {
           summary: "Devuelve el usuario autenticado.",

@@ -7,6 +7,8 @@ export type PublicUser = {
   role: ReturnType<typeof toPublicRole>;
 };
 
+export const SESSION_COOKIE_NAME = "araucana_session";
+
 type UserLike = Omit<PublicUser, "role"> & { role: string };
 
 export function extractBearerToken(authorizationHeader: string | null) {

@@ -17,9 +17,10 @@ describe("openapi spec", () => {
     expect(spec.openapi).toBe("3.1.0");
     expect(spec.servers).toEqual([{ url: "https://api.example.com" }]);
     expect(spec.paths["/api/v1/auth/me"].get.security).toEqual([{ bearerAuth: [] }]);
-    expect(spec.paths["/api/v1/auth/login"]).toBeUndefined();
-    expect(spec.paths["/api/v1/auth/refresh"]).toBeUndefined();
-    expect(spec.paths["/api/v1/auth/logout"]).toBeUndefined();
+    expect(spec.paths["/api/v1/auth/register"].post).toBeDefined();
+    expect(spec.paths["/api/v1/auth/login"].post).toBeDefined();
+    expect(spec.paths["/api/v1/auth/refresh"].post).toBeDefined();
+    expect(spec.paths["/api/v1/auth/logout"].post).toBeDefined();
     expect(spec.paths["/api/v1/reservations/{code}/receipt"].post).toBeDefined();
     expect(spec.paths["/api/v1/admin/routes"].get.security).toEqual([{ bearerAuth: [] }]);
     expect(spec.paths["/api/v1/admin/schedules"].post).toBeDefined();

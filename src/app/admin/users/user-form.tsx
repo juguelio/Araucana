@@ -31,6 +31,10 @@ export function ManagedUserForm({ action, user }: { action: UserFormAction; user
         <FieldError id="name-error" message={errors.name} />
       </label>
       <label>Email<input type="email" value={user.email} readOnly /></label>
+      <label>Nueva contraseña (opcional)
+        <input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={72} />
+        <small>Si la cambiás, las sesiones de esa cuenta se cerrarán.</small>
+      </label>
       <label>
         Rol
         <select name="role" defaultValue={user.role}>

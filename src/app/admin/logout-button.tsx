@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 export function LogoutButton() {
   const router = useRouter();
@@ -10,15 +9,15 @@ export function LogoutButton() {
 
   async function handleLogout() {
     setIsSubmitting(true);
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
+    try {
+      await fetch("/api/v1/auth/logout", { method: "POST" });
+    } finally {
+      router.push("/");
+      router.refresh();
+    }
   }
 
-  return (
-    <button className="danger-button" type="button" onClick={handleLogout} disabled={isSubmitting}>
-      {isSubmitting ? "Saliendo..." : "Salir"}
-    </button>
-  );
+  return <button className="danger-button" type="button" onClick={handleLogout} disabled={isSubmitting}>
+    {isSubmitting ? "Saliendo..." : "Salir"}
+  </button>;
 }

@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { prisma } from "@/lib/db/prisma";
+import { hashPassword, isValidPassword } from "@/lib/auth/password";
 import { parseMonthlySalaryCents } from "@/lib/admin/salary";
 import { getManagedUserPath, isManagedUserRole, type ManagedUserRole } from "@/lib/admin/users";
 import { errorState, type AdminFormState } from "../form-state";
@@ -46,6 +46,8 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
   const id = value(formData, "id");
   const roleInput = value(formData, "role");
   const name = value(formData, "name");
+  const passwordValue = formData.get("password");
+  const password = typeof passwordValue === "string" ? passwordValue : "";
   const isActive = value(formData, "isActive") === "true";
 
   if (!id || !isManagedUserRole(roleInput)) return errorState("Revisa los datos de la cuenta.");
@@ -55,6 +57,7 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
   }
 
   let monthlySalaryCents: number | null = null;
+  if (password && !isValidPassword(password)) return errorState("La contraseña debe tener al menos 12 caracteres y no superar 72 bytes UTF-8.");
   try {
     monthlySalaryCents = role === "SECRETARY" || role === "DRIVER"
       ? parseMonthlySalaryCents(value(formData, "monthlySalary"))
@@ -68,9 +71,11 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
           role,
           isActive,
           monthlySalaryCents,
-          salaryCurrency: "ARS"
+          salaryCurrency: "ARS",
+          ...(password ? { passwordHash: await hashPassword(password) } : {})
         }
       });
+      if (password) await tx.session.deleteMany({ where: { userId: id } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     return reportError(error);
@@ -105,10 +110,9 @@ export async function deleteManagedUserAction(formData: FormData) {
   const id = value(formData, "id");
   if (!id || actor.id === id) notice("No podés eliminar tu propia cuenta.");
 
-  let supabaseUserId: string | null;
   try {
-    supabaseUserId = await prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id }, select: { role: true, isActive: true, supabaseUserId: true } });
+    await prisma.$transaction(async (tx) => {
+      const target = await tx.user.findUnique({ where: { id }, select: { role: true, isActive: true } });
       if (!target) throw new Error("La cuenta ya no existe.");
       if (target.role === "ADMIN") {
         const activeAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true } });
@@ -116,22 +120,11 @@ export async function deleteManagedUserAction(formData: FormData) {
         if (adminsAfterDelete < 1) throw new Error("No se puede eliminar al último administrador activo.");
       }
       await tx.user.delete({ where: { id } });
-      return target.supabaseUserId;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     notice(error instanceof Error ? error.message : "No pudimos eliminar la cuenta.");
   }
 
-  let warning = "";
-  if (supabaseUserId) {
-    try {
-      const { error } = await createSupabaseAdminClient().auth.admin.deleteUser(supabaseUserId);
-      if (error) warning = "La cuenta fue quitada de Araucana, pero no se pudo borrar su identidad en Supabase.";
-    } catch {
-      warning = "La cuenta fue quitada de Araucana, pero falta revocar su identidad en Supabase.";
-    }
-  }
-
   refreshUsers();
-  notice(warning || "Cuenta eliminada y acceso revocado.");
+  notice("Cuenta eliminada y acceso revocado.");
 }

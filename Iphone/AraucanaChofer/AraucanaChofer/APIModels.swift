@@ -13,6 +13,17 @@ struct UserEnvelope: Decodable {
     let user: APIUser?
 }
 
+struct AuthSessionEnvelope: Decodable {
+    let token: String
+    let expiresAt: Date
+    let user: APIUser
+    let isActive: Bool?
+}
+
+struct LogoutEnvelope: Decodable {
+    let ok: Bool
+}
+
 struct APIUser: Decodable, Identifiable {
     let id: String
     let email: String

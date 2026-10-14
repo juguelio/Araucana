@@ -1,37 +1,50 @@
 "use client";
 
-import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
+import { getDefaultPathForRole, type AppRole } from "@/lib/auth/roles";
 
-export function LoginForm({ initialError = "" }: { initialError?: string }) {
-  const [error, setError] = useState(initialError);
+export function LoginForm() {
+  const router = useRouter();
+  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function signInWithGoogle() {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setError("");
     setIsSubmitting(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: authError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback` }
+      const form = new FormData(event.currentTarget);
+      const response = await fetch("/api/v1/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.get("email"), password: form.get("password") })
       });
-      if (authError) throw authError;
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: { code?: string } } | null;
+        setError(payload?.error?.code === "PENDING_APPROVAL"
+          ? "Tu cuenta está pendiente de aprobación."
+          : "No pudimos iniciar sesión con esos datos.");
+        return;
+      }
+      const payload = await response.json() as { user?: { role?: AppRole }; isActive?: boolean };
+      router.push(payload.isActive ? getDefaultPathForRole(payload.user?.role ?? "USER") : "/acceso-pendiente");
+      router.refresh();
     } catch {
-      setError("No pudimos iniciar con Google. Revisa la configuracion e intenta otra vez.");
+      setError("No pudimos conectar. Intentá otra vez.");
+    } finally {
       setIsSubmitting(false);
     }
   }
 
-  return (
-    <section className="form-panel">
-      <p className="eyebrow">Acceso seguro</p>
-      <h2>Ingresá o registrate</h2>
-      <p className="muted">Usá tu cuenta de Google. Las cuentas nuevas necesitan aprobación para acceder al sistema.</p>
-      {error ? <p className="error" role="alert">{error}</p> : null}
-      <button className="button" type="button" onClick={signInWithGoogle} disabled={isSubmitting}>
-        {isSubmitting ? "Conectando con Google..." : "Continuar con Google"}
-      </button>
-    </section>
-  );
+  return <form className="form-panel" onSubmit={handleSubmit}>
+    <p className="eyebrow">Acceso seguro</p>
+    <h2>Ingresá a tu cuenta</h2>
+    <p className="muted">Usá tu email y contraseña. Las cuentas nuevas necesitan aprobación para acceder al sistema.</p>
+    <label>Email<input name="email" type="email" autoComplete="username" required maxLength={254} /></label>
+    <label>Contraseña<input name="password" type="password" autoComplete="current-password" required maxLength={72} /></label>
+    {error ? <p className="error" role="alert">{error}</p> : null}
+    <button className="button" type="submit" disabled={isSubmitting}>{isSubmitting ? "Ingresando..." : "Ingresar"}</button>
+    <p className="muted">¿No tenés cuenta? <a href="/registro">Registrate</a></p>
+  </form>;
 }

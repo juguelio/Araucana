@@ -13,13 +13,13 @@ describe("GET /api/v1/auth/me", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("reports pending approval in the standard API error envelope", async () => {
-    authMocks.getTokenFromRequest.mockReturnValue("supabase-token");
+    authMocks.getTokenFromRequest.mockReturnValue("jwt-token");
     authMocks.getAppUserFromToken.mockResolvedValue({
       id: "profile-1", email: "new@example.com", name: "New User", role: "USER", isActive: false
     });
 
     const response = await GET(new Request("https://araucana.example/api/v1/auth/me", {
-      headers: { Authorization: "Bearer supabase-token" }
+      headers: { Authorization: "Bearer jwt-token" }
     }));
     const body = await response.json();
 
@@ -28,7 +28,7 @@ describe("GET /api/v1/auth/me", () => {
   });
 
   it("returns active Araucana profiles without internal fields", async () => {
-    authMocks.getTokenFromRequest.mockReturnValue("supabase-token");
+    authMocks.getTokenFromRequest.mockReturnValue("jwt-token");
     authMocks.getAppUserFromToken.mockResolvedValue({
       id: "profile-2", email: "driver@example.com", name: "Driver", role: "DRIVER", isActive: true
     });

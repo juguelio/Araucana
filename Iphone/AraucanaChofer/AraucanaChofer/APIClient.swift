@@ -27,6 +27,18 @@ struct APIClient {
         return decoder
     }()
 
+    func login(email: String, password: String) async throws -> AuthSessionEnvelope {
+        try await post("/api/v1/auth/login", body: ["email": email, "password": password])
+    }
+
+    func refreshSession() async throws -> AuthSessionEnvelope {
+        try await post("/api/v1/auth/refresh", authenticated: true)
+    }
+
+    func logout() async throws -> LogoutEnvelope {
+        try await post("/api/v1/auth/logout", authenticated: true)
+    }
+
     func me() async throws -> APIUser {
         let envelope: UserEnvelope = try await get("/api/v1/auth/me")
         guard let user = envelope.user else {
@@ -54,6 +66,20 @@ struct APIClient {
         return try await send(request)
     }
 
+    private func post<T: Decodable>(_ path: String, body: [String: String]? = nil, authenticated: Bool = false) async throws -> T {
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let body {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+        if authenticated {
+            try authorize(&request)
+        }
+        return try await send(request)
+    }
+
     private func authorize(_ request: inout URLRequest) throws {
         guard let token, !token.isEmpty else {
             throw DriverAPIError.unauthorized
@@ -69,6 +95,10 @@ struct APIClient {
 
         if (200..<300).contains(http.statusCode) {
             return try decoder.decode(T.self, from: data)
+        }
+
+        if http.statusCode == 401 {
+            throw DriverAPIError.unauthorized
         }
 
         if let apiError = try? decoder.decode(APIErrorEnvelope.self, from: data) {

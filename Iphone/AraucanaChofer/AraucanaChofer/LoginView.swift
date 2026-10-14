@@ -7,10 +7,20 @@ struct LoginView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Iniciá sesión con la cuenta Google que tenga acceso de chofer habilitado por Araucana.")
+                    Text("Ingresá con el email y la contraseña de tu cuenta de chofer habilitada por Araucana.")
                         .font(.body)
                 } header: {
                     Text("Acceso seguro")
+                }
+
+                Section("Cuenta") {
+                    TextField("Email", text: $session.email)
+                        .textContentType(.username)
+                        .keyboardType(.emailAddress)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    SecureField("Contraseña", text: $session.password)
+                        .textContentType(.password)
                 }
 
                 Section {
@@ -29,16 +39,16 @@ struct LoginView: View {
 
                 Section {
                     Button {
-                        Task { await session.signInWithGoogle() }
+                        Task { await session.signIn() }
                     } label: {
                         if session.isLoading {
                             ProgressView()
                         } else {
-                            Label("Continuar con Google", systemImage: "person.crop.circle")
+                            Text("Ingresar")
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(session.isLoading)
+                    .disabled(session.isLoading || session.email.isEmpty || session.password.isEmpty)
                 }
             }
             .navigationTitle("Araucana Chofer")
