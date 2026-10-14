@@ -13,6 +13,13 @@ type GoogleProfile = {
   _json?: Record<string, unknown>;
 };
 
+type GoogleUserInfo = {
+  sub?: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+};
+
 type GoogleUser = {
   id: string;
   email: string;
@@ -72,10 +79,30 @@ function createGoogleStrategy(callbackURL: string, stateStore = createGoogleStat
     callbackURL,
     userInfoURL: "https://openidconnect.googleapis.com/v1/userinfo",
     scope: ["email", "profile"],
-    skipUserProfile: false,
+    skipUserProfile: true,
+    passReqToCallback: true,
     store: stateStore
-  }, (issuer, profile, done) => {
-    void findOrCreateGoogleUser(issuer, profile).then((user) => done(null, user)).catch((error: unknown) => {
+  }, (_request, issuer, profile, _context, _idToken, accessToken, _refreshToken, _params, done) => {
+    void (async () => {
+      const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("Google no pudo confirmar el perfil de esta cuenta.");
+
+      const userInfo = await response.json() as GoogleUserInfo;
+      if (!userInfo.sub || userInfo.sub !== profile.id) {
+        throw new Error("La identidad de Google no es válida.");
+      }
+
+      return findOrCreateGoogleUser(issuer, {
+        ...profile,
+        id: userInfo.sub,
+        emails: userInfo.email ? [{ value: userInfo.email }] : profile.emails,
+        displayName: userInfo.name ?? profile.displayName,
+        _json: userInfo
+      });
+    })().then((user) => done(null, user)).catch((error: unknown) => {
       done(error instanceof Error ? error : new Error("No se pudo validar la cuenta de Google."));
     });
   });

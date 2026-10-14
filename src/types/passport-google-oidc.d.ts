@@ -30,13 +30,27 @@ declare module "passport-google-oidc" {
     userInfoURL: string;
     scope: string[];
     skipUserProfile: boolean;
+    passReqToCallback?: boolean;
     store: StateStore;
   };
+
+  type BasicVerifyCallback = (issuer: string, profile: OAuthProfile, done: VerifyCallback) => void;
+  type RequestAwareVerifyCallback = (
+    request: unknown,
+    issuer: string,
+    profile: OAuthProfile,
+    context: unknown,
+    idToken: string,
+    accessToken: string,
+    refreshToken: string | undefined,
+    params: unknown,
+    done: VerifyCallback
+  ) => void;
 
   class GoogleStrategy {
     constructor(
       options: GoogleStrategyOptions,
-      verify: (issuer: string, profile: OAuthProfile, done: VerifyCallback) => void
+      verify: BasicVerifyCallback | RequestAwareVerifyCallback
     );
     authorizationParams(options: Record<string, unknown>): Record<string, string>;
     authenticate(request: unknown, options?: Record<string, unknown>): void;

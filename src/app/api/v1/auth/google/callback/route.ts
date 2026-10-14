@@ -25,6 +25,7 @@ function getSafeErrorCode(error: unknown) {
   const knownMessages: Record<string, string> = {
     "La identidad de Google no es válida.": "invalid_google_identity",
     "Google no confirmó el email de esta cuenta.": "google_email_not_verified",
+    "Google no pudo confirmar el perfil de esta cuenta.": "google_profile_fetch_failed",
     "Este email ya está vinculado a otra cuenta de Google.": "google_account_conflict",
     "No pudimos validar la cuenta de Google.": "passport_rejected_identity"
   };
