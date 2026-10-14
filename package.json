@@ -24,6 +24,7 @@
     "leaflet": "^1.9.4",
     "next": "latest",
     "passport": "0.7.0",
+    "passport-google-oidc": "^0.1.0",
     "passport-local": "1.0.0",
     "react": "latest",
     "react-dom": "latest",

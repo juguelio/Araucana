@@ -1,4 +1,5 @@
 import { LoginForm } from "./login-form";
+import { isGoogleLoginConfigured } from "@/lib/auth/google";
 
 export default function LoginPage() {
   return (
@@ -12,7 +13,7 @@ export default function LoginPage() {
               de turismo y transporte. La web y las apps usan la misma API.
             </p>
         </div>
-          <LoginForm />
+          <LoginForm googleLoginEnabled={isGoogleLoginConfigured()} />
       </div>
     </main>
   );
