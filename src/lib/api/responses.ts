@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AuthenticationError, AuthorizationError } from "@/lib/auth/service";
+import { ApprovalRequiredError, AuthenticationError, AuthorizationError } from "@/lib/auth/service";
 
 export type ApiErrorFields = Record<string, string>;
 
@@ -35,6 +35,10 @@ export function handleApiError(error: unknown) {
 
   if (error instanceof AuthenticationError) {
     return jsonError("AUTHENTICATION_FAILED", error.message, 401);
+  }
+
+  if (error instanceof ApprovalRequiredError) {
+    return jsonError("PENDING_APPROVAL", error.message, 403);
   }
 
   if (error instanceof AuthorizationError) {

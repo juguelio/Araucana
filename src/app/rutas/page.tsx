@@ -168,6 +168,9 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
                     </fieldset> : null}
                      <button className="button" type="submit">Consultar disponibilidad ↗</button>
                   </form>
+                  <Link className="route-detail-link" href={`/rutas/${route.slug}`} prefetch={true}>
+                    Ver detalles de la ruta
+                  </Link>
                 </div>
               </article>
             )) : <div className="empty-search-state"><strong>No encontramos rutas con esos datos.</strong><p>Probá con otro origen, destino o fecha.</p><Link className="button" href="/rutas">Limpiar búsqueda</Link></div>}

@@ -34,6 +34,7 @@ export default function RootLayout({
               <Link href="#inicio">Inicio</Link><Link href="/rutas" prefetch={true}>Traslados</Link><Link href="#servicios">Servicios</Link><Link href="#destinos">Destinos</Link><Link href="#contacto">Grupos y empresas</Link><Link href="#nosotros">Nosotros</Link><Link href="#contacto">Contacto</Link>
             </div>
             <div className="nav-actions">
+              <Link className="text-link" href="/login">Acceso</Link>
               <Link className="cream-button" href="/rutas" prefetch={true}>
                 Reservar
               </Link>

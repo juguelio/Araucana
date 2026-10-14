@@ -1,50 +1,23 @@
 import type { AppRole } from "@/lib/auth/roles";
 
-export const managedUserRoles = ["SECRETARY", "DRIVER"] as const;
-
+export const managedUserRoles = ["ADMIN", "SECRETARY", "DRIVER", "USER"] as const satisfies readonly AppRole[];
 export type ManagedUserRole = (typeof managedUserRoles)[number];
 
-type ManagedUserConfig = {
-  role: ManagedUserRole;
-  segment: string;
-  title: string;
-  singular: string;
-  plural: string;
-  newLabel: string;
-};
-
-export const managedUserConfigs: Record<ManagedUserRole, ManagedUserConfig> = {
-  SECRETARY: {
-    role: "SECRETARY",
-    segment: "secretarias",
-    title: "Secretarias",
-    singular: "secretaria",
-    plural: "secretarias",
-    newLabel: "Nueva secretaria"
-  },
-  DRIVER: {
-    role: "DRIVER",
-    segment: "choferes",
-    title: "Choferes",
-    singular: "chofer",
-    plural: "choferes",
-    newLabel: "Nuevo chofer"
-  }
+const roleNames: Record<ManagedUserRole, string> = {
+  ADMIN: "Administrador",
+  SECRETARY: "Secretaria",
+  DRIVER: "Chofer",
+  USER: "Usuario"
 };
 
 export function isManagedUserRole(role: string): role is ManagedUserRole {
   return managedUserRoles.includes(role as ManagedUserRole);
 }
 
-export function getManagedUserConfig(role: ManagedUserRole) {
-  return managedUserConfigs[role];
+export function getManagedUserRoleName(role: ManagedUserRole) {
+  return roleNames[role];
 }
 
-export function getManagedUserPath(role: ManagedUserRole, suffix = "") {
-  const config = getManagedUserConfig(role);
-  return `/admin/${config.segment}${suffix}`;
-}
-
-export function toManagedUserRole(role: AppRole): ManagedUserRole | null {
-  return isManagedUserRole(role) ? role : null;
+export function getManagedUserPath(_role?: ManagedUserRole, suffix = "") {
+  return `/admin/usuarios${suffix}`;
 }

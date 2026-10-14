@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "../src/lib/auth/password";
 import { demoRoutes } from "./demo-routes";
 
 const prisma = new PrismaClient();
@@ -39,59 +38,6 @@ function eachDateInclusive(start: string, end: string) {
   }
 
   return dates;
-}
-
-async function seedUsers() {
-  await prisma.user.upsert({
-    where: { email: "kevin@jefe.com" },
-    update: {
-      name: "Kevin",
-      role: "ADMIN",
-      isActive: true,
-      passwordHash: await hashPassword("kieroMoverElBote")
-    },
-    create: {
-      email: "kevin@jefe.com",
-      name: "Kevin",
-      role: "ADMIN",
-      isActive: true,
-      passwordHash: await hashPassword("kieroMoverElBote")
-    }
-  });
-
-  await prisma.user.upsert({
-    where: { email: "secretaria@araucana.com" },
-    update: {
-      name: "Secretaria",
-      role: "SECRETARY",
-      isActive: true,
-      passwordHash: await hashPassword("reservasAraucana")
-    },
-    create: {
-      email: "secretaria@araucana.com",
-      name: "Secretaria",
-      role: "SECRETARY",
-      isActive: true,
-      passwordHash: await hashPassword("reservasAraucana")
-    }
-  });
-
-  await prisma.user.upsert({
-    where: { email: "chofer@araucana.com" },
-    update: {
-      name: "Chofer",
-      role: "DRIVER",
-      isActive: true,
-      passwordHash: await hashPassword("ubicacionAraucana")
-    },
-    create: {
-      email: "chofer@araucana.com",
-      name: "Chofer",
-      role: "DRIVER",
-      isActive: true,
-      passwordHash: await hashPassword("ubicacionAraucana")
-    }
-  });
 }
 
 async function seedVehicle() {
@@ -231,7 +177,6 @@ async function seedRoutesAndSchedules() {
 }
 
 async function main() {
-  await seedUsers();
   await seedVehicle();
   await clearDemoBookingData();
   await seedRoutesAndSchedules();

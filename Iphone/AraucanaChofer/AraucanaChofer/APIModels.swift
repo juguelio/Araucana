@@ -9,12 +9,6 @@ struct APIErrorDetail: Decodable {
     let message: String
 }
 
-struct AuthSession: Decodable {
-    let token: String
-    let expiresAt: Date
-    let user: APIUser
-}
-
 struct UserEnvelope: Decodable {
     let user: APIUser?
 }

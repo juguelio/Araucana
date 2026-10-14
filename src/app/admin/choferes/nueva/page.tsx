@@ -1,5 +1,5 @@
-import { NewManagedUserPage } from "../../users/managed-user-form-page";
+import { redirect } from "next/navigation";
 
 export default function NewDriverPage() {
-  return <NewManagedUserPage role="DRIVER" />;
+  redirect("/admin/usuarios");
 }

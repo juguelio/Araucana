@@ -1,69 +1,37 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getDefaultPathForRole, type AppRole } from "@/lib/auth/roles";
+import { useState } from "react";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-export function LoginForm() {
-  const router = useRouter();
-  const [error, setError] = useState("");
+export function LoginForm({ initialError = "" }: { initialError?: string }) {
+  const [error, setError] = useState(initialError);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function signInWithGoogle() {
     setError("");
     setIsSubmitting(true);
-
-    const formData = new FormData(event.currentTarget);
-    const response = await fetch("/api/v1/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email: formData.get("email"),
-        password: formData.get("password")
-      })
-    });
-
-    setIsSubmitting(false);
-
-    if (!response.ok) {
-      setError("No pudimos iniciar sesion con esos datos.");
-      return;
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` }
+      });
+      if (authError) throw authError;
+    } catch {
+      setError("No pudimos iniciar con Google. Revisa la configuracion e intenta otra vez.");
+      setIsSubmitting(false);
     }
-
-    const payload = await response.json() as { user?: { role?: AppRole } };
-    router.push(getDefaultPathForRole(payload.user?.role ?? "USER"));
-    router.refresh();
   }
 
   return (
-    <form className="form-panel" onSubmit={handleSubmit}>
-      <label>
-        Email
-        <input
-          name="email"
-          type="email"
-          autoComplete="email"
-          defaultValue="kevin@jefe.com"
-          required
-        />
-      </label>
-      <label>
-        Password
-        <input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-        />
-      </label>
-      {error ? <p className="error">{error}</p> : null}
-      <button className="button" type="submit" disabled={isSubmitting}>
-        {isSubmitting ? "Ingresando..." : "Ingresar"}
+    <section className="form-panel">
+      <p className="eyebrow">Acceso seguro</p>
+      <h2>Ingresá o registrate</h2>
+      <p className="muted">Usá tu cuenta de Google. Las cuentas nuevas necesitan aprobación para acceder al sistema.</p>
+      {error ? <p className="error" role="alert">{error}</p> : null}
+      <button className="button" type="button" onClick={signInWithGoogle} disabled={isSubmitting}>
+        {isSubmitting ? "Conectando con Google..." : "Continuar con Google"}
       </button>
-      <p className="muted">Usuario inicial: kevin@jefe.com</p>
-    </form>
+    </section>
   );
 }

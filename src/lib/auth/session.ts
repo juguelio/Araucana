@@ -1,49 +1,18 @@
-import { createHash, randomBytes } from "node:crypto";
-import { AppRole, toPublicRole } from "./roles";
-
-export const SESSION_COOKIE_NAME = "araucana_session";
+import { toPublicRole } from "./roles";
 
 export type PublicUser = {
   id: string;
   email: string;
   name: string | null;
-  role: AppRole;
+  role: ReturnType<typeof toPublicRole>;
 };
 
-type UserLike = Omit<PublicUser, "role"> & {
-  role: string;
-  isActive?: boolean;
-};
-
-export function generateSessionToken() {
-  return randomBytes(32).toString("base64url");
-}
-
-export function hashSessionToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
+type UserLike = Omit<PublicUser, "role"> & { role: string };
 
 export function extractBearerToken(authorizationHeader: string | null) {
-  if (!authorizationHeader) {
-    return null;
-  }
-
+  if (!authorizationHeader) return null;
   const [scheme, token] = authorizationHeader.trim().split(/\s+/);
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
-    return null;
-  }
-
-  return token;
-}
-
-export function getSessionExpirationDate(days: number, now = new Date()) {
-  const expiresAt = new Date(now);
-  expiresAt.setDate(expiresAt.getDate() + days);
-  return expiresAt;
-}
-
-export function isSessionExpired(expiresAt: Date, now = new Date()) {
-  return expiresAt.getTime() <= now.getTime();
+  return scheme?.toLowerCase() === "bearer" && token ? token : null;
 }
 
 export function toPublicUser(user: UserLike): PublicUser {

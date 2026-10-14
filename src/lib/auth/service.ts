@@ -1,49 +1,14 @@
-import { Prisma } from "@prisma/client";
+import { createClient, type User as SupabaseUser } from "@supabase/supabase-js";
 import { prisma } from "@/lib/db/prisma";
-import { verifyPassword } from "./password";
-import {
-  SESSION_COOKIE_NAME,
-  extractBearerToken,
-  generateSessionToken,
-  getSessionExpirationDate,
-  hashSessionToken,
-  isSessionExpired,
-  toPublicUser
-} from "./session";
-
-const DEFAULT_SESSION_DAYS = 30;
+import { getSupabasePublicConfig } from "@/lib/supabase/config";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { extractBearerToken, toPublicUser } from "./session";
 
 export type AuthenticatedUser = ReturnType<typeof toPublicUser>;
-
-type SessionWritableClient = {
-  session: {
-    create(args: {
-      data: {
-        tokenHash: string;
-        userId: string;
-        expiresAt: Date;
-      };
-    }): Promise<unknown>;
-  };
-};
-
-type SessionUserRecord = {
-  id: string;
-  email: string;
-  name: string | null;
-  role: string;
-  isActive: boolean;
-};
-
-type SessionRefreshClient = SessionWritableClient & {
-  session: SessionWritableClient["session"] & {
-    findUnique(args: unknown): Promise<({ user: SessionUserRecord } & { expiresAt: Date; id: string }) | null>;
-    delete(args: unknown): Promise<unknown>;
-  };
-};
+export type AppUser = AuthenticatedUser & { isActive: boolean };
 
 export class AuthenticationError extends Error {
-  constructor(message = "Credenciales invalidas") {
+  constructor(message = "Sesion invalida") {
     super(message);
     this.name = "AuthenticationError";
   }
@@ -56,149 +21,95 @@ export class AuthorizationError extends Error {
   }
 }
 
-export function getConfiguredSessionDays() {
-  const configuredDays = Number(process.env.SESSION_DAYS ?? DEFAULT_SESSION_DAYS);
-  return Number.isFinite(configuredDays) && configuredDays > 0
-    ? configuredDays
-    : DEFAULT_SESSION_DAYS;
+export class ApprovalRequiredError extends AuthorizationError {
+  constructor() {
+    super("La cuenta esta pendiente de aprobacion.");
+    this.name = "ApprovalRequiredError";
+  }
 }
 
-export async function createSessionForUser(
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-    role: string;
-    isActive?: boolean;
-  },
-  client: SessionWritableClient = prisma,
-  now = new Date()
-) {
-  const token = generateSessionToken();
-  const expiresAt = getSessionExpirationDate(getConfiguredSessionDays(), now);
+async function getSupabaseUser(token?: string | null): Promise<SupabaseUser | null> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY) return null;
+  const client = token
+    ? createClient(getSupabasePublicConfig().url, getSupabasePublicConfig().key, {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false }
+      })
+    : await createSupabaseServerClient();
+  const { data, error } = token
+    ? await client.auth.getUser(token)
+    : await client.auth.getUser();
 
-  await client.session.create({
-    data: {
-      tokenHash: hashSessionToken(token),
-      userId: user.id,
-      expiresAt
-    }
-  });
-
-  return {
-    token,
-    expiresAt,
-    user: toPublicUser(user)
-  };
+  return error ? null : data.user;
 }
 
-export async function createSessionForCredentials(input: {
-  email: string;
-  password: string;
-}) {
-  const email = input.email.trim().toLowerCase();
-  const user = await prisma.user.findUnique({
-    where: { email }
-  });
-
-  if (!user || !user.isActive) {
-    throw new AuthenticationError();
+export async function syncSignedInSupabaseUser(authUser: SupabaseUser): Promise<AppUser> {
+  if (authUser.app_metadata?.provider !== "google") {
+    throw new AuthenticationError("Inicia sesion usando Google.");
+  }
+  const email = authUser.email?.trim().toLowerCase();
+  if (!email || !authUser.email_confirmed_at) {
+    throw new AuthenticationError("Se requiere una cuenta Google con email verificado.");
   }
 
-  const passwordMatches = await verifyPassword(input.password, user.passwordHash);
-  if (!passwordMatches) {
-    throw new AuthenticationError();
+  const linked = await prisma.user.findUnique({ where: { supabaseUserId: authUser.id } });
+  const existing = linked ?? await prisma.user.findUnique({ where: { email } });
+  const displayName = typeof authUser.user_metadata?.full_name === "string"
+    ? authUser.user_metadata.full_name
+    : typeof authUser.user_metadata?.name === "string"
+      ? authUser.user_metadata.name
+      : null;
+
+  if (existing?.supabaseUserId && existing.supabaseUserId !== authUser.id) {
+    throw new AuthenticationError("Esta cuenta ya esta vinculada a otra identidad.");
   }
 
-  return createSessionForUser(user);
-}
-
-export async function getUserFromToken(token: string | null) {
-  if (!token) {
-    return null;
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashSessionToken(token) },
-    include: { user: true }
-  });
-
-  if (!session || isSessionExpired(session.expiresAt) || !session.user.isActive) {
-    if (session) {
-      await prisma.session.delete({ where: { id: session.id } }).catch(() => null);
-    }
-    return null;
-  }
-
-  return toPublicUser(session.user);
-}
-
-export async function deleteSessionByToken(token: string | null) {
-  if (!token) {
-    return;
-  }
-
-  await prisma.session
-    .delete({
-      where: { tokenHash: hashSessionToken(token) }
-    })
-    .catch((error) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-        return;
+  let account;
+  if (existing) {
+    account = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        supabaseUserId: authUser.id,
+        email,
+        ...(existing.name ? {} : { name: displayName })
       }
-
-      throw error;
     });
+  } else {
+    try {
+      account = await prisma.user.create({
+        data: {
+          email,
+          name: displayName,
+          supabaseUserId: authUser.id,
+          role: "USER",
+          isActive: false
+        }
+      });
+    } catch (error) {
+      // A parallel first sign-in may have created this Google profile already.
+      const concurrent = await prisma.user.findUnique({ where: { email } });
+      if (!concurrent || concurrent.supabaseUserId !== authUser.id) throw error;
+      account = concurrent;
+    }
+  }
+
+  return { ...toPublicUser(account), isActive: account.isActive };
 }
 
-export async function refreshSessionByToken(token: string | null, client: SessionRefreshClient = prisma as unknown as SessionRefreshClient) {
-  if (!token) {
-    throw new AuthenticationError("Sesion invalida");
-  }
-
-  const tokenHash = hashSessionToken(token);
-  const session = await client.session.findUnique({
-    where: { tokenHash },
-    include: { user: true }
-  });
-
-  if (!session || isSessionExpired(session.expiresAt) || !session.user.isActive) {
-    if (session) {
-      await client.session.delete({ where: { id: session.id } }).catch(() => null);
-    }
-    throw new AuthenticationError("Sesion invalida");
-  }
-
-  await client.session.delete({ where: { tokenHash } });
-  return createSessionForUser(session.user, client);
+export async function getAppUserFromToken(token?: string | null): Promise<AppUser | null> {
+  const authUser = await getSupabaseUser(token);
+  return authUser ? syncSignedInSupabaseUser(authUser) : null;
 }
 
 export function getTokenFromRequest(request: Request) {
-  const bearerToken = extractBearerToken(request.headers.get("authorization"));
-  if (bearerToken) {
-    return bearerToken;
-  }
-
-  const cookieHeader = request.headers.get("cookie");
-  if (!cookieHeader) {
-    return null;
-  }
-
-  const cookies = cookieHeader.split(";").map((cookie) => cookie.trim());
-  const sessionCookie = cookies.find((cookie) =>
-    cookie.startsWith(`${SESSION_COOKIE_NAME}=`)
-  );
-
-  return sessionCookie ? decodeURIComponent(sessionCookie.split("=")[1] ?? "") : null;
+  return extractBearerToken(request.headers.get("authorization"));
 }
 
 export async function requireAuthenticatedUser(request: Request) {
-  const user = await getUserFromToken(getTokenFromRequest(request));
-  if (!user) {
-    throw new AuthorizationError();
-  }
-
-  return user;
+  const user = await getAppUserFromToken(getTokenFromRequest(request));
+  if (!user) throw new AuthorizationError();
+  if (!user.isActive) throw new ApprovalRequiredError();
+  return toPublicUser(user);
 }
 
 export async function requireAdminUser(request: Request) {
@@ -206,7 +117,6 @@ export async function requireAdminUser(request: Request) {
   if (user.role !== "ADMIN") {
     throw new AuthorizationError("Se requiere un usuario administrador");
   }
-
   return user;
 }
 
@@ -215,7 +125,6 @@ export async function requireReservationsUser(request: Request) {
   if (user.role !== "ADMIN" && user.role !== "SECRETARY") {
     throw new AuthorizationError("Se requiere acceso a reservas");
   }
-
   return user;
 }
 
@@ -224,6 +133,5 @@ export async function requireDriverUser(request: Request) {
   if (user.role !== "DRIVER") {
     throw new AuthorizationError("Se requiere un usuario chofer");
   }
-
   return user;
 }

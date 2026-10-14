@@ -1,4 +1,5 @@
 import Foundation
+import Supabase
 
 @MainActor
 final class DriverSession: ObservableObject {
@@ -8,64 +9,88 @@ final class DriverSession: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
 
-    private var token: String?
+    private let supabase: SupabaseClient?
 
     var isAuthenticated: Bool {
-        token != nil && user != nil
+        user != nil
     }
 
     init() {
         self.apiBaseURL = UserDefaults.standard.string(forKey: StorageKey.apiBaseURL) ?? "http://127.0.0.1:3000"
-        self.token = UserDefaults.standard.string(forKey: StorageKey.token)
+        if let urlString = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
+           let url = URL(string: urlString), url.host != nil,
+           let key = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_PUBLISHABLE_KEY") as? String,
+           !key.isEmpty, !key.contains("$(") {
+            self.supabase = SupabaseClient(supabaseURL: url, supabaseKey: key)
+        } else {
+            self.supabase = nil
+        }
     }
 
     func restore() async {
-        guard token != nil, user == nil else {
+        guard user == nil, let supabase else {
             return
         }
-        await loadAuthenticatedData()
+        do {
+            let session = try await supabase.auth.session
+            await loadAuthenticatedData(token: session.accessToken)
+        } catch {
+            signOut()
+        }
     }
 
-    func signIn(email: String, password: String) async {
+    func signInWithGoogle() async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            let client = try makeClient(authenticated: false)
-            let session = try await client.login(email: email, password: password)
-            guard session.user.role == "DRIVER" else {
+            guard let supabase else {
+                throw DriverAPIError.api("Configura SUPABASE_URL y SUPABASE_PUBLISHABLE_KEY en el proyecto de Xcode.")
+            }
+            let session = try await supabase.auth.signInWithOAuth(
+                provider: .google,
+                redirectTo: URL(string: "araucana-chofer://login-callback")
+            )
+            let client = try makeClient(token: session.accessToken)
+            let profile = try await client.me()
+            guard profile.role == "DRIVER" else {
                 throw DriverAPIError.api("Este usuario no tiene rol de chofer.")
             }
-            token = session.token
-            user = session.user
-            UserDefaults.standard.set(session.token, forKey: StorageKey.token)
+            user = profile
             UserDefaults.standard.set(apiBaseURL, forKey: StorageKey.apiBaseURL)
-            await loadAuthenticatedData()
+            await loadAuthenticatedData(token: session.accessToken)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func refresh() async {
-        await loadAuthenticatedData()
+        guard let supabase else { return }
+        do {
+            let session = try await supabase.auth.session
+            await loadAuthenticatedData(token: session.accessToken)
+        } catch {
+            signOut()
+        }
     }
 
     func signOut() {
-        token = nil
+        if let supabase {
+            Task { try? await supabase.auth.signOut() }
+        }
         user = nil
         bootstrap = nil
         errorMessage = nil
-        UserDefaults.standard.removeObject(forKey: StorageKey.token)
     }
 
-    private func loadAuthenticatedData() async {
+    private func loadAuthenticatedData(token: String) async {
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            let client = try makeClient(authenticated: true)
+            let client = try makeClient(token: token)
             async let userRequest = client.me()
             async let bootstrapRequest = client.driverBootstrap()
             let (loadedUser, loadedBootstrap) = try await (userRequest, bootstrapRequest)
@@ -84,16 +109,15 @@ final class DriverSession: ObservableObject {
         }
     }
 
-    private func makeClient(authenticated: Bool) throws -> APIClient {
+    private func makeClient(token: String) throws -> APIClient {
         guard let url = URL(string: apiBaseURL), url.scheme != nil, url.host != nil else {
             throw DriverAPIError.api("La URL de la API no es valida.")
         }
 
-        return APIClient(baseURL: url, token: authenticated ? token : nil)
+        return APIClient(baseURL: url, token: token)
     }
 }
 
 private enum StorageKey {
-    static let token = "araucana.driver.token"
     static let apiBaseURL = "araucana.api.baseURL"
 }

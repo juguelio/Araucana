@@ -1,16 +1,16 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getUserFromToken } from "@/lib/auth/service";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { getAppUserFromToken } from "@/lib/auth/service";
 import { AppRole, getDefaultPathForRole, roleCanAccess } from "@/lib/auth/roles";
 
 async function getCurrentEmployeeOrRedirect(allowedRoles: AppRole[]) {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null;
-  const user = await getUserFromToken(token);
+  const user = await getAppUserFromToken();
 
   if (!user) {
     redirect("/login");
+  }
+
+  if (!user.isActive) {
+    redirect("/acceso-pendiente");
   }
 
   if (!roleCanAccess(user.role, allowedRoles)) {

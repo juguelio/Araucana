@@ -2,28 +2,22 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject private var session: DriverSession
-    @State private var email = ""
-    @State private var password = ""
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Email", text: $email)
-                        .textContentType(.username)
-                        .autocorrectionDisabled()
-
-                    SecureField("Password", text: $password)
-                        .textContentType(.password)
+                    Text("Iniciá sesión con la cuenta Google que tenga acceso de chofer habilitado por Araucana.")
+                        .font(.body)
                 } header: {
-                    Text("Chofer")
+                    Text("Acceso seguro")
                 }
 
                 Section {
                     TextField("URL de API", text: $session.apiBaseURL)
                         .autocorrectionDisabled()
                 } footer: {
-                    Text("Para simulador local usa http://127.0.0.1:3000. En produccion debe ser HTTPS.")
+                    Text("Para simulador local usa http://127.0.0.1:3000. En producción debe ser HTTPS.")
                 }
 
                 if let errorMessage = session.errorMessage {
@@ -35,18 +29,16 @@ struct LoginView: View {
 
                 Section {
                     Button {
-                        Task {
-                            await session.signIn(email: email, password: password)
-                        }
+                        Task { await session.signInWithGoogle() }
                     } label: {
                         if session.isLoading {
                             ProgressView()
                         } else {
-                            Text("Ingresar")
+                            Label("Continuar con Google", systemImage: "person.crop.circle")
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(session.isLoading || email.isEmpty || password.isEmpty)
+                    .disabled(session.isLoading)
                 }
             }
             .navigationTitle("Araucana Chofer")
@@ -54,9 +46,6 @@ struct LoginView: View {
     }
 }
 
-struct LoginView_Previews: PreviewProvider {
-    static var previews: some View {
-        LoginView()
-            .environmentObject(DriverSession())
-    }
+#Preview {
+    LoginView().environmentObject(DriverSession())
 }

@@ -11,27 +11,17 @@ model User {
   id           String    @id @default(cuid())
   email        String    @unique
   name         String?
-  passwordHash String
+  supabaseUserId String? @unique
   role         String    @default("USER")
-  isActive     Boolean   @default(true)
+  isActive     Boolean   @default(false)
   monthlySalaryCents Int?
   salaryCurrency String @default("ARS")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  sessions     Session[]
   driverLocation DriverVehicleLocation?
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
-}
-
-model Session {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
 }
 
 model TravelRoute {

@@ -48,39 +48,11 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
     },
     servers: [{ url: baseUrl }],
     paths: {
-      "/api/v1/auth/login": {
-        post: {
-          summary: "Inicia sesion y devuelve token Bearer para mobile.",
-          requestBody: {
-            required: true,
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/LoginInput" }
-              }
-            }
-          },
-          responses: jsonResponse("#/components/schemas/AuthSession")
-        }
-      },
       "/api/v1/auth/me": {
         get: {
           summary: "Devuelve el usuario autenticado.",
           security: bearerSecurity,
           responses: jsonResponse("#/components/schemas/UserEnvelope")
-        }
-      },
-      "/api/v1/auth/refresh": {
-        post: {
-          summary: "Renueva una sesion mobile antes de su vencimiento.",
-          security: bearerSecurity,
-          responses: jsonResponse("#/components/schemas/AuthSession")
-        }
-      },
-      "/api/v1/auth/logout": {
-        post: {
-          summary: "Cierra la sesion actual.",
-          security: bearerSecurity,
-          responses: jsonResponse("#/components/schemas/OkEnvelope")
         }
       },
       "/api/v1/routes": {
@@ -245,7 +217,7 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
-          bearerFormat: "session-token"
+          bearerFormat: "JWT"
         }
       },
       schemas: {
@@ -267,23 +239,6 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
             }
           }
         },
-        LoginInput: {
-          type: "object",
-          required: ["email", "password"],
-          properties: {
-            email: { type: "string", format: "email" },
-            password: { type: "string" }
-          }
-        },
-        AuthSession: {
-          type: "object",
-          required: ["token", "expiresAt", "user"],
-          properties: {
-            token: { type: "string" },
-            expiresAt: { type: "string", format: "date-time" },
-            user: { $ref: "#/components/schemas/User" }
-          }
-        },
         User: {
           type: "object",
           required: ["id", "email", "role"],
@@ -295,7 +250,6 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
           }
         },
         UserEnvelope: { type: "object", properties: { user: { $ref: "#/components/schemas/User" } } },
-        OkEnvelope: { type: "object", properties: { ok: { type: "boolean" } } },
         Route: {
           type: "object",
           properties: {

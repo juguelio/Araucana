@@ -8,5 +8,5 @@ type EditSecretaryPageProps = {
 
 export default async function EditSecretaryPage({ params }: EditSecretaryPageProps) {
   const { id } = await params;
-  return <EditManagedUserPage role="SECRETARY" id={id} />;
+  return <EditManagedUserPage id={id} />;
 }
