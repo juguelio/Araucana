@@ -57,6 +57,10 @@ export function getGoogleCallbackUrl(request?: Request) {
   return `${baseUrl}/api/v1/auth/google/callback`;
 }
 
+export function getGooglePublicContactEmail() {
+  return process.env.GOOGLE_SUPPORT_EMAIL ?? "info@araucana.com.ar";
+}
+
 function createGoogleStrategy(callbackURL: string, stateStore = createGoogleStateStore()) {
   const clientID = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
