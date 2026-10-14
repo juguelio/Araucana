@@ -13,13 +13,11 @@ type AdminShellProps = {
 };
 
 const links: Array<{ href: string; label: string; roles: AppRole[] }> = [
-  { href: "/admin", label: "Panel", roles: ["ADMIN"] },
+  { href: "/admin", label: "CRM", roles: ["ADMIN"] },
   { href: "/admin/rutas", label: "Rutas", roles: ["ADMIN"] },
   { href: "/admin/naves", label: "Naves", roles: ["ADMIN"] },
   { href: "/admin/chapelco", label: "Chapelco", roles: ["ADMIN", "SECRETARY"] },
-  { href: "/admin/usuarios", label: "Usuarios", roles: ["ADMIN"] },
-  { href: "/admin/secretarias", label: "Secretarias", roles: ["ADMIN"] },
-  { href: "/admin/choferes", label: "Choferes", roles: ["ADMIN"] },
+  { href: "/admin/usuarios", label: "Usuarios y roles", roles: ["ADMIN"] },
   { href: "/admin/reservas", label: "Reservas", roles: ["ADMIN", "SECRETARY"] },
   { href: "/admin/contabilidad", label: "Contabilidad", roles: ["ADMIN"] },
   { href: "/admin/reportes", label: "Reportes", roles: ["ADMIN"] },
@@ -36,7 +34,7 @@ export function AdminShell({ children, title, eyebrow = "Operacion", action, not
           <BrandMark color="#1F5B4F" size={36} />
           <div>
             <span className="brand-name">Araucana</span>
-            <span className="brand-kicker">Admin</span>
+            <span className="brand-kicker">CRM</span>
           </div>
         </div>
         <nav aria-label="Administracion">

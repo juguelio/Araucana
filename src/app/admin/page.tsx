@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { listAdminReservations, listAdminSchedules, listPublicRoutes } from "@/lib/booking/repository";
@@ -20,10 +19,10 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   ]);
 
   return (
-    <AdminShell title="Panel de turismo y transporte" action={<LogoutButton />} notice={params?.notice}>
+    <AdminShell title="CRM Araucana" eyebrow="Gestión comercial y operativa" action={<LogoutButton />} notice={params?.notice}>
       <div className="plain-card" style={{ marginBottom: 24 }}>
         <p className="eyebrow">Sesion activa</p>
-        <p className="lead">Ingresaste como {user.email}. Este panel ya queda orientado a rutas, salidas y reservas.</p>
+        <p className="lead">Ingresaste como {user.email}. Gestioná usuarios y sus roles junto con rutas, salidas y reservas desde un solo lugar.</p>
       </div>
 
       <section className="admin-grid">
@@ -39,17 +38,6 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <span className="muted">Reservas activas</span>
           <strong>{reservations.length}</strong>
         </div>
-      </section>
-
-      <section className="admin-grid">
-        <Link className="admin-card admin-link-card" href="/admin/secretarias">
-          <span className="muted">Usuarios de reservas</span>
-          <strong>Secretarias</strong>
-        </Link>
-        <Link className="admin-card admin-link-card" href="/admin/choferes">
-          <span className="muted">Usuarios de app chofer</span>
-          <strong>Choferes</strong>
-        </Link>
       </section>
     </AdminShell>
   );

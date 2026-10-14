@@ -23,7 +23,7 @@ export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUser
   const activeCount = users.filter((user) => user.isActive).length;
 
   return (
-    <AdminShell title={role ? getManagedUserRoleName(role) : "Usuarios"} notice={notice}>
+    <AdminShell title={role ? getManagedUserRoleName(role) : "CRM · Usuarios y roles"} notice={notice}>
       <section className="admin-grid">
         <div className="admin-card"><span className="muted">Pendientes</span><strong>{pendingCount}</strong></div>
         <div className="admin-card"><span className="muted">Activos</span><strong>{activeCount}</strong></div>
@@ -38,7 +38,7 @@ export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUser
         <div className="form-actions"><button className="button" type="submit">Buscar</button></div>
       </form>
 
-      <p className="muted">Los registros con email y contraseña quedan pendientes. Revisá las cuentas y aprobá el acceso asignando el rol correspondiente.</p>
+      <p className="muted">Gestioná desde acá todas las cuentas, sus roles y permisos. Las cuentas pendientes necesitan aprobación antes de acceder.</p>
       <table className="data-table">
         <thead><tr><th>Nombre</th><th>Email</th><th>Rol</th><th>Sueldo</th><th>Alta</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody>
