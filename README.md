@@ -33,7 +33,7 @@ Configurar `DATABASE_URL`, `AUTH_JWT_SECRET` (secreto aleatorio de al menos 32 b
 ```bash
 npm install
 npx prisma generate
-npm run dev -- -p 3200
+npm run dev
 ```
 
 El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores. No ejecutarlo contra una base con datos reales. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
@@ -48,4 +48,4 @@ El servidor valida tamaño, MIME y firma inicial del archivo. Esta comprobación
 
 ## E2E con base aislada
 
-`npm run test:e2e` ya no ejecuta migraciones ni seed. Requiere `E2E_DATABASE_URL` de un branch de prueba distinto de `DATABASE_URL` y `E2E_ISOLATED_DATABASE=1`. Preparar explícitamente esquema y fixtures en esa base aislada, incluyendo la ruta Villa Traful con una salida futura. No reutiliza el servidor de desarrollo existente. El puerto local predeterminado es 3200 y debe estar libre; 3000 está excluido. No usar una base de clientes ni un servidor remoto.
+`npm run test:e2e` ya no ejecuta migraciones ni seed. Requiere `E2E_DATABASE_URL` de un branch de prueba distinto de `DATABASE_URL` y `E2E_ISOLATED_DATABASE=1`. Preparar explícitamente esquema y fixtures en esa base aislada, incluyendo la ruta Villa Traful con una salida futura. No reutiliza el servidor de desarrollo existente. El servidor de prueba se levanta en el puerto de `PLAYWRIGHT_BASE_URL` (por defecto `http://localhost:3000`), que tiene que estar libre, y siempre recibe `E2E_DATABASE_URL` como `DATABASE_URL`. No usar una base de clientes ni un servidor remoto.

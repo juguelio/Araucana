@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
-if (existsSync(".env")) process.loadEnvFile(".env");
+// Same files and precedence as `next dev`, so the identity check sees the database the app would use.
+for (const file of [".env.development.local", ".env.local", ".env.development", ".env"]) {
+  if (existsSync(file)) process.loadEnvFile(file);
+}
 const isolated = process.env.E2E_DATABASE_URL;
 if (!isolated || process.env.E2E_ISOLATED_DATABASE !== "1") {
   console.error("E2E bloqueados: configurar E2E_DATABASE_URL con un branch aislado y E2E_ISOLATED_DATABASE=1. No se ejecutan migraciones ni seed automáticamente.");
