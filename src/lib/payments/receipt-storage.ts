@@ -40,7 +40,7 @@ export async function storeManualPaymentReceipt(reservationCode: string, file: F
   const blob = await put(pathname, file, {
     access: "private",
     contentType: file.type,
-    addRandomSuffix: false
+    addRandomSuffix: true
   });
 
   return {

@@ -127,6 +127,7 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
         }
       },
       "/api/v1/reservations/{code}/receipt": {
+        description: "Requiere enlace privado o sesión del personal para códigos anteriores. Sólo admite pagos manuales pendientes; máximo 10 MiB, MIME y firma del archivo verificados.",
         post: {
           summary: "Sube comprobante de pago manual desde mobile.",
           parameters: [{ name: "code", in: "path", required: true, schema: { type: "string" } }],

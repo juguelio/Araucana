@@ -668,6 +668,10 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
         }
 
+        if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+          throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
+        }
+
         await tx.payment.update({
           where: { reservationId: reservation.id },
           data: {
@@ -688,7 +692,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
         }
 
         return detail;
-      });
+      }, { isolationLevel: "Serializable" });
     },
 
     async approveManualPayment(code: string) {

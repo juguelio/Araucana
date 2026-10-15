@@ -493,6 +493,16 @@ describe("booking repository", () => {
     expect(spy.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
   });
 
+  it("does not replace receipts of approved payments or confirmed reservations", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation({ status: "CONFIRMED" });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "APPROVED", amountCents: 100, currency: "ARS", externalRef: null });
+    await expect(repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "x.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(client.payments[0].status).toBe("APPROVED");
+    expect(client.payments[0].receiptBlobPathname).toBeUndefined();
+  });
+
   it("lists only active public routes", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);

@@ -1,5 +1,6 @@
 import { requireReservationAccess } from "@/lib/booking/access";
 import { AuthorizationError } from "@/lib/auth/service";
+import { getManualBankDetails } from "@/lib/payments/manual-bank-details";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getReservationByCode } from "@/lib/booking/repository";
@@ -181,6 +182,8 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
         {reservation.payment?.provider === "MANUAL" && reservation.payment.status !== "APPROVED" ? (
           <ManualPaymentPanel
             reservationCode={reservation.code}
+            bankDetails={getManualBankDetails()}
+            receiptUploadEnabled={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
             existingReceipt={{
               fileName: reservation.payment.receiptFileName ?? null,
               uploadedAt: reservation.payment.receiptUploadedAt ?? null
