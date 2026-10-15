@@ -7,7 +7,7 @@ vi.mock("@/lib/booking/repository", () => ({
   BookingError: class extends Error { constructor(public code: string, message: string) { super(message); } }
 }));
 vi.mock("./receipt-storage", () => ({ storeManualPaymentReceipt: mocks.store }));
-import { uploadReservationReceipt } from "./receipt-upload";
+import { assertReceiptUploadAllowed, uploadReservationReceipt } from "./receipt-upload";
 
 const receipt = () => new File(["%PDF-1.7"], "proof.pdf", { type: "application/pdf" });
 
@@ -18,7 +18,7 @@ describe("receipt storage lifecycle", () => {
     mocks.access.mockResolvedValue(undefined);
     mocks.get.mockResolvedValue({ status: "PENDING_PAYMENT", payment: { provider: "MANUAL", status: "PENDING", receiptBlobPathname: "old" } });
     mocks.store.mockResolvedValue({ blobPathname: "new" });
-    mocks.attach.mockResolvedValue({ code: "test" });
+    mocks.attach.mockResolvedValue({ reservation: { code: "test" }, replacedBlobPathname: "old" });
     mocks.del.mockResolvedValue(undefined);
     vi.stubEnv("BLOB_READ_WRITE_TOKEN", "local-test-placeholder");
   });
@@ -44,6 +44,19 @@ describe("receipt storage lifecycle", () => {
     mocks.attach.mockRejectedValue(new Error("serialization conflict"));
     await expect(uploadReservationReceipt("test", receipt())).rejects.toThrow("serialization conflict");
     expect(mocks.del).toHaveBeenCalledExactlyOnceWith("new");
+  });
+  it("checks access, state and storage without touching the file (runs before the body is read)", async () => {
+    mocks.get.mockResolvedValue({ status: "CONFIRMED", payment: { provider: "MANUAL", status: "APPROVED" } });
+    await expect(assertReceiptUploadAllowed("test")).rejects.toMatchObject({ status: 409 });
+    mocks.get.mockResolvedValue({ status: "PENDING_PAYMENT", payment: { provider: "MANUAL", status: "PENDING" } });
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");
+    await expect(assertReceiptUploadAllowed("test")).rejects.toMatchObject({ status: 503 });
+    expect(mocks.store).not.toHaveBeenCalled();
+  });
+  it("deletes the receipt replaced inside the transaction, not the one read before storing", async () => {
+    mocks.attach.mockResolvedValue({ reservation: { code: "test" }, replacedBlobPathname: "uploaded-meanwhile" });
+    await expect(uploadReservationReceipt("test", receipt())).resolves.toEqual({ code: "test" });
+    expect(mocks.del).toHaveBeenCalledExactlyOnceWith("uploaded-meanwhile");
   });
   it("removes the old blob only after association succeeds", async () => {
     await expect(uploadReservationReceipt("test", receipt())).resolves.toEqual({ code: "test" });

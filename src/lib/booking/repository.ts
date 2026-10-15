@@ -653,45 +653,57 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     ) {
       const normalizedCode = code.toUpperCase();
 
-      return client.$transaction(async (tx) => {
-        const reservation = await tx.reservation.findUnique({
-          where: { code: normalizedCode },
-          include: reservationInclude()
-        });
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          return await client.$transaction(async (tx) => {
+            const reservation = await tx.reservation.findUnique({
+              where: { code: normalizedCode },
+              include: reservationInclude()
+            });
 
-        if (!reservation) {
-          throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found");
-        }
+            if (!reservation) {
+              throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found");
+            }
 
-        if (!reservation.payment) {
-          throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
-        }
+            if (!reservation.payment) {
+              throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
+            }
 
-        if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
-          throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
-        }
+            if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+              throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
+            }
 
-        await tx.payment.update({
-          where: { reservationId: reservation.id },
-          data: {
-            status: "PENDING",
-            receiptBlobUrl: receipt.blobUrl,
-            receiptBlobPathname: receipt.blobPathname,
-            receiptFileName: receipt.fileName,
-            receiptContentType: receipt.contentType,
-            receiptSize: receipt.size,
-            receiptUploadedAt: receipt.uploadedAt
+            const replacedBlobPathname = reservation.payment.receiptBlobPathname ?? null;
+            await tx.payment.update({
+              where: { reservationId: reservation.id },
+              data: {
+                status: "PENDING",
+                receiptBlobUrl: receipt.blobUrl,
+                receiptBlobPathname: receipt.blobPathname,
+                receiptFileName: receipt.fileName,
+                receiptContentType: receipt.contentType,
+                receiptSize: receipt.size,
+                receiptUploadedAt: receipt.uploadedAt
+              }
+            });
+
+            const detail = await getReservationByCodeWithClient(tx, normalizedCode);
+
+            if (!detail) {
+              throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found after receipt upload");
+            }
+
+            return { reservation: detail, replacedBlobPathname };
+          }, { isolationLevel: "Serializable" });
+        } catch (error) {
+          // Two uploads for the same payment conflict under Serializable: retry, then report it.
+          if (typeof error === "object" && error !== null && "code" in error && error.code === "P2034") {
+            if (attempt < MAX_RESERVATION_CODE_ATTEMPTS) continue;
+            throw new BookingError("BOOKING_BUSY", "Recibimos otro comprobante para esta reserva al mismo tiempo. Intentalo nuevamente.");
           }
-        });
-
-        const detail = await getReservationByCodeWithClient(tx, normalizedCode);
-
-        if (!detail) {
-          throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found after receipt upload");
+          throw error;
         }
-
-        return detail;
-      }, { isolationLevel: "Serializable" });
+      }
     },
 
     async approveManualPayment(code: string) {

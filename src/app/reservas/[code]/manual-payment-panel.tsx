@@ -87,22 +87,22 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
           <dt>Banco</dt>
           <dd>{manualBankDetails.bank}</dd>
         </div>
-        <div>
+        {manualBankDetails.accountType ? <div>
           <dt>Cuenta</dt>
           <dd>{manualBankDetails.accountType}</dd>
-        </div>
-        <div>
+        </div> : null}
+        {manualBankDetails.cbu ? <div>
           <dt>CBU</dt>
           <dd>{manualBankDetails.cbu}</dd>
-        </div>
-        <div>
+        </div> : null}
+        {manualBankDetails.alias ? <div>
           <dt>Alias</dt>
           <dd>{manualBankDetails.alias}</dd>
-        </div>
-        <div>
+        </div> : null}
+        {manualBankDetails.cuit ? <div>
           <dt>CUIT</dt>
           <dd>{manualBankDetails.cuit}</dd>
-        </div>
+        </div> : null}
       </dl> : <a href="/soporte">Coordinar el pago</a>}
 
       {existingReceipt?.fileName ? (

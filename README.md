@@ -44,7 +44,7 @@ Las reservas nuevas usan enlaces privados con 128 bits aleatorios: quien recibe 
 
 Configurar en el entorno del servidor los datos bancarios reales: `MANUAL_PAYMENT_HOLDER`, `MANUAL_PAYMENT_BANK`, `MANUAL_PAYMENT_CBU` (22 dígitos) o `MANUAL_PAYMENT_ALIAS`, y opcionalmente `MANUAL_PAYMENT_ACCOUNT_TYPE` y `MANUAL_PAYMENT_CUIT`. Sin configuración no se ofrece una cuenta ficticia. Para subir comprobantes hace falta `BLOB_READ_WRITE_TOKEN` de un almacén privado. No guardar secretos en Git.
 
-El servidor valida tamaño, MIME y firma inicial del archivo. Esta comprobación no equivale a análisis antivirus ni a validación completa del documento. Se comprueba reserva/estado antes de almacenar; se intenta eliminar el blob nuevo si falla la asociación y el anterior tras reemplazarlo. Un fallo externo de limpieza requiere revisión operativa de blobs huérfanos.
+El servidor valida tamaño, MIME y firma inicial del archivo. Esta comprobación no equivale a análisis antivirus ni a validación completa del documento. La API comprueba acceso, estado de la reserva y almacenamiento antes de leer el archivo, y vuelve a comprobarlos antes de almacenar; se intenta eliminar el blob nuevo si falla la asociación y el anterior tras reemplazarlo. Un fallo externo de limpieza requiere revisión operativa de blobs huérfanos.
 
 ## E2E con base aislada
 

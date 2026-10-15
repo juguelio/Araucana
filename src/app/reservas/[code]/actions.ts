@@ -50,7 +50,7 @@ export async function uploadManualPaymentReceiptAction(
       message: "Comprobante recibido. El equipo de Araucana va a validar el pago."
     };
   } catch (error) {
-    if (error instanceof ApiError || error instanceof AuthorizationError || (error instanceof BookingError && error.code === "PAYMENT_LOCKED")) {
+    if (error instanceof ApiError || error instanceof AuthorizationError || (error instanceof BookingError && (error.code === "PAYMENT_LOCKED" || error.code === "BOOKING_BUSY"))) {
       return { ok: false, message: error.message };
     }
     if (error instanceof BookingError && error.code === "RESERVATION_NOT_FOUND") {
