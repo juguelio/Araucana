@@ -2009,8 +2009,11 @@ body { background: var(--bg); }
 @media (max-width:760px) { .compact-door-section { min-height:0; padding-top:52px; padding-bottom:52px; }.door-visual { justify-items:center; margin-top:42px; }.door-visual img { width:min(100%,380px); } }
 .brand-logo,.footer-logo { filter:none; }.story-mark { width:fit-content; padding:18px; border-radius:18px; background:var(--primary); }.story-mark img { display:block; mix-blend-mode:normal; }
 
-/* Home redesign */
-.site-header { position:absolute; top:0; right:0; left:0; background:transparent; border-bottom-color:rgba(251,246,235,.12); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
+/* Home redesign — el header transparente va SOLO en la home, donde el hero ocupa la pantalla
+   completa y el header se apoya encima. Sin acotar, esta regla sacaba el header del flujo en
+   TODAS las rutas: en el back office (/admin, /chofer, /admin/*) el header público se dibujaba
+   encima de la marca "Araucana / PANEL" y del título de cada pantalla (5 elementos tapados). */
+body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; background:transparent; border-bottom-color:rgba(251,246,235,.12); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); }
 .site-nav { min-height:78px; }
 .nav-links { gap:16px; font-size:14px; letter-spacing:.02em; }
 .new-hero { min-height:100vh; display:grid; align-items:end; position:relative; overflow:hidden; color:var(--surface); background:transparent; }
