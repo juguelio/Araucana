@@ -54,6 +54,7 @@ type ScheduleRecord = {
   route: RouteRecord;
   vehicle: {
     id: string;
+    isActive?: boolean;
     seats: SeatRecord[];
   };
   reservations?: Array<{
@@ -159,7 +160,7 @@ type BookingTransactionClient = {
 };
 
 export type BookingClient = BookingTransactionClient & {
-  $transaction<T>(callback: (client: BookingTransactionClient) => Promise<T>): Promise<T>;
+  $transaction<T>(callback: (client: BookingTransactionClient) => Promise<T>, options?: { isolationLevel: "Serializable" }): Promise<T>;
 };
 
 type BookingRepositoryDeps = {
@@ -434,7 +435,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
     async listSchedulesForRoute(routeId: string) {
       const schedules = await client.schedule.findMany({
-        where: { routeId, status: { in: ["OPEN", "DOCUMENTATION"] } },
+        where: { routeId, status: { in: ["OPEN", "DOCUMENTATION"] }, departureAt: { gt: new Date() }, route: { isActive: true }, vehicle: { isActive: true } },
         include: scheduleInclude(),
         orderBy: { departureAt: "asc" }
       });
@@ -485,7 +486,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
             }
 
-            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status)) {
+            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || schedule.vehicle.isActive === false) {
               throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
             }
 
@@ -578,8 +579,12 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             }
 
             return detail;
-          });
+          }, { isolationLevel: "Serializable" });
         } catch (error) {
+          if (typeof error === "object" && error !== null && "code" in error && error.code === "P2034") {
+            if (attempt < MAX_RESERVATION_CODE_ATTEMPTS) continue;
+            throw new BookingError("BOOKING_BUSY", "La salida está recibiendo otras reservas. Intentalo nuevamente.");
+          }
           if (isSeatUniqueConstraintError(error)) {
             throw new BookingError("SEAT_OCCUPIED", `Seat ${parsed.seatNumber} is already occupied`);
           }

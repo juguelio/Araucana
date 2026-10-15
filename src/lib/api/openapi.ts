@@ -119,6 +119,7 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
         }
       },
       "/api/v1/reservations/{code}": {
+        description: "El código nuevo es un enlace privado de 128 bits. Los códigos cortos anteriores requieren una sesión ADMIN o SECRETARY activa.",
         get: {
           summary: "Consulta una reserva por codigo.",
           parameters: [{ name: "code", in: "path", required: true, schema: { type: "string" } }],

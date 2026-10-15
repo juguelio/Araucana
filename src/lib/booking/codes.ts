@@ -1,14 +1,14 @@
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+import { randomBytes } from "node:crypto";
 
-export function createReservationCode(now = new Date(), random = Math.random) {
+// Guest confirmation links are bearer capabilities: 128 bits, never short lookup codes.
+export function createReservationCode(now = new Date()) {
   const year = String(now.getFullYear()).slice(-2);
   const month = String(now.getMonth() + 1).padStart(2, "0");
-  const suffix = Array.from({ length: 4 }, () => {
-    const index = Math.floor(random() * CODE_ALPHABET.length);
-    return CODE_ALPHABET[index] ?? "A";
-  }).join("");
+  return `ARC-${year}${month}-${randomBytes(16).toString("hex").toUpperCase()}`;
+}
 
-  return `ARC-${year}${month}-${suffix}`;
+export function isPrivateReservationCode(code: string) {
+  return /^ARC-\d{4}-[A-F0-9]{32}$/.test(code);
 }
 
 export function createTicketCode(reservationCode: string) {

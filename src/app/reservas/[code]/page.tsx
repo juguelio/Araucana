@@ -1,7 +1,11 @@
+import { requireReservationAccess } from "@/lib/booking/access";
+import { AuthorizationError } from "@/lib/auth/service";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { ManualPaymentPanel } from "./manual-payment-panel";
+
+export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 
 export const dynamic = "force-dynamic";
 
@@ -54,18 +58,24 @@ export function statusHeading(status?: string | null) {
 export function statusCopy(status?: string | null) {
   switch (status) {
     case "CONFIRMED":
-      return "Tu reserva esta confirmada. Conserva este codigo para presentarlo al equipo de Araucana.";
+      return "Tu reserva esta confirmada. Conserva este enlace privado para presentarlo al equipo de Araucana.";
     case "PENDING_PAYMENT":
-      return "Recibimos tu reserva y el pago queda pendiente de confirmacion manual; conserva este codigo para coordinar el cierre con el equipo de Araucana.";
+      return "Recibimos tu reserva y el pago queda pendiente de confirmacion manual; conserva este enlace privado para coordinar el cierre con el equipo de Araucana.";
     case "CANCELLED":
       return "Esta reserva fue cancelada. Si necesitas revisar el caso, contacta al equipo de Araucana con este codigo.";
     default:
-      return "Recibimos tu reserva. Conserva este codigo para consultar el estado con el equipo de Araucana.";
+      return "Recibimos tu reserva. Conserva este enlace privado para consultar el estado con el equipo de Araucana.";
   }
 }
 
 export default async function ReservationConfirmationPage({ params }: ReservationConfirmationPageProps) {
   const { code } = await params;
+  try {
+    await requireReservationAccess(code.toUpperCase());
+  } catch (error) {
+    if (!(error instanceof AuthorizationError)) throw error;
+    return <main className="page-shell section"><h1>Reserva privada</h1><p>Para consultar una reserva anterior, contactá al equipo de Araucana con tu código.</p><a href="/soporte">Contactar al equipo</a></main>;
+  }
   const reservation = await getReservationByCode(code.toUpperCase());
 
   if (!reservation) {

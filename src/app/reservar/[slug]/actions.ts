@@ -25,6 +25,7 @@ const bookingMessages: Record<string, string> = {
   SEAT_NOT_FOUND: "El asiento seleccionado no existe para esta salida.",
   SCHEDULE_CLOSED: "La salida seleccionada ya no acepta reservas.",
   CAPACITY_FULL: "No hay suficientes asientos disponibles para esa cantidad.",
+  BOOKING_BUSY: "La salida está recibiendo otras reservas. Intentalo nuevamente.",
   CODE_COLLISION: "No pudimos generar el codigo de reserva. Intentalo nuevamente."
 };
 

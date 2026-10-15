@@ -226,7 +226,7 @@ export async function listDriverUpcomingSchedules(options: {
       },
       stops: normalizeRouteStops(schedule.route.stops),
       totalSeats,
-      availableSeats: Math.max(totalSeats - passengers.length, 0),
+      availableSeats: Math.max(totalSeats - passengers.reduce((total, passenger) => total + passenger.passengerCount, 0), 0),
       reservationCount: passengers.length,
       passengerCount: passengers.reduce((total, passenger) => total + passenger.passengerCount, 0),
       passengers
