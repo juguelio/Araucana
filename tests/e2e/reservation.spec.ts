@@ -52,7 +52,7 @@ test.describe("Reserva web", () => {
     await page.getByRole("button", { name: "Confirmar reserva" }).click();
 
     await expect(page).toHaveURL(/\/reservas\/ARC-/);
-    await expect(page.getByText("Reserva confirmada")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reserva confirmada" })).toBeVisible();
     await expect(page.getByText("1 lugar", { exact: true }).first()).toBeVisible();
   });
 });
