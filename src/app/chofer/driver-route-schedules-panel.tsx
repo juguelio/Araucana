@@ -200,7 +200,7 @@ export function DriverRouteSchedulesPanel({ routes, schedules }: DriverRouteSche
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Codigo</th>
+                        <th>Ticket</th>
                         <th>Pasajero</th>
                         <th>Telefono</th>
                         <th>Documento</th>

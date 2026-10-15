@@ -557,13 +557,12 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               }
             });
 
-            const ticketCode = createTicketCode(code);
+            const ticketCode = createTicketCode();
             await tx.ticket.create({
               data: {
                 reservationId: reservation.id,
                 code: ticketCode,
                 qrPayload: JSON.stringify({
-                  reservationCode: code,
                   ticketCode,
                   scheduleId: schedule.id,
                   seatNumber: seat?.number ?? null,

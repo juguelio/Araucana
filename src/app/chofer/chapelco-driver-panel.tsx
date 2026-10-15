@@ -19,7 +19,7 @@ type DriverRun = {
     pickupAddress: string;
     status: string;
     reservation: {
-      code: string;
+      ticket: { code: string } | null;
       passenger: {
         firstName: string;
         lastName: string;

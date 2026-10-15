@@ -542,12 +542,15 @@ describe("booking repository", () => {
         amountCents: 1890000
       },
       ticket: {
-        code: "TKT-ARC-2611-TEST"
+        code: expect.stringMatching(/^TKT-\d{4}-[A-HJ-NP-Z2-9]{8}$/)
       }
     });
     expect(client.passengers).toHaveLength(1);
     expect(client.payments).toHaveLength(1);
-    expect(client.tickets[0]?.qrPayload).toContain("ARC-2611-TEST");
+    // The reservation code is the private link: it must not leak through the ticket or its QR.
+    expect(reservation.ticket?.code).not.toContain("ARC-2611-TEST");
+    expect(client.tickets[0]?.qrPayload).not.toContain("ARC-2611-TEST");
+    expect(JSON.parse(client.tickets[0]?.qrPayload ?? "{}")).not.toHaveProperty("reservationCode");
   });
 
   it("rejects a second reservation for the same schedule and seat", async () => {

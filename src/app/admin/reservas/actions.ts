@@ -44,7 +44,9 @@ export async function createAdminReservationAction(formData: FormData) {
   } catch (error) {
     const message = error instanceof BookingError && error.code === "CAPACITY_FULL"
       ? "No hay suficientes asientos disponibles para esa salida."
-      : "No pudimos crear la reserva. Intentalo nuevamente.";
+      : error instanceof BookingError && error.code === "BOOKING_BUSY"
+        ? "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente."
+        : "No pudimos crear la reserva. Intentalo nuevamente.";
     redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(message)}`);
   }
 

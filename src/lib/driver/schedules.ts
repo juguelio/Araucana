@@ -173,7 +173,7 @@ export async function listDriverUpcomingSchedules(options: {
         orderBy: [{ seatNumber: "asc" }, { createdAt: "asc" }],
         select: {
           id: true,
-          code: true,
+          ticket: { select: { code: true } },
           seatNumber: true,
           passengerCount: true,
           status: true,
@@ -200,7 +200,8 @@ export async function listDriverUpcomingSchedules(options: {
     const route = mapDriverRouteOption(schedule.route);
     const passengers = schedule.reservations.map((reservation) => ({
       reservationId: reservation.id,
-      code: reservation.code,
+      // Ticket code, never the reservation code: the latter is the passenger's private link.
+      code: reservation.ticket?.code ?? "Sin ticket",
       passengerName: passengerName(reservation.passenger),
       phone: reservation.passenger.phone,
       documentLabel: documentLabel(reservation.passenger),
