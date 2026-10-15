@@ -47,7 +47,7 @@ test.describe("Reserva web", () => {
     await page.getByLabel("Codigo de pais").selectOption("+54");
     await page.getByLabel("Telefono").fill("9 294 400 0000");
     await page.getByLabel("Tipo de documento").selectOption("DNI");
-    await page.getByLabel("Documento").fill("30111222");
+    await page.getByLabel("Documento", { exact: true }).fill("30111222");
 
     await page.getByRole("button", { name: "Confirmar reserva" }).click();
 

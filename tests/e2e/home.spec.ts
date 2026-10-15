@@ -17,7 +17,8 @@ test.describe("Home pública", () => {
     const menu = page.getByRole("button", { name: "Abrir menú" });
     await expect(menu).toBeVisible();
     await menu.click();
-    await expect(page.getByRole("navigation", { name: "Navegación mobile" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Traslados" })).toHaveAttribute("href", "/rutas");
+    const mobileNav = page.getByRole("navigation", { name: "Navegación mobile" });
+    await expect(mobileNav).toBeVisible();
+    await expect(mobileNav.getByRole("link", { name: "Traslados", exact: true })).toHaveAttribute("href", "/rutas");
   });
 });
