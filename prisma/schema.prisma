@@ -166,6 +166,45 @@ model DriverLocationSample {
   @@index([isStopped])
 }
 
+model Flight {
+  id            String        @id @default(cuid())
+  number        String
+  airline       String?
+  origin        String
+  destination   String        @default("Aeropuerto Chapelco (CPC)")
+  direction     String        @default("ARRIVAL")
+  scheduledAt   DateTime
+  estimatedAt   DateTime?
+  actualAt      DateTime?
+  status        String        @default("SCHEDULED")
+  passengers    Int?
+  source        String        @default("MANUAL")
+  externalId    String?
+  lastCheckedAt DateTime?
+  notes         String?
+  createdBy     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  events        FlightEvent[]
+
+  @@unique([number, scheduledAt, direction])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model FlightEvent {
+  id         String    @id @default(cuid())
+  flightId   String
+  flight     Flight    @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  kind       String
+  fromValue  String?
+  toValue    String?
+  detectedAt DateTime  @default(now())
+  notifiedAt DateTime?
+
+  @@index([flightId, detectedAt])
+}
+
 model Seat {
   id        String   @id @default(cuid())
   vehicleId String
