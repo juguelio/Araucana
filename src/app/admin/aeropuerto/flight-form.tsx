@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { AdminFormAlert, AdminSubmitButton, FieldError } from "../form-ui";
 import { initialAdminFormState, type AdminFormState } from "../form-state";
 
@@ -8,6 +8,7 @@ type FlightFormAction = (state: AdminFormState, formData: FormData) => Promise<A
 
 export function FlightForm({ action }: { action: FlightFormAction }) {
   const [state, formAction] = useActionState(action, initialAdminFormState);
+  const [direccion, setDireccion] = useState("ARRIVAL");
   const errors = state.fieldErrors;
 
   return (
@@ -24,13 +25,13 @@ export function FlightForm({ action }: { action: FlightFormAction }) {
       </label>
       <label>
         Dirección
-        <select name="direction" defaultValue="ARRIVAL">
+        <select name="direction" value={direccion} onChange={(event) => setDireccion(event.target.value)}>
           <option value="ARRIVAL">Arribo (llega a CPC)</option>
           <option value="DEPARTURE">Partida (sale de CPC)</option>
         </select>
       </label>
       <label>
-        Origen / destino
+        {direccion === "ARRIVAL" ? "Origen (de dónde llega)" : "Destino (a dónde va)"}
         <input name="origin" placeholder="Aeroparque (AEP)" required />
         <FieldError id="origin" message={errors.origin} />
       </label>

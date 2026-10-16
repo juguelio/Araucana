@@ -107,6 +107,22 @@ export function fechaDelTablero(hora: string, ahora: Date = new Date()): string 
   return base.toISOString().slice(0, 10);
 }
 
+/**
+ * El tablero etiqueta lo que ve en el aeropuerto ("Pre Embarque", "En horario") sin decir cuántos
+ * minutos de demora hay. Si la estima se corre 30 min o más del horario, el vuelo está demorado
+ * aunque el tablero no lo diga: el estado sale de los horarios.
+ */
+export function estadoSegunHorario(
+  estado: "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "LANDED" | "CANCELLED" | "DIVERTED",
+  scheduledAt: Date,
+  estimatedAt: Date | null,
+  umbralMin = 30
+): typeof estado {
+  if (estado !== "SCHEDULED" || !estimatedAt) return estado;
+  const minutos = Math.round((estimatedAt.getTime() - scheduledAt.getTime()) / 60000);
+  return minutos >= umbralMin ? "DELAYED" : estado;
+}
+
 /** Estado del tablero → estado nuestro. El texto manda; la clase ayuda cuando el texto es ambiguo. */
 export function mapFidsStatus(f: FidsFlight): "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "LANDED" | "CANCELLED" | "DIVERTED" {
   const t = `${f.statusText} ${f.statusClass}`.toLowerCase();

@@ -31,6 +31,18 @@ export type FlightSnapshot = {
   estimatedAt: Date | null;
 };
 
+/** Cómo se muestra un imprevisto en el panel (el código va en inglés en la base). */
+export const FLIGHT_CHANGE_LABELS: Record<string, string> = {
+  DELAY: "Demora",
+  EARLY: "Adelanto",
+  CANCEL: "Cancelación",
+  DIVERSION: "Desvío"
+};
+
+export function changeKindLabel(kind: string): string {
+  return FLIGHT_CHANGE_LABELS[kind] ?? kind;
+}
+
 export type FlightChange = {
   kind: "CANCEL" | "DIVERSION" | "DELAY" | "EARLY";
   fromValue: string | null;
