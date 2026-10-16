@@ -186,6 +186,7 @@ model Flight {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   events        FlightEvent[]
+  reservations  AirportReservationDetails[]
 
   @@unique([number, scheduledAt, direction])
   @@index([scheduledAt])
@@ -203,6 +204,25 @@ model FlightEvent {
   notifiedAt DateTime?
 
   @@index([flightId, detectedAt])
+}
+
+model AirportReservationDetails {
+  id            String      @id @default(cuid())
+  reservationId String      @unique
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  flightNumber  String
+  flightId      String?
+  flight        Flight?     @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  direction     String
+  serviceDate   DateTime
+  pickupName    String?
+  pickupAddress String?
+  pickupNotes   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([serviceDate, direction])
+  @@index([flightNumber])
 }
 
 model Seat {
@@ -267,6 +287,7 @@ model Reservation {
   payment     Payment?
   ticket      Ticket?
   chapelcoDetails ChapelcoReservationDetails?
+  airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
