@@ -15,6 +15,8 @@ type ReservationPageProps = {
   }>;
   searchParams?: Promise<{
     scheduleId?: string;
+    /** Día elegido (YYYY-MM-DD) para el flujo del aeropuerto: permite linkear "vuelos del 20/10". */
+    date?: string;
   }>;
 };
 
@@ -83,7 +85,9 @@ export default async function ReservationPage({ params, searchParams }: Reservat
   }
 
   if (route.bookingMode === "AIRPORT") {
-    const fecha = todayInputValue();
+    // El día puede venir en el link (?date=YYYY-MM-DD); si no, se arranca en hoy.
+    const fechaDelLink = typeof query?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : null;
+    const fecha = fechaDelLink ?? todayInputValue();
     // Todos los vuelos del día: el pasajero elige el suyo y el sistema sabe si es arribo o salida.
     const vuelos = await listAirportFlights({ date: fecha });
 
