@@ -1,96 +1,41 @@
 import { ApiError } from "@/lib/api/responses";
+import {
+  DOCUMENT_KINDS,
+  evaluateDocumentStatus,
+  kindLabel,
+  type DocumentSubject
+} from "@/lib/compliance/catalog";
 import { prisma } from "@/lib/db/prisma";
 
 /**
- * Documentación obligatoria de naves y choferes.
+ * Parte que toca la base: consultas y **bloqueo** de naves/choferes con papeles vencidos.
  *
- * Objetivo del negocio: que una nave o un chofer con papeles vencidos **no pueda** salir.
+ * Objetivo del negocio: que una nave o un chofer con documentación vencida **no pueda salir**.
  * El aviso ayuda; el bloqueo es lo que evita el problema. Los tipos de documento son una lista
  * en código a propósito: la regla cambió en 2025 (se eliminó la LiNTI y las licencias
  * profesionales pasaron a las provincias), así que una tabla fija de "tipos" nace obsoleta.
+ *
+ * El catálogo y las funciones puras viven en `./catalog`, porque los usa también el formulario
+ * del panel (componente cliente) y este archivo importa Prisma, que es sólo del servidor.
  */
 
-export type DocumentSubject = "VEHICLE" | "DRIVER";
-
-export type DocumentKind = {
-  code: string;
-  label: string;
-  /** Si está vencido, el sujeto no puede operar. */
-  critical: boolean;
-};
-
-export const DOCUMENT_KINDS: Record<DocumentSubject, DocumentKind[]> = {
-  VEHICLE: [
-    { code: "VTV", label: "VTV (Verificación Técnica Vehicular)", critical: true },
-    { code: "SEGURO", label: "Seguro / póliza", critical: true },
-    { code: "HABILITACION", label: "Habilitación de transporte", critical: true },
-    { code: "CNRT", label: "Inscripción CNRT / RNPA", critical: false },
-    { code: "MATAfuegos", label: "Revisión de matafuegos y kit", critical: false }
-  ],
-  DRIVER: [
-    { code: "LICENCIA", label: "Licencia de conducir", critical: true },
-    { code: "APTO_MEDICO", label: "Apto psicofísico", critical: true },
-    { code: "CURSO", label: "Curso de capacitación (ANSV)", critical: false },
-    { code: "ART", label: "ART", critical: false },
-    { code: "ANTECEDENTES", label: "Antecedentes penales", critical: false }
-  ]
-};
-
-export function kindLabel(subject: DocumentSubject, code: string): string {
-  return DOCUMENT_KINDS[subject].find((k) => k.code === code)?.label ?? code;
-}
-
-export type DocumentLike = {
-  id: string;
-  kind: string;
-  expiresAt: Date;
-  critical: boolean;
-};
-
-export type DocumentStatus = {
-  expired: DocumentLike[];
-  expiring: DocumentLike[];
-};
-
-/**
- * Parte pura y testeable: separa los documentos vencidos de los que están por vencer.
- * `expiring` = vence dentro de `withinDays` y todavía no venció.
- */
-export function evaluateDocumentStatus(
-  documents: DocumentLike[],
-  now: Date = new Date(),
-  withinDays = 30
-): DocumentStatus {
-  const limite = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000);
-  const expired: DocumentLike[] = [];
-  const expiring: DocumentLike[] = [];
-
-  for (const doc of documents) {
-    if (doc.expiresAt.getTime() < now.getTime()) expired.push(doc);
-    else if (doc.expiresAt.getTime() <= limite.getTime()) expiring.push(doc);
-  }
-
-  expired.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
-  expiring.sort((a, b) => a.expiresAt.getTime() - b.expiresAt.getTime());
-  return { expired, expiring };
-}
+export { DOCUMENT_KINDS, evaluateDocumentStatus, kindLabel };
+export type { DocumentSubject };
 
 /** Documentos críticos vencidos de una nave (los que impiden que salga). */
 export async function expiredCriticalVehicleDocuments(vehicleId: string, now: Date = new Date()) {
-  const docs = await prisma.vehicleDocument.findMany({
+  return prisma.vehicleDocument.findMany({
     where: { vehicleId, critical: true, expiresAt: { lt: now } },
     orderBy: { expiresAt: "asc" }
   });
-  return docs;
 }
 
 /** Documentos críticos vencidos de un chofer (los que impiden que maneje). */
 export async function expiredCriticalDriverDocuments(userId: string, now: Date = new Date()) {
-  const docs = await prisma.driverDocument.findMany({
+  return prisma.driverDocument.findMany({
     where: { userId, critical: true, expiresAt: { lt: now } },
     orderBy: { expiresAt: "asc" }
   });
-  return docs;
 }
 
 function describe(docs: Array<{ kind: string; expiresAt: Date }>, subject: DocumentSubject) {

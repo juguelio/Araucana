@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DOCUMENT_KINDS, evaluateDocumentStatus, kindLabel } from "./documents";
+import { DOCUMENT_KINDS, evaluateDocumentStatus, kindLabel } from "./catalog";
 
 const ahora = new Date("2026-10-16T12:00:00Z");
 const doc = (id: string, kind: string, iso: string, critical = true) => ({
