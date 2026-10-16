@@ -8,6 +8,10 @@
 
 export const AIRLINE_NAMES: Record<string, string> = {
   AR: "Aerolíneas Argentinas",
+  // American Jet (ICAO AJB) vuela Neuquén–Chapelco pero **no** está en AirLabs: sus vuelos se
+  // cargan a mano desde el horario publicado por el aeropuerto, y la proyección los extiende.
+  AJ: "American Jet",
+  AJB: "American Jet",
   WJ: "JetSMART",
   JA: "JetSMART",
   LA: "LATAM",

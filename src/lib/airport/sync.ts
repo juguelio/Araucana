@@ -110,8 +110,10 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
   // Para que el pasajero igual pueda elegir un vuelo de los próximos días, se repite el patrón
   // que ya observamos, marcado ESTIMADO. El día que llega, manda el dato real y la proyección
   // se saltea. Nunca se inventa un vuelo que no hayamos visto antes.
+  // MANUAL entra a propósito: hay aerolíneas que vuelan a CPC y no están en AirLabs
+  // (American Jet), así que su horario cargado a mano también tiene que proyectarse.
   const observados = await prisma.flight.findMany({
-    where: { source: { in: ["API", "ESTIMADO"] } },
+    where: { source: { in: ["API", "ESTIMADO", "MANUAL"] } },
     select: {
       number: true,
       airline: true,
