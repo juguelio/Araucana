@@ -60,9 +60,9 @@ export default async function AirportPage({ searchParams }: PageProps) {
       </section>
 
       <p className="muted">
-        Fecha: <strong>{fecha}</strong>. Los vuelos se van a <strong>postear automáticamente</strong> cuando esté
-        conectada la fuente de datos de vuelos (falta la cuenta/clave). Hasta entonces se cargan a mano y el panel
-        nunca se rompe: si no hay datos en vivo, se sigue operando con el horario cargado.
+        Fecha: <strong>{fecha}</strong>. Los vuelos se traen <strong>automáticamente de AirLabs</strong> (arribos y
+        partidas de CPC) y se refrescan con "Actualizar ahora" o el proceso programado. Si la fuente falla, el panel
+        no se rompe: se sigue operando con el horario ya cargado. Los vuelos sin datos de la API se marcan "(a mano)".
       </p>
 
       <table className="data-table">
@@ -86,7 +86,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 <td>{v.passengers ?? "—"}</td>
                 <td>
                   <div className="inline-actions">
-                    <form action={updateFlightAction}>
+                    <form className="inline-actions" action={updateFlightAction}>
                       <input type="hidden" name="id" value={v.id} />
                       <input type="datetime-local" name="estimatedAt" title="Nueva hora estimada (para demoras/adelantos)" />
                       {(["DELAYED", "CANCELLED", "LANDED"] as const).map((s) => (
