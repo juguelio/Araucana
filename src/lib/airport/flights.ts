@@ -6,12 +6,13 @@
  * al pasajero varado. Por eso la pieza central es `detectFlightChange`.
  */
 
-export type FlightStatus = "SCHEDULED" | "DELAYED" | "CANCELLED" | "DIVERTED" | "LANDED";
+export type FlightStatus = "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "CANCELLED" | "DIVERTED" | "LANDED";
 export type FlightDirection = "ARRIVAL" | "DEPARTURE";
 
 export const FLIGHT_STATUSES: Array<{ code: FlightStatus; label: string }> = [
   { code: "SCHEDULED", label: "Programado" },
   { code: "DELAYED", label: "Demorado" },
+  { code: "EN_ROUTE", label: "En vuelo" },
   { code: "CANCELLED", label: "Cancelado" },
   { code: "DIVERTED", label: "Desviado" },
   { code: "LANDED", label: "Aterrizó" }
@@ -77,6 +78,7 @@ export function statusDetail(flight: FlightSnapshot): string {
   if (flight.status === "CANCELLED") return "Cancelado";
   if (flight.status === "DIVERTED") return "Desviado";
   if (flight.status === "LANDED") return "Aterrizó";
+  if (flight.status === "EN_ROUTE") return shiftMinutes(flight) >= UMBRAL_DEMORA_MIN ? `En vuelo · demora ${shiftMinutes(flight)} min` : "En vuelo";
   const min = shiftMinutes(flight);
   if (min >= UMBRAL_DEMORA_MIN) return `Demorado ${min} min`;
   if (min <= -UMBRAL_ADELANTO_MIN) return `Adelantado ${Math.abs(min)} min`;

@@ -16,7 +16,7 @@ export type NormalizedFlight = {
   direction: FlightDirection;
   scheduledAt: Date;
   estimatedAt: Date | null;
-  status: "SCHEDULED" | "DELAYED" | "CANCELLED" | "DIVERTED" | "LANDED";
+  status: "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "CANCELLED" | "DIVERTED" | "LANDED";
   externalId: string;
 };
 
@@ -28,7 +28,9 @@ export function mapStatus(rawStatus: string | undefined, delayMin: number | null
   const s = (rawStatus || "").toLowerCase();
   if (s === "cancelled" || s === "canceled") return "CANCELLED";
   if (s === "diverted") return "DIVERTED";
-  if (s === "landed") return "LANDED";
+  if (s === "landed" || s === "arrived") return "LANDED";
+  // AirLabs usa "active" para el avión en vuelo: es información útil, no la colapsamos.
+  if (s === "active" || s === "en-route" || s === "enroute") return "EN_ROUTE";
   if (delayMin !== null && delayMin >= UMBRAL_DEMORA_API_MIN) return "DELAYED";
   return "SCHEDULED";
 }

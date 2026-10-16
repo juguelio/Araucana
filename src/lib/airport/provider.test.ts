@@ -24,8 +24,10 @@ describe("conector AirLabs", () => {
     expect(mapStatus("cancelled", null)).toBe("CANCELLED");
     expect(mapStatus("diverted", null)).toBe("DIVERTED");
     expect(mapStatus("landed", 10)).toBe("LANDED");
-    expect(mapStatus("active", null)).toBe("SCHEDULED");
-    expect(mapStatus("active", 45)).toBe("DELAYED");
+    expect(mapStatus("active", null)).toBe("EN_ROUTE");
+    expect(mapStatus("en-route", null)).toBe("EN_ROUTE");
+    // En vuelo manda sobre "demorado": el detalle (y la demora) se muestran igual.
+    expect(mapStatus("active", 45)).toBe("EN_ROUTE");
     expect(mapStatus("scheduled", 10)).toBe("SCHEDULED");
   });
 

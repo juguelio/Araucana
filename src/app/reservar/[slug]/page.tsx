@@ -103,6 +103,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
             </div>
           </div>
           <AirportCheckoutForm
+            initialDirection={route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL"}
             route={{
               slug: route.slug,
               from: route.from,

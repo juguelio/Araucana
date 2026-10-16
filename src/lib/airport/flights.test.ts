@@ -40,6 +40,8 @@ describe("vuelos del aeropuerto", () => {
     expect(statusDetail(vuelo("SCHEDULED", "12:45"))).toBe("Demorado 45 min");
     expect(statusDetail(vuelo("SCHEDULED", "12:10"))).toBe("En horario");
     expect(statusDetail(vuelo("CANCELLED", null))).toBe("Cancelado");
+    expect(statusDetail(vuelo("EN_ROUTE", null))).toBe("En vuelo");
+    expect(statusDetail(vuelo("EN_ROUTE", "13:00"))).toBe("En vuelo · demora 60 min");
   });
 
   it("marca lo que hay que mirar (demora >= 30 o cancelado/desviado)", () => {
