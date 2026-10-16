@@ -32,9 +32,20 @@ Configurar `DATABASE_URL`, `AUTH_JWT_SECRET` (secreto aleatorio de al menos 32 b
 
 ```bash
 npm install
-npm run prisma:migrate
-npm run prisma:seed
+npx prisma generate
 npm run dev
 ```
 
-El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores.
+El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores. No ejecutarlo contra una base con datos reales. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
+
+## Seguridad de reservas y pagos
+
+Las reservas nuevas usan enlaces privados con 128 bits aleatorios: quien recibe el enlace puede consultar la reserva y adjuntar su comprobante pendiente. No compartirlo públicamente. Los códigos cortos heredados sólo se consultan con una sesión activa ADMIN/SECRETARY; el pasajero debe contactar al equipo para recuperar su reserva. No se migran ni regeneran códigos existentes automáticamente.
+
+Configurar en el entorno del servidor los datos bancarios reales: `MANUAL_PAYMENT_HOLDER`, `MANUAL_PAYMENT_BANK`, `MANUAL_PAYMENT_CBU` (22 dígitos) o `MANUAL_PAYMENT_ALIAS`, y opcionalmente `MANUAL_PAYMENT_ACCOUNT_TYPE` y `MANUAL_PAYMENT_CUIT`. Sin configuración no se ofrece una cuenta ficticia. Para subir comprobantes hace falta `BLOB_READ_WRITE_TOKEN` de un almacén privado. No guardar secretos en Git.
+
+El servidor valida tamaño, MIME y firma inicial del archivo. Esta comprobación no equivale a análisis antivirus ni a validación completa del documento. La API comprueba acceso, estado de la reserva y almacenamiento antes de leer el archivo, y vuelve a comprobarlos antes de almacenar; se intenta eliminar el blob nuevo si falla la asociación y el anterior tras reemplazarlo. Un fallo externo de limpieza requiere revisión operativa de blobs huérfanos.
+
+## E2E con base aislada
+
+`npm run test:e2e` ya no ejecuta migraciones ni seed. Requiere `E2E_DATABASE_URL` de un branch de prueba distinto de `DATABASE_URL` y `E2E_ISOLATED_DATABASE=1`. Preparar explícitamente esquema y fixtures en esa base aislada, incluyendo la ruta Villa Traful con una salida futura. No reutiliza el servidor de desarrollo existente. El servidor de prueba se levanta en el puerto de `PLAYWRIGHT_BASE_URL` (por defecto `http://localhost:3000`), que tiene que estar libre, y siempre recibe `E2E_DATABASE_URL` como `DATABASE_URL`. No usar una base de clientes ni un servidor remoto.

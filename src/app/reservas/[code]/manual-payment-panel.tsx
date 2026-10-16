@@ -3,12 +3,14 @@
 import { useActionState, useEffect, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { manualBankDetails } from "@/lib/payments/manual-bank-details";
+import type { ManualBankDetails } from "@/lib/payments/manual-bank-details";
 import { validateReceiptFile } from "@/lib/payments/receipt-validation";
 import { uploadManualPaymentReceiptAction, type UploadReceiptState } from "./actions";
 
 type ManualPaymentPanelProps = {
   reservationCode: string;
+  bankDetails: ManualBankDetails | null;
+  receiptUploadEnabled: boolean;
   existingReceipt?: {
     fileName: string | null;
     uploadedAt: Date | string | null;
@@ -33,7 +35,7 @@ function formatUploadedAt(value: Date | string) {
   }).format(new Date(value));
 }
 
-export function ManualPaymentPanel({ reservationCode, existingReceipt }: ManualPaymentPanelProps) {
+export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetails: manualBankDetails, receiptUploadEnabled }: ManualPaymentPanelProps) {
   const router = useRouter();
   const [clientError, setClientError] = useState("");
   const initialState: UploadReceiptState = {
@@ -72,11 +74,11 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt }: ManualP
         <p className="eyebrow">Pago manual</p>
         <h2 className="route-title">Transferencia bancaria</h2>
         <p className="muted">
-          Realiza la transferencia con estos datos de prueba y subi el comprobante para que un administrador valide la reserva.
+          {manualBankDetails ? "Realizá la transferencia con estos datos y conservá el comprobante para su validación." : "Contactá al equipo de Araucana para coordinar el pago de tu reserva."}
         </p>
       </div>
 
-      <dl className="bank-detail-grid">
+      {manualBankDetails ? <dl className="bank-detail-grid">
         <div>
           <dt>Titular</dt>
           <dd>{manualBankDetails.holder}</dd>
@@ -85,23 +87,23 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt }: ManualP
           <dt>Banco</dt>
           <dd>{manualBankDetails.bank}</dd>
         </div>
-        <div>
+        {manualBankDetails.accountType ? <div>
           <dt>Cuenta</dt>
           <dd>{manualBankDetails.accountType}</dd>
-        </div>
-        <div>
+        </div> : null}
+        {manualBankDetails.cbu ? <div>
           <dt>CBU</dt>
           <dd>{manualBankDetails.cbu}</dd>
-        </div>
-        <div>
+        </div> : null}
+        {manualBankDetails.alias ? <div>
           <dt>Alias</dt>
           <dd>{manualBankDetails.alias}</dd>
-        </div>
-        <div>
+        </div> : null}
+        {manualBankDetails.cuit ? <div>
           <dt>CUIT</dt>
           <dd>{manualBankDetails.cuit}</dd>
-        </div>
-      </dl>
+        </div> : null}
+      </dl> : <a href="/soporte">Coordinar el pago</a>}
 
       {existingReceipt?.fileName ? (
         <p className="success">
@@ -110,7 +112,7 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt }: ManualP
         </p>
       ) : null}
 
-      <form className="receipt-form" action={formAction} onSubmit={handleSubmit}>
+      {receiptUploadEnabled ? <form className="receipt-form" action={formAction} onSubmit={handleSubmit}>
         <input type="hidden" name="code" value={reservationCode} />
         <label>
           Comprobante
@@ -128,7 +130,7 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt }: ManualP
           </p>
         ) : null}
         <SubmitButton />
-      </form>
+      </form> : <p>La carga de comprobantes no está disponible. Contactá al equipo para enviarlo.</p>}
     </section>
   );
 }

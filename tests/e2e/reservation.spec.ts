@@ -29,24 +29,17 @@ async function waitForReactFormHydration(page: Page) {
 }
 
 test.describe("Reserva web", () => {
-  test("permite completar una reserva de asiento para Villa Traful", async ({ page }) => {
+  test("permite completar una reserva de un lugar para Villa Traful", async ({ page }) => {
     await page.goto("/rutas/sma-villa-traful-verano-2026");
     await page.getByRole("link", { name: "Reservar asiento" }).click();
 
     await expect(page).toHaveURL(/\/reservar\/sma-villa-traful-verano-2026$/);
     await waitForReactFormHydration(page);
 
-    await page.getByLabel("Salida").selectOption({ index: 0 });
-
-    const seatGrid = page.getByLabel("Asientos disponibles");
-    const preferredSeat = seatGrid.getByRole("button", { name: "04" });
-    const seatButton = (await preferredSeat.isEnabled())
-      ? preferredSeat
-      : seatGrid.locator("button:not([disabled])").first();
-    const selectedSeat = (await seatButton.textContent())?.trim();
-
-    expect(selectedSeat).toBeTruthy();
-    await seatButton.click();
+    const departure = page.locator("label.schedule-option").first();
+    await expect(departure).toBeVisible();
+    await departure.click();
+    await expect(departure.locator('input[name="scheduleId"]')).toBeChecked();
 
     await page.getByLabel("Nombre").fill("Camila");
     await page.getByLabel("Apellido").fill("Vidal");
@@ -54,12 +47,12 @@ test.describe("Reserva web", () => {
     await page.getByLabel("Codigo de pais").selectOption("+54");
     await page.getByLabel("Telefono").fill("9 294 400 0000");
     await page.getByLabel("Tipo de documento").selectOption("DNI");
-    await page.getByLabel("Documento").fill("30111222");
+    await page.getByLabel("Documento", { exact: true }).fill("30111222");
 
     await page.getByRole("button", { name: "Confirmar reserva" }).click();
 
     await expect(page).toHaveURL(/\/reservas\/ARC-/);
-    await expect(page.getByText("Reserva confirmada")).toBeVisible();
-    await expect(page.getByText(`Asiento ${selectedSeat}`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reserva confirmada" })).toBeVisible();
+    await expect(page.getByText("1 lugar", { exact: true }).first()).toBeVisible();
   });
 });

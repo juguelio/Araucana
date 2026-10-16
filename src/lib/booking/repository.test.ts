@@ -139,8 +139,8 @@ class FakeBookingClient {
       id: "schedule-1",
       routeId: this.route.id,
       vehicleId: this.vehicle.id,
-      departureAt: new Date("2026-11-12T11:30:00.000Z"),
-      arrivalAt: new Date("2026-11-12T16:00:00.000Z"),
+      departureAt: new Date(Date.now() + 86400000),
+      arrivalAt: new Date(Date.now() + 100000000),
       status: "OPEN",
       route: this.route,
       vehicle: this.vehicle
@@ -318,7 +318,7 @@ class FakeBookingClient {
     }
   };
 
-  async $transaction<T>(callback: (client: FakeBookingClient) => Promise<T>) {
+  async $transaction<T>(callback: (client: FakeBookingClient) => Promise<T>, _options?: { isolationLevel: "Serializable" }) {
     this.transactionCallCount += 1;
     this.activeTransactionAborted = false;
 
@@ -470,6 +470,54 @@ function createTestRepository(
 }
 
 describe("booking repository", () => {
+  it("rejects expired schedules and inactive routes before creating any passenger", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    client.scheduleRecord.departureAt = new Date(0);
+    await expect(repository.createWebReservation(input)).rejects.toMatchObject({ code: "SCHEDULE_CLOSED" });
+    client.scheduleRecord.departureAt = new Date(Date.now() + 86400000);
+    client.route.isActive = false;
+    await expect(repository.createWebReservation(input)).rejects.toMatchObject({ code: "SCHEDULE_CLOSED" });
+    expect(client.passengers).toHaveLength(0);
+  });
+
+  it("retries serialization conflicts in a new serializable transaction", async () => {
+    const client = new FakeBookingClient();
+    const transaction = client.$transaction.bind(client);
+    const spy = vi.spyOn(client, "$transaction");
+    spy.mockRejectedValueOnce(Object.assign(new Error("conflict"), { code: "P2034" }));
+    spy.mockImplementation(transaction);
+    const repository = createTestRepository(client);
+    await expect(repository.createWebReservation(input)).resolves.toMatchObject({ status: "PENDING_PAYMENT" });
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
+  });
+
+  it("returns the receipt it replaced and retries serialization conflicts on upload", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation({ status: "PENDING_PAYMENT" });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null, receiptBlobPathname: "previous" } as never);
+    const transaction = client.$transaction.bind(client);
+    const spy = vi.spyOn(client, "$transaction");
+    spy.mockRejectedValueOnce(Object.assign(new Error("conflict"), { code: "P2034" }));
+    spy.mockImplementation(transaction);
+    const result = await repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "x.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() });
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(result.replacedBlobPathname).toBe("previous");
+    expect(client.payments[0].receiptBlobPathname).toBe("new");
+  });
+
+  it("does not replace receipts of approved payments or confirmed reservations", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation({ status: "CONFIRMED" });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "APPROVED", amountCents: 100, currency: "ARS", externalRef: null });
+    await expect(repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "x.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(client.payments[0].status).toBe("APPROVED");
+    expect(client.payments[0].receiptBlobPathname).toBeUndefined();
+  });
+
   it("lists only active public routes", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
@@ -509,12 +557,15 @@ describe("booking repository", () => {
         amountCents: 1890000
       },
       ticket: {
-        code: "TKT-ARC-2611-TEST"
+        code: expect.stringMatching(/^TKT-\d{4}-[A-HJ-NP-Z2-9]{8}$/)
       }
     });
     expect(client.passengers).toHaveLength(1);
     expect(client.payments).toHaveLength(1);
-    expect(client.tickets[0]?.qrPayload).toContain("ARC-2611-TEST");
+    // The reservation code is the private link: it must not leak through the ticket or its QR.
+    expect(reservation.ticket?.code).not.toContain("ARC-2611-TEST");
+    expect(client.tickets[0]?.qrPayload).not.toContain("ARC-2611-TEST");
+    expect(JSON.parse(client.tickets[0]?.qrPayload ?? "{}")).not.toHaveProperty("reservationCode");
   });
 
   it("rejects a second reservation for the same schedule and seat", async () => {

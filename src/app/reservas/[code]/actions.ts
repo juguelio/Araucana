@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { attachManualPaymentReceipt, BookingError } from "@/lib/booking/repository";
-import { storeManualPaymentReceipt, validateReceiptFile } from "@/lib/payments/receipt-storage";
+import { uploadReservationReceipt } from "@/lib/payments/receipt-upload";
+import { ApiError } from "@/lib/api/responses";
+import { AuthorizationError } from "@/lib/auth/service";
+import { BookingError } from "@/lib/booking/repository";
+import { validateReceiptFile } from "@/lib/payments/receipt-storage";
 
 export type UploadReceiptState = {
   ok: boolean;
@@ -39,8 +42,7 @@ export async function uploadManualPaymentReceiptAction(
   }
 
   try {
-    const storedReceipt = await storeManualPaymentReceipt(code, receipt);
-    await attachManualPaymentReceipt(code, storedReceipt);
+    await uploadReservationReceipt(code, receipt);
     revalidatePath(`/reservas/${code}`);
 
     return {
@@ -48,6 +50,9 @@ export async function uploadManualPaymentReceiptAction(
       message: "Comprobante recibido. El equipo de Araucana va a validar el pago."
     };
   } catch (error) {
+    if (error instanceof ApiError || error instanceof AuthorizationError || (error instanceof BookingError && (error.code === "PAYMENT_LOCKED" || error.code === "BOOKING_BUSY"))) {
+      return { ok: false, message: error.message };
+    }
     if (error instanceof BookingError && error.code === "RESERVATION_NOT_FOUND") {
       return {
         ok: false,

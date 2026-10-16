@@ -274,13 +274,12 @@ export async function createChapelcoReservation(input: ChapelcoReservationInput)
       }
     });
 
-    const ticketCode = createTicketCode(code);
+    const ticketCode = createTicketCode();
     await tx.ticket.create({
       data: {
         reservationId: reservation.id,
         code: ticketCode,
         qrPayload: JSON.stringify({
-          reservationCode: code,
           ticketCode,
           routeId: route.id,
           bookingMode: CHAPELCO_BOOKING_MODE,
@@ -587,9 +586,12 @@ export async function getDriverChapelcoManifest(driverId: string, serviceDate: s
       stops: {
         include: {
           reservation: {
+            // The reservation code is the passenger's private link: drivers get the ticket code instead.
+            omit: { code: true },
             include: {
               passenger: true,
-              chapelcoDetails: true
+              chapelcoDetails: true,
+              ticket: { select: { code: true } }
             }
           }
         },

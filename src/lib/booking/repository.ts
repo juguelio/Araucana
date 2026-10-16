@@ -54,6 +54,7 @@ type ScheduleRecord = {
   route: RouteRecord;
   vehicle: {
     id: string;
+    isActive?: boolean;
     seats: SeatRecord[];
   };
   reservations?: Array<{
@@ -159,7 +160,7 @@ type BookingTransactionClient = {
 };
 
 export type BookingClient = BookingTransactionClient & {
-  $transaction<T>(callback: (client: BookingTransactionClient) => Promise<T>): Promise<T>;
+  $transaction<T>(callback: (client: BookingTransactionClient) => Promise<T>, options?: { isolationLevel: "Serializable" }): Promise<T>;
 };
 
 type BookingRepositoryDeps = {
@@ -434,7 +435,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
     async listSchedulesForRoute(routeId: string) {
       const schedules = await client.schedule.findMany({
-        where: { routeId, status: { in: ["OPEN", "DOCUMENTATION"] } },
+        where: { routeId, status: { in: ["OPEN", "DOCUMENTATION"] }, departureAt: { gt: new Date() }, route: { isActive: true }, vehicle: { isActive: true } },
         include: scheduleInclude(),
         orderBy: { departureAt: "asc" }
       });
@@ -485,7 +486,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
             }
 
-            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status)) {
+            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || schedule.vehicle.isActive === false) {
               throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
             }
 
@@ -556,13 +557,12 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               }
             });
 
-            const ticketCode = createTicketCode(code);
+            const ticketCode = createTicketCode();
             await tx.ticket.create({
               data: {
                 reservationId: reservation.id,
                 code: ticketCode,
                 qrPayload: JSON.stringify({
-                  reservationCode: code,
                   ticketCode,
                   scheduleId: schedule.id,
                   seatNumber: seat?.number ?? null,
@@ -578,8 +578,12 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             }
 
             return detail;
-          });
+          }, { isolationLevel: "Serializable" });
         } catch (error) {
+          if (typeof error === "object" && error !== null && "code" in error && error.code === "P2034") {
+            if (attempt < MAX_RESERVATION_CODE_ATTEMPTS) continue;
+            throw new BookingError("BOOKING_BUSY", "La salida está recibiendo otras reservas. Intentalo nuevamente.");
+          }
           if (isSeatUniqueConstraintError(error)) {
             throw new BookingError("SEAT_OCCUPIED", `Seat ${parsed.seatNumber} is already occupied`);
           }
@@ -649,41 +653,57 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     ) {
       const normalizedCode = code.toUpperCase();
 
-      return client.$transaction(async (tx) => {
-        const reservation = await tx.reservation.findUnique({
-          where: { code: normalizedCode },
-          include: reservationInclude()
-        });
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          return await client.$transaction(async (tx) => {
+            const reservation = await tx.reservation.findUnique({
+              where: { code: normalizedCode },
+              include: reservationInclude()
+            });
 
-        if (!reservation) {
-          throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found");
-        }
+            if (!reservation) {
+              throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found");
+            }
 
-        if (!reservation.payment) {
-          throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
-        }
+            if (!reservation.payment) {
+              throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
+            }
 
-        await tx.payment.update({
-          where: { reservationId: reservation.id },
-          data: {
-            status: "PENDING",
-            receiptBlobUrl: receipt.blobUrl,
-            receiptBlobPathname: receipt.blobPathname,
-            receiptFileName: receipt.fileName,
-            receiptContentType: receipt.contentType,
-            receiptSize: receipt.size,
-            receiptUploadedAt: receipt.uploadedAt
+            if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+              throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
+            }
+
+            const replacedBlobPathname = reservation.payment.receiptBlobPathname ?? null;
+            await tx.payment.update({
+              where: { reservationId: reservation.id },
+              data: {
+                status: "PENDING",
+                receiptBlobUrl: receipt.blobUrl,
+                receiptBlobPathname: receipt.blobPathname,
+                receiptFileName: receipt.fileName,
+                receiptContentType: receipt.contentType,
+                receiptSize: receipt.size,
+                receiptUploadedAt: receipt.uploadedAt
+              }
+            });
+
+            const detail = await getReservationByCodeWithClient(tx, normalizedCode);
+
+            if (!detail) {
+              throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found after receipt upload");
+            }
+
+            return { reservation: detail, replacedBlobPathname };
+          }, { isolationLevel: "Serializable" });
+        } catch (error) {
+          // Two uploads for the same payment conflict under Serializable: retry, then report it.
+          if (typeof error === "object" && error !== null && "code" in error && error.code === "P2034") {
+            if (attempt < MAX_RESERVATION_CODE_ATTEMPTS) continue;
+            throw new BookingError("BOOKING_BUSY", "Recibimos otro comprobante para esta reserva al mismo tiempo. Intentalo nuevamente.");
           }
-        });
-
-        const detail = await getReservationByCodeWithClient(tx, normalizedCode);
-
-        if (!detail) {
-          throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found after receipt upload");
+          throw error;
         }
-
-        return detail;
-      });
+      }
     },
 
     async approveManualPayment(code: string) {

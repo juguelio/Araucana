@@ -10,6 +10,7 @@ const bookingErrorResponses: Record<string, { message: string; status: number }>
   SEAT_NOT_FOUND: { message: "Asiento no encontrado", status: 404 },
   SCHEDULE_CLOSED: { message: "El horario no esta disponible para reservas", status: 409 },
   CAPACITY_FULL: { message: "No hay suficientes asientos disponibles", status: 409 },
+  BOOKING_BUSY: { message: "La salida está recibiendo otras reservas. Intentalo nuevamente.", status: 409 },
   CODE_COLLISION: { message: "No pudimos generar la reserva. Intenta nuevamente", status: 503 }
 };
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     const reservation = await createWebReservation(body.data);
     revalidatePath(`/reservar/${reservation.route.slug}`);
 
-    return NextResponse.json({ reservation }, { status: 201 });
+    return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof BookingError) {
       const response = bookingErrorResponses[error.code] ?? { message: error.message, status: 400 };
