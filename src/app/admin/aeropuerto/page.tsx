@@ -1,8 +1,9 @@
 import { AdminShell } from "@/components/admin-shell";
+import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
 import { FLIGHT_STATUSES, needsAttention, statusDetail, statusLabel } from "@/lib/airport/flights";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { createFlightAction, deleteFlightAction, refreshFlightsAction, updateFlightAction } from "./actions";
+import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, updateFlightAction } from "./actions";
 import { FlightForm } from "./flight-form";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string }> };
@@ -29,8 +30,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const vuelos = await prisma.flight.findMany({
     where: { scheduledAt: { gte: desde, lt: hasta } },
     orderBy: { scheduledAt: "asc" },
-    include: { events: { orderBy: { detectedAt: "desc" }, take: 1 } }
+    include: {
+      events: { orderBy: { detectedAt: "desc" }, take: 1 },
+      reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
+      assignments: { include: { vehicle: { include: { seats: true } }, driver: { select: { name: true, email: true } } } }
+    }
   });
+
+  const naves = await prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 
   const imprevistos = vuelos.filter((v) => needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt }));
   const conEvento = await prisma.flightEvent.findMany({
@@ -67,12 +74,15 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
       <table className="data-table">
         <thead>
-          <tr><th>Hora</th><th>Vuelo</th><th>Dirección</th><th>Origen / destino</th><th>Estado</th><th>Pasajeros</th><th>Acciones</th></tr>
+          <tr><th>Hora</th><th>Vuelo</th><th>Dirección</th><th>Origen / destino</th><th>Estado</th><th>Reservas / combis</th><th>Acciones</th></tr>
         </thead>
         <tbody>
           {vuelos.map((v) => {
             const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt };
             const alerta = needsAttention(snapshot);
+            const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
+            const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
+            const faltanCombis = ocupados > capacidad;
             return (
               <tr key={v.id}>
                 <td>{hhmm(v.scheduledAt)}{v.estimatedAt ? ` → ${hhmm(v.estimatedAt)}` : ""}</td>
@@ -83,7 +93,36 @@ export default async function AirportPage({ searchParams }: PageProps) {
                   {alerta ? <span className="status-dot">● {statusDetail(snapshot)}</span> : `${statusLabel(v.status)} · ${statusDetail(snapshot)}`}
                   {v.source !== "API" ? <span className="muted"> (a mano)</span> : null}
                 </td>
-                <td>{v.passengers ?? "—"}</td>
+                <td>
+                  <div>
+                    <strong>{ocupados}</strong> reservas · <strong>{capacidad}</strong> lugares
+                    {faltanCombis ? <span className="status-dot"> ● falta combi</span> : null}
+                  </div>
+                  <div className="muted">
+                    {v.assignments.length === 0
+                      ? "sin combi asignada"
+                      : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
+                    {!faltanCombis && v.assignments.length === 0 && ocupados > 0 ? ` · conviene ${combisSugeridas(ocupados)} combi(s)` : ""}
+                  </div>
+                  <div className="inline-actions">
+                    <form className="inline-actions" action={assignVehicleAction}>
+                      <input type="hidden" name="flightId" value={v.id} />
+                      <select name="vehicleId" defaultValue="">
+                        <option value="">Combi…</option>
+                        {naves.map((n) => (
+                          <option key={n.id} value={n.id}>{n.name}</option>
+                        ))}
+                      </select>
+                      <button className="ghost-button" type="submit">Asignar</button>
+                    </form>
+                    {v.assignments.map((a) => (
+                      <form key={a.id} action={removeAssignmentAction}>
+                        <input type="hidden" name="id" value={a.id} />
+                        <button className="ghost-button" type="submit">Quitar {a.vehicle.name}</button>
+                      </form>
+                    ))}
+                  </div>
+                </td>
                 <td>
                   <div className="inline-actions">
                     <form className="inline-actions" action={updateFlightAction}>

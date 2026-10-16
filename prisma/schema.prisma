@@ -24,6 +24,7 @@ model User {
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
+  airportDuties AirportVehicleAssignment[]
 }
 
 model Session {
@@ -78,6 +79,7 @@ model Vehicle {
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
+  airportAssignments AirportVehicleAssignment[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }
@@ -187,6 +189,7 @@ model Flight {
   updatedAt     DateTime      @updatedAt
   events        FlightEvent[]
   reservations  AirportReservationDetails[]
+  assignments   AirportVehicleAssignment[]
 
   @@unique([number, scheduledAt, direction])
   @@index([scheduledAt])
@@ -223,6 +226,23 @@ model AirportReservationDetails {
 
   @@index([serviceDate, direction])
   @@index([flightNumber])
+}
+
+model AirportVehicleAssignment {
+  id        String   @id @default(cuid())
+  flightId  String
+  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId  String?
+  driver    User?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  notes     String?
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([flightId, vehicleId])
+  @@index([flightId])
 }
 
 model Seat {

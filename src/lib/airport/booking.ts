@@ -11,7 +11,23 @@ import { airportReservationSchema, type AirportReservationInput } from "./valida
  * en cada visita.
  */
 
+/** Capacidad que se asume mientras no hay ninguna combi asignada a ese vuelo. */
 export const CAPACIDAD_POR_VUELO = 24;
+
+/**
+ * Las combis se asignan según la cantidad de reservas y se pueden cambiar hasta último momento,
+ * así que el cupo del vuelo = suma de asientos de las combis asignadas; si no hay ninguna, se
+ * asume una combi de referencia para que las reservas puedan entrar.
+ */
+export function capacidadDeVuelo(combis: Array<{ seats: number }>): number {
+  if (combis.length === 0) return CAPACIDAD_POR_VUELO;
+  return combis.reduce((total, c) => total + c.seats, 0);
+}
+
+/** Cuántas combis conviene tener: una por cada 24 reservas (redondeo hacia arriba). */
+export function combisSugeridas(ocupados: number): number {
+  return Math.max(1, Math.ceil(ocupados / CAPACIDAD_POR_VUELO));
+}
 const MAX_INTENTOS = 3;
 const TZ_OFFSET_MIN = -180;
 
@@ -24,9 +40,11 @@ export type AirportFlightOption = {
   estimatedAt: Date | null;
   status: string;
   occupied: number;
+  capacity: number;
   available: number;
   bookable: boolean;
   reason: string | null;
+  vehicles: Array<{ id: string; name: string; seats: number; driver: string | null }>;
 };
 
 /** Suma de pasajeros vivos de una reserva (las canceladas no ocupan lugar). */
@@ -60,12 +78,16 @@ export async function listAirportFlights(input: { date: string; direction: Fligh
   const vuelos = await prisma.flight.findMany({
     where: { direction: input.direction, scheduledAt: { gte: desde, lt: hasta } },
     orderBy: { scheduledAt: "asc" },
-    include: { reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } } }
+    include: {
+      reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
+      assignments: { include: { vehicle: { include: { seats: true } }, driver: { select: { name: true, email: true } } } }
+    }
   });
 
   return vuelos.map((v) => {
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
-    const disponible = Math.max(CAPACIDAD_POR_VUELO - ocupados, 0);
+    const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
+    const disponible = Math.max(capacidad - ocupados, 0);
     const motivo = motivoNoReservable(v, disponible, ahora);
     return {
       id: v.id,
@@ -76,9 +98,16 @@ export async function listAirportFlights(input: { date: string; direction: Fligh
       estimatedAt: v.estimatedAt,
       status: v.status,
       occupied: ocupados,
+      capacity: capacidad,
       available: disponible,
       bookable: motivo === null,
-      reason: motivo
+      reason: motivo,
+      vehicles: v.assignments.map((a) => ({
+        id: a.id,
+        name: a.vehicle.name,
+        seats: a.vehicle.seats.length,
+        driver: a.driver?.name ?? a.driver?.email ?? null
+      }))
     };
   });
 }
@@ -106,13 +135,17 @@ export async function createAirportReservation(input: AirportReservationInput) {
             scheduledAt: { gte: desde, lt: hasta },
             OR: [{ number: parsed.flightNumber.trim() }, { number: parsed.flightNumber.trim().toUpperCase() }]
           },
-          include: { reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } } }
+          include: {
+            reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
+            assignments: { include: { vehicle: { include: { seats: true } } } }
+          }
         });
         const vuelo = candidatos.find((v) => clave(v.number) === numero);
         if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "Flight not found for that date");
 
         const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
-        const disponible = Math.max(CAPACIDAD_POR_VUELO - ocupados, 0);
+        const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
+        const disponible = Math.max(capacidad - ocupados, 0);
         const motivo = motivoNoReservable(vuelo, disponible);
         if (motivo) {
           throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);

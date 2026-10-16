@@ -92,6 +92,33 @@ export async function updateFlightAction(formData: FormData) {
   notice(cambio ? `Cambio registrado: ${cambio.kind} (${next.status}).` : "Vuelo actualizado.");
 }
 
+/** Asigna una combi a un vuelo. Se puede cambiar hasta último momento: agregar, cambiar o quitar. */
+export async function assignVehicleAction(formData: FormData) {
+  await getCurrentReservationsUserOrRedirect();
+
+  const flightId = value(formData, "flightId");
+  const vehicleId = value(formData, "vehicleId");
+  const driverId = value(formData, "driverId") || null;
+
+  if (!flightId || !vehicleId) notice("Elegí una combi para asignar.");
+
+  await prisma.airportVehicleAssignment.upsert({
+    where: { flightId_vehicleId: { flightId, vehicleId } },
+    update: { driverId },
+    create: { flightId, vehicleId, driverId }
+  });
+
+  revalidatePath("/admin/aeropuerto");
+  notice("Combi asignada al vuelo.");
+}
+
+export async function removeAssignmentAction(formData: FormData) {
+  await getCurrentReservationsUserOrRedirect();
+  await prisma.airportVehicleAssignment.delete({ where: { id: value(formData, "id") } });
+  revalidatePath("/admin/aeropuerto");
+  notice("Combi quitada del vuelo.");
+}
+
 export async function deleteFlightAction(formData: FormData) {
   await getCurrentReservationsUserOrRedirect();
   await prisma.flight.delete({ where: { id: value(formData, "id") } });
