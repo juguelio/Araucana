@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { listAirportFlights } from "@/lib/airport/booking";
-import type { FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
 
 /** Vuelos del día para el flujo público del aeropuerto (sólo lectura, datos cacheados de AirLabs). */
@@ -20,11 +19,12 @@ export async function GET(request: Request) {
       return jsonError("ROUTE_NOT_FOUND", "La ruta no está disponible.", 404);
     }
 
-    const direction: FlightDirection = route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL";
-    const flights = await listAirportFlights({ date, direction });
+    // Todos los vuelos del día (arribos y salidas): el pasajero elige el suyo y la reserva
+    // toma la dirección del vuelo.
+    const flights = await listAirportFlights({ date });
 
     return NextResponse.json(
-      { direction, date, flights },
+      { date, flights },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (error) {

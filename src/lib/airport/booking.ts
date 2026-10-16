@@ -34,6 +34,7 @@ const TZ_OFFSET_MIN = -180;
 export type AirportFlightOption = {
   id: string;
   number: string;
+  direction: "ARRIVAL" | "DEPARTURE";
   airline: string | null;
   origin: string;
   scheduledAt: Date;
@@ -70,13 +71,16 @@ export function rangoDelDia(fecha: string) {
   return { desde, hasta: new Date(desde.getTime() + 24 * 3600 * 1000) };
 }
 
-/** Vuelos de un día con su cupo, para el front público y el panel. */
-export async function listAirportFlights(input: { date: string; direction: FlightDirection }): Promise<AirportFlightOption[]> {
+/**
+ * Vuelos de un día con su cupo, para el front público y el panel.
+ * Sin `direction` devuelve **todos** los del día (arribos y salidas), que es lo que ve el pasajero.
+ */
+export async function listAirportFlights(input: { date: string; direction?: FlightDirection }): Promise<AirportFlightOption[]> {
   const { desde, hasta } = rangoDelDia(input.date);
   const ahora = new Date();
 
   const vuelos = await prisma.flight.findMany({
-    where: { direction: input.direction, scheduledAt: { gte: desde, lt: hasta } },
+    where: { ...(input.direction ? { direction: input.direction } : {}), scheduledAt: { gte: desde, lt: hasta } },
     orderBy: { scheduledAt: "asc" },
     include: {
       reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
@@ -92,6 +96,7 @@ export async function listAirportFlights(input: { date: string; direction: Fligh
     return {
       id: v.id,
       number: v.number,
+      direction: v.direction === "DEPARTURE" ? ("DEPARTURE" as const) : ("ARRIVAL" as const),
       airline: v.airline,
       origin: v.origin,
       scheduledAt: v.scheduledAt,
@@ -129,9 +134,10 @@ export async function createAirportReservation(input: AirportReservationInput) {
   for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
+        // El vuelo manda: se busca el número en las dos direcciones del día y la reserva toma
+        // la dirección del vuelo elegido (no la de la página desde la que se reservó).
         const candidatos = await tx.flight.findMany({
           where: {
-            direction: parsed.direction,
             scheduledAt: { gte: desde, lt: hasta },
             OR: [{ number: parsed.flightNumber.trim() }, { number: parsed.flightNumber.trim().toUpperCase() }]
           },
@@ -154,11 +160,16 @@ export async function createAirportReservation(input: AirportReservationInput) {
           throw new BookingError("CAPACITY_FULL", "No hay suficientes lugares en ese vuelo");
         }
 
+        // La ruta que corresponde a la dirección real del vuelo (así la confirmación muestra el sentido correcto).
+        const rutaDelSentido = await tx.travelRoute.findFirst({
+          where: { bookingMode: "AIRPORT", specialType: vuelo.direction, isActive: true }
+        });
+
         const passenger = await tx.passenger.create({ data: parsed.passenger });
         const reservation = await tx.reservation.create({
           data: {
             code: createReservationCode(),
-            routeId: route.id,
+            routeId: (rutaDelSentido ?? route).id,
             passengerId: passenger.id,
             passengerCount: parsed.passengerCount,
             bookingMode: "AIRPORT",
@@ -169,7 +180,7 @@ export async function createAirportReservation(input: AirportReservationInput) {
               create: {
                 flightNumber: vuelo.number,
                 flightId: vuelo.id,
-                direction: parsed.direction,
+                direction: vuelo.direction,
                 serviceDate: desde,
                 pickupName: parsed.pickupName ?? null,
                 pickupAddress: parsed.pickupAddress ?? null,

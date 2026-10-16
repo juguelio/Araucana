@@ -83,9 +83,9 @@ export default async function ReservationPage({ params, searchParams }: Reservat
   }
 
   if (route.bookingMode === "AIRPORT") {
-    const direction = route.specialType === "DEPARTURE" ? ("DEPARTURE" as const) : ("ARRIVAL" as const);
     const fecha = todayInputValue();
-    const vuelos = await listAirportFlights({ date: fecha, direction });
+    // Todos los vuelos del día: el pasajero elige el suyo y el sistema sabe si es arribo o salida.
+    const vuelos = await listAirportFlights({ date: fecha });
 
     return (
       <>
@@ -111,7 +111,6 @@ export default async function ReservationPage({ params, searchParams }: Reservat
               currency: route.currency,
               description: route.description
             }}
-            direction={direction}
             initialDate={fecha}
             initialFlights={vuelos.map((v) => ({
               ...v,

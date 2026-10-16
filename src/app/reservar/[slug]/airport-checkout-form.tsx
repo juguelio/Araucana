@@ -25,6 +25,7 @@ type AirportRouteProps = {
 type FlightOption = {
   id: string;
   number: string;
+  direction: "ARRIVAL" | "DEPARTURE";
   airline: string | null;
   scheduledAt: string;
   estimatedAt: string | null;
@@ -36,10 +37,11 @@ type FlightOption = {
 
 type AirportCheckoutFormProps = {
   route: AirportRouteProps;
-  direction: "ARRIVAL" | "DEPARTURE";
   initialDate: string;
   initialFlights: FlightOption[];
 };
+
+const sentidoTexto = (d: "ARRIVAL" | "DEPARTURE") => (d === "ARRIVAL" ? "Arribo" : "Salida");
 
 const initialPassenger: PassengerForm = {
   firstName: "",
@@ -69,7 +71,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, direction, initialDate, initialFlights }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, initialDate, initialFlights }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
@@ -86,6 +88,8 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
   const [cargandoVuelos, setCargandoVuelos] = useState(false);
 
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
+  // El sentido (arribo o salida) lo define el vuelo elegido, no la página.
+  const sentido = selected?.direction ?? "ARRIVAL";
   const total = route.priceCents * passengerCount;
 
   async function cargarVuelos(fecha: string) {
@@ -133,9 +137,9 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
     if (!selected) errors.flight = "Elegí un vuelo de la lista (o escribí el número de vuelo).";
     if (selected && !selected.bookable) errors.flight = selected.reason ?? "Ese vuelo no se puede reservar.";
     if (selected && passengerCount > selected.available) errors.passengerCount = `Sólo quedan ${selected.available} lugares en ese vuelo.`;
-    if (direction === "ARRIVAL" && !pickupName.trim()) errors.pickupName = "Ingresá el hotel o lugar donde te llevamos.";
-    if (direction === "ARRIVAL" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección.";
-    if (direction === "DEPARTURE" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá dónde te pasamos a buscar.";
+    if (sentido === "ARRIVAL" && !pickupName.trim()) errors.pickupName = "Ingresá el hotel o lugar donde te llevamos.";
+    if (sentido === "ARRIVAL" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección.";
+    if (sentido === "DEPARTURE" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá dónde te pasamos a buscar.";
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -151,7 +155,7 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
         body: JSON.stringify({
           routeSlug: route.slug,
           flightNumber: selected!.number,
-          direction,
+          direction: selected!.direction,
           serviceDate: date,
           passengerCount,
           passenger: buildPassengerPayload(passenger),
@@ -181,9 +185,8 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
             <p className="eyebrow">Aeropuerto</p>
             <h2 className="route-title">Elegí tu vuelo</h2>
             <p className="muted">
-              {direction === "ARRIVAL"
-                ? "Elegí el día y tu vuelo de llegada a Chapelco (CPC). El horario del traslado sigue al vuelo: si se demora, se corre solo."
-                : "Elegí el día y tu vuelo de salida desde Chapelco (CPC). Te pasamos a buscar según el horario del vuelo."}
+              Elegí el día y tu vuelo. Se ven <strong>todos los vuelos de ese día</strong> —arribos y salidas—
+              y elegís el tuyo: el horario del traslado sigue al vuelo, así que si se demora, se corre solo.
             </p>
           </div>
 
@@ -223,7 +226,7 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
                     onChange={() => { setSelectedId(f.id); setError(""); }}
                   />{" "}
                   <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong> · {f.number}
-                  {f.airline ? ` (${f.airline})` : ""} — {estadoTexto(f)}
+                  {f.airline ? ` (${f.airline})` : ""} · <b>{sentidoTexto(f.direction)}</b> — {estadoTexto(f)}
                   {f.bookable ? ` · ${f.available} lugares` : ` · ${f.reason}`}
                 </label>
               ))}
@@ -251,7 +254,7 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
             <label>Cantidad de pasajeros<input name="passengerCount" type="number" min={1} max={24} value={passengerCount} onChange={(e) => setPassengerCount(Number(e.target.value))} />{fieldErrors.passengerCount ? <span className="field-error">{fieldErrors.passengerCount}</span> : null}</label>
           </div>
           <div className="checkout-fields">
-            <label>{direction === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
+            <label>{sentido === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
             <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
             <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
           </div>
@@ -263,7 +266,7 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
         <h2 className="route-title">{route.from} - {route.to}</h2>
         <div className="summary-list">
           <span>Día: <strong>{date}</strong></span>
-          <span>Vuelo: <strong>{selected ? selected.number : "—"}</strong></span>
+          <span>Vuelo: <strong>{selected ? `${selected.number} (${sentidoTexto(sentido)})` : "—"}</strong></span>
           <span>Horario: <strong>{selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
           <span>Pasajeros: <strong>{passengerCount}</strong></span>
         </div>

@@ -450,7 +450,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
   return {
     async listPublicRoutes() {
       const routes = await client.travelRoute.findMany({
-        where: { isActive: true, bookingMode: { not: "CHAPELCO" } },
+        // CHAPELCO y AIRPORT tienen su propio flujo (el aeropuerto se reserva por vuelo, no por horario).
+        where: { isActive: true, bookingMode: { notIn: ["CHAPELCO", "AIRPORT"] } },
         orderBy: [{ featured: "desc" }, { from: "asc" }, { to: "asc" }, { slug: "asc" }]
       });
 
