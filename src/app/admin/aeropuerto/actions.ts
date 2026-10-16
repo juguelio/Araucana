@@ -138,7 +138,9 @@ export async function refreshFlightsAction() {
   if (r.errores.length > 0) {
     notice(`No se pudo traer los vuelos (${r.errores[0]}). Se sigue con lo cargado a mano.`);
   }
-  notice(`Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados, ${r.eventos} imprevisto(s).`);
+  notice(
+    `Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados (${r.desdeTablero} desde el tablero del aeropuerto), ${r.eventos} imprevisto(s).`
+  );
 }
 
 /**

@@ -70,9 +70,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
       </section>
 
       <p className="muted">
-        Fecha: <strong>{fecha}</strong>. Los vuelos se traen <strong>automáticamente de AirLabs</strong> (arribos y
-        partidas de CPC) y se refrescan con "Actualizar ahora" o el proceso programado. Si la fuente falla, el panel
-        no se rompe: se sigue operando con el horario ya cargado. Los vuelos sin datos de la API se marcan "(a mano)".
+        Fecha: <strong>{fecha}</strong>. Los vuelos se traen de <strong>dos fuentes</strong>: el servicio de datos de
+        AirLabs y el <strong>tablero oficial del aeropuerto</strong> (que cubre aerolíneas que AirLabs no publica, como
+        American Jet). Se refrescan con "Actualizar ahora" o el proceso programado. Si una fuente falla, el panel no se
+        rompe: se sigue operando con el horario ya cargado. Los vuelos cargados a mano se marcan "(a mano)".
       </p>
 
       <section className="form-panel">
