@@ -112,10 +112,13 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
   function buscarPorNumero(valor: string) {
     const buscado = valor.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (!buscado) return;
-    const encontrado = flights.find((f) => f.number.toUpperCase().replace(/[^A-Z0-9]/g, "") === buscado);
+    // Si el mismo número aparece más de una vez (p. ej. cargado a mano y traído de la API),
+    // preferimos uno reservable: elegir uno que ya salió sería un callejón sin salida.
+    const candidatos = flights.filter((f) => f.number.toUpperCase().replace(/[^A-Z0-9]/g, "") === buscado);
+    const encontrado = candidatos.find((f) => f.bookable) ?? candidatos[0];
     if (encontrado) {
       setSelectedId(encontrado.id);
-      setError("");
+      setError(encontrado.bookable ? "" : `El vuelo ${encontrado.number} no se puede reservar: ${encontrado.reason}`);
     } else {
       setSelectedId("");
       setError(`No encontramos el vuelo ${valor.toUpperCase()} para el ${date}. Puede que no opere ese día.`);
@@ -233,24 +236,24 @@ export function AirportCheckoutForm({ route, direction, initialDate, initialFlig
           <p className="eyebrow">Pasajero</p>
           <h2 className="route-title">Tus datos</h2>
           <div className="checkout-fields">
-            <label>Nombre<input value={passenger.firstName} onChange={(e) => setPassenger({ ...passenger, firstName: e.target.value })} />{fieldErrors.firstName ? <span className="field-error">{fieldErrors.firstName}</span> : null}</label>
-            <label>Apellido<input value={passenger.lastName} onChange={(e) => setPassenger({ ...passenger, lastName: e.target.value })} />{fieldErrors.lastName ? <span className="field-error">{fieldErrors.lastName}</span> : null}</label>
-            <label>Email<input type="email" value={passenger.email} onChange={(e) => setPassenger({ ...passenger, email: e.target.value })} />{fieldErrors.email ? <span className="field-error">{fieldErrors.email}</span> : null}</label>
-            <label>Teléfono (con código de país)<input value={passenger.phone} onChange={(e) => setPassenger({ ...passenger, phone: e.target.value })} />{fieldErrors.phone ? <span className="field-error">{fieldErrors.phone}</span> : null}</label>
+            <label>Nombre<input name="firstName" autoComplete="given-name" value={passenger.firstName} onChange={(e) => setPassenger({ ...passenger, firstName: e.target.value })} />{fieldErrors.firstName ? <span className="field-error">{fieldErrors.firstName}</span> : null}</label>
+            <label>Apellido<input name="lastName" autoComplete="family-name" value={passenger.lastName} onChange={(e) => setPassenger({ ...passenger, lastName: e.target.value })} />{fieldErrors.lastName ? <span className="field-error">{fieldErrors.lastName}</span> : null}</label>
+            <label>Email<input name="email" type="email" autoComplete="email" value={passenger.email} onChange={(e) => setPassenger({ ...passenger, email: e.target.value })} />{fieldErrors.email ? <span className="field-error">{fieldErrors.email}</span> : null}</label>
+            <label>Teléfono (con código de país)<input name="phone" autoComplete="tel" value={passenger.phone} onChange={(e) => setPassenger({ ...passenger, phone: e.target.value })} />{fieldErrors.phone ? <span className="field-error">{fieldErrors.phone}</span> : null}</label>
             <label>Documento
-              <select value={passenger.documentType} onChange={(e) => setPassenger({ ...passenger, documentType: e.target.value })}>
+              <select name="documentType" value={passenger.documentType} onChange={(e) => setPassenger({ ...passenger, documentType: e.target.value })}>
                 <option value="DNI">DNI</option>
                 <option value="Pasaporte">Pasaporte</option>
                 <option value="CI">CI</option>
               </select>
             </label>
-            <label>Número de documento<input value={passenger.documentId} onChange={(e) => setPassenger({ ...passenger, documentId: e.target.value })} />{fieldErrors.documentId ? <span className="field-error">{fieldErrors.documentId}</span> : null}</label>
-            <label>Cantidad de pasajeros<input type="number" min={1} max={24} value={passengerCount} onChange={(e) => setPassengerCount(Number(e.target.value))} />{fieldErrors.passengerCount ? <span className="field-error">{fieldErrors.passengerCount}</span> : null}</label>
+            <label>Número de documento<input name="documentId" value={passenger.documentId} onChange={(e) => setPassenger({ ...passenger, documentId: e.target.value })} />{fieldErrors.documentId ? <span className="field-error">{fieldErrors.documentId}</span> : null}</label>
+            <label>Cantidad de pasajeros<input name="passengerCount" type="number" min={1} max={24} value={passengerCount} onChange={(e) => setPassengerCount(Number(e.target.value))} />{fieldErrors.passengerCount ? <span className="field-error">{fieldErrors.passengerCount}</span> : null}</label>
           </div>
           <div className="checkout-fields">
-            <label>{direction === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
-            <label>Dirección<input value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
-            <label>Notas (opcional)<input value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
+            <label>{direction === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
+            <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
+            <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
           </div>
         </section>
       </div>
