@@ -1,6 +1,6 @@
 import { detectFlightChange } from "@/lib/airport/flights";
 import { DIAS_PROYECTADOS, proyectarVuelos } from "@/lib/airport/projection";
-import { fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
+import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
 import { getAirLabsKey } from "@/lib/settings/app-settings";
@@ -143,7 +143,9 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       if (!fecha) continue;
       const scheduledAt = new Date(`${fecha}T${f.scheduled}:00-03:00`);
       const estimatedAt = f.estimated ? new Date(`${fecha}T${f.estimated}:00-03:00`) : null;
-      const estado = mapFidsStatus(f);
+      // El estado declarado por el tablero, corregido con los horarios: si la estima se corrió
+      // 30 min o más, es una demora aunque el tablero diga "Pre Embarque" o "En horario".
+      const estado = estadoSegunHorario(mapFidsStatus(f), scheduledAt, estimatedAt);
 
       // Mismo número y mismo día = el mismo vuelo, aunque las fuentes no coincidan en el horario
       // (la API puede estar publicando el horario viejo). El tablero es la vista del aeropuerto, así

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fechaDelTablero, mapFidsStatus, parseFidsBoard, type FidsFlight } from "./fids";
+import { estadoSegunHorario, fechaDelTablero, mapFidsStatus, parseFidsBoard, type FidsFlight } from "./fids";
 
 const html = readFileSync(join(__dirname, "__fixtures__", "fids-arribos.html"), "utf8");
 
@@ -30,6 +30,17 @@ describe("tablero del aeropuerto (FIDS)", () => {
     expect(mapFidsStatus({ ...base, statusText: "Pre Embarque", statusClass: "" })).toBe("SCHEDULED");
     expect(mapFidsStatus({ ...base, statusText: "Demorado", statusClass: "" })).toBe("DELAYED");
     expect(mapFidsStatus({ ...base, statusText: "Cancelado", statusClass: "" })).toBe("CANCELLED");
+  });
+
+  it("marca demora por los horarios aunque el tablero no la diga", () => {
+    const s = new Date("2026-10-16T16:25:00-03:00");
+    // 50 minutos tarde: el tablero dice "Pre Embarque" pero el vuelo está demorado.
+    expect(estadoSegunHorario("SCHEDULED", s, new Date("2026-10-16T17:15:00-03:00"))).toBe("DELAYED");
+    // 10 minutos: sigue en horario.
+    expect(estadoSegunHorario("SCHEDULED", s, new Date("2026-10-16T16:35:00-03:00"))).toBe("SCHEDULED");
+    // No pisa un estado ya informado (aterrizó, cancelado) ni la falta de estima.
+    expect(estadoSegunHorario("LANDED", s, new Date("2026-10-16T17:15:00-03:00"))).toBe("LANDED");
+    expect(estadoSegunHorario("SCHEDULED", s, null)).toBe("SCHEDULED");
   });
 
   it("ubica la hora en el día correcto", () => {
