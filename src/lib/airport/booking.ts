@@ -1,4 +1,5 @@
 import { createReservationCode } from "@/lib/booking/codes";
+import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
 import type { FlightDirection } from "./provider";
@@ -192,6 +193,24 @@ export async function createAirportReservation(input: AirportReservationInput) {
             }
           },
           include: { route: true, passenger: true, airportDetails: true }
+        });
+
+        // Igual que las reservas comunes: se crea el pago pendiente (transferencia/manual) para que
+        // el pasajero pueda subir el comprobante desde su link y la reserva quede a confirmar.
+        const pago = await manualPaymentProvider.createPendingPayment({
+          reservationCode: reservation.code,
+          amountCents: reservation.totalCents,
+          currency: reservation.currency
+        });
+        await tx.payment.create({
+          data: {
+            reservationId: reservation.id,
+            provider: pago.provider,
+            status: pago.status,
+            amountCents: pago.amountCents,
+            currency: pago.currency,
+            externalRef: pago.externalRef
+          }
         });
 
         return reservation;
