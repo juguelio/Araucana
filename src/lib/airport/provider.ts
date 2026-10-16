@@ -86,7 +86,7 @@ export async function fetchSchedules(direction: FlightDirection, dia: string): P
   if (!key) return { flights: [], error: "Falta AIRLABS_API_KEY" };
 
   const param = direction === "ARRIVAL" ? "arr_iata" : "dep_iata";
-  const url = `https://airlabs.co/api/v9/schedules?${param}=CPC&api_key=${encodeURIComponent(key)}`;
+  const url = `https://airlabs.co/api/v9/schedules?${param}=CPC&date=${dia}&api_key=${encodeURIComponent(key)}`;
 
   try {
     const res = await fetch(url, { cache: "no-store" });

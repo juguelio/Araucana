@@ -40,6 +40,8 @@ export type AirportFlightOption = {
   scheduledAt: Date;
   estimatedAt: Date | null;
   status: string;
+  /** "API" = dato real de la aerolínea; "ESTIMADO" = patrón proyectado; "MANUAL" = cargado a mano. */
+  source: string;
   occupied: number;
   capacity: number;
   available: number;
@@ -102,6 +104,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       scheduledAt: v.scheduledAt,
       estimatedAt: v.estimatedAt,
       status: v.status,
+      source: v.source,
       occupied: ocupados,
       capacity: capacidad,
       available: disponible,

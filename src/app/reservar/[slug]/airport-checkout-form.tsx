@@ -32,6 +32,8 @@ type FlightOption = {
   scheduledAt: string;
   estimatedAt: string | null;
   status: string;
+  /** "API" = dato real; "ESTIMADO" = patrón proyectado (AirLabs no publica horarios futuros). */
+  source?: string;
   available: number;
   bookable: boolean;
   reason: string | null;
@@ -90,6 +92,7 @@ function estadoTexto(vuelo: FlightOption) {
 
 /** Estado que muestra la lista: el que informa la API (demora, en vuelo, aterrizó, cancelado…). */
 function estadoDe(f: FlightOption) {
+  if (f.source === "ESTIMADO") return "Horario estimado";
   return f.status === "DELAYED" ? estadoTexto(f) : statusLabel(f.status);
 }
 

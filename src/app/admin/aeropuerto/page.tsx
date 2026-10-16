@@ -91,7 +91,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 <td>{v.origin}</td>
                 <td>
                   {alerta ? <span className="status-dot">● {statusDetail(snapshot)}</span> : `${statusLabel(v.status)} · ${statusDetail(snapshot)}`}
-                  {v.source !== "API" ? <span className="muted"> (a mano)</span> : null}
+                  {v.source === "ESTIMADO" ? <span className="muted"> (estimado)</span> : v.source !== "API" ? <span className="muted"> (a mano)</span> : null}
                 </td>
                 <td>
                   <div>
