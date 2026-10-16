@@ -81,7 +81,7 @@ model Vehicle {
   chapelcoDuties ChapelcoVehicleDuty[]
   airportAssignments AirportVehicleAssignment[]
   createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  updatedAt    DateTime   @updatedAt @default(now())
 }
 
 model AccountingEntry {
@@ -291,13 +291,15 @@ model Reservation {
   id          String     @id @default(cuid())
   code        String     @unique
   scheduleId  String?
-  schedule    Schedule?  @relation(fields: [scheduleId], references: [id])
+  // Restrict a propósito: la base real ya lo tiene así y no queremos que borrar una salida
+  // con reservas deje huérfanas a las reservas (el esquema declaraba SetNull por deriva vieja).
+  schedule    Schedule?  @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   routeId     String?
   route       TravelRoute? @relation(fields: [routeId], references: [id], onDelete: SetNull)
   passengerId String
   passenger   Passenger  @relation(fields: [passengerId], references: [id])
   seatId      String?
-  seat        Seat?      @relation(fields: [seatId], references: [id])
+  seat        Seat?      @relation(fields: [seatId], references: [id], onDelete: Restrict)
   seatNumber  String?
   passengerCount Int     @default(1)
   bookingMode String     @default("SEATED")
