@@ -418,6 +418,17 @@ model ChapelcoRun {
   @@index([vehicleDutyId])
 }
 
+/// Configuración editable desde el panel. Existe para que una clave que antes vivía sólo en
+/// variables de entorno del hosting (y por lo tanto dependía de un tercero para cargarla) se
+/// pueda pegar desde el panel. La variable de entorno, si está, tiene prioridad.
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model ChapelcoManifestStop {
   id              String      @id @default(cuid())
   runId           String

@@ -4,8 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { detectFlightChange } from "@/lib/airport/flights";
 import { syncAirportFlights } from "@/lib/airport/sync";
-import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
+import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
 function value(formData: FormData, key: string) {
@@ -138,4 +139,36 @@ export async function refreshFlightsAction() {
     notice(`No se pudo traer los vuelos (${r.errores[0]}). Se sigue con lo cargado a mano.`);
   }
   notice(`Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados, ${r.eventos} imprevisto(s).`);
+}
+
+/**
+ * Guarda la clave de AirLabs desde el panel y la prueba en el momento. Antes vivía sólo en una
+ * variable de entorno del hosting: así se puede resolver sin depender de nadie más. Sólo ADMIN.
+ */
+export async function saveAirLabsKeyAction(formData: FormData) {
+  const usuario = await getCurrentAdminOrRedirect();
+  const borrar = value(formData, "borrar");
+  const apiKey = value(formData, "apiKey");
+
+  if (borrar) {
+    await setSetting(AIRLABS_KEY_SETTING, null, usuario.email);
+    revalidatePath("/admin/aeropuerto");
+    notice("Clave borrada: los vuelos se siguen viendo, pero ya no se actualizan solos.");
+  }
+
+  if (apiKey.length < 8) {
+    notice("Esa clave no parece válida (es muy corta). No se guardó nada.");
+  }
+
+  await setSetting(AIRLABS_KEY_SETTING, apiKey, usuario.email);
+  const r = await syncAirportFlights();
+  revalidatePath("/admin/aeropuerto");
+
+  if (r.errores.length > 0) {
+    notice(`La clave se guardó, pero AirLabs no respondió: ${r.errores[0]}`);
+  }
+
+  notice(
+    `Clave guardada y probada: ${r.creados} vuelos nuevos, ${r.actualizados} revisados, ${r.proyectados} proyectados.`
+  );
 }
