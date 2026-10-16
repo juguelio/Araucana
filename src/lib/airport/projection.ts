@@ -61,7 +61,7 @@ function conFechaYHora(fecha: string, hora: string): Date {
  * operan en CPC y no están en AirLabs (American Jet), así que su horario se carga a mano una vez
  * y la proyección lo repite igual que el de las que sí trae la API.
  */
-const FUENTES_DEL_PATRON = new Set(["API", "MANUAL"]);
+const FUENTES_DEL_PATRON = new Set(["API", "MANUAL", "FIDS"]);
 
 /**
  * Proyección **por vuelo**, no por día: cada servicio se repite según su propia frecuencia.
