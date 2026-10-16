@@ -24,6 +24,7 @@ model User {
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
+  airportDuties AirportVehicleAssignment[]
 }
 
 model Session {
@@ -78,8 +79,9 @@ model Vehicle {
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
+  airportAssignments AirportVehicleAssignment[]
   createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  updatedAt    DateTime   @updatedAt @default(now())
 }
 
 model AccountingEntry {
@@ -166,6 +168,83 @@ model DriverLocationSample {
   @@index([isStopped])
 }
 
+model Flight {
+  id            String        @id @default(cuid())
+  number        String
+  airline       String?
+  origin        String
+  destination   String        @default("Aeropuerto Chapelco (CPC)")
+  direction     String        @default("ARRIVAL")
+  scheduledAt   DateTime
+  estimatedAt   DateTime?
+  actualAt      DateTime?
+  status        String        @default("SCHEDULED")
+  passengers    Int?
+  source        String        @default("MANUAL")
+  externalId    String?
+  lastCheckedAt DateTime?
+  notes         String?
+  createdBy     String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  events        FlightEvent[]
+  reservations  AirportReservationDetails[]
+  assignments   AirportVehicleAssignment[]
+
+  @@unique([number, scheduledAt, direction])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model FlightEvent {
+  id         String    @id @default(cuid())
+  flightId   String
+  flight     Flight    @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  kind       String
+  fromValue  String?
+  toValue    String?
+  detectedAt DateTime  @default(now())
+  notifiedAt DateTime?
+
+  @@index([flightId, detectedAt])
+}
+
+model AirportReservationDetails {
+  id            String      @id @default(cuid())
+  reservationId String      @unique
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  flightNumber  String
+  flightId      String?
+  flight        Flight?     @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  direction     String
+  serviceDate   DateTime
+  pickupName    String?
+  pickupAddress String?
+  pickupNotes   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([serviceDate, direction])
+  @@index([flightNumber])
+}
+
+model AirportVehicleAssignment {
+  id        String   @id @default(cuid())
+  flightId  String
+  flight    Flight   @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driverId  String?
+  driver    User?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  notes     String?
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([flightId, vehicleId])
+  @@index([flightId])
+}
+
 model Seat {
   id        String   @id @default(cuid())
   vehicleId String
@@ -212,13 +291,15 @@ model Reservation {
   id          String     @id @default(cuid())
   code        String     @unique
   scheduleId  String?
-  schedule    Schedule?  @relation(fields: [scheduleId], references: [id])
+  // Restrict a propósito: la base real ya lo tiene así y no queremos que borrar una salida
+  // con reservas deje huérfanas a las reservas (el esquema declaraba SetNull por deriva vieja).
+  schedule    Schedule?  @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   routeId     String?
   route       TravelRoute? @relation(fields: [routeId], references: [id], onDelete: SetNull)
   passengerId String
   passenger   Passenger  @relation(fields: [passengerId], references: [id])
   seatId      String?
-  seat        Seat?      @relation(fields: [seatId], references: [id])
+  seat        Seat?      @relation(fields: [seatId], references: [id], onDelete: Restrict)
   seatNumber  String?
   passengerCount Int     @default(1)
   bookingMode String     @default("SEATED")
@@ -228,6 +309,7 @@ model Reservation {
   payment     Payment?
   ticket      Ticket?
   chapelcoDetails ChapelcoReservationDetails?
+  airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt

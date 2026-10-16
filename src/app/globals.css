@@ -2043,3 +2043,58 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 @media (max-width:900px) { .nav-links { display:none; }.mobile-menu-button { display:flex; flex-direction:column; justify-content:center; gap:4px; width:38px; height:38px; padding:8px; border:1px solid rgba(255,255,255,.3); border-radius:8px; background:transparent; }.mobile-menu-button span { display:block; height:2px; background:#fff; }.mobile-navigation { display:block; position:absolute; top:78px; right:16px; left:16px; padding:16px; border-radius:0 0 16px 16px; background:var(--primary-deep); box-shadow:0 20px 40px rgba(0,0,0,.18); }.mobile-navigation nav { display:grid; gap:4px; }.mobile-navigation a { padding:12px; color:#fff; font-size:14px; }.mobile-navigation .mobile-whatsapp { margin-top:8px; background:var(--accent); border-radius:8px; text-align:center; font-weight:800; }.new-services-grid { grid-template-columns:repeat(2,1fr); }.new-services-grid .service-card { grid-column:span 1; }.destination-grid { grid-template-columns:repeat(2,1fr); }.chapelco-section { grid-template-columns:1fr 360px; gap:32px; }.promise-section,.fleet-section { gap:34px; } }
 @media (max-width:760px) { .new-hero { min-height:680px; }.new-hero-inner { padding-top:100px; }.new-hero h1 { font-size:clamp(45px,12.8vw,67px); }.new-hero-lead { font-size:20px; }.new-hero-badge { right:auto; left:0; bottom:28px; }.chapelco-section,.promise-section,.fleet-section { display:block; }.chapelco-form { margin-top:35px; }.promise-copy,.fleet-section > div:first-child { margin-top:34px; }.destination-grid { grid-template-columns:1fr 1fr; }.destination-card { min-height:240px; }.trust-band { display:grid; grid-template-columns:auto 1fr; }.trust-band > p { grid-column:1/-1; margin:0; }.floating-whatsapp { right:12px; bottom:12px; }.new-section { padding-top:70px; padding-bottom:70px; } }
 @media (max-width:460px) { .new-services-grid,.destination-grid { grid-template-columns:1fr; }.new-services-grid .service-card { min-height:235px; }.destination-card { min-height:260px; }.new-hero .hero-actions { display:grid; }.new-hero .hero-actions a { width:100%; }.chapelco-section { padding-top:70px; padding-bottom:70px; }.floating-whatsapp { right:14px; left:auto; } }
+
+/* === Checkout del aeropuerto: wizard por pasos === */
+.wizard-steps { display: flex; gap: 10px; list-style: none; margin: 0 0 18px; padding: 0; flex-wrap: wrap; }
+.wizard-steps li { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 800; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-muted); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; }
+.wizard-steps li span { width: 18px; height: 18px; border-radius: 50%; background: var(--line); color: var(--ink);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; }
+.wizard-steps li[data-active="true"] { color: var(--accent); border-color: var(--accent); }
+.wizard-steps li[data-active="true"] span, .wizard-steps li[data-done="true"] span { background: var(--accent); color: #fff; }
+.wizard-options { display: grid; gap: 12px; margin: 14px 0 4px; }
+.wizard-option { display: grid; gap: 5px; text-align: left; padding: 16px 18px; border: 1px solid var(--line);
+  border-radius: 12px; background: transparent; cursor: pointer; font: inherit; color: inherit; }
+.wizard-option:hover, .wizard-option[data-selected="true"] { border-color: var(--accent); }
+.wizard-option b { font-size: 17px; }
+.wizard-option-route { font-size: 13px; font-weight: 700; color: var(--accent); }
+.wizard-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; }
+
+/* === Fila de vuelo: radio, logo, horario, estado y lugares, todo alineado === */
+.flight-options { display: grid; gap: 10px; margin-top: 4px; }
+.flight-option { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; background: transparent; }
+.flight-option:hover { border-color: var(--line-strong); }
+.flight-option[data-selected="true"] { border-color: var(--accent); }
+.flight-option[data-disabled="true"] { opacity: .55; cursor: not-allowed; }
+.flight-option input[type="radio"] { margin: 0; width: 18px; height: 18px; accent-color: var(--accent); }
+.airline-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden;
+  font-size: 11px; font-weight: 800; color: var(--ink); letter-spacing: .04em; }
+.airline-badge img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.flight-when { display: grid; gap: 2px; min-width: 0; }
+.flight-when strong { font-size: 16px; }
+.flight-when span { font-size: 12px; }
+.flight-state { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; }
+.flight-state[data-status="DELAYED"], .flight-state[data-status="CANCELLED"], .flight-state[data-status="DIVERTED"] { color: var(--accent); }
+.flight-state[data-estimado="true"] { color: var(--ink-muted); }
+.flight-seats { font-size: 11px; color: var(--ink-muted); text-align: right; min-width: 82px; }
+@media (max-width: 560px) {
+  .flight-option { grid-template-columns: auto auto 1fr; grid-template-areas: "radio logo when" ". . state" ". . seats"; }
+  .flight-option input[type="radio"] { grid-area: radio; }
+  .airline-badge { grid-area: logo; }
+  .flight-when { grid-area: when; }
+  .flight-state { grid-area: state; text-align: left; }
+  .flight-seats { grid-area: seats; text-align: left; min-width: 0; }
+}
+
+/* El codigo de reserva es largo (ARC-YYMM + 32 hex): a 30px no entra en la caja y se salia de
+   la pantalla. Que corte en varias lineas en vez de desbordar. */
+.ticket-code strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+.ticket-code {
+  min-width: 0;
+}

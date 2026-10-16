@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
+import { listAirportFlights } from "@/lib/airport/booking";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
 import { CheckoutForm } from "./checkout-form";
+import { AirportCheckoutForm } from "./airport-checkout-form";
 import { ChapelcoCheckoutForm } from "./chapelco-checkout-form";
 
 export const revalidate = 300;
@@ -13,6 +15,8 @@ type ReservationPageProps = {
   }>;
   searchParams?: Promise<{
     scheduleId?: string;
+    /** Día elegido (YYYY-MM-DD) para el flujo del aeropuerto: permite linkear "vuelos del 20/10". */
+    date?: string;
   }>;
 };
 
@@ -78,6 +82,51 @@ export default async function ReservationPage({ params, searchParams }: Reservat
 
   if (!route) {
     notFound();
+  }
+
+  if (route.bookingMode === "AIRPORT") {
+    // El día puede venir en el link (?date=YYYY-MM-DD); si no, se arranca en hoy.
+    const fechaDelLink = typeof query?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : null;
+    const fecha = fechaDelLink ?? todayInputValue();
+    // Todos los vuelos del día: el pasajero elige el suyo y el sistema sabe si es arribo o salida.
+    const vuelos = await listAirportFlights({ date: fecha });
+
+    return (
+      <>
+        <main className="page-shell section">
+          <div className="section-head checkout-head">
+            <div>
+              <p className="eyebrow">Reserva web</p>
+              <h1 className="section-title">
+                {route.from} - {route.to}
+              </h1>
+            </div>
+            <div className="route-summary plain-card">
+              <span>{route.via}</span>
+              <strong>{formatPrice(route.priceCents, route.currency)} por persona</strong>
+            </div>
+          </div>
+          <AirportCheckoutForm
+            initialDirection={route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL"}
+            route={{
+              slug: route.slug,
+              from: route.from,
+              to: route.to,
+              priceCents: route.priceCents,
+              currency: route.currency,
+              description: route.description
+            }}
+            initialDate={fecha}
+            initialFlights={vuelos.map((v) => ({
+              ...v,
+              scheduledAt: v.scheduledAt.toISOString(),
+              estimatedAt: v.estimatedAt ? v.estimatedAt.toISOString() : null
+            }))}
+          />
+        </main>
+        <SiteFooter />
+      </>
+    );
   }
 
   if (route.bookingMode === "CHAPELCO") {

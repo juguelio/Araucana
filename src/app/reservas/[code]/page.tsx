@@ -116,6 +116,15 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                     : formatDateTime(reservation.schedule.departureAt)}
                 </strong>
               </div>
+              {reservation.airportDetails ? (
+                <div>
+                  <span>Vuelo</span>
+                  <strong>
+                    {reservation.airportDetails.flightNumber} ·{" "}
+                    {reservation.airportDetails.direction === "ARRIVAL" ? "llegada a CPC" : "salida de CPC"}
+                  </strong>
+                </div>
+              ) : null}
               <div>
                 <span>{isChapelco ? "Responsable" : "Pasajero"}</span>
                 <strong>{passengerName}</strong>

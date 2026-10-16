@@ -111,6 +111,15 @@ export type ReservationDetailDto = {
     pickupLongitude: number;
     pickupNotes?: string | null;
   } | null;
+  airportDetails?: {
+    flightNumber: string;
+    direction: string;
+    serviceDate: Date;
+    pickupName?: string | null;
+    pickupAddress?: string | null;
+    pickupNotes?: string | null;
+    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string } | null;
+  } | null;
 };
 
 export type AdminScheduleRowDto = {

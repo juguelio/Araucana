@@ -124,6 +124,15 @@ type ReservationRecord = {
     pickupLongitude: number;
     pickupNotes?: string | null;
   } | null;
+  airportDetails?: {
+    flightNumber: string;
+    direction: string;
+    serviceDate: Date;
+    pickupName?: string | null;
+    pickupAddress?: string | null;
+    pickupNotes?: string | null;
+    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string } | null;
+  } | null;
 };
 
 type BookingTransactionClient = {
@@ -285,7 +294,12 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
   }
 
   const route = mapRoute(routeRecord);
-  const departureAt = reservation.schedule?.departureAt ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt;
+  const departureAt =
+    reservation.schedule?.departureAt ??
+    reservation.airportDetails?.flight?.estimatedAt ??
+    reservation.airportDetails?.flight?.scheduledAt ??
+    reservation.chapelcoDetails?.serviceDate ??
+    reservation.createdAt;
   const arrivalAt = reservation.schedule?.arrivalAt ?? departureAt;
 
   return {
@@ -351,6 +365,23 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
           pickupLongitude: reservation.chapelcoDetails.pickupLongitude,
           pickupNotes: reservation.chapelcoDetails.pickupNotes
         }
+      : null,
+    airportDetails: reservation.airportDetails
+      ? {
+          flightNumber: reservation.airportDetails.flightNumber,
+          direction: reservation.airportDetails.direction,
+          serviceDate: reservation.airportDetails.serviceDate,
+          pickupName: reservation.airportDetails.pickupName,
+          pickupAddress: reservation.airportDetails.pickupAddress,
+          pickupNotes: reservation.airportDetails.pickupNotes,
+          flight: reservation.airportDetails.flight
+            ? {
+                scheduledAt: reservation.airportDetails.flight.scheduledAt,
+                estimatedAt: reservation.airportDetails.flight.estimatedAt,
+                status: reservation.airportDetails.flight.status
+              }
+            : null
+        }
       : null
   };
 }
@@ -386,7 +417,8 @@ function reservationInclude() {
     passenger: true,
     payment: true,
     ticket: true,
-    chapelcoDetails: true
+    chapelcoDetails: true,
+    airportDetails: { include: { flight: true } }
   };
 }
 
@@ -418,7 +450,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
   return {
     async listPublicRoutes() {
       const routes = await client.travelRoute.findMany({
-        where: { isActive: true, bookingMode: { not: "CHAPELCO" } },
+        // CHAPELCO y AIRPORT tienen su propio flujo (el aeropuerto se reserva por vuelo, no por horario).
+        where: { isActive: true, bookingMode: { notIn: ["CHAPELCO", "AIRPORT"] } },
         orderBy: [{ featured: "desc" }, { from: "asc" }, { to: "asc" }, { slug: "asc" }]
       });
 
