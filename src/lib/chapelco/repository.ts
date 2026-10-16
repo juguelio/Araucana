@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { assertDriverDocumented, assertVehicleDocumented } from "@/lib/compliance/documents";
 import { createReservationCode, createTicketCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import {
@@ -394,6 +395,10 @@ export async function upsertChapelcoOperationDay(input: OperationDayInput) {
 
 export async function addChapelcoVehicleDuty(input: VehicleDutyInput) {
   const parsed = vehicleDutySchema.parse(input);
+
+  // Un chofer con licencia o apto vencido no se asigna a una salida.
+  if (parsed.driverId) await assertDriverDocumented(parsed.driverId);
+  await assertVehicleDocumented(parsed.vehicleId);
 
   return prisma.chapelcoVehicleDuty.upsert({
     where: {

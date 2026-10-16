@@ -24,6 +24,7 @@ model User {
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
+  documents    DriverDocument[]
 }
 
 model Session {
@@ -78,7 +79,8 @@ model Vehicle {
   driverLocationSamples DriverLocationSample[]
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
-  createdAt    DateTime   @default(now())
+  documents    VehicleDocument[]
+  createdAt    DateTime  @default(now())
   updatedAt    DateTime   @updatedAt
 }
 
@@ -164,6 +166,44 @@ model DriverLocationSample {
   @@index([driverId, recordedAt])
   @@index([vehicleId, recordedAt])
   @@index([isStopped])
+}
+
+model VehicleDocument {
+  id        String    @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  kind      String
+  number    String?
+  issuedAt  DateTime?
+  expiresAt DateTime
+  critical  Boolean   @default(true)
+  fileUrl   String?
+  notes     String?
+  createdBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([vehicleId, expiresAt])
+  @@index([expiresAt])
+}
+
+model DriverDocument {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String
+  number    String?
+  issuedAt  DateTime?
+  expiresAt DateTime
+  critical  Boolean   @default(true)
+  fileUrl   String?
+  notes     String?
+  createdBy String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
 }
 
 model Seat {

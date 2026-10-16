@@ -1,5 +1,6 @@
 import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
+import { assertVehicleDocumented } from "@/lib/compliance/documents";
 import { approveManualPayment, getReservationByCode, listAdminReservations, listAdminRoutes, listAdminSchedules, updatePassengerForReservation } from "@/lib/booking/repository";
 import { passengerSchema } from "@/lib/booking/validation";
 import { prisma } from "@/lib/db/prisma";
@@ -278,6 +279,8 @@ export async function getAdminApiSchedule(id: string) {
 
 export async function createAdminApiSchedule(payload: unknown) {
   const input = parseAdminPayload(adminScheduleInputSchema, payload);
+  // Una nave con documentación crítica vencida no sale (aunque el panel lo permita, el server no).
+  await assertVehicleDocumented(input.vehicleId);
   const durationMin = await getRouteDuration(input.routeId);
   const schedule = await prisma.schedule.create({
     data: {
