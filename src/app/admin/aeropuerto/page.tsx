@@ -3,7 +3,8 @@ import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airp
 import { FLIGHT_STATUSES, needsAttention, statusDetail, statusLabel } from "@/lib/airport/flights";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, updateFlightAction } from "./actions";
+import { airLabsKeyState } from "@/lib/settings/app-settings";
+import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, updateFlightAction } from "./actions";
 import { FlightForm } from "./flight-form";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string }> };
@@ -22,7 +23,7 @@ function rangoDelDia(fecha: string) {
 const hhmm = (d: Date) => new Date(d.getTime() + TZ_OFFSET_MIN * 60000).toISOString().slice(11, 16);
 
 export default async function AirportPage({ searchParams }: PageProps) {
-  await getCurrentReservationsUserOrRedirect();
+  const usuario = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
   const fecha = params?.date ?? diaLocal(new Date());
   const { desde, hasta } = rangoDelDia(fecha);
@@ -46,6 +47,8 @@ export default async function AirportPage({ searchParams }: PageProps) {
     take: 8,
     include: { flight: { select: { number: true } } }
   });
+
+  const clave = await airLabsKeyState();
 
   return (
     <AdminShell
@@ -71,6 +74,44 @@ export default async function AirportPage({ searchParams }: PageProps) {
         partidas de CPC) y se refrescan con "Actualizar ahora" o el proceso programado. Si la fuente falla, el panel
         no se rompe: se sigue operando con el horario ya cargado. Los vuelos sin datos de la API se marcan "(a mano)".
       </p>
+
+      <section className="form-panel">
+        <p className="eyebrow">Datos de vuelos</p>
+        <h2 className="route-title">Clave de AirLabs</h2>
+        <p className="muted">
+          Los horarios y los estados de los vuelos los publica AirLabs. Sin clave, &quot;Actualizar ahora&quot; no
+          puede traer datos nuevos.
+          {clave.source === "none" ? " Ahora mismo no hay ninguna clave configurada." : null}
+        </p>
+        <p>
+          Estado:{" "}
+          <strong>{clave.source === "none" ? "sin configurar" : `configurada (${clave.masked})`}</strong>
+          {clave.source === "env"
+            ? " — la toma de las variables del servidor"
+            : clave.source === "panel"
+              ? " — cargada desde este panel"
+              : ""}
+        </p>
+        {usuario.role === "ADMIN" ? (
+          <form action={saveAirLabsKeyAction} className="checkout-fields">
+            <label>
+              {clave.source === "panel" ? "Reemplazar la clave" : "Pegar la clave"}
+              <input name="apiKey" type="password" autoComplete="off" placeholder="Clave de AirLabs" />
+            </label>
+            <div className="inline-actions">
+              <button className="button" type="submit">Guardar y probar</button>
+              {clave.source === "panel" ? (
+                <button className="ghost-button" type="submit" name="borrar" value="1">Borrar</button>
+              ) : null}
+            </div>
+            <small className="quantity-help">
+              Se guarda en la base y se prueba al instante trayendo los vuelos de hoy. La clave no se muestra entera.
+            </small>
+          </form>
+        ) : (
+          <p className="muted">Sólo un administrador puede cambiarla.</p>
+        )}
+      </section>
 
       <table className="data-table">
         <thead>

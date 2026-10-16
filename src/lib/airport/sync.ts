@@ -2,6 +2,7 @@ import { detectFlightChange } from "@/lib/airport/flights";
 import { DIAS_PROYECTADOS, proyectarVuelos } from "@/lib/airport/projection";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
+import { getAirLabsKey } from "@/lib/settings/app-settings";
 
 /**
  * Trae los vuelos de AirLabs y los guarda en `Flight`, registrando en `FlightEvent` cada
@@ -44,10 +45,11 @@ function diasDesdeHoy(dias: number): string[] {
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
   const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
+  const apiKey = await getAirLabsKey();
 
   for (const dia of diasDesdeHoy(opts.days ?? DIAS_A_SINCRONIZAR)) {
     for (const direction of direcciones) {
-      const { flights, error } = await fetchSchedules(direction, dia);
+      const { flights, error } = await fetchSchedules(direction, dia, apiKey);
       resumen.corridas += 1;
       if (error) {
         resumen.errores.push(`${direction} ${dia}: ${error}`);

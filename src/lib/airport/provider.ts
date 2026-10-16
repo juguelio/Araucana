@@ -81,9 +81,15 @@ export function normalizeSchedules(items: RawSchedule[], direction: FlightDirect
 }
 
 /** Trae los vuelos de un día desde AirLabs. Sin clave o con error devuelve [] (modo degradado). */
-export async function fetchSchedules(direction: FlightDirection, dia: string): Promise<{ flights: NormalizedFlight[]; error: string | null }> {
-  const key = process.env.AIRLABS_API_KEY;
-  if (!key) return { flights: [], error: "Falta AIRLABS_API_KEY" };
+export async function fetchSchedules(
+  direction: FlightDirection,
+  dia: string,
+  apiKey?: string | null
+): Promise<{ flights: NormalizedFlight[]; error: string | null }> {
+  // La clave puede venir de la variable de entorno o de la configurada en el panel (la resuelve
+  // el sync); sin ninguna, el conector queda en modo degradado y lo dice.
+  const key = (apiKey ?? process.env.AIRLABS_API_KEY ?? "").trim();
+  if (!key) return { flights: [], error: "Falta la clave de AirLabs: cargala en el panel de Aeropuerto" };
 
   const param = direction === "ARRIVAL" ? "arr_iata" : "dep_iata";
   const url = `https://airlabs.co/api/v9/schedules?${param}=CPC&date=${dia}&api_key=${encodeURIComponent(key)}`;
