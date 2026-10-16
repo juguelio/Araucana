@@ -4,6 +4,7 @@ import { useMemo, useState, type ChangeEvent, type FormEvent, type KeyboardEvent
 import { useRouter } from "next/navigation";
 import type { PublicRouteDto, ScheduleOptionDto, SeatMapDto } from "@/lib/booking/types";
 import type { CreateReservationInput } from "@/lib/booking/validation";
+import { phoneCountries, phoneCountryLabel } from "@/lib/booking/phone-countries";
 import { createReservationAction } from "./actions";
 
 type CheckoutFormProps = {
@@ -38,17 +39,8 @@ const initialPassenger: PassengerForm = {
 
 const bookableScheduleStatuses = new Set(["OPEN", "DOCUMENTATION"]);
 
-const countryDialCodes = [
-  { value: "+54", label: "Argentina +54" },
-  { value: "+56", label: "Chile +56" },
-  { value: "+55", label: "Brasil +55" },
-  { value: "+598", label: "Uruguay +598" },
-  { value: "+595", label: "Paraguay +595" },
-  { value: "+591", label: "Bolivia +591" },
-  { value: "+51", label: "Peru +51" },
-  { value: "+1", label: "EE.UU./Canada +1" },
-  { value: "+34", label: "Espana +34" }
-];
+// La lista vive en un módulo compartido y ahora muestra la bandera del país.
+const countryDialCodes = phoneCountries.map((c) => ({ value: c.value, label: phoneCountryLabel(c) }));
 
 const nationalityCountryCodes = [
   "AD", "AE", "AF", "AG", "AI", "AL", "AM", "AO", "AQ", "AR", "AS", "AT", "AU", "AW", "AX", "AZ",
