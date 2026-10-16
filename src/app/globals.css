@@ -2059,3 +2059,31 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 .wizard-option b { font-size: 17px; }
 .wizard-option-route { font-size: 13px; font-weight: 700; color: var(--accent); }
 .wizard-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; }
+
+/* === Fila de vuelo: radio, logo, horario, estado y lugares, todo alineado === */
+.flight-options { display: grid; gap: 10px; margin-top: 4px; }
+.flight-option { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; background: transparent; }
+.flight-option:hover { border-color: var(--line-strong); }
+.flight-option[data-selected="true"] { border-color: var(--accent); }
+.flight-option[data-disabled="true"] { opacity: .55; cursor: not-allowed; }
+.flight-option input[type="radio"] { margin: 0; width: 18px; height: 18px; accent-color: var(--accent); }
+.airline-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden;
+  font-size: 11px; font-weight: 800; color: var(--ink); letter-spacing: .04em; }
+.airline-badge img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.flight-when { display: grid; gap: 2px; min-width: 0; }
+.flight-when strong { font-size: 16px; }
+.flight-when span { font-size: 12px; }
+.flight-state { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; }
+.flight-state[data-status="DELAYED"], .flight-state[data-status="CANCELLED"], .flight-state[data-status="DIVERTED"] { color: var(--accent); }
+.flight-state[data-estimado="true"] { color: var(--ink-muted); }
+.flight-seats { font-size: 11px; color: var(--ink-muted); text-align: right; min-width: 82px; }
+@media (max-width: 560px) {
+  .flight-option { grid-template-columns: auto auto 1fr; grid-template-areas: "radio logo when" ". . state" ". . seats"; }
+  .flight-option input[type="radio"] { grid-area: radio; }
+  .airline-badge { grid-area: logo; }
+  .flight-when { grid-area: when; }
+  .flight-state { grid-area: state; text-align: left; }
+  .flight-seats { grid-area: seats; text-align: left; min-width: 0; }
+}

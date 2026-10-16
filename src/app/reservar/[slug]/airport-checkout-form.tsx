@@ -2,7 +2,9 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { airlineName } from "@/lib/airport/airlines";
 import { statusLabel } from "@/lib/airport/flights";
+import { AirlineBadge } from "@/components/airline-badge";
 import { phoneCountries, phoneCountryLabel } from "@/lib/booking/phone-countries";
 import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
 
@@ -296,9 +298,14 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                   Probá otra fecha o consultanos por WhatsApp.
                 </p>
               ) : (
-                <div className="summary-list">
+                <div className="flight-options">
                   {visibles.map((f) => (
-                    <label key={f.id} className="muted">
+                    <label
+                      key={f.id}
+                      className="flight-option"
+                      data-selected={selectedId === f.id}
+                      data-disabled={!f.bookable}
+                    >
                       <input
                         type="radio"
                         name="flight"
@@ -306,10 +313,19 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                         checked={selectedId === f.id}
                         disabled={!f.bookable}
                         onChange={() => { setSelectedId(f.id); setError(""); }}
-                      />{" "}
-                      <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong> · {f.number}
-                      {f.airline ? ` (${f.airline})` : ""} — <b>{estadoDe(f)}</b>
-                      {f.bookable ? ` · ${f.available} lugares` : ` · ${f.reason}`}
+                      />
+                      <AirlineBadge code={f.airline} />
+                      <span className="flight-when">
+                        <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
+                        <span className="muted">
+                          {f.number}
+                          {f.airline ? ` · ${airlineName(f.airline)}` : ""}
+                        </span>
+                      </span>
+                      <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
+                        {estadoDe(f)}
+                      </span>
+                      <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
                     </label>
                   ))}
                 </div>
