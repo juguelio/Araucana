@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { detectFlightChange } from "@/lib/airport/flights";
+import { syncAirportFlights } from "@/lib/airport/sync";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
@@ -104,6 +105,10 @@ export async function deleteFlightAction(formData: FormData) {
  */
 export async function refreshFlightsAction() {
   await getCurrentReservationsUserOrRedirect();
+  const r = await syncAirportFlights();
   revalidatePath("/admin/aeropuerto");
-  notice("Sin proveedor de vuelos en vivo configurado todavía: los vuelos se cargan a mano.");
+  if (r.errores.length > 0) {
+    notice(`No se pudo traer los vuelos (${r.errores[0]}). Se sigue con lo cargado a mano.`);
+  }
+  notice(`Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados, ${r.eventos} imprevisto(s).`);
 }
