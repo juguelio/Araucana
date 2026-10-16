@@ -5,11 +5,23 @@ import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
 import { statusLabel } from "@/lib/airport/flights";
 import { AirlineBadge } from "@/components/airline-badge";
-import { phoneCountries, phoneCountryLabel } from "@/lib/booking/phone-countries";
-import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
+import {
+  buildPassengerPayload,
+  initialPassenger,
+  PassengerFields,
+  QuantityPicker,
+  validateCheckoutPassenger,
+  type PassengerFieldErrors,
+  type PassengerForm
+} from "./passenger-fields";
 
-/** Mismo shape que usa el checkout común (se deriva, así no se duplica el tipo). */
-type PassengerForm = Parameters<typeof buildPassengerPayload>[0];
+/** Errores del pasajero (compartidos) + los propios del aeropuerto (vuelo, lugar, cantidad). */
+type AirportFieldErrors = PassengerFieldErrors & {
+  flight?: string;
+  passengerCount?: string;
+  pickupName?: string;
+  pickupAddress?: string;
+};
 
 /**
  * Checkout del aeropuerto, **en pasos**: primero el pasajero elige llegada o salida —y con eso se
@@ -68,17 +80,6 @@ const SENTIDOS = [
 
 const sentidoTexto = (d: "ARRIVAL" | "DEPARTURE") => (d === "ARRIVAL" ? "Llegada" : "Salida");
 
-const initialPassenger: PassengerForm = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  phoneCountryCode: "54",
-  documentType: "DNI",
-  documentId: "",
-  nationality: "Argentina"
-};
-
 function hhmm(iso: string | null) {
   if (!iso) return "—";
   return new Date(new Date(iso).getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
@@ -115,7 +116,7 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<AirportFieldErrors>({});
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cargandoVuelos, setCargandoVuelos] = useState(false);
@@ -126,6 +127,19 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
   const sentidoDelVuelo = selected?.direction ?? sentido;
   const total = route.priceCents * passengerCount;
   const puedeSeguir = Boolean(selected && selected.bookable);
+
+  function updatePassenger(field: keyof PassengerForm, value: string) {
+    setPassenger((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const nextErrors = { ...current };
+      delete nextErrors[field];
+      return nextErrors;
+    });
+  }
 
   async function cargarVuelos(fecha: string) {
     setCargandoVuelos(true);
@@ -351,45 +365,20 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                 </p>
               </div>
 
-              <div className="checkout-fields">
-                <label>Nombre<input name="firstName" autoComplete="given-name" value={passenger.firstName} onChange={(e) => setPassenger({ ...passenger, firstName: e.target.value })} />{fieldErrors.firstName ? <span className="field-error">{fieldErrors.firstName}</span> : null}</label>
-                <label>Apellido<input name="lastName" autoComplete="family-name" value={passenger.lastName} onChange={(e) => setPassenger({ ...passenger, lastName: e.target.value })} />{fieldErrors.lastName ? <span className="field-error">{fieldErrors.lastName}</span> : null}</label>
-                <label>Email<input name="email" type="email" autoComplete="email" value={passenger.email} onChange={(e) => setPassenger({ ...passenger, email: e.target.value })} />{fieldErrors.email ? <span className="field-error">{fieldErrors.email}</span> : null}</label>
-              </div>
-
-              <div className="phone-field-row">
-                <label>
-                  País
-                  <select
-                    name="phoneCountryCode"
-                    value={passenger.phoneCountryCode}
-                    onChange={(e) => setPassenger({ ...passenger, phoneCountryCode: e.target.value })}
-                  >
-                    <option value="">Elegí el país</option>
-                    {phoneCountries.map((c) => (
-                      <option key={c.value} value={c.value}>{phoneCountryLabel(c)}</option>
-                    ))}
-                  </select>
-                  {fieldErrors.phoneCountryCode ? <span className="field-error">{fieldErrors.phoneCountryCode}</span> : null}
-                </label>
-                <label>
-                  Teléfono
-                  <input name="phone" type="tel" autoComplete="tel" value={passenger.phone} onChange={(e) => setPassenger({ ...passenger, phone: e.target.value })} />
-                  {fieldErrors.phone ? <span className="field-error">{fieldErrors.phone}</span> : null}
-                </label>
-              </div>
-
-              <div className="checkout-fields">
-                <label>Documento
-                  <select name="documentType" value={passenger.documentType} onChange={(e) => setPassenger({ ...passenger, documentType: e.target.value })}>
-                    <option value="DNI">DNI</option>
-                    <option value="Pasaporte">Pasaporte</option>
-                    <option value="CI">CI</option>
-                  </select>
-                </label>
-                <label>Número de documento<input name="documentId" value={passenger.documentId} onChange={(e) => setPassenger({ ...passenger, documentId: e.target.value })} />{fieldErrors.documentId ? <span className="field-error">{fieldErrors.documentId}</span> : null}</label>
-                <label>Cantidad de pasajeros<input name="passengerCount" type="number" min={1} max={24} value={passengerCount} onChange={(e) => setPassengerCount(Number(e.target.value))} />{fieldErrors.passengerCount ? <span className="field-error">{fieldErrors.passengerCount}</span> : null}</label>
-              </div>
+              <PassengerFields
+                passenger={passenger}
+                fieldErrors={fieldErrors}
+                disabled={isSubmitting}
+                onChange={updatePassenger}
+              />
+              <QuantityPicker
+                label="Cantidad de pasajeros"
+                value={passengerCount}
+                max={selected?.available ?? 24}
+                disabled={isSubmitting}
+                help={selected ? `${selected.available} lugares en ese vuelo` : undefined}
+                onChange={setPassengerCount}
+              />
 
               <div className="checkout-fields">
                 <label>{sentidoDelVuelo === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>

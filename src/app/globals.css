@@ -2087,3 +2087,14 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
   .flight-state { grid-area: state; text-align: left; }
   .flight-seats { grid-area: seats; text-align: left; min-width: 0; }
 }
+
+/* El codigo de reserva es largo (ARC-YYMM + 32 hex): a 30px no entra en la caja y se salia de
+   la pantalla. Que corte en varias lineas en vez de desbordar. */
+.ticket-code strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+.ticket-code {
+  min-width: 0;
+}
