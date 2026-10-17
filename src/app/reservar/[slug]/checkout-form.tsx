@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { PublicRouteDto, ScheduleOptionDto, SeatMapDto } from "@/lib/booking/types";
 import {
@@ -257,6 +258,10 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
         >
           {isSubmitting ? "Confirmando..." : "Confirmar reserva"}
         </button>
+        <p className="muted legal-consent">
+          Al confirmar, aceptás los <Link href="/terminos">términos y condiciones</Link> y la{" "}
+          <Link href="/privacidad">política de privacidad</Link>.
+        </p>
       </aside>
     </form>
   );
