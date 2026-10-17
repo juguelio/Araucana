@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
 import { statusLabel } from "@/lib/airport/flights";
@@ -423,6 +424,10 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
             {isSubmitting ? "Reservando…" : "Reservar"}
           </button>
         )}
+        <p className="muted legal-consent">
+          Al confirmar, aceptás los <Link href="/terminos">términos y condiciones</Link> y la{" "}
+          <Link href="/privacidad">política de privacidad</Link>.
+        </p>
       </aside>
     </form>
   );
