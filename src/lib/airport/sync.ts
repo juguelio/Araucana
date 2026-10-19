@@ -28,6 +28,8 @@ export type SyncSummary = {
   desdeTablero: number;
   /** Filas repetidas del mismo vuelo el mismo día que se unificaron (autocorrección). */
   limpiados: number;
+  /** Filas proyectadas de un día que ya tiene datos reales: se descartan. */
+  proyectadosLimpiados: number;
   errores: string[];
 };
 
@@ -47,8 +49,36 @@ function diasDesdeHoy(dias: number): string[] {
   return salida;
 }
 
+/**
+ * Un día que ya tiene datos reales no debe seguir mostrando filas proyectadas: el pasajero vería
+ * "Horario estimado" en el día del viaje, que es justo cuando el horario tiene que ser el real.
+ * Nunca se borra una fila con reservas o combis asignadas: esa reserva sigue siendo operativa.
+ */
+async function limpiarProyectadosConDatosReales(dia: string): Promise<number> {
+  const { desde, hasta } = rangoDelDia(dia);
+  const reales = await prisma.flight.count({
+    where: { scheduledAt: { gte: desde, lt: hasta }, source: { in: ["API", "FIDS", "MANUAL"] } }
+  });
+  // Sin ningún dato real, la proyección es lo único que hay: se respeta.
+  if (reales === 0) return 0;
+
+  const proyectados = await prisma.flight.findMany({
+    where: { scheduledAt: { gte: desde, lt: hasta }, source: "ESTIMADO" },
+    include: { _count: { select: { reservations: true, assignments: true } } }
+  });
+
+  let borrados = 0;
+  for (const fila of proyectados) {
+    if (fila._count.reservations > 0 || fila._count.assignments > 0) continue;
+    await prisma.flight.delete({ where: { id: fila.id } });
+    borrados += 1;
+  }
+
+  return borrados;
+}
+
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
-  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, errores: [] };
+  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
 
@@ -252,6 +282,12 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       resumen.creados += 1;
       resumen.desdeTablero += 1;
     }
+  }
+
+  // El día en curso tiene que mostrar horarios reales: si quedaron filas proyectadas de cuando ese
+  // día todavía era futuro, se descartan una vez que hay dato de la API o del tablero.
+  for (const dia of diasDesdeHoy(opts.days ?? DIAS_A_SINCRONIZAR)) {
+    resumen.proyectadosLimpiados += await limpiarProyectadosConDatosReales(dia);
   }
 
   // Los días futuros NO vienen de la API (el plan de AirLabs no publica horarios futuros).

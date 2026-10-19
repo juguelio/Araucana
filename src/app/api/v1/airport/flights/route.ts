@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { listAirportFlights } from "@/lib/airport/booking";
+import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
 import { prisma } from "@/lib/db/prisma";
 
 /** Vuelos del día para el flujo público del aeropuerto (sólo lectura, datos cacheados de AirLabs). */
@@ -18,6 +19,10 @@ export async function GET(request: Request) {
     if (!route || !route.isActive || route.bookingMode !== "AIRPORT") {
       return jsonError("ROUTE_NOT_FOUND", "La ruta no está disponible.", 404);
     }
+
+    // El día del viaje el horario tiene que ser el real, no una proyección: si el dato está viejo
+    // se sincroniza antes de listar (con tope de frecuencia y de corridas diarias, ver freshness).
+    await asegurarVuelosRealesDelDia(date);
 
     // Todos los vuelos del día (arribos y salidas): el pasajero elige el suyo y la reserva
     // toma la dirección del vuelo.

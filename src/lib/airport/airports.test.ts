@@ -11,6 +11,12 @@ describe("aeropuertoLabel", () => {
     expect(aeropuertoLabel("XYZ")).toBe("XYZ");
   });
 
+  it("traduce también la ciudad que publica el tablero del aeropuerto", () => {
+    expect(aeropuertoLabel("AEROPARQUE")).toBe("Aeroparque (AEP)");
+    expect(aeropuertoLabel("Ezeiza")).toBe("Ezeiza (EZE)");
+    expect(aeropuertoLabel("CÓRDOBA")).toBe("Córdoba (COR)");
+  });
+
   it("sin dato no devuelve nada", () => {
     expect(aeropuertoLabel(null)).toBeNull();
     expect(aeropuertoLabel(undefined)).toBeNull();

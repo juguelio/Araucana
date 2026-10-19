@@ -19,14 +19,36 @@ const NOMBRES: Record<string, string> = {
   IGR: "Iguazú (IGR)",
   REL: "Trelew (REL)",
   CRD: "Comodoro Rivadavia (CRD)",
-  USH: "Ushuaia (USH)"
+  USH: "Ushuaia (USH)",
+  // El tablero del aeropuerto publica la ciudad, no el código: se traduce igual para que dos
+  // filas del mismo vuelo (una de la API y otra del tablero) se lean igual.
+  AEROPARQUE: "Aeroparque (AEP)",
+  EZEIZA: "Ezeiza (EZE)",
+  CORDOBA: "Córdoba (COR)",
+  MENDOZA: "Mendoza (MDZ)",
+  BARILOCHE: "Bariloche (BRC)",
+  NEUQUEN: "Neuquén (NQN)",
+  ROSARIO: "Rosario (ROS)",
+  SALTA: "Salta (SAL)",
+  TUCUMAN: "Tucumán (TUC)",
+  IGUAZU: "Iguazú (IGR)",
+  TRELEW: "Trelew (REL)",
+  CHAPELCO: "Chapelco (CPC)"
 };
+
+/** Normaliza el texto a una clave del mapa: mayúsculas y sin acentos. */
+const clave = (texto: string) =>
+  texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
 
 /** Nombre reconocible del aeropuerto; si no lo conocemos devuelve el código tal cual. */
 export function aeropuertoLabel(codigo: string | null | undefined): string | null {
-  const code = (codigo ?? "").trim().toUpperCase();
+  const code = clave(codigo ?? "");
   if (!code || code === "—") return null;
-  return NOMBRES[code] ?? code;
+  return NOMBRES[code] ?? (codigo ?? "").trim();
 }
 
 /**

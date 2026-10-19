@@ -32,6 +32,16 @@ describe("reserva de aeropuerto", () => {
     expect(motivoNoReservable(real, 10, ahora)).toMatch(/ya salió/i);
   });
 
+  it("en un arribo dice que ya llegó, no que salió", () => {
+    const arribo = {
+      status: "LANDED",
+      scheduledAt: new Date("2029-01-01T12:00:00Z"),
+      source: "FIDS",
+      direction: "ARRIVAL" as const
+    };
+    expect(motivoNoReservable(arribo, 10, ahora)).toMatch(/ya llegó/i);
+  });
+
   it("el cupo sale de las combis asignadas (y asume una si no hay)", () => {
     expect(capacidadDeVuelo([])).toBe(24);
     expect(capacidadDeVuelo([{ seats: 24 }])).toBe(24);
