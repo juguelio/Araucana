@@ -630,6 +630,52 @@ describe("booking repository", () => {
     } satisfies Partial<BookingError>);
   });
 
+  it("assigns the first available seat internally without exposing it in the ticket", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const withoutSeat: CreateReservationInput = { ...input };
+    delete withoutSeat.seatNumber;
+
+    const reservation = await repository.createWebReservation(withoutSeat);
+
+    expect(reservation).toMatchObject({
+      seatNumber: "04",
+      status: "PENDING_PAYMENT"
+    });
+    // El lugar es control interno: el pasajero sube libre, así que el ticket no lo expone.
+    expect(JSON.parse(client.tickets[0]?.qrPayload ?? "{}")).toMatchObject({ passengerCount: 1 });
+    expect(JSON.parse(client.tickets[0]?.qrPayload ?? "{}")).not.toHaveProperty("seatNumber");
+    // Y no queda atado al plano de este vehículo: pueden mandar otra nave el día de la salida.
+    expect(client.reservations[0]?.seatId ?? null).toBeNull();
+  });
+
+  it("assigns the next free seat when the first one is taken", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    client.seedReservation({ seatId: "seat-04", seatNumber: "04" });
+    const withoutSeat: CreateReservationInput = { ...input };
+    delete withoutSeat.seatNumber;
+
+    await expect(repository.createWebReservation(withoutSeat)).resolves.toMatchObject({
+      seatNumber: "05"
+    });
+  });
+
+  it("retries an automatic seat race in a new transaction instead of failing", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    client.onBeforeReservationCreate = () => {
+      client.seedReservation({ code: "ARC-2611-RACE", seatId: "seat-04", seatNumber: "04" });
+    };
+    const withoutSeat: CreateReservationInput = { ...input };
+    delete withoutSeat.seatNumber;
+
+    await expect(repository.createWebReservation(withoutSeat)).resolves.toMatchObject({
+      status: "PENDING_PAYMENT"
+    });
+    expect(client.transactionCallCount).toBe(2);
+  });
+
   it("retries reservation code collisions in separate transactions before creating payment details", async () => {
     const client = new FakeBookingClient();
     const codes = ["ARC-2611-DUPE", "ARC-2611-OK"];

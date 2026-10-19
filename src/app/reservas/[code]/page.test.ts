@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { getManualBankDetails } from "@/lib/payments/manual-bank-details";
-import { formatDateTime, statusCopy, statusHeading } from "./page";
+import { formatDateTime, placesLabel, statusCopy, statusHeading } from "./page";
+
+describe("reservation confirmation places label", () => {
+  it("counts places without exposing seat numbers", () => {
+    expect(placesLabel(1)).toBe("1 lugar");
+    expect(placesLabel(2)).toBe("2 lugares");
+    expect(placesLabel(0)).toBe("0 lugares");
+  });
+});
 
 describe("reservation confirmation status copy", () => {
   it("keeps planned heading text for pending manual-payment reservations without saying they are fully paid", () => {
