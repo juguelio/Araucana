@@ -69,6 +69,10 @@ export function statusCopy(status?: string | null) {
   }
 }
 
+export function placesLabel(passengerCount: number) {
+  return `${passengerCount} ${passengerCount === 1 ? "lugar" : "lugares"}`;
+}
+
 export default async function ReservationConfirmationPage({ params }: ReservationConfirmationPageProps) {
   const { code } = await params;
   try {
@@ -130,8 +134,8 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                 <strong>{passengerName}</strong>
               </div>
               <div>
-                <span>{isChapelco ? "Cupo" : "Asiento"}</span>
-                <strong>{`${reservation.passengerCount} ${reservation.passengerCount === 1 ? "lugar" : "lugares"}`}</strong>
+                <span>{isChapelco ? "Cupo" : "Lugares"}</span>
+                <strong>{placesLabel(reservation.passengerCount)}</strong>
               </div>
               {isChapelco && reservation.chapelcoDetails ? (
                 <div>

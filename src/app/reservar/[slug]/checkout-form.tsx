@@ -204,7 +204,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             help={selectedSchedule ? `${selectedSchedule.availableSeats} lugares disponibles` : "Elegí una salida primero"}
             onChange={setPassengerCount}
           />
-          <p className="muted">No se asignan asientos numerados. El equipo confirma los lugares disponibles.</p>
+          <p className="muted">No hay asientos numerados: subís y te ubicás por orden de llegada. Tu reserva guarda los lugares del grupo.</p>
         </section>
 
         <section className="form-panel checkout-panel">

@@ -434,6 +434,30 @@ function scheduleInclude() {
   };
 }
 
+function compareSeats(left: SeatRecord, right: SeatRecord) {
+  return left.row - right.row || left.column - right.column || left.number.localeCompare(right.number);
+}
+
+function orderedSeats(seats: SeatRecord[]) {
+  return [...seats].sort(compareSeats);
+}
+
+/**
+ * Control interno de cupo: la reserva web no elige asiento y el pasajero nunca ve un número.
+ * El negocio carga la nave por orden de llegada y decide qué vehículo manda, así que el lugar
+ * asignado sólo sirve para no sobrevender ni duplicar el mismo lugar en la misma salida.
+ * Devuelve el primer lugar libre en el mismo orden en que se muestra el mapa de asientos.
+ */
+function firstAvailableSeat(
+  seats: SeatRecord[],
+  occupiedSeatIds: Set<string | null>,
+  occupiedSeatNumbers: Set<string | null>
+) {
+  return (
+    orderedSeats(seats).find((seat) => !occupiedSeatIds.has(seat.id) && !occupiedSeatNumbers.has(seat.number)) ?? null
+  );
+}
+
 async function getReservationByCodeWithClient(client: BookingTransactionClient, code: string) {
   const reservation = await client.reservation.findUnique({
     where: { code },
@@ -492,8 +516,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       return {
         scheduleId: schedule.id,
         vehicleId: schedule.vehicle.id,
-        seats: [...schedule.vehicle.seats]
-          .sort((left, right) => left.row - right.row || left.column - right.column || left.number.localeCompare(right.number))
+        seats: orderedSeats(schedule.vehicle.seats)
           .map((seat) => ({
             id: seat.id,
             number: seat.number,
@@ -534,12 +557,17 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             }
 
             let seat: (typeof schedule.vehicle.seats)[number] | null = null;
+            // El lugar asignado no se ata al vehículo: si el día de la salida mandan otra nave,
+            // la reserva sigue siendo válida (el cupo manda, no el plano del coche).
+            let seatIdForReservation: string | null = null;
             if (parsed.seatNumber) {
               seat = schedule.vehicle.seats.find((item) => item.number === parsed.seatNumber) ?? null;
 
               if (!seat) {
                 throw new BookingError("SEAT_NOT_FOUND", `Seat ${parsed.seatNumber} does not exist for this schedule`);
               }
+
+              seatIdForReservation = seat.id;
 
               const existingReservation = await tx.reservation.findFirst({
                 where: {
@@ -551,6 +579,20 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
               if (existingReservation) {
                 throw new BookingError("SEAT_OCCUPIED", `Seat ${seat.number} is already occupied`);
+              }
+            } else {
+              // La reserva web no elige asiento: se toma un lugar libre como control interno de cupo.
+              const activeReservations = (schedule.reservations ?? []).filter(
+                (reservation) => reservation.status !== "CANCELLED"
+              );
+              seat = firstAvailableSeat(
+                schedule.vehicle.seats,
+                new Set(activeReservations.map((reservation) => reservation.seatId)),
+                new Set(activeReservations.map((reservation) => reservation.seatNumber))
+              );
+
+              if (!seat) {
+                throw new BookingError("CAPACITY_FULL", "No seats are available for this schedule");
               }
             }
 
@@ -564,7 +606,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 scheduleId: schedule.id,
                 routeId: schedule.routeId,
                 passengerId: passenger.id,
-                seatId: seat?.id ?? null,
+                seatId: seatIdForReservation,
                 seatNumber: seat?.number ?? null,
                 passengerCount: requestedSeats,
                 bookingMode: "SEATED",
@@ -598,7 +640,6 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 qrPayload: JSON.stringify({
                   ticketCode,
                   scheduleId: schedule.id,
-                  seatNumber: seat?.number ?? null,
                   passengerCount: requestedSeats
                 })
               }
@@ -618,6 +659,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             throw new BookingError("BOOKING_BUSY", "La salida está recibiendo otras reservas. Intentalo nuevamente.");
           }
           if (isSeatUniqueConstraintError(error)) {
+            // Con asiento elegido por el usuario, el choque se le informa. Cuando el lugar lo
+            // asigna el sistema, se reintenta en una transacción nueva y toma el próximo libre.
+            if (!parsed.seatNumber) {
+              if (attempt < MAX_RESERVATION_CODE_ATTEMPTS) {
+                continue;
+              }
+
+              throw new BookingError("BOOKING_BUSY", "La salida está recibiendo otras reservas. Intentalo nuevamente.");
+            }
+
             throw new BookingError("SEAT_OCCUPIED", `Seat ${parsed.seatNumber} is already occupied`);
           }
 
