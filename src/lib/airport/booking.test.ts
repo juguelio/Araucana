@@ -21,6 +21,17 @@ describe("reserva de aeropuerto", () => {
     expect(motivoNoReservable(vuelo("DELAYED"), 12, ahora)).toBeNull();
   });
 
+  it("no afirma que un vuelo proyectado ya salió: ese horario era estimado", () => {
+    const proyectado = { status: "SCHEDULED", scheduledAt: new Date("2029-01-01T12:00:00Z"), source: "ESTIMADO" };
+    expect(motivoNoReservable(proyectado, 10, ahora)).toMatch(/estimado/i);
+    expect(motivoNoReservable(proyectado, 10, ahora)).not.toMatch(/ya salió/i);
+  });
+
+  it("con dato real de la aerolínea sí avisa que ya salió", () => {
+    const real = { status: "SCHEDULED", scheduledAt: new Date("2029-01-01T12:00:00Z"), source: "API" };
+    expect(motivoNoReservable(real, 10, ahora)).toMatch(/ya salió/i);
+  });
+
   it("el cupo sale de las combis asignadas (y asume una si no hay)", () => {
     expect(capacidadDeVuelo([])).toBe(24);
     expect(capacidadDeVuelo([{ seats: 24 }])).toBe(24);

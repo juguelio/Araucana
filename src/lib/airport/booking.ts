@@ -58,13 +58,16 @@ export function pasajerosOcupados(reservas: Array<{ passengerCount: number; stat
 
 /** ¿Se puede reservar este vuelo? Devuelve el motivo cuando no. */
 export function motivoNoReservable(
-  vuelo: { status: string; scheduledAt: Date },
+  vuelo: { status: string; scheduledAt: Date; source?: string },
   disponible: number,
   ahora: Date = new Date()
 ): string | null {
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
-  if (vuelo.scheduledAt <= ahora) return "El vuelo ya salió.";
+  if (vuelo.scheduledAt <= ahora) {
+    // Un horario proyectado no prueba que el vuelo haya salido: no se afirma eso al pasajero.
+    return vuelo.source === "ESTIMADO" ? "Horario estimado ya pasado." : "El vuelo ya salió.";
+  }
   if (disponible <= 0) return "Sin lugares disponibles para ese vuelo.";
   return null;
 }

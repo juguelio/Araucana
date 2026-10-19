@@ -2075,6 +2075,8 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 .flight-when { display: grid; gap: 2px; min-width: 0; }
 .flight-when strong { font-size: 16px; }
 .flight-when span { font-size: 12px; }
+/* El tramo (desde/hacia qué aeropuerto) es lo que distingue dos vuelos de la misma aerolínea. */
+.flight-when .flight-route { font-weight: 600; }
 .flight-state { font-size: 12px; font-weight: 700; text-align: right; white-space: nowrap; }
 .flight-state[data-status="DELAYED"], .flight-state[data-status="CANCELLED"], .flight-state[data-status="DIVERTED"] { color: var(--accent); }
 .flight-state[data-estimado="true"] { color: var(--ink-muted); }
