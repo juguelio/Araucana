@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
+import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { statusLabel } from "@/lib/airport/flights";
 import { AirlineBadge } from "@/components/airline-badge";
 import {
@@ -44,6 +45,11 @@ type FlightOption = {
   number: string;
   direction: "ARRIVAL" | "DEPARTURE";
   airline: string | null;
+  /**
+   * Aeropuerto del otro extremo del vuelo: en una llegada es de dónde viene, en una salida desde
+   * Chapelco es a dónde va. Se muestra porque el número solo no alcanza para reconocer el vuelo.
+   */
+  origin?: string | null;
   scheduledAt: string;
   estimatedAt: string | null;
   status: string;
@@ -84,6 +90,20 @@ const sentidoTexto = (d: "ARRIVAL" | "DEPARTURE") => (d === "ARRIVAL" ? "Llegada
 function hhmm(iso: string | null) {
   if (!iso) return "—";
   return new Date(new Date(iso).getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
+}
+
+/** dd/mm/aaaa: el resumen mostraba la fecha cruda del input (`2026-10-19`). */
+function fechaCorta(dia: string) {
+  const [anio, mes, d] = dia.split("-");
+  return anio && mes && d ? `${d}/${mes}/${anio}` : dia;
+}
+
+/** "AR1656 · 14:50 · desde Ezeiza (EZE)": el tramo es lo que desambigua dos vuelos parecidos. */
+function descripcionVuelo(f: FlightOption) {
+  const partes = [f.number, hhmm(f.estimatedAt ?? f.scheduledAt)];
+  const tramo = tramoDeVuelo({ direction: f.direction, origin: f.origin });
+  if (tramo) partes.push(tramo);
+  return partes.join(" · ");
 }
 
 function estadoTexto(vuelo: FlightOption) {
@@ -314,35 +334,39 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                 </p>
               ) : (
                 <div className="flight-options">
-                  {visibles.map((f) => (
-                    <label
-                      key={f.id}
-                      className="flight-option"
-                      data-selected={selectedId === f.id}
-                      data-disabled={!f.bookable}
-                    >
-                      <input
-                        type="radio"
-                        name="flight"
-                        value={f.id}
-                        checked={selectedId === f.id}
-                        disabled={!f.bookable}
-                        onChange={() => { setSelectedId(f.id); setError(""); }}
-                      />
-                      <AirlineBadge code={f.airline} />
-                      <span className="flight-when">
-                        <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
-                        <span className="muted">
-                          {f.number}
-                          {f.airline ? ` · ${airlineName(f.airline)}` : ""}
+                  {visibles.map((f) => {
+                    const tramo = tramoDeVuelo({ direction: f.direction, origin: f.origin });
+                    return (
+                      <label
+                        key={f.id}
+                        className="flight-option"
+                        data-selected={selectedId === f.id}
+                        data-disabled={!f.bookable}
+                      >
+                        <input
+                          type="radio"
+                          name="flight"
+                          value={f.id}
+                          checked={selectedId === f.id}
+                          disabled={!f.bookable}
+                          onChange={() => { setSelectedId(f.id); setError(""); }}
+                        />
+                        <AirlineBadge code={f.airline} />
+                        <span className="flight-when">
+                          <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
+                          <span className="muted">
+                            {f.number}
+                            {f.airline ? ` · ${airlineName(f.airline)}` : ""}
+                          </span>
+                          {tramo ? <span className="flight-route">{tramo}</span> : null}
                         </span>
-                      </span>
-                      <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
-                        {estadoDe(f)}
-                      </span>
-                      <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
-                    </label>
-                  ))}
+                        <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
+                          {estadoDe(f)}
+                        </span>
+                        <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
               {fieldErrors.flight ? <p className="field-error">{fieldErrors.flight}</p> : null}
@@ -362,7 +386,7 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                 <p className="eyebrow">Paso 3 de 3</p>
                 <h2 className="route-title">Tus datos</h2>
                 <p className="muted">
-                  Vuelo elegido: <strong>{selected ? `${selected.number} · ${hhmm(selected.estimatedAt ?? selected.scheduledAt)}` : "—"}</strong>
+                  Vuelo elegido: <strong>{selected ? descripcionVuelo(selected) : "—"}</strong>
                 </p>
               </div>
 
@@ -403,7 +427,8 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
         <h2 className="route-title">Aeropuerto Chapelco</h2>
         <div className="summary-list">
           <span>Sentido: <strong>{sentidoTexto(sentidoDelVuelo)}</strong></span>
-          <span>Día: <strong>{date}</strong></span>
+          <span>Día: <strong>{fechaCorta(date)}</strong></span>
+          <span>{sentidoDelVuelo === "ARRIVAL" ? "Origen" : "Destino"}: <strong>{selected ? aeropuertoLabel(selected.origin) ?? "—" : "—"}</strong></span>
           <span>Vuelo: <strong>{selected ? selected.number : "—"}</strong></span>
           <span>Horario: <strong>{selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
           <span>Estado: <strong>{selected ? estadoDe(selected) : "—"}</strong></span>
