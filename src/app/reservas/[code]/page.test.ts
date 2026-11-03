@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getManualBankDetails } from "@/lib/payments/manual-bank-details";
-import { formatDateTime, placesLabel, statusCopy, statusHeading } from "./page";
+import { formatDateTime, placesLabel, statusCopy, statusHeading } from "./presentation";
 
 describe("reservation confirmation places label", () => {
   it("counts places without exposing seat numbers", () => {
@@ -11,8 +11,8 @@ describe("reservation confirmation places label", () => {
 });
 
 describe("reservation confirmation status copy", () => {
-  it("keeps planned heading text for pending manual-payment reservations without saying they are fully paid", () => {
-    expect(statusHeading("PENDING_PAYMENT")).toBe("Reserva confirmada");
+  it("distinguishes a pending reservation from a confirmed reservation", () => {
+    expect(statusHeading("PENDING_PAYMENT")).toBe("Reserva recibida · pago pendiente");
     expect(statusCopy("PENDING_PAYMENT")).toContain("pago queda pendiente de confirmacion manual");
   });
 

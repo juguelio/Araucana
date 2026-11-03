@@ -33,7 +33,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: `npm run dev -- --hostname ${target.hostname} -p ${target.port}`,
+    command: `npm run dev -- ${process.env.PLAYWRIGHT_WEBPACK === "1" ? "--webpack " : ""}--hostname ${target.hostname} -p ${target.port}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,

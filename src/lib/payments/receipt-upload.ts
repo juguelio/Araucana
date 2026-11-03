@@ -11,7 +11,7 @@ export async function assertReceiptUploadAllowed(code: string, request?: Request
   await requireReservationAccess(code, request);
   const reservation = await getReservationByCode(code);
   if (!reservation) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada");
-  if (reservation.status !== "PENDING_PAYMENT" || reservation.payment?.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+  if (reservation.status !== "PENDING_PAYMENT" || reservation.payment?.provider !== "MANUAL" || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
     throw new ApiError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.", 409);
   }
   if (!process.env.BLOB_READ_WRITE_TOKEN) {

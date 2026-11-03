@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { approveManualPayment, BookingError, createWebReservation, updatePassengerForReservation } from "@/lib/booking/repository";
+import { approveManualPayment, rejectManualPayment, BookingError, createWebReservation, updatePassengerForReservation } from "@/lib/booking/repository";
 import { createReservationSchema, passengerSchema } from "@/lib/booking/validation";
 import {
   errorState,
@@ -56,26 +56,32 @@ export async function createAdminReservationAction(formData: FormData) {
   redirect(`/admin/reservas/${reservation.code}`);
 }
 
-export async function approveManualPaymentAction(formData: FormData) {
+async function reviewPaymentAction(formData: FormData, decision: "approve" | "reject") {
   await getCurrentReservationsUserOrRedirect();
-  const code = String(formData.get("code") ?? "").trim().toUpperCase();
-
-  if (!code) {
-    redirect(`/admin/reservas?notice=${encodeURIComponent("No pudimos validar el pago porque falta el codigo de reserva.")}`);
-  }
-
+  const code = value(formData, "code").toUpperCase();
+  if (!code) redirect(`/admin/reservas?notice=${encodeURIComponent("Falta el código de reserva.")}`);
   try {
-    await approveManualPayment(code);
-    revalidatePath("/admin/reservas");
-    revalidatePath(`/reservas/${code}`);
-    redirect(`/admin/reservas?notice=${encodeURIComponent("Pago validado con exito.")}`);
+    await (decision === "approve" ? approveManualPayment(code) : rejectManualPayment(code));
   } catch (error) {
-    if (error instanceof BookingError && error.code === "RECEIPT_NOT_FOUND") {
-      redirect(`/admin/reservas?notice=${encodeURIComponent("No encontramos el comprobante para validar ese pago.")}`);
+    if (error instanceof BookingError) {
+      redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
     }
-
     throw error;
   }
+  revalidatePath("/admin/reservas");
+  revalidatePath(`/admin/reservas/${code}`);
+  revalidatePath(`/reservas/${code}`);
+  revalidatePath("/admin/contabilidad");
+  revalidatePath("/admin/reportes");
+  redirect(`/admin/reservas?notice=${encodeURIComponent(decision === "approve" ? "Pago validado con éxito." : "Comprobante rechazado. El pasajero puede enviar uno nuevo.")}`);
+}
+
+export async function approveManualPaymentAction(formData: FormData) {
+  return reviewPaymentAction(formData, "approve");
+}
+
+export async function rejectManualPaymentAction(formData: FormData) {
+  return reviewPaymentAction(formData, "reject");
 }
 
 export async function updatePassengerAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {

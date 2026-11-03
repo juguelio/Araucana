@@ -63,4 +63,11 @@ describe("receipt storage lifecycle", () => {
     expect(mocks.del).toHaveBeenCalledExactlyOnceWith("old");
     expect(mocks.attach.mock.invocationCallOrder[0]).toBeLessThan(mocks.del.mock.invocationCallOrder[0]);
   });
+  it("allows a new receipt after rejection while keeping cancelled reservations locked", async () => {
+    mocks.get.mockResolvedValue({ status: "PENDING_PAYMENT", payment: { provider: "MANUAL", status: "REJECTED" } });
+    await expect(assertReceiptUploadAllowed("test")).resolves.toMatchObject({ status: "PENDING_PAYMENT" });
+    mocks.get.mockResolvedValue({ status: "CANCELLED", payment: { provider: "MANUAL", status: "REJECTED" } });
+    await expect(assertReceiptUploadAllowed("test")).rejects.toMatchObject({ status: 409 });
+  });
+
 });

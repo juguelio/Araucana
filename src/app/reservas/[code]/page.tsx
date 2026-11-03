@@ -1,3 +1,4 @@
+import { formatDateTime, formatPrice, paymentLabel, statusHeading, statusCopy, placesLabel } from "./presentation";
 import { requireReservationAccess } from "@/lib/booking/access";
 import { AuthorizationError } from "@/lib/auth/service";
 import { getManualBankDetails } from "@/lib/payments/manual-bank-details";
@@ -15,63 +16,6 @@ type ReservationConfirmationPageProps = {
     code: string;
   }>;
 };
-
-export function formatDateTime(value: Date | string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: "America/Argentina/Salta"
-  }).format(new Date(value));
-}
-
-function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0
-  }).format(cents / 100);
-}
-
-function paymentLabel(status?: string | null) {
-  if (!status) {
-    return "Pendiente";
-  }
-
-  return status
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-export function statusHeading(status?: string | null) {
-  switch (status) {
-    case "CONFIRMED":
-    case "PENDING_PAYMENT":
-      return "Reserva confirmada";
-    case "CANCELLED":
-      return "Reserva cancelada";
-    default:
-      return "Reserva recibida";
-  }
-}
-
-export function statusCopy(status?: string | null) {
-  switch (status) {
-    case "CONFIRMED":
-      return "Tu reserva esta confirmada. Conserva este enlace privado para presentarlo al equipo de Araucana.";
-    case "PENDING_PAYMENT":
-      return "Recibimos tu reserva y el pago queda pendiente de confirmacion manual; conserva este enlace privado para coordinar el cierre con el equipo de Araucana.";
-    case "CANCELLED":
-      return "Esta reserva fue cancelada. Si necesitas revisar el caso, contacta al equipo de Araucana con este codigo.";
-    default:
-      return "Recibimos tu reserva. Conserva este enlace privado para consultar el estado con el equipo de Araucana.";
-  }
-}
-
-export function placesLabel(passengerCount: number) {
-  return `${passengerCount} ${passengerCount === 1 ? "lugar" : "lugares"}`;
-}
 
 export default async function ReservationConfirmationPage({ params }: ReservationConfirmationPageProps) {
   const { code } = await params;
@@ -192,7 +136,8 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
           </div>
         </section>
 
-        {reservation.payment?.provider === "MANUAL" && reservation.payment.status !== "APPROVED" ? (
+        {reservation.payment?.status === "REJECTED" && reservation.status === "PENDING_PAYMENT" ? <p className="page-shell error" role="status">El comprobante fue rechazado. Revisá los datos del pago y enviá un comprobante nuevo, o contactá al equipo de Araucana.</p> : null}
+        {reservation.status === "PENDING_PAYMENT" && reservation.payment?.provider === "MANUAL" && ["PENDING", "REJECTED"].includes(reservation.payment.status) ? (
           <ManualPaymentPanel
             reservationCode={reservation.code}
             bankDetails={getManualBankDetails()}

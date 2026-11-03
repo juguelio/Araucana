@@ -1,4 +1,16 @@
+import { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+
+if (!process.env.E2E_DATABASE_URL || process.env.E2E_ISOLATED_DATABASE !== "1") throw new Error("Requires isolated E2E database");
+const prisma = new PrismaClient({ datasourceUrl: process.env.E2E_DATABASE_URL });
+const slug = `traful-test-${randomUUID()}`;
+test.beforeAll(async () => {
+  const route = await prisma.travelRoute.create({ data: { slug, from: "SMA", to: "Villa Traful", via: "Directo", durationMin: 60, priceCents: 10000, category: "Argentina", description: "Prueba aislada", stops: [] } });
+  const vehicle = await prisma.vehicle.create({ data: { name: "Vehículo prueba reserva", seats: { create: [{ number: "1", row: 1, column: 1 }, { number: "2", row: 1, column: 2 }] } } });
+  await prisma.schedule.create({ data: { routeId: route.id, vehicleId: vehicle.id, departureAt: new Date(Date.now() + 86400000 * 7), arrivalAt: new Date(Date.now() + 86400000 * 7 + 3600000), status: "OPEN" } });
+});
+test.afterAll(async () => { await prisma.$disconnect(); });
 
 async function waitForReactFormHydration(page: Page) {
   await page.locator("form").evaluate((form) => {
@@ -30,10 +42,10 @@ async function waitForReactFormHydration(page: Page) {
 
 test.describe("Reserva web", () => {
   test("permite completar una reserva de un lugar para Villa Traful", async ({ page }) => {
-    await page.goto("/rutas/sma-villa-traful-verano-2026");
+    await page.goto(`/rutas/${slug}`);
     await page.getByRole("link", { name: "Reservar asiento" }).click();
 
-    await expect(page).toHaveURL(/\/reservar\/sma-villa-traful-verano-2026$/);
+    await expect(page).toHaveURL(new RegExp(`/reservar/${slug}$`));
     await waitForReactFormHydration(page);
 
     const departure = page.locator("label.schedule-option").first();
@@ -51,8 +63,8 @@ test.describe("Reserva web", () => {
 
     await page.getByRole("button", { name: "Confirmar reserva" }).click();
 
-    await expect(page).toHaveURL(/\/reservas\/ARC-/);
-    await expect(page.getByRole("heading", { name: "Reserva confirmada" })).toBeVisible();
+    await expect(page).toHaveURL(/\/reservas\/ARC-/, { timeout: 20000 });
+    await expect(page.getByRole("heading", { name: "Reserva recibida · pago pendiente" })).toBeVisible();
     await expect(page.getByText("1 lugar", { exact: true }).first()).toBeVisible();
   });
 });

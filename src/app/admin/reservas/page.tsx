@@ -2,11 +2,16 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { listAdminReservations } from "@/lib/booking/repository";
-import { approveManualPaymentAction } from "./actions";
+import { adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
+import { approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
     notice?: string;
+    code?: string;
+    date?: string;
+    route?: string;
+    scheduleId?: string;
   }>;
 };
 
@@ -43,13 +48,24 @@ function whatsappHref(phone: string) {
 export default async function AdminReservationsPage({ searchParams }: AdminReservationsPageProps) {
   const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
-  const reservations = await listAdminReservations();
+  const parsed = adminReservationFiltersSchema.safeParse(params ?? {});
+  const reservations = parsed.success ? await listAdminReservations(parsed.data) : [];
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
       <div className="admin-page-actions">
         <Link className="button" href="/admin/reservas/nueva">Crear reserva</Link>
       </div>
+      <form action="/admin/reservas" method="get" className="admin-form">
+        <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} /></label>
+        <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
+        <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
+        <label>ID de salida<input name="scheduleId" defaultValue={params?.scheduleId} maxLength={100} /></label>
+        <button className="button" type="submit">Buscar reservas</button>
+        <Link href="/admin/reservas">Limpiar filtros</Link>
+      </form>
+      {!parsed.success ? <p className="error" role="alert">Revisá los filtros: ingresá una fecha válida y textos de hasta 100 caracteres.</p> : null}
+      {parsed.success && reservations.length === 0 ? <p role="status">No se encontraron reservas con esos filtros.</p> : null}
       <table className="data-table">
         <thead>
           <tr>
@@ -110,12 +126,13 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                   )}
                 </td>
                 <td>
-                  {reservation.hasReceipt && reservation.paymentStatus !== "APPROVED" ? (
+                  {reservation.hasReceipt && reservation.status === "PENDING_PAYMENT" && reservation.paymentStatus === "PENDING" ? (
                     <form action={approveManualPaymentAction}>
                       <input type="hidden" name="code" value={reservation.code} />
                       <button className="button table-action" type="submit">
                         Validar pago
                       </button>
+                      <button className="button table-action" formAction={rejectManualPaymentAction} type="submit">Rechazar comprobante</button>
                     </form>
                   ) : (
                     <span className="muted">-</span>
