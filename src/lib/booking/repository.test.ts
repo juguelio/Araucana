@@ -870,4 +870,58 @@ describe("booking repository", () => {
       }
     });
   });
+  it("does not resurrect a cancelled reservation when approving its receipt", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation({ status: "CANCELLED" });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null, receiptBlobPathname: "receipt" });
+    await expect(repository.approveManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(client.reservations[0].status).toBe("CANCELLED");
+    expect(client.payments[0].status).toBe("PENDING");
+  });
+
+  it("rejects a receipt, accepts a replacement, then approves only the new pending payment", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation();
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null, receiptBlobPathname: "old" });
+    await expect(repository.rejectManualPayment(reservation.code)).resolves.toMatchObject({ status: "PENDING_PAYMENT", payment: { status: "REJECTED" } });
+    await expect(repository.approveManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    const result = await repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "new.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() });
+    expect(result.replacedBlobPathname).toBe("old");
+    expect(result.reservation.payment?.status).toBe("PENDING");
+    await expect(repository.approveManualPayment(reservation.code)).resolves.toMatchObject({ status: "CONFIRMED", payment: { status: "APPROVED" } });
+    await expect(repository.rejectManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+  });
+
+  it("requires a receipt for either review decision and rejects non-manual providers", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation();
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null });
+    for (const review of [repository.approveManualPayment, repository.rejectManualPayment]) {
+      await expect(review(reservation.code)).rejects.toMatchObject({ code: "RECEIPT_NOT_FOUND" });
+    }
+    client.payments[0].provider = "OTHER";
+    await expect(repository.approveManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+  });
+
+  it("rechecks payment state after a concurrent review wins", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation();
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null, receiptBlobPathname: "receipt" });
+    const transaction = client.$transaction.bind(client);
+    const spy = vi.spyOn(client, "$transaction");
+    spy.mockImplementationOnce(async () => {
+      client.payments[0].status = "APPROVED";
+      client.reservations[0].status = "CONFIRMED";
+      throw Object.assign(new Error("conflict"), { code: "P2034" });
+    }).mockImplementation(transaction);
+    await expect(repository.rejectManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
+    expect(client.payments[0].status).toBe("APPROVED");
+  });
+
 });

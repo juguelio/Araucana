@@ -1,3 +1,4 @@
+import { adminReservationWhere, type AdminReservationFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createTicketCode } from "./codes";
 import {
@@ -471,6 +472,41 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
   const createCode = deps.createReservationCode ?? (() => defaultCreateReservationCode());
   const paymentProvider = deps.paymentProvider ?? manualPaymentProvider;
 
+  async function reviewManualPayment(code: string, decision: "APPROVED" | "REJECTED") {
+    const normalizedCode = code.trim().toUpperCase();
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await client.$transaction(async (tx) => {
+          const reservation = await tx.reservation.findUnique({
+            where: { code: normalizedCode }, include: reservationInclude()
+          });
+          if (!reservation) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada.");
+          if (!reservation.payment) throw new BookingError("PAYMENT_NOT_FOUND", "Pago no encontrado.");
+          if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+            throw new BookingError("PAYMENT_LOCKED", "El pago ya fue revisado o la reserva no admite cambios.");
+          }
+          if (!reservation.payment.receiptBlobPathname) {
+            throw new BookingError("RECEIPT_NOT_FOUND", "No encontramos el comprobante para revisar ese pago.");
+          }
+          await tx.payment.update({ where: { reservationId: reservation.id }, data: { status: decision } });
+          await tx.reservation.update({
+            where: { id: reservation.id },
+            data: { status: decision === "APPROVED" ? "CONFIRMED" : "PENDING_PAYMENT" }
+          });
+          const detail = await getReservationByCodeWithClient(tx, normalizedCode);
+          if (!detail) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada.");
+          return detail;
+        }, { isolationLevel: "Serializable" });
+      } catch (error) {
+        if (typeof error === "object" && error !== null && "code" in error && error.code === "P2034") {
+          if (attempt < MAX_RESERVATION_CODE_ATTEMPTS) continue;
+          throw new BookingError("BOOKING_BUSY", "Otro operador está actualizando el pago. Volvé a consultar la reserva.");
+        }
+        throw error;
+      }
+    }
+  }
+
   return {
     async listPublicRoutes() {
       const routes = await client.travelRoute.findMany({
@@ -753,7 +789,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
             }
 
-            if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+            if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
               throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
             }
 
@@ -790,49 +826,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       }
     },
 
-    async approveManualPayment(code: string) {
-      const normalizedCode = code.toUpperCase();
-
-      return client.$transaction(async (tx) => {
-        const reservation = await tx.reservation.findUnique({
-          where: { code: normalizedCode },
-          include: reservationInclude()
-        });
-
-        if (!reservation) {
-          throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found");
-        }
-
-        if (!reservation.payment) {
-          throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
-        }
-
-        if (!reservation.payment.receiptBlobPathname) {
-          throw new BookingError("RECEIPT_NOT_FOUND", "Manual payment receipt not found");
-        }
-
-        await tx.payment.update({
-          where: { reservationId: reservation.id },
-          data: {
-            status: "APPROVED"
-          }
-        });
-        await tx.reservation.update({
-          where: { id: reservation.id },
-          data: {
-            status: "CONFIRMED"
-          }
-        });
-
-        const detail = await getReservationByCodeWithClient(tx, normalizedCode);
-
-        if (!detail) {
-          throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found after payment approval");
-        }
-
-        return detail;
-      });
-    },
+    approveManualPayment: (code: string) => reviewManualPayment(code, "APPROVED"),
+    rejectManualPayment: (code: string) => reviewManualPayment(code, "REJECTED"),
 
     async listAdminSchedules(): Promise<AdminScheduleRowDto[]> {
       const schedules = await client.schedule.findMany({
@@ -876,8 +871,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       }));
     },
 
-    async listAdminReservations(): Promise<AdminReservationRowDto[]> {
+    async listAdminReservations(filters: AdminReservationFilters = {}): Promise<AdminReservationRowDto[]> {
       const reservations = await client.reservation.findMany({
+        where: adminReservationWhere(filters),
         include: reservationInclude(),
         orderBy: { createdAt: "desc" }
       });
@@ -892,7 +888,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           : reservation.route
             ? `${reservation.route.from} -> ${reservation.route.to}`
             : "Ruta sin datos",
-        departureAt: reservation.schedule?.departureAt ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt,
+        departureAt: reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt,
         seatNumber: reservation.seatNumber,
         bookingMode: reservation.bookingMode,
         passengerCount: reservation.passengerCount,
@@ -919,6 +915,7 @@ export const createWebReservation = defaultRepository.createWebReservation;
 export const getReservationByCode = defaultRepository.getReservationByCode;
 export const updatePassengerForReservation = defaultRepository.updatePassengerForReservation;
 export const attachManualPaymentReceipt = defaultRepository.attachManualPaymentReceipt;
+export const rejectManualPayment = defaultRepository.rejectManualPayment;
 export const approveManualPayment = defaultRepository.approveManualPayment;
 export const listAdminSchedules = defaultRepository.listAdminSchedules;
 export const listAdminRoutes = defaultRepository.listAdminRoutes;
