@@ -73,6 +73,27 @@ model Vehicle {
   templateKey  String?
   layoutMarkers Json       @default("[]")
   isActive     Boolean    @default(true)
+  // ── Ficha de la unidad (planilla de flota del cliente) ──────────────────────
+  /** Número de interno con el que la empresa identifica la unidad ("1910", "243", "152"). */
+  internalNumber String?
+  /** Titular registral: LA ARAUCANA VIAJES SRL, TROMPUL S.R.L., PRIETO JUAN CARLOS. */
+  owner        String?
+  year         Int?
+  acquiredAt   DateTime?
+  /** Vencimiento de la revisión técnica (VTV). */
+  technicalInspectionDueAt DateTime?
+  /** Vencimiento del RTO nacional. */
+  rtoDueAt     DateTime?
+  insurer      String?
+  policyDueAt  DateTime?
+  /**
+   * Habilita la unidad para "transporte público" (los tramos que vende la web).
+   * En la planilla del cliente son las aseguradas por **Prot Mut**: los buses grandes.
+   */
+  publicTransport Boolean @default(false)
+  /** CAMIONETA · BUS · UTILITARIO (los utilitarios no se asignan a salidas). */
+  kind         String     @default("CAMIONETA")
+  notes        String?
   seats        Seat[]
   schedules    Schedule[]
   driverLocations DriverVehicleLocation[]
@@ -82,6 +103,9 @@ model Vehicle {
   airportAssignments AirportVehicleAssignment[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
+
+  @@index([internalNumber])
+  @@index([licensePlate])
 }
 
 model AccountingEntry {

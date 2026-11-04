@@ -20,7 +20,26 @@ type VehicleFormData = {
   layoutMarkers?: unknown;
   isActive?: boolean;
   seats?: VehicleSeat[];
+  internalNumber?: string | null;
+  owner?: string | null;
+  year?: number | null;
+  acquiredAt?: Date | null;
+  technicalInspectionDueAt?: Date | null;
+  rtoDueAt?: Date | null;
+  insurer?: string | null;
+  policyDueAt?: Date | null;
+  publicTransport?: boolean;
+  kind?: string;
+  notes?: string | null;
 };
+
+/** `input[type=date]` necesita aaaa-mm-dd, sin zona horaria. */
+function inputDate(fecha: Date | null | undefined): string {
+  if (!fecha) return "";
+  const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dia = String(fecha.getDate()).padStart(2, "0");
+  return `${fecha.getFullYear()}-${mes}-${dia}`;
+}
 
 type VehicleFormProps = {
   action: VehicleFormAction;
@@ -102,6 +121,59 @@ export function VehicleForm({ action, vehicle, submitLabel }: VehicleFormProps) 
       <label>
         Patente / identificador
         <input name="licensePlate" defaultValue={vehicle?.licensePlate ?? ""} placeholder="AE 123 AR" />
+      </label>
+      <label>
+        Número de interno
+        <input name="internalNumber" defaultValue={vehicle?.internalNumber ?? ""} placeholder="1910" />
+      </label>
+      <label>
+        Titular
+        <select name="owner" defaultValue={vehicle?.owner ?? ""}>
+          <option value="">Sin definir</option>
+          <option value="LA ARAUCANA VIAJES SRL">LA ARAUCANA VIAJES SRL</option>
+          <option value="TROMPUL S.R.L.">TROMPUL S.R.L.</option>
+          <option value="PRIETO, JUAN CARLOS">PRIETO, JUAN CARLOS</option>
+        </select>
+      </label>
+      <label>
+        Tipo de unidad
+        <select name="kind" defaultValue={vehicle?.kind ?? "CAMIONETA"}>
+          <option value="CAMIONETA">Camioneta</option>
+          <option value="BUS">Bus</option>
+          <option value="UTILITARIO">Utilitario (no se asigna a salidas)</option>
+        </select>
+      </label>
+      <label>
+        Año
+        <input name="year" type="number" min="1980" max="2100" defaultValue={vehicle?.year ?? ""} placeholder="2019" />
+      </label>
+      <label>
+        Fecha de adquisición
+        <input name="acquiredAt" type="date" defaultValue={inputDate(vehicle?.acquiredAt)} />
+      </label>
+      <label>
+        Vencimiento revisión técnica
+        <input name="technicalInspectionDueAt" type="date" defaultValue={inputDate(vehicle?.technicalInspectionDueAt)} />
+      </label>
+      <label>
+        Vencimiento RTO nacional
+        <input name="rtoDueAt" type="date" defaultValue={inputDate(vehicle?.rtoDueAt)} />
+      </label>
+      <label>
+        Aseguradora
+        <input name="insurer" defaultValue={vehicle?.insurer ?? ""} placeholder="Federacion / Prot Mut" />
+      </label>
+      <label>
+        Vencimiento de póliza
+        <input name="policyDueAt" type="date" defaultValue={inputDate(vehicle?.policyDueAt)} />
+      </label>
+      <label className="checkbox-row">
+        <input name="publicTransport" type="checkbox" defaultChecked={vehicle?.publicTransport ?? false} />
+        Habilitada para transporte público (Prot Mut)
+      </label>
+      <label className="span-2">
+        Notas de la unidad
+        <input name="notes" defaultValue={vehicle?.notes ?? ""} placeholder="Vendida, fuera de servicio, observaciones…" />
       </label>
       <label>
         Capacidad
