@@ -2196,3 +2196,19 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 @media (max-width: 560px) {
   .legal-toc { grid-template-columns: 1fr; }
 }
+
+/* === Flota: vencimientos de una unidad (técnica, RTO, póliza) === */
+.fleet-due-list { display: grid; gap: 8px; margin-top: 12px; }
+.fleet-due { display: grid; grid-template-columns: 108px minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
+  background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--ok, #2f7d5d);
+  border-radius: 12px; padding: 10px 14px; }
+.fleet-due[data-nivel="vencido"] { border-left-color: var(--danger, #a4262c); }
+.fleet-due[data-nivel="proximo"] { border-left-color: var(--warning, #b26a00); }
+.fleet-due-date { font-variant-numeric: tabular-nums; font-weight: 700; }
+.fleet-due-unit { display: grid; min-width: 0; }
+.fleet-due-unit small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fleet-due-pill { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+  background: rgba(47, 125, 93, .12); color: var(--ok, #2f7d5d); }
+.fleet-due-pill[data-nivel="vencido"] { background: rgba(164, 38, 44, .12); color: var(--danger, #a4262c); }
+.fleet-due-pill[data-nivel="proximo"] { background: rgba(178, 106, 0, .12); color: var(--warning, #b26a00); }
+@media (max-width: 720px) { .fleet-due { grid-template-columns: 1fr auto; } .fleet-due-date { grid-column: 1 / -1; } }

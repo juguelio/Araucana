@@ -18,6 +18,21 @@ function optionalValue(formData: FormData, key: string) {
   return value(formData, key) || null;
 }
 
+/** `input[type=date]` viene como aaaa-mm-dd: se guarda al mediodía argentino para que no se corra el día. */
+function dateOrNull(formData: FormData, key: string): Date | null {
+  const raw = value(formData, key);
+  if (!raw) return null;
+  const fecha = new Date(`${raw}T12:00:00.000-03:00`);
+  return Number.isNaN(fecha.getTime()) ? null : fecha;
+}
+
+function numberOrNull(formData: FormData, key: string): number | null {
+  const raw = value(formData, key);
+  if (!raw) return null;
+  const numero = Number(raw);
+  return Number.isFinite(numero) ? Math.trunc(numero) : null;
+}
+
 class FormValidationError extends Error {
   constructor(
     message: string,
@@ -76,7 +91,19 @@ function vehicleData(formData: FormData) {
       licensePlate: optionalValue(formData, "licensePlate"),
       templateKey,
       layoutMarkers,
-      isActive: formData.get("isActive") === "on"
+      isActive: formData.get("isActive") === "on",
+      // Ficha de flota
+      internalNumber: optionalValue(formData, "internalNumber"),
+      owner: optionalValue(formData, "owner"),
+      year: numberOrNull(formData, "year"),
+      acquiredAt: dateOrNull(formData, "acquiredAt"),
+      technicalInspectionDueAt: dateOrNull(formData, "technicalInspectionDueAt"),
+      rtoDueAt: dateOrNull(formData, "rtoDueAt"),
+      insurer: optionalValue(formData, "insurer"),
+      policyDueAt: dateOrNull(formData, "policyDueAt"),
+      publicTransport: formData.get("publicTransport") === "on",
+      kind: value(formData, "kind") || "CAMIONETA",
+      notes: optionalValue(formData, "notes")
     },
     seats
   };
