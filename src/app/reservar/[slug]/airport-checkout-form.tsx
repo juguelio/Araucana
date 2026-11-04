@@ -141,13 +141,21 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cargandoVuelos, setCargandoVuelos] = useState(false);
+  // Vuelo privado: charter o avión particular que no figura en la lista del día. Lo carga el
+  // pasajero y queda marcado como "privado" para que la operación lo revise.
+  const [esPrivado, setEsPrivado] = useState(false);
+  const [privadoNumero, setPrivadoNumero] = useState("");
+  const [privadoOperador, setPrivadoOperador] = useState("");
+  const [privadoOrigen, setPrivadoOrigen] = useState("");
+  const [privadoHora, setPrivadoHora] = useState("");
 
   // La lista se filtra por el sentido elegido en el paso 1; el vuelo elegido manda en la reserva.
   const visibles = useMemo(() => flights.filter((f) => f.direction === sentido), [flights, sentido]);
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
-  const sentidoDelVuelo = selected?.direction ?? sentido;
+  const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
+  const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
   const total = route.priceCents * passengerCount;
-  const puedeSeguir = Boolean(selected && selected.bookable);
+  const puedeSeguir = esPrivado ? privadoListo : Boolean(selected && selected.bookable);
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
     setPassenger((current) => ({ ...current, [field]: value }));
@@ -206,9 +214,16 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
     setError("");
 
     const errors: Record<string, string> = { ...validateCheckoutPassenger(passenger) };
-    if (!selected) errors.flight = "Elegí un vuelo de la lista (o escribí el número de vuelo).";
-    if (selected && !selected.bookable) errors.flight = selected.reason ?? "Ese vuelo no se puede reservar.";
-    if (selected && passengerCount > selected.available) errors.passengerCount = `Sólo quedan ${selected.available} lugares en ese vuelo.`;
+    if (esPrivado) {
+      if (!privadoListo) errors.flight = "Completá el número o matrícula y la hora de tu vuelo privado.";
+    } else if (!selected) {
+      errors.flight = "Elegí un vuelo de la lista (o escribí el número de vuelo).";
+    } else if (!selected.bookable) {
+      errors.flight = selected.reason ?? "Ese vuelo no se puede reservar.";
+    }
+    if (!esPrivado && selected && passengerCount > selected.available) {
+      errors.passengerCount = `Sólo quedan ${selected.available} lugares en ese vuelo.`;
+    }
     if (sentidoDelVuelo === "ARRIVAL" && !pickupName.trim()) errors.pickupName = "Ingresá el hotel o lugar donde te llevamos.";
     if (sentidoDelVuelo === "ARRIVAL" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección.";
     if (sentidoDelVuelo === "DEPARTURE" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá dónde te pasamos a buscar.";
@@ -226,14 +241,24 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           routeSlug: route.slug,
-          flightNumber: selected!.number,
-          direction: selected!.direction,
+          flightNumber: esPrivado ? privadoNumero.trim().toUpperCase() : selected!.number,
+          direction: esPrivado ? sentido : selected!.direction,
           serviceDate: date,
           passengerCount,
           passenger: buildPassengerPayload(passenger),
           pickupName: pickupName.trim() || undefined,
           pickupAddress: pickupAddress.trim() || undefined,
-          pickupNotes: pickupNotes.trim() || undefined
+          pickupNotes: pickupNotes.trim() || undefined,
+          ...(esPrivado
+            ? {
+                privateFlight: {
+                  number: privadoNumero.trim().toUpperCase(),
+                  airline: privadoOperador.trim() || undefined,
+                  origin: privadoOrigen.trim() || undefined,
+                  scheduledAt: `${date}T${privadoHora}:00-03:00`
+                }
+              }
+            : {})
         })
       });
       const data = await res.json();
@@ -330,7 +355,7 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
               {visibles.length === 0 && !cargandoVuelos ? (
                 <p className="muted">
                   No hay vuelos {sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para ese día.
-                  Probá otra fecha o consultanos por WhatsApp.
+                  Probá otra fecha o cargá tu vuelo privado acá abajo.
                 </p>
               ) : (
                 <div className="flight-options">
@@ -357,6 +382,7 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                           <span className="muted">
                             {f.number}
                             {f.airline ? ` · ${airlineName(f.airline)}` : ""}
+                            {f.source === "PASAJERO" ? " · privado" : ""}
                           </span>
                           {tramo ? <span className="flight-route">{tramo}</span> : null}
                         </span>
@@ -370,6 +396,58 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                 </div>
               )}
               {fieldErrors.flight ? <p className="field-error">{fieldErrors.flight}</p> : null}
+
+              <div className="private-flight" data-open={esPrivado}>
+                <button
+                  type="button"
+                  className="ghost-button private-flight-toggle"
+                  onClick={() => {
+                    setEsPrivado((actual) => !actual);
+                    setSelectedId("");
+                    setError("");
+                  }}
+                >
+                  {esPrivado ? "← Elegir un vuelo de la lista" : "Mi vuelo no está en la lista (vuelo privado)"}
+                </button>
+
+                {esPrivado ? (
+                  <div className="checkout-fields private-flight-fields">
+                    <p className="muted">
+                      Charter, avión particular o taxi aéreo: si no figura en la lista, cargalo con los datos que
+                      tengas. Lo sumamos al día y la operación lo revisa antes del traslado.
+                    </p>
+                    <label>
+                      Número de vuelo o matrícula
+                      <input
+                        value={privadoNumero}
+                        placeholder="Ej. LV-BET"
+                        autoComplete="off"
+                        onChange={(e) => setPrivadoNumero(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Hora {sentido === "ARRIVAL" ? "de llegada" : "de salida"}
+                      <input type="time" value={privadoHora} onChange={(e) => setPrivadoHora(e.target.value)} />
+                    </label>
+                    <label>
+                      Aerolínea u operador (opcional)
+                      <input
+                        value={privadoOperador}
+                        placeholder="Ej. Fly Patagonia"
+                        onChange={(e) => setPrivadoOperador(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      {sentido === "ARRIVAL" ? "Desde dónde viene (opcional)" : "A dónde va (opcional)"}
+                      <input
+                        value={privadoOrigen}
+                        placeholder="Ej. Buenos Aires"
+                        onChange={(e) => setPrivadoOrigen(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                ) : null}
+              </div>
 
               <div className="wizard-nav">
                 <button type="button" className="ghost-button" onClick={() => setPaso(1)}>← Volver</button>
@@ -386,7 +464,14 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                 <p className="eyebrow">Paso 3 de 3</p>
                 <h2 className="route-title">Tus datos</h2>
                 <p className="muted">
-                  Vuelo elegido: <strong>{selected ? descripcionVuelo(selected) : "—"}</strong>
+                  Vuelo elegido:{" "}
+                  <strong>
+                    {esPrivado
+                      ? `${privadoNumero.trim().toUpperCase()} · ${privadoHora} · vuelo privado`
+                      : selected
+                        ? descripcionVuelo(selected)
+                        : "—"}
+                  </strong>
                 </p>
               </div>
 
@@ -428,10 +513,10 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
         <div className="summary-list">
           <span>Sentido: <strong>{sentidoTexto(sentidoDelVuelo)}</strong></span>
           <span>Día: <strong>{fechaCorta(date)}</strong></span>
-          <span>{sentidoDelVuelo === "ARRIVAL" ? "Origen" : "Destino"}: <strong>{selected ? aeropuertoLabel(selected.origin) ?? "—" : "—"}</strong></span>
-          <span>Vuelo: <strong>{selected ? selected.number : "—"}</strong></span>
-          <span>Horario: <strong>{selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
-          <span>Estado: <strong>{selected ? estadoDe(selected) : "—"}</strong></span>
+          <span>{sentidoDelVuelo === "ARRIVAL" ? "Origen" : "Destino"}: <strong>{esPrivado ? privadoOrigen.trim() || "—" : selected ? aeropuertoLabel(selected.origin) ?? "—" : "—"}</strong></span>
+          <span>Vuelo: <strong>{esPrivado ? privadoNumero.trim().toUpperCase() || "—" : selected ? selected.number : "—"}</strong></span>
+          <span>Horario: <strong>{esPrivado ? privadoHora || "—" : selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
+          <span>Estado: <strong>{esPrivado ? "Privado" : selected ? estadoDe(selected) : "—"}</strong></span>
           <span>Pasajeros: <strong>{passengerCount}</strong></span>
         </div>
         <strong className="price">{formatPrice(total, route.currency)}</strong>

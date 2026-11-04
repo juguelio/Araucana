@@ -6,6 +6,8 @@ import { BookingError } from "@/lib/booking/repository";
 const errorResponses: Record<string, { message: string; status: number }> = {
   ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
   FLIGHT_NOT_FOUND: { message: "No encontramos ese vuelo para esa fecha. Revisá el número de vuelo.", status: 404 },
+  FLIGHT_IN_PAST: { message: "El horario del vuelo ya pasó. Revisá la hora e intentá de nuevo.", status: 400 },
+  PRIVATE_FLIGHT_INVALID: { message: "Revisá el vuelo privado: tiene que ser del mismo día de la reserva y con un horario válido.", status: 400 },
   CAPACITY_FULL: { message: "No quedan lugares en ese vuelo. Probá con otro vuelo del día.", status: 409 },
   SCHEDULE_CLOSED: { message: "Ese vuelo ya no está disponible para reservar.", status: 409 },
   BOOKING_BUSY: { message: "Ese vuelo está recibiendo otras reservas. Intentá nuevamente.", status: 409 },

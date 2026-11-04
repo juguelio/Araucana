@@ -29,6 +29,8 @@ function origenDelDato(source: string) {
   if (source === "ESTIMADO") return "estimado";
   if (source === "MANUAL") return "a mano";
   if (source === "FIDS") return "tablero";
+  // Lo cargó el pasajero al reservar: nadie lo verificó todavía contra la aerolínea ni el tablero.
+  if (source === "PASAJERO") return "cargado por el pasajero · verificar";
   return null;
 }
 

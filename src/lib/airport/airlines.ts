@@ -39,6 +39,22 @@ export function airlineCode(raw: string | null | undefined): string | null {
   return code || null;
 }
 
+/**
+ * Texto del badge cuando no hay logo. Un operador escrito con nombre ("Fly Patagonia", típico de
+ * un vuelo privado) no entra en un cuadrado de 30 px: se usan las iniciales.
+ */
+export function airlineBadgeLabel(raw: string | null | undefined): string {
+  const code = airlineCode(raw);
+  if (!code) return "—";
+  if (code.length <= 3) return code;
+  const iniciales = code
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((parte) => parte[0])
+    .join("");
+  return (iniciales.length >= 2 ? iniciales : code.slice(0, 2)).slice(0, 3);
+}
+
 /** Código con el que se busca el logo: American Jet aparece como `AJ` (IATA) o `AJB` (ICAO). */
 function logoCode(code: string): string {
   return code === "AJB" ? "AJ" : code;
