@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { AIRLINE_LOGO_CODES, airlineLogo, airlineName } from "./airlines";
+import { AIRLINE_LOGO_CODES, airlineBadgeLabel, airlineLogo, airlineName } from "./airlines";
 
 describe("identidad de aerolínea", () => {
   it("traduce el código a un nombre legible", () => {
@@ -30,5 +30,18 @@ describe("identidad de aerolínea", () => {
     const dir = path.join(process.cwd(), "public/airlines");
     const faltantes = [...AIRLINE_LOGO_CODES].filter((code) => !existsSync(path.join(dir, `${code}.png`)));
     expect(faltantes).toEqual([]);
+  });
+});
+
+describe("badge sin logo: nombre largo de operador", () => {
+  it("usa las iniciales cuando el operador viene escrito con nombre", () => {
+    expect(airlineBadgeLabel("Fly Patagonia")).toBe("FP");
+    expect(airlineBadgeLabel("american jet charter")).toBe("AJC");
+  });
+
+  it("deja los códigos cortos como están y no rompe con vacío", () => {
+    expect(airlineBadgeLabel("AR")).toBe("AR");
+    expect(airlineBadgeLabel("AJB")).toBe("AJB");
+    expect(airlineBadgeLabel(null)).toBe("—");
   });
 });

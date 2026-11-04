@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { airlineCode, airlineLogo } from "@/lib/airport/airlines";
+import { airlineBadgeLabel, airlineCode, airlineLogo } from "@/lib/airport/airlines";
 
 /**
  * Logo de la aerolínea del vuelo. Si no tenemos la imagen (o falla la carga), cae al código
@@ -11,13 +11,14 @@ export function AirlineBadge({ code, size = 34 }: { code: string | null | undefi
   const logo = airlineLogo(code);
   const [fallo, setFallo] = useState(false);
   const etiqueta = airlineCode(code) ?? "—";
+  const visible = airlineBadgeLabel(code);
 
   return (
     <span className="airline-badge" style={{ width: size, height: size }} title={etiqueta}>
       {logo && !fallo ? (
         <img src={logo} alt={etiqueta} width={size} height={size} onError={() => setFallo(true)} loading="lazy" />
       ) : (
-        etiqueta
+        visible
       )}
     </span>
   );

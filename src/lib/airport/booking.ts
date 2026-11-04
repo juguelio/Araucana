@@ -126,7 +126,43 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
   });
 }
 
-const clave = (n: string) => n.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+/** Número de vuelo comparable: "LV-BET ", "ar 1656" → "LVBET", "AR1656". */
+export function claveDeVuelo(numero: string): string {
+  return numero.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Un vuelo privado se carga con día + hora local argentina: "2026-11-05" + "14:30". */
+export function horarioLocal(fecha: string, hora: string): Date {
+  return new Date(`${fecha}T${hora.length === 5 ? `${hora}:00` : hora}.000-03:00`);
+}
+
+/** ¿Ese instante cae en el día argentino `aaaa-mm-dd`? */
+export function esDelDia(fecha: string, instante: Date): boolean {
+  const { desde, hasta } = rangoDelDia(fecha);
+  return instante >= desde && instante < hasta;
+}
+
+/**
+ * Entre los vuelos ya cargados con la misma clave elige el de horario más parecido. Así los pasajeros
+ * del **mismo** charter comparten un solo vuelo (y su cupo) en vez de duplicarlo con cada reserva.
+ */
+export function elegirVueloExistente<T extends { number: string; scheduledAt: Date }>(
+  candidatos: T[],
+  numero: string,
+  hora: Date
+): T | null {
+  const buscada = claveDeVuelo(numero);
+  const mismos = candidatos.filter((c) => claveDeVuelo(c.number) === buscada);
+  if (mismos.length === 0) return null;
+  return mismos.reduce((mejor, actual) =>
+    Math.abs(actual.scheduledAt.getTime() - hora.getTime()) < Math.abs(mejor.scheduledAt.getTime() - hora.getTime())
+      ? actual
+      : mejor
+  );
+}
+
+/** Nombre para mostrar cuando el pasajero no cargó el origen/destino del vuelo privado. */
+export const ORIGEN_PRIVADO_DESCONOCIDO = "Vuelo privado";
 
 /** Crea la reserva atada al vuelo, con control de cupo dentro de la misma transacción. */
 export async function createAirportReservation(input: AirportReservationInput) {
@@ -138,24 +174,66 @@ export async function createAirportReservation(input: AirportReservationInput) {
   }
 
   const { desde, hasta } = rangoDelDia(parsed.serviceDate);
-  const numero = clave(parsed.flightNumber);
+  const numero = claveDeVuelo(parsed.flightNumber);
+  const privado = parsed.privateFlight;
+
+  // El vuelo privado se valida antes de tocar la base: tiene que caer en el día que se reserva y
+  // no puede estar en el pasado (nadie reserva un traslado para un avión que ya aterrizó).
+  if (privado) {
+    const horario = new Date(privado.scheduledAt);
+    if (!esDelDia(parsed.serviceDate, horario)) {
+      throw new BookingError("PRIVATE_FLIGHT_INVALID", "El vuelo privado tiene que ser del mismo día que estás reservando.");
+    }
+    if (horario <= new Date()) {
+      throw new BookingError("FLIGHT_IN_PAST", "El horario del vuelo ya pasó. Revisá la hora del vuelo privado.");
+    }
+  }
 
   for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
         // El vuelo manda: se busca el número en las dos direcciones del día y la reserva toma
         // la dirección del vuelo elegido (no la de la página desde la que se reservó).
+        const incluirCupo = {
+          reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
+          assignments: { include: { vehicle: { include: { seats: true } } } }
+        };
         const candidatos = await tx.flight.findMany({
           where: {
             scheduledAt: { gte: desde, lt: hasta },
+            ...(privado ? { direction: parsed.direction } : {}),
             OR: [{ number: parsed.flightNumber.trim() }, { number: parsed.flightNumber.trim().toUpperCase() }]
           },
-          include: {
-            reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
-            assignments: { include: { vehicle: { include: { seats: true } } } }
-          }
+          include: incluirCupo
         });
-        const vuelo = candidatos.find((v) => clave(v.number) === numero);
+        let vuelo = candidatos.find((v) => claveDeVuelo(v.number) === numero) ?? null;
+
+        // Vuelo privado (charter, avión particular): si otro pasajero del mismo avión ya lo cargó
+        // ese día se reutiliza su vuelo —y su cupo—; si no, se crea marcado como cargado por el
+        // pasajero para que la operación lo revise.
+        if (!vuelo && privado) {
+          const horario = new Date(privado.scheduledAt);
+          const delMismoSentido = await tx.flight.findMany({
+            where: { scheduledAt: { gte: desde, lt: hasta }, direction: parsed.direction },
+            include: incluirCupo
+          });
+          vuelo =
+            elegirVueloExistente(delMismoSentido, privado.number, horario) ??
+            (await tx.flight.create({
+              data: {
+                number: privado.number.trim().toUpperCase(),
+                airline: privado.airline?.trim() || null,
+                origin: privado.origin?.trim() || ORIGEN_PRIVADO_DESCONOCIDO,
+                direction: parsed.direction,
+                scheduledAt: horario,
+                status: "SCHEDULED",
+                source: "PASAJERO",
+                notes: "Vuelo privado cargado por el pasajero al reservar.",
+                createdBy: "pasajero"
+              },
+              include: incluirCupo
+            }));
+        }
         if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "Flight not found for that date");
 
         const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
@@ -221,7 +299,10 @@ export async function createAirportReservation(input: AirportReservationInput) {
         return reservation;
       }, { isolationLevel: "Serializable" });
     } catch (error) {
-      if (typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "P2034") {
+      const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: string }).code : undefined;
+      // P2034: dos reservas compitieron por el mismo cupo. P2002: dos pasajeros del mismo charter
+      // crearon el vuelo privado al mismo tiempo (al reintentar, el segundo lo encuentra creado).
+      if (code === "P2034" || code === "P2002") {
         if (intento < MAX_INTENTOS) continue;
         throw new BookingError("BOOKING_BUSY", "El vuelo está recibiendo otras reservas. Intentalo nuevamente.");
       }

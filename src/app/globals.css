@@ -2060,6 +2060,13 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 .wizard-option-route { font-size: 13px; font-weight: 700; color: var(--accent); }
 .wizard-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; }
 
+/* Vuelo privado: el pasajero carga el suyo cuando no figura en la lista del día. */
+.private-flight { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 14px; }
+.private-flight[data-open="true"] { border-color: var(--accent); }
+.private-flight-toggle { font-size: 14px; }
+.private-flight-fields { margin-top: 12px; }
+.private-flight-fields > .muted { grid-column: 1 / -1; margin: 0; font-size: 13px; }
+
 /* === Fila de vuelo: radio, logo, horario, estado y lugares, todo alineado === */
 .flight-options { display: grid; gap: 10px; margin-top: 4px; }
 .flight-option { display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 12px;
