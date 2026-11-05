@@ -11,9 +11,9 @@
 .salida-day-field { display: grid; gap: 7px; align-content: start; min-width: 0; }
 .salida-day-label { color: var(--ink-soft); font-size: 13px; font-weight: 700; }
 .salida-cal { position: relative; min-width: 0; }
-.salida-cal-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px;
-  padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); color: var(--ink);
-  font: inherit; text-align: left; cursor: pointer; }
+.salida-cal-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 48px;
+  padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fffaf1; color: var(--ink);
+  font-family: inherit; font-size: 13px; font-weight: 700; text-align: left; cursor: pointer; }
 .salida-cal-trigger span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .salida-cal-caret { color: var(--ink-muted); font-size: 12px; }
 .salida-cal-pop { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: 272px; padding: 10px;
