@@ -7,6 +7,7 @@ import {
   peorVencimiento,
   resumenVencimientos,
   vencimientosDe,
+  vencimientosOrdenados,
   DIAS_ALERTA
 } from "./compliance";
 
@@ -55,6 +56,18 @@ describe("vencimientos de la flota", () => {
     const peor = peorVencimiento(unidad, hoy);
     expect(peor?.tipo).toBe("Póliza");
     expect(peor?.dias).toBe(18);
+  });
+
+  it("ordena los papeles por urgencia y deja los sin fecha al final", () => {
+    const filas = vencimientosOrdenados(
+      {
+        technicalInspectionDueAt: new Date(2027, 5, 12),
+        rtoDueAt: null,
+        policyDueAt: new Date(2026, 10, 1)
+      },
+      hoy
+    );
+    expect(filas.map((f) => f.tipo)).toEqual(["Póliza", "Técnica", "RTO"]);
   });
 
   it("sin ningún vencimiento cargado no inventa un estado", () => {
