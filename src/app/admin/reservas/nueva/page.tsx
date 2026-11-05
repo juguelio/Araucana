@@ -1,30 +1,35 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
 import { createAdminReservationAction } from "../actions";
+import { SalidaPicker } from "./salida-picker";
 
 type NewReservationPageProps = {
   searchParams?: Promise<{ notice?: string }>;
 };
 
-function todayKey() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Salta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
-const dateFormatter = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "2-digit", month: "short", timeZone: "America/Argentina/Salta" });
+const dayFormatter = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "2-digit", month: "short", timeZone: "America/Argentina/Salta" });
 const timeFormatter = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Argentina/Salta" });
-
-function scheduleDateKey(date: Date) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Salta", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-}
 
 export default async function NewReservationPage({ searchParams }: NewReservationPageProps) {
   const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
-  const schedules = (await listAdminSchedules()).filter((schedule) =>
-    (schedule.status === "OPEN" || schedule.status === "DOCUMENTATION") && scheduleDateKey(schedule.departureAt) >= todayKey() && schedule.availableSeats > 0
-  );
+  // El filtro grueso va en la base (abiertas/documentación, desde hoy): la pantalla no trae meses
+  // de historial con todas sus reservas. El cupo se calcula sobre las reservas, así que va acá.
+  const schedules = (await listAdminSchedules({ bookableOnly: true }))
+    .filter((schedule) => schedule.availableSeats > 0)
+    .map((schedule) => ({
+      id: schedule.id,
+      from: schedule.from,
+      to: schedule.to,
+      dayKey: argentinaDateKey(schedule.departureAt),
+      dayLabel: dayFormatter.format(schedule.departureAt),
+      timeLabel: timeFormatter.format(schedule.departureAt),
+      availableSeats: schedule.availableSeats,
+      status: schedule.status
+    }));
 
   return (
     <AdminShell title="Crear reserva" eyebrow="Nueva reserva" notice={params?.notice} role={user.role}>
@@ -36,16 +41,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
         </div>
         {schedules.length ? (
           <form className="admin-form-grid" action={createAdminReservationAction}>
-            <label className="span-2">
-              Salida
-              <select name="scheduleId" required>
-                {schedules.map((schedule) => (
-                  <option value={schedule.id} key={schedule.id}>
-                    {schedule.route} · {dateFormatter.format(schedule.departureAt)} · {timeFormatter.format(schedule.departureAt)} · {schedule.availableSeats} lugares libres
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SalidaPicker schedules={schedules} />
             <label>
               Cantidad de asientos
               <input name="passengerCount" type="number" min="1" max="24" defaultValue="1" required />

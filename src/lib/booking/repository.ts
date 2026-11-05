@@ -1,4 +1,4 @@
-import { adminReservationWhere, type AdminReservationFilters } from "./admin-filters";
+import { adminReservationWhere, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createTicketCode } from "./codes";
 import {
@@ -829,8 +829,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     approveManualPayment: (code: string) => reviewManualPayment(code, "APPROVED"),
     rejectManualPayment: (code: string) => reviewManualPayment(code, "REJECTED"),
 
-    async listAdminSchedules(): Promise<AdminScheduleRowDto[]> {
+    async listAdminSchedules(filters: AdminScheduleFilters = {}): Promise<AdminScheduleRowDto[]> {
       const schedules = await client.schedule.findMany({
+        where: adminScheduleWhere(filters),
         include: scheduleInclude(),
         orderBy: { departureAt: "asc" }
       });
@@ -842,6 +843,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           routeId: schedule.routeId,
           vehicleId: schedule.vehicleId,
           route: `${schedule.route.from} -> ${schedule.route.to}`,
+          from: schedule.route.from,
+          to: schedule.route.to,
           departureAt: schedule.departureAt,
           arrivalAt: schedule.arrivalAt,
           status: schedule.status,

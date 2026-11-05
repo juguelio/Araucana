@@ -125,6 +125,8 @@ export type ReservationDetailDto = {
 export type AdminScheduleRowDto = {
   id: string;
   route: string;
+  from: string;
+  to: string;
   routeId: string;
   vehicleId: string;
   departureAt: Date;
