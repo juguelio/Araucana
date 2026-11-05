@@ -1,0 +1,16 @@
+/* === Alta manual de reserva: campo «Salida» con filtros ===
+   Reemplaza el <select> único que juntaba todas las salidas en un renglón. Los tres filtros y el
+   desplegable viven dentro de la misma celda del formulario (span 2), así el resto no se mueve. */
+.salida-picker { grid-column: 1 / -1; display: grid; gap: 10px; min-width: 0; }
+.salida-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.salida-filters label { display: grid; gap: 7px; min-width: 0; color: var(--ink-soft); font-size: 13px; font-weight: 700; }
+.salida-filters select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.salida-hint { margin: 0; color: var(--ink-muted); font-size: 12px; font-weight: 600; }
+@media (max-width: 720px) {
+  .salida-picker { grid-column: auto; }
+  .salida-filters { grid-template-columns: 1fr; }
+}
+
+/* La celda de Salida es más alta que las de al lado (dos filas): que las etiquetas vecinas
+   queden pegadas a su campo en vez de estirarse con la celda. */
+.create-reservation-card .admin-form-grid > label { align-content: start; }

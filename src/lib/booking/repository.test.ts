@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { BookingError, createBookingRepository } from "./repository";
+import { adminScheduleWhere } from "./admin-filters";
 import type { CreateReservationInput } from "./validation";
 
 type RouteRecord = {
@@ -922,6 +923,55 @@ describe("booking repository", () => {
     expect(spy).toHaveBeenCalledTimes(2);
     expect(spy.mock.calls[0][1]).toEqual({ isolationLevel: "Serializable" });
     expect(client.payments[0].status).toBe("APPROVED");
+  });
+
+  it("manda los filtros a la query de salidas y expone origen y destino", async () => {
+    const record = {
+      id: "schedule-cpc",
+      routeId: "route-cpc",
+      vehicleId: "vehicle-cpc",
+      departureAt: new Date("2026-11-06T12:00:00Z"),
+      arrivalAt: new Date("2026-11-06T13:00:00Z"),
+      status: "OPEN",
+      route: {
+        id: "route-cpc",
+        slug: "aeropuerto-chapelco-sma",
+        from: "Aeropuerto Chapelco (CPC)",
+        to: "San Martin de los Andes",
+        via: "Ruta 40",
+        durationMin: 40,
+        priceCents: 2500000,
+        currency: "ARS",
+        category: "Traslado",
+        description: "",
+        featured: false,
+        isActive: true,
+        bookingMode: "AIRPORT",
+        stops: []
+      },
+      vehicle: { id: "vehicle-cpc", seats: [{ id: "seat-1", vehicleId: "vehicle-cpc", number: "01", row: 1, column: 1 }] },
+      reservations: []
+    };
+    const calls: Array<{ where?: unknown }> = [];
+    const repository = createBookingRepository({
+      schedule: {
+        findMany: async (args?: { where?: unknown }) => {
+          calls.push(args ?? {});
+          return [record];
+        }
+      }
+    } as never);
+
+    const rows = await repository.listAdminSchedules({ from: "Aeropuerto Chapelco (CPC)", bookableOnly: true });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].where).toEqual(adminScheduleWhere({ from: "Aeropuerto Chapelco (CPC)", bookableOnly: true }));
+    expect(rows[0]).toMatchObject({
+      from: "Aeropuerto Chapelco (CPC)",
+      to: "San Martin de los Andes",
+      route: "Aeropuerto Chapelco (CPC) -> San Martin de los Andes",
+      availableSeats: 1
+    });
   });
 
 });

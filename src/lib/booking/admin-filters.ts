@@ -33,3 +33,46 @@ export function adminReservationWhere(input: AdminReservationFilters): Prisma.Re
   }
   return AND.length ? { AND } : {};
 }
+
+// Argentina no tiene horario de verano: el día del viaje arranca siempre a las 00:00 -03:00.
+export function argentinaDateKey(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Salta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(now);
+}
+
+export function argentinaDayStart(date: string): Date {
+  return new Date(`${date}T00:00:00-03:00`);
+}
+
+// Salidas que el alta manual ofrece: abiertas o en documentación, desde el inicio del día
+// argentino de hoy. Sin esto la pantalla trae meses de historial con todas sus reservas.
+export const BOOKABLE_SCHEDULE_STATUSES = ["OPEN", "DOCUMENTATION"] as const;
+
+export const adminScheduleFiltersSchema = z.object({
+  from: z.string().trim().max(120).optional(),
+  to: z.string().trim().max(120).optional(),
+  date: z.union([z.literal(""), z.iso.date()]).optional(),
+  bookableOnly: z.boolean().optional()
+});
+export type AdminScheduleFilters = z.infer<typeof adminScheduleFiltersSchema>;
+
+export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new Date()): Prisma.ScheduleWhereInput {
+  const filters = adminScheduleFiltersSchema.parse(input);
+  const AND: Prisma.ScheduleWhereInput[] = [];
+  // Nombre de parada exacto, sin distinguir mayúsculas: "sma" y "SMA" tienen que caer en la misma ruta.
+  if (filters.from) AND.push({ route: { is: { from: { equals: filters.from, mode: "insensitive" } } } });
+  if (filters.to) AND.push({ route: { is: { to: { equals: filters.to, mode: "insensitive" } } } });
+  if (filters.date) {
+    const gte = argentinaDayStart(filters.date);
+    AND.push({ departureAt: { gte, lt: new Date(gte.getTime() + 86400000) } });
+  }
+  if (filters.bookableOnly) {
+    AND.push({ status: { in: [...BOOKABLE_SCHEDULE_STATUSES] } });
+    AND.push({ departureAt: { gte: argentinaDayStart(argentinaDateKey(now)) } });
+  }
+  return AND.length ? { AND } : {};
+}
