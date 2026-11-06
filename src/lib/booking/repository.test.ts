@@ -965,7 +965,20 @@ describe("booking repository", () => {
     const rows = await repository.listAdminSchedules({ from: "Aeropuerto Chapelco (CPC)", bookableOnly: true });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0].where).toEqual(adminScheduleWhere({ from: "Aeropuerto Chapelco (CPC)", bookableOnly: true }));
+    // El `gte` sale del reloj real (ahora, no la medianoche): se compara el resto de la query y que
+    // el corte sea efectivamente "ahora", no un valor fijo — comparar dos llamadas distintas a
+    // adminScheduleWhere() falla por milisegundos.
+    const where = calls[0].where as { AND: Array<Record<string, unknown>> };
+    const sinFecha = where.AND.filter((cond) => !("departureAt" in cond));
+    expect(sinFecha).toEqual([
+      { route: { is: { from: { equals: "Aeropuerto Chapelco (CPC)", mode: "insensitive" } } } },
+      { status: { in: ["OPEN", "DOCUMENTATION"] } },
+      { route: { is: { isActive: true } } },
+      { vehicle: { is: { isActive: true } } }
+    ]);
+    const corte = (where.AND.find((cond) => "departureAt" in cond) as { departureAt: { gte: Date } }).departureAt.gte;
+    expect(corte).toBeInstanceOf(Date);
+    expect(Math.abs(corte.getTime() - Date.now())).toBeLessThan(60_000);
     expect(rows[0]).toMatchObject({
       from: "Aeropuerto Chapelco (CPC)",
       to: "San Martin de los Andes",

@@ -62,6 +62,8 @@ type FlightOption = {
 
 type AirportCheckoutFormProps = {
   route: AirportRouteProps;
+  /** Tarifa vigente por sentido: es la misma que graba la reserva (no la del slug de la página). */
+  fares: Record<"ARRIVAL" | "DEPARTURE", { priceCents: number; currency: string } | null>;
   initialDirection: "ARRIVAL" | "DEPARTURE";
   initialDate: string;
   initialFlights: FlightOption[];
@@ -124,12 +126,15 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, initialDirection, initialDate, initialFlights }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
-  const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(initialDirection);
+  const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(
+    // Si el sentido con el que entra la página no tiene tarifa activa, se arranca por el otro.
+    fares[initialDirection] ? initialDirection : fares.DEPARTURE ? "DEPARTURE" : "ARRIVAL"
+  );
   const [flightNumber, setFlightNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
   const [passengerCount, setPassengerCount] = useState(1);
@@ -154,8 +159,12 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
-  const total = route.priceCents * passengerCount;
-  const puedeSeguir = esPrivado ? privadoListo : Boolean(selected && selected.bookable);
+  // La tarifa es la de la ruta canónica de ese sentido: la misma que graba la reserva.
+  const tarifa = fares[sentidoDelVuelo] ?? null;
+  const precioPorPersona = tarifa?.priceCents ?? route.priceCents;
+  const moneda = tarifa?.currency ?? route.currency;
+  const total = precioPorPersona * passengerCount;
+  const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
     setPassenger((current) => ({ ...current, [field]: value }));
@@ -306,6 +315,7 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                     key={s.code}
                     className="wizard-option"
                     data-selected={sentido === s.code}
+                    disabled={!fares[s.code]}
                     onClick={() => {
                       setSentido(s.code);
                       setSelectedId("");
@@ -315,7 +325,7 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
                   >
                     <b>{s.title}</b>
                     <span className="wizard-option-route">{s.subtitle}</span>
-                    <span className="muted">{s.ayuda}</span>
+                    <span className="muted">{fares[s.code] ? `${s.ayuda} · ${formatPrice(fares[s.code]!.priceCents, fares[s.code]!.currency)} por persona` : "Sin tarifa activa para este sentido."}</span>
                   </button>
                 ))}
               </div>
@@ -518,8 +528,9 @@ export function AirportCheckoutForm({ route, initialDirection, initialDate, init
           <span>Horario: <strong>{esPrivado ? privadoHora || "—" : selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
           <span>Estado: <strong>{esPrivado ? "Privado" : selected ? estadoDe(selected) : "—"}</strong></span>
           <span>Pasajeros: <strong>{passengerCount}</strong></span>
+          <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span>
         </div>
-        <strong className="price">{formatPrice(total, route.currency)}</strong>
+        <strong className="price">{formatPrice(total, moneda)}</strong>
         {paso < 3 ? (
           <button
             className="button checkout-submit"

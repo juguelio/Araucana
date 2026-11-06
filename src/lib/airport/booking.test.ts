@@ -21,6 +21,20 @@ describe("reserva de aeropuerto", () => {
     expect(motivoNoReservable(vuelo("DELAYED"), 12, ahora)).toBeNull();
   });
 
+  it("con demora manda el horario estimado: no bloquea antes de que el avión llegue o salga", () => {
+    const demorado = {
+      status: "DELAYED",
+      scheduledAt: new Date("2029-12-31T12:00:00Z"),
+      estimatedAt: new Date("2029-12-31T15:00:00Z"),
+      source: "API",
+      direction: "ARRIVAL" as const
+    };
+    // 13:00: ya pasó el horario programado, pero el estimado todavía no.
+    expect(motivoNoReservable(demorado, 10, new Date("2029-12-31T13:00:00Z"))).toBeNull();
+    // 15:30: ahí sí, el vuelo ya llegó.
+    expect(motivoNoReservable(demorado, 10, new Date("2029-12-31T15:30:00Z"))).toMatch(/ya llegó/i);
+  });
+
   it("no afirma que un vuelo proyectado ya salió: ese horario era estimado", () => {
     const proyectado = { status: "SCHEDULED", scheduledAt: new Date("2029-01-01T12:00:00Z"), source: "ESTIMADO" };
     expect(motivoNoReservable(proyectado, 10, ahora)).toMatch(/estimado/i);

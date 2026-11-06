@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
 import { listAirportFlights } from "@/lib/airport/booking";
+import { getAirportFares } from "@/lib/airport/fares";
 import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
 import { CheckoutForm } from "./checkout-form";
@@ -95,6 +96,9 @@ export default async function ReservationPage({ params, searchParams }: Reservat
 
     // Todos los vuelos del día: el pasajero elige el suyo y el sistema sabe si es arribo o salida.
     const vuelos = await listAirportFlights({ date: fecha });
+    // Tarifa vigente de cada sentido: la que se muestra abajo es la que graba la reserva.
+    const tarifas = await getAirportFares();
+    const iguales = tarifas.ARRIVAL && tarifas.DEPARTURE && tarifas.ARRIVAL.priceCents === tarifas.DEPARTURE.priceCents;
 
     return (
       <>
@@ -108,11 +112,21 @@ export default async function ReservationPage({ params, searchParams }: Reservat
             </div>
             <div className="route-summary plain-card">
               <span>{route.via}</span>
-              <strong>{formatPrice(route.priceCents, route.currency)} por persona</strong>
+              {iguales ? (
+                <strong>{formatPrice(tarifas.ARRIVAL!.priceCents, tarifas.ARRIVAL!.currency)} por persona</strong>
+              ) : (
+                <strong>
+                  {tarifas.ARRIVAL ? `Llegada ${formatPrice(tarifas.ARRIVAL.priceCents, tarifas.ARRIVAL.currency)}` : "Llegada sin tarifa"}
+                  {" · "}
+                  {tarifas.DEPARTURE ? `Salida ${formatPrice(tarifas.DEPARTURE.priceCents, tarifas.DEPARTURE.currency)}` : "Salida sin tarifa"}
+                  {" por persona"}
+                </strong>
+              )}
             </div>
           </div>
           <AirportCheckoutForm
             initialDirection={route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL"}
+            fares={tarifas}
             route={{
               slug: route.slug,
               from: route.from,
