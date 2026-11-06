@@ -32,11 +32,15 @@ describe("busqueda de salidas (alta manual)", () => {
     });
   });
 
-  it("se queda con las abiertas/documentacion desde hoy cuando el panel pide reservables", () => {
+  it("se queda con lo reservable: desde ahora, sin rutas ni naves dadas de baja", () => {
+    // El alta rechaza una salida que ya arrancó (aunque sea del mismo día) y las de ruta/nave inactiva:
+    // el selector tiene que filtrar por el mismo criterio, no por la medianoche.
     expect(adminScheduleWhere({ bookableOnly: true }, new Date("2026-11-05T15:00:00Z"))).toEqual({
       AND: [
         { status: { in: ["OPEN", "DOCUMENTATION"] } },
-        { departureAt: { gte: new Date("2026-11-05T03:00:00Z") } }
+        { departureAt: { gte: new Date("2026-11-05T15:00:00Z") } },
+        { route: { is: { isActive: true } } },
+        { vehicle: { is: { isActive: true } } }
       ]
     });
   });

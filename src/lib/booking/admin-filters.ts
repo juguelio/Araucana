@@ -72,7 +72,11 @@ export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new D
   }
   if (filters.bookableOnly) {
     AND.push({ status: { in: [...BOOKABLE_SCHEDULE_STATUSES] } });
-    AND.push({ departureAt: { gte: argentinaDayStart(argentinaDateKey(now)) } });
+    // Se ofrece exactamente lo que el alta va a aceptar (repository.ts): una salida que ya arrancó
+    // hoy, o de una ruta/nave dada de baja, sólo servía para completar el formulario y comer un rechazo.
+    AND.push({ departureAt: { gte: now } });
+    AND.push({ route: { is: { isActive: true } } });
+    AND.push({ vehicle: { is: { isActive: true } } });
   }
   return AND.length ? { AND } : {};
 }
