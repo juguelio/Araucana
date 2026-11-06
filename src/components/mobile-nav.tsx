@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 
-const items = [["Inicio", "#inicio"], ["Traslados", "/rutas"], ["Servicios", "#servicios"], ["Destinos", "#destinos"], ["Grupos y empresas", "#contacto"], ["Nosotros", "#nosotros"], ["Contacto", "#contacto"]];
+// Los anclajes van con "/" delante: desde /rutas o /reservas/... un "#servicios" relativo no lleva a
+// ninguna sección de la portada.
+const items = [["Inicio", "/"], ["Traslados", "/rutas"], ["Servicios", "/#servicios"], ["Destinos", "/#destinos"], ["Grupos y empresas", "/#contacto"], ["Nosotros", "/#nosotros"], ["Contacto", "/#contacto"]];
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);

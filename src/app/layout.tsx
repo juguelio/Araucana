@@ -31,7 +31,7 @@ export default function RootLayout({
               <span className="brand-kicker">Agencia de viajes desde 2009</span>
             </Link>
             <div className="nav-links">
-              <Link href="#inicio">Inicio</Link><Link href="/rutas" prefetch={true}>Traslados</Link><Link href="#servicios">Servicios</Link><Link href="#destinos">Destinos</Link><Link href="#contacto">Grupos y empresas</Link><Link href="#nosotros">Nosotros</Link><Link href="#contacto">Contacto</Link>
+              <Link href="/">Inicio</Link><Link href="/rutas" prefetch={true}>Traslados</Link><Link href="/#servicios">Servicios</Link><Link href="/#destinos">Destinos</Link><Link href="/#contacto">Grupos y empresas</Link><Link href="/#nosotros">Nosotros</Link><Link href="/#contacto">Contacto</Link>
             </div>
             <div className="nav-actions">
               <Link className="text-link" href="/login">Acceso</Link>
