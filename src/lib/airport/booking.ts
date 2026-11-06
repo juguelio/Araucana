@@ -58,13 +58,16 @@ export function pasajerosOcupados(reservas: Array<{ passengerCount: number; stat
 
 /** ¿Se puede reservar este vuelo? Devuelve el motivo cuando no. */
 export function motivoNoReservable(
-  vuelo: { status: string; scheduledAt: Date; source?: string; direction?: string },
+  vuelo: { status: string; scheduledAt: Date; estimatedAt?: Date | null; source?: string; direction?: string },
   disponible: number,
   ahora: Date = new Date()
 ): string | null {
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
-  if (vuelo.scheduledAt <= ahora) {
+  // Con demora manda el horario estimado: a la hora programada el avión todavía no llegó (o no
+  // salió), así que no se le dice al pasajero que perdió el vuelo antes de que ocurra.
+  const referencia = vuelo.estimatedAt && vuelo.estimatedAt > vuelo.scheduledAt ? vuelo.estimatedAt : vuelo.scheduledAt;
+  if (referencia <= ahora) {
     // Un horario proyectado no prueba que el vuelo haya pasado: no se afirma eso al pasajero.
     if (vuelo.source === "ESTIMADO") return "Horario estimado ya pasado.";
     // En un arribo el avión ya llegó: decir "ya salió" sería hablar de otro momento del viaje.
@@ -247,22 +250,28 @@ export async function createAirportReservation(input: AirportReservationInput) {
           throw new BookingError("CAPACITY_FULL", "No hay suficientes lugares en ese vuelo");
         }
 
-        // La ruta que corresponde a la dirección real del vuelo (así la confirmación muestra el sentido correcto).
+        // La ruta canónica del sentido real del vuelo manda para todo: `routeId`, tarifa y moneda
+        // tienen que salir de la misma ruta. Antes el ID salía de acá y el precio de la ruta del
+        // slug, así que una reserva podía quedar con la tarifa del otro sentido.
         const rutaDelSentido = await tx.travelRoute.findFirst({
-          where: { bookingMode: "AIRPORT", specialType: vuelo.direction, isActive: true }
+          where: { bookingMode: "AIRPORT", specialType: vuelo.direction, isActive: true },
+          orderBy: { createdAt: "asc" }
         });
+        if (!rutaDelSentido) {
+          throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
+        }
 
         const passenger = await tx.passenger.create({ data: parsed.passenger });
         const reservation = await tx.reservation.create({
           data: {
             code: createReservationCode(),
-            routeId: (rutaDelSentido ?? route).id,
+            routeId: rutaDelSentido.id,
             passengerId: passenger.id,
             passengerCount: parsed.passengerCount,
             bookingMode: "AIRPORT",
             status: "PENDING_PAYMENT",
-            totalCents: route.priceCents * parsed.passengerCount,
-            currency: route.currency,
+            totalCents: rutaDelSentido.priceCents * parsed.passengerCount,
+            currency: rutaDelSentido.currency,
             airportDetails: {
               create: {
                 flightNumber: vuelo.number,
