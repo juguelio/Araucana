@@ -1,0 +1,118 @@
+/* === Listado de reservas del panel ===
+   La página usaba `admin-form` y `admin-page-actions`, dos clases que no existen en globals.css:
+   los campos y el botón quedaban sueltos y el botón de búsqueda flotaba encima de la fecha.
+   Acá van los estilos propios de esta pantalla, sin tocar globals.css. */
+
+.reservas-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.reservas-toolbar p { margin: 0; color: var(--ink-muted); font-size: 13px; font-weight: 700; }
+.reservas-toolbar .button { flex: 0 0 auto; }
+
+/* --- Filtros: una tarjeta con grilla de campos y los botones en su propia fila --- */
+.reservas-filters {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.reservas-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+.reservas-filter-grid label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reservas-filter-grid input,
+.reservas-filter-grid select {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reservas-filter-grid input:focus-visible,
+.reservas-filter-grid select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.reservas-filter-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.reservas-filter-actions .button { min-height: 44px; }
+.reservas-filter-actions a { color: var(--ink-muted); font-size: 13px; font-weight: 700; }
+
+/* --- Tabla: scroll horizontal en vez de comprimir las columnas --- */
+.reservas-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 18px;
+}
+
+/* `border-collapse: collapse` rompe `position: sticky` en celdas: con border-spacing 0 las líneas
+   se siguen viendo igual y la última columna sí queda fija. */
+.reservas-table-scroll .data-table { min-width: 1010px; border-collapse: separate; border-spacing: 0; overflow: visible; }
+.reservas-table-scroll .data-table th,
+.reservas-table-scroll .data-table td { padding: 11px 12px; }
+.reservas-table-scroll .data-table th { white-space: nowrap; }
+
+.reservas-code {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* La última columna queda pegada al borde derecho: con la tabla más ancha que la pantalla, los
+   botones de acción siguen a la vista sin tener que scrollear hasta el final. */
+.reservas-table-scroll .data-table th:last-child,
+.reservas-table-scroll .data-table td:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  width: 1%;
+  white-space: nowrap;
+  background: var(--surface);
+  box-shadow: -10px 0 14px -12px rgba(24, 59, 50, .45);
+}
+
+/* Los dos botones de la última columna van uno debajo del otro: juntos no entran. */
+.reservas-actions { display: grid; gap: 6px; justify-items: stretch; }
+.reservas-actions .table-action { min-height: 32px; padding: 0 12px; font-size: 12px; }
+
+@media (max-width: 640px) {
+  .reservas-filters { padding: 12px; }
+  .reservas-filter-actions { flex-direction: column; align-items: stretch; }
+  .reservas-filter-actions a { text-align: center; }
+}
