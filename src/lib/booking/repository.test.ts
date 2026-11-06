@@ -834,6 +834,15 @@ describe("booking repository", () => {
     });
   });
 
+  it("cuenta las reservas sin traerlas al cliente", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    expect(await repository.countAdminReservations()).toBe(0);
+    client.seedReservation({ code: "ARC-CNT-1" });
+    client.seedReservation({ code: "ARC-CNT-2" });
+    expect(await repository.countAdminReservations()).toBe(2);
+  });
+
   it("updates passenger details for a reservation code", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
