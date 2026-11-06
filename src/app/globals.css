@@ -2197,18 +2197,52 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
   .legal-toc { grid-template-columns: 1fr; }
 }
 
-/* === Flota: vencimientos de una unidad (técnica, RTO, póliza) === */
-.fleet-due-list { display: grid; gap: 8px; margin-top: 12px; }
-.fleet-due { display: grid; grid-template-columns: 108px minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
-  background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--ok, #2f7d5d);
-  border-radius: 12px; padding: 10px 14px; }
-.fleet-due[data-nivel="vencido"] { border-left-color: var(--danger, #a4262c); }
-.fleet-due[data-nivel="proximo"] { border-left-color: var(--warning, #b26a00); }
-.fleet-due-date { font-variant-numeric: tabular-nums; font-weight: 700; }
-.fleet-due-unit { display: grid; min-width: 0; }
-.fleet-due-unit small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fleet-due-pill { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap;
-  background: rgba(47, 125, 93, .12); color: var(--ok, #2f7d5d); }
-.fleet-due-pill[data-nivel="vencido"] { background: rgba(164, 38, 44, .12); color: var(--danger, #a4262c); }
-.fleet-due-pill[data-nivel="proximo"] { background: rgba(178, 106, 0, .12); color: var(--warning, #b26a00); }
-@media (max-width: 720px) { .fleet-due { grid-template-columns: 1fr auto; } .fleet-due-date { grid-column: 1 / -1; } }
+/* === Flota: botón de vencimientos por nave y el detalle en modal === */
+.fleet-docs { display: grid; gap: 6px; justify-items: start; }
+.fleet-docs-button { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface);
+  color: var(--primary); font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .01em; white-space: nowrap; }
+.fleet-docs-button:hover { border-color: var(--primary); background: var(--surface-2); }
+.fleet-docs-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.fleet-docs-button[data-nivel="vencido"] { border-color: var(--accent); color: var(--accent-deep); }
+.fleet-docs-button[data-nivel="proximo"] { border-color: rgba(160, 84, 56, .55); }
+.fleet-docs-count { min-width: 22px; padding: 2px 6px; border-radius: 999px; background: rgba(31, 91, 79, .12);
+  color: var(--primary); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; }
+.fleet-docs-count[data-nivel="vencido"] { background: var(--accent); color: #fff; }
+.fleet-docs-count[data-nivel="proximo"] { background: rgba(160, 84, 56, .18); color: var(--accent-deep); }
+.fleet-docs-count[data-nivel="sin-dato"] { background: transparent; color: var(--ink-muted); border: 1px dashed var(--line-strong); }
+.fleet-docs-peor { font-size: 11px; line-height: 1.3; color: var(--ink-muted); }
+.fleet-docs-peor[data-nivel="vencido"] { color: var(--accent-deep); font-weight: 700; }
+.fleet-docs-peor[data-nivel="proximo"] { color: var(--accent); font-weight: 700; }
+
+.fleet-docs-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px;
+  background: rgba(15, 40, 34, .62); backdrop-filter: blur(4px); }
+.fleet-docs-modal { position: relative; width: min(460px, 100%); max-height: min(78vh, 640px); overflow: auto;
+  padding: 22px 24px 20px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
+.fleet-docs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.fleet-docs-head .eyebrow { margin: 0 0 4px; }
+.fleet-docs-head h2 { margin: 0; font-family: var(--display); font-size: 26px; font-weight: 500; line-height: 1.05; }
+.fleet-docs-head p { margin: 4px 0 0; font-size: 13px; }
+.fleet-docs-close { flex: none; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%;
+  background: transparent; color: var(--primary); font-size: 22px; line-height: 1; }
+.fleet-docs-close:hover { border-color: var(--primary); background: var(--surface-2); }
+.fleet-docs-list { display: grid; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.fleet-docs-row { display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 11px 14px; border: 1px solid var(--line); border-left: 4px solid var(--moss);
+  border-radius: 12px; background: #fff; }
+.fleet-docs-row[data-nivel="vencido"] { border-left-color: var(--accent); }
+.fleet-docs-row[data-nivel="proximo"] { border-left-color: rgba(160, 84, 56, .45); }
+.fleet-docs-row[data-nivel="sin-dato"] { border-left-color: var(--line-strong); }
+.fleet-docs-tipo { font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-soft); }
+.fleet-docs-fecha { font-variant-numeric: tabular-nums; font-weight: 700; }
+.fleet-docs-estado { font-size: 12px; font-weight: 700; color: var(--moss); text-align: right; }
+.fleet-docs-row[data-nivel="vencido"] .fleet-docs-estado { color: var(--accent-deep); }
+.fleet-docs-row[data-nivel="proximo"] .fleet-docs-estado { color: var(--accent); }
+.fleet-docs-row[data-nivel="sin-dato"] .fleet-docs-estado { color: var(--ink-muted); }
+.fleet-docs-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between;
+  margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.fleet-docs-foot p { flex: 1 1 220px; margin: 0; font-size: 12px; line-height: 1.45; }
+@media (max-width: 480px) {
+  .fleet-docs-row { grid-template-columns: 62px minmax(0, 1fr); }
+  .fleet-docs-estado { grid-column: 2; text-align: left; }
+}

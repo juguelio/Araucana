@@ -74,6 +74,13 @@ export function vencimientosDe(unidad: UnidadConVencimientos, hoy: Date = new Da
   }));
 }
 
+/** Los papeles ordenados por urgencia: primero lo vencido, al final lo que no tiene fecha. */
+export function vencimientosOrdenados(unidad: UnidadConVencimientos, hoy: Date = new Date()): Vencimiento[] {
+  return vencimientosDe(unidad, hoy).sort(
+    (a, b) => (a.dias ?? Number.POSITIVE_INFINITY) - (b.dias ?? Number.POSITIVE_INFINITY)
+  );
+}
+
 /** El vencimiento más urgente de la unidad (para pintar el estado en la lista). */
 export function peorVencimiento(unidad: UnidadConVencimientos, hoy: Date = new Date()): Vencimiento | null {
   const conFecha = vencimientosDe(unidad, hoy).filter((v) => v.fecha);
