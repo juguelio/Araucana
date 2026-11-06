@@ -128,23 +128,44 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
         </div>
       </div>
 
-      <label className="salida-field">
-        Salida
-        <select name="scheduleId" value={selectedId} onChange={(event) => setPickedId(event.target.value)} required>
-          {groups.length ? null : <option value="">Sin salidas para esos filtros</option>}
-          {groups.map((group) => (
-            <optgroup label={group.label} key={group.key}>
-              {group.items.map((schedule) => (
-                <option value={schedule.id} key={schedule.id}>
-                  {showRoute ? `${schedule.from} → ${schedule.to} · ` : ""}
-                  {schedule.timeLabel} · {schedule.availableSeats} libres
-                  {schedule.status === "DOCUMENTATION" ? " · documentación" : ""}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
+      <fieldset className="salida-field">
+        <legend>Salida</legend>
+        {groups.length === 0 ? (
+          <p className="salida-empty">Sin salidas para esos filtros.</p>
+        ) : (
+          <div className="salida-grupos">
+            {groups.map((group) => (
+              <div className="salida-grupo" key={group.key}>
+                {/* Agrupado por día y con la misma tarjeta de salida que la página pública de rutas. */}
+                <p className="salida-grupo-dia">{group.label}</p>
+                <div className="schedule-rail salida-rail" aria-label={`Salidas del ${group.label}`}>
+                  {group.items.map((schedule) => (
+                    <label className="schedule-option" key={schedule.id}>
+                      <input
+                        type="radio"
+                        name="scheduleId"
+                        value={schedule.id}
+                        checked={schedule.id === selectedId}
+                        onChange={() => setPickedId(schedule.id)}
+                        required
+                      />
+                      <span className="schedule-card">
+                        <span className="schedule-date">
+                          {showRoute ? `${schedule.from} → ${schedule.to}` : schedule.status === "DOCUMENTATION" ? "Documentación" : "Salida"}
+                        </span>
+                        <strong className="schedule-time">{schedule.timeLabel}</strong>
+                        <span className="schedule-seats">
+                          {schedule.availableSeats} {schedule.availableSeats === 1 ? "libre" : "libres"}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </fieldset>
 
       <p className="salida-hint">
         {matches.length === 0
