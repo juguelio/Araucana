@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminReservationFiltersSchema, adminReservationWhere, adminScheduleFiltersSchema, adminScheduleWhere } from "./admin-filters";
+import { adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminScheduleFiltersSchema, adminScheduleWhere } from "./admin-filters";
 
 describe("reservation search", () => {
   it("rejects invalid calendar days instead of silently searching all reservations", () => {
@@ -51,5 +51,21 @@ describe("busqueda de salidas (alta manual)", () => {
 
   it("rechaza dias invalidos en vez de mostrar toda la temporada", () => {
     expect(adminScheduleFiltersSchema.safeParse({ date: "2026-02-30" }).success).toBe(false);
+  });
+});
+
+describe("paginacion del listado de reservas", () => {
+  it("una pagina invalida cae en la primera en vez de romper la busqueda", () => {
+    expect(adminReservationsPage({})).toBe(1);
+    expect(adminReservationsPage({ page: "0" })).toBe(1);
+    expect(adminReservationsPage({ page: "abc" })).toBe(1);
+    expect(adminReservationsPage({ page: "-3" })).toBe(1);
+    expect(adminReservationsPage({ page: "3" })).toBe(3);
+  });
+
+  it("el parametro de pagina no ensucia el where de la busqueda", () => {
+    expect(adminReservationWhere({ page: 4, code: "ARC" })).toEqual({
+      AND: [{ code: { contains: "ARC", mode: "insensitive" } }]
+    });
   });
 });
