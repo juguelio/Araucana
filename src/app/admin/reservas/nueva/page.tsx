@@ -40,41 +40,48 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
           <p className="muted">Elegí la salida y la cantidad de asientos. No se asignan números de asiento.</p>
         </div>
         {schedules.length ? (
-          <form className="admin-form-grid" action={createAdminReservationAction}>
+          <form className="alta-form" action={createAdminReservationAction}>
             <SalidaPicker schedules={schedules} />
-            <label>
-              Cantidad de asientos
-              <input name="passengerCount" type="number" min="1" max="24" defaultValue="1" required />
-            </label>
-            <label>
-              Nombre
-              <input name="firstName" autoComplete="given-name" required />
-            </label>
-            <label>
-              Apellido
-              <input name="lastName" autoComplete="family-name" required />
-            </label>
-            <label>
-              Email
-              <input name="email" type="email" autoComplete="email" required />
-            </label>
-            <label>
-              Teléfono
-              <input name="phone" type="tel" autoComplete="tel" placeholder="+54 9..." required />
-            </label>
-            <label>
-              Tipo de documento
-              <select name="documentType" defaultValue="DNI" required><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
-            </label>
-            <label>
-              Documento
-              <input name="documentId" required />
-            </label>
-            <label>
-              Nacionalidad
-              <input name="nationality" placeholder="Opcional" />
-            </label>
-            <div className="form-actions span-2"><button className="button" type="submit">Crear reserva</button><Link className="ghost-button" href="/admin/reservas">Cancelar</Link></div>
+            <div className="alta-pasajero">
+              <div className="alta-pasajero-head">
+                <p className="eyebrow">Pasajero</p>
+                <p className="muted">Contacto y documento del titular de la reserva.</p>
+              </div>
+              <div className="admin-form-grid alta-campos">
+                <label>
+                  Nombre
+                  <input name="firstName" autoComplete="given-name" required />
+                </label>
+                <label>
+                  Apellido
+                  <input name="lastName" autoComplete="family-name" required />
+                </label>
+                <label>
+                  Email
+                  <input name="email" type="email" autoComplete="email" required />
+                </label>
+                <label>
+                  Teléfono
+                  <input name="phone" type="tel" autoComplete="tel" placeholder="+54 9..." required />
+                </label>
+                <label>
+                  Tipo de documento
+                  <select name="documentType" defaultValue="DNI" required><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
+                </label>
+                <label>
+                  Documento
+                  <input name="documentId" required />
+                </label>
+                <label className="span-2">
+                  Nacionalidad
+                  <input name="nationality" placeholder="Opcional" />
+                </label>
+              </div>
+              <div className="form-actions">
+                <button className="button" type="submit">Crear reserva</button>
+                <Link className="ghost-button" href="/admin/reservas">Cancelar</Link>
+              </div>
+            </div>
           </form>
         ) : <p className="muted">No hay salidas futuras con lugares disponibles.</p>}
       </section>

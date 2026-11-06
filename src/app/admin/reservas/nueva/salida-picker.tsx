@@ -1,177 +1,207 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { claveRuta, diaEfectivo as diaEfectivoDe, diasConSalidas, tiraDeDias, type SalidaOption } from "./salida-picker-utils";
 import "./salida-picker.css";
 
-export type SalidaOption = {
-  id: string;
-  from: string;
-  to: string;
-  dayKey: string;
-  dayLabel: string;
-  timeLabel: string;
-  availableSeats: number;
-  status: string;
-};
+export type { SalidaOption } from "./salida-picker-utils";
 
 const SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
 const monthFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
 const dayFormatter = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+const monthShort = new Intl.DateTimeFormat("es-AR", { month: "short", timeZone: "UTC" });
+const weekdayShort = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZone: "UTC" });
 
 /**
- * El campo «Salida» del alta manual era un solo <select> con todas las salidas futuras pegadas en
- * una línea ("Aeropuerto Chapelco (CPC) -> San Martin de los Andes · jue, 05 nov · 09:00 · 24
- * lugares libres"): con más de un puñado no se podía recorrer. Acá el mismo campo se filtra por
- * origen, destino y fecha (en cascada, con mini calendario) y las opciones quedan agrupadas por día.
+ * Campo «Salida» del alta manual.
+ *
+ * Antes: un <select> con todas las salidas futuras en un renglón. Después: las salidas agrupadas por
+ * día, todos los días apilados — con la operación real (588 salidas en 71 días) eso eran 71 bloques y
+ * el formulario del pasajero quedaba miles de píxeles abajo.
+ *
+ * Ahora el día es el eje: se elige ruta, la tira de los próximos días (o el calendario para más
+ * adelante) y se ven sólo los horarios de ese día, con los lugares libres y la cantidad a reservar.
  */
 export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
-  const [day, setDay] = useState("");
+  const [ruta, setRuta] = useState("");
+  const [dia, setDia] = useState("");
   const [pickedId, setPickedId] = useState(schedules[0]?.id ?? "");
+  const [cantidad, setCantidad] = useState(1);
 
-  const origins = useMemo(() => unique(schedules.map((schedule) => schedule.from)), [schedules]);
-
-  const destinations = useMemo(
-    () => unique(schedules.filter((schedule) => !origin || schedule.from === origin).map((schedule) => schedule.to)),
-    [schedules, origin]
-  );
-
-  const porRuta = useMemo(
-    () => schedules.filter((schedule) => (!origin || schedule.from === origin) && (!destination || schedule.to === destination)),
-    [schedules, origin, destination]
-  );
-
-  // Cantidad de salidas por día (los días sin salidas quedan apagados en el calendario).
-  const porDia = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const schedule of porRuta) counts.set(schedule.dayKey, (counts.get(schedule.dayKey) ?? 0) + 1);
-    return counts;
-  }, [porRuta]);
-
-  const etiquetas = useMemo(() => {
-    const labels = new Map<string, string>();
-    for (const schedule of schedules) labels.set(schedule.dayKey, schedule.dayLabel);
-    return labels;
+  const rutas = useMemo(() => {
+    const mapa = new Map<string, { value: string; label: string; count: number }>();
+    for (const schedule of schedules) {
+      const value = claveRuta(schedule.from, schedule.to);
+      const actual = mapa.get(value);
+      if (actual) actual.count += 1;
+      else mapa.set(value, { value, label: `${schedule.from} → ${schedule.to}`, count: 1 });
+    }
+    return [...mapa.values()].sort((a, b) => a.label.localeCompare(b.label, "es"));
   }, [schedules]);
 
-  const matches = useMemo(() => porRuta.filter((schedule) => !day || schedule.dayKey === day), [porRuta, day]);
+  const porRuta = useMemo(
+    () => schedules.filter((schedule) => !ruta || claveRuta(schedule.from, schedule.to) === ruta),
+    [schedules, ruta]
+  );
 
-  // La selección sigue a la lista filtrada: si la salida marcada queda afuera, cae en la primera.
+  // Días con salidas para la ruta elegida, con el conteo que se muestra en cada botón.
+  const dias = useMemo(() => diasConSalidas(porRuta), [porRuta]);
+
+  const conteoPorDia = useMemo(() => new Map(dias.map((d) => [d.key, d.count])), [dias]);
+
+  // El día elegido manda; si quedó sin salidas (cambió la ruta), cae en el primero disponible.
+  const diaEfectivo = diaEfectivoDe(dias, dia);
+
+  // La tira muestra los próximos días con salidas; si se eligió una fecha lejana en el calendario,
+  // se agrega adelante para no perder de vista lo que está seleccionado.
+  const tira = useMemo(() => tiraDeDias(dias, diaEfectivo), [dias, diaEfectivo]);
+
+  const matches = useMemo(() => porRuta.filter((schedule) => schedule.dayKey === diaEfectivo), [porRuta, diaEfectivo]);
+
   const selectedId = matches.some((schedule) => schedule.id === pickedId) ? pickedId : matches[0]?.id ?? "";
   const selected = matches.find((schedule) => schedule.id === selectedId) ?? null;
 
-  const groups = useMemo(() => {
-    const byDay = new Map<string, { key: string; label: string; items: SalidaOption[] }>();
-    for (const schedule of matches) {
-      const group = byDay.get(schedule.dayKey);
-      if (group) group.items.push(schedule);
-      else byDay.set(schedule.dayKey, { key: schedule.dayKey, label: schedule.dayLabel, items: [schedule] });
-    }
-    return [...byDay.values()];
-  }, [matches]);
+  // La cantidad nunca puede superar los lugares libres de la salida elegida.
+  const maxCantidad = Math.max(selected?.availableSeats ?? 1, 1);
+  const cantidadAjustada = Math.min(Math.max(cantidad, 1), maxCantidad);
+  useEffect(() => {
+    setCantidad((actual) => Math.min(Math.max(actual, 1), maxCantidad));
+  }, [maxCantidad]);
+  // Lo que se confirma es la salida elegida, no el filtro: la ruta del resumen sale de la salida.
+  const rutaElegida = selected ? `${selected.from} → ${selected.to}` : "";
 
-  // Con origen y destino ya elegidos la ruta es obvia: no hace falta repetirla en cada opción.
-  const showRoute = !origin || !destination;
-
-  function changeOrigin(value: string) {
-    setOrigin(value);
-    const destinoSigueValido = !destination || schedules.some((schedule) => schedule.from === value && schedule.to === destination);
-    if (!destinoSigueValido) setDestination("");
-    const destinoEfectivo = destinoSigueValido ? destination : "";
-    if (day && !schedules.some((schedule) => schedule.from === value && (!destinoEfectivo || schedule.to === destinoEfectivo) && schedule.dayKey === day)) {
-      setDay("");
-    }
-  }
-
-  function changeDestination(value: string) {
-    setDestination(value);
-    // Si la fecha elegida deja de tener salidas para esa ruta, se suelta.
-    if (day && !schedules.some((schedule) => (!origin || schedule.from === origin) && (!value || schedule.to === value) && schedule.dayKey === day)) {
-      setDay("");
-    }
+  function cambiarRuta(value: string) {
+    setRuta(value);
+    const destinos = value
+      ? schedules.filter((schedule) => claveRuta(schedule.from, schedule.to) === value)
+      : schedules;
+    if (!destinos.some((schedule) => schedule.dayKey === dia)) setDia("");
   }
 
   return (
     <div className="salida-picker">
-      <div className="salida-filters">
-        <label>
-          Origen
-          <select name="originFilter" value={origin} onChange={(event) => changeOrigin(event.target.value)}>
-            <option value="">Todos</option>
-            {origins.map((value) => (
-              <option value={value} key={value}>
-                {value}
+      <div className="salida-top">
+        <label className="salida-ruta">
+          Ruta
+          <select value={ruta} onChange={(event) => cambiarRuta(event.target.value)}>
+            <option value="">Todas las rutas</option>
+            {rutas.map((opcion) => (
+              <option value={opcion.value} key={opcion.value}>
+                {opcion.label} ({opcion.count})
               </option>
             ))}
           </select>
         </label>
-        <label>
-          Destino
-          <select name="destinationFilter" value={destination} onChange={(event) => changeDestination(event.target.value)}>
-            <option value="">Todos</option>
-            {destinations.map((value) => (
-              <option value={value} key={value}>
-                {value}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="salida-day-field">
-          <span className="salida-day-label">Fecha</span>
-          <Calendario
-            value={day}
-            counts={porDia}
-            labels={etiquetas}
-            onChange={setDay}
-          />
+        {/* El botón no repite la fecha: la fecha elegida se ve en la tira, esto es la puerta a los
+            días que quedan fuera de los próximos siete. */}
+        <div className="salida-fecha" role="group" aria-label="Elegir otra fecha">
+          <span className="salida-label">Fecha</span>
+          <Calendario value={diaEfectivo} counts={conteoPorDia} onChange={setDia} />
+        </div>
+      </div>
+
+      <div className="salida-tira-wrap">
+        <div className="salida-tira" role="group" aria-label="Próximos días con salidas">
+          {tira.map((opcion) => (
+            <button
+              type="button"
+              key={opcion.key}
+              className="salida-dia"
+              data-elegido={opcion.key === diaEfectivo}
+              data-hoy={opcion.key === hoyKey()}
+              aria-pressed={opcion.key === diaEfectivo}
+              title={`${opcion.count} ${opcion.count === 1 ? "salida" : "salidas"}`}
+              onClick={() => setDia(opcion.key)}
+            >
+              <span className="salida-dia-semana">{weekdayShort.format(new Date(`${opcion.key}T12:00:00Z`))}</span>
+              <strong className="salida-dia-numero">{Number(opcion.key.slice(-2))}</strong>
+              <span className="salida-dia-mes">{monthShort.format(new Date(`${opcion.key}T12:00:00Z`))}</span>
+              <small className="salida-dia-cantidad">{opcion.count}</small>
+            </button>
+          ))}
+          {dias.length > tira.length ? (
+            <span className="salida-tira-mas" title="El resto de los días se eligen en «Otra fecha»">
+              +{dias.length - tira.length} días
+            </span>
+          ) : null}
         </div>
       </div>
 
       <fieldset className="salida-field">
         <legend>Salida</legend>
-        {groups.length === 0 ? (
-          <p className="salida-empty">Sin salidas para esos filtros.</p>
+        {matches.length === 0 ? (
+          <p className="salida-empty">Sin salidas para esa ruta y fecha.</p>
         ) : (
-          <div className="salida-grupos">
-            {groups.map((group) => (
-              <div className="salida-grupo" key={group.key}>
-                {/* Agrupado por día y con la misma tarjeta de salida que la página pública de rutas. */}
-                <p className="salida-grupo-dia">{group.label}</p>
-                <div className="schedule-rail salida-rail" aria-label={`Salidas del ${group.label}`}>
-                  {group.items.map((schedule) => (
-                    <label className="schedule-option" key={schedule.id}>
-                      <input
-                        type="radio"
-                        name="scheduleId"
-                        value={schedule.id}
-                        checked={schedule.id === selectedId}
-                        onChange={() => setPickedId(schedule.id)}
-                        required
-                      />
-                      <span className="schedule-card">
-                        <span className="schedule-date">
-                          {showRoute ? `${schedule.from} → ${schedule.to}` : schedule.status === "DOCUMENTATION" ? "Documentación" : "Salida"}
-                        </span>
-                        <strong className="schedule-time">{schedule.timeLabel}</strong>
-                        <span className="schedule-seats">
-                          {schedule.availableSeats} {schedule.availableSeats === 1 ? "libre" : "libres"}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+          <div className="schedule-rail salida-rail" aria-label={`Salidas del día`}>
+            {matches.map((schedule) => (
+              <label className="schedule-option" key={schedule.id}>
+                <input
+                  type="radio"
+                  name="scheduleId"
+                  value={schedule.id}
+                  checked={schedule.id === selectedId}
+                  onChange={() => setPickedId(schedule.id)}
+                  required
+                />
+                <span className="schedule-card" title={`${schedule.from} → ${schedule.to}`}>
+                  <span className="schedule-date">
+                    {schedule.status === "DOCUMENTATION" ? "Documentación" : ruta ? "Salida" : `${schedule.from} → ${schedule.to}`}
+                  </span>
+                  <strong className="schedule-time">{schedule.timeLabel}</strong>
+                  <span className="schedule-seats">
+                    {schedule.availableSeats} {schedule.availableSeats === 1 ? "libre" : "libres"}
+                  </span>
+                </span>
+              </label>
             ))}
           </div>
         )}
       </fieldset>
 
-      <p className="salida-hint">
-        {matches.length === 0
-          ? "No hay salidas con esos filtros."
-          : `${matches.length} ${matches.length === 1 ? "salida" : "salidas"}${selected ? ` · ${selected.dayLabel} ${selected.timeLabel} · ${selected.availableSeats} lugares libres` : ""}`}
-      </p>
+      <div className="salida-pie">
+        <div className="salida-cantidad">
+          <span className="salida-cantidad-label">Lugares</span>
+          <div className="salida-stepper">
+            <button
+              type="button"
+              aria-label="Un lugar menos"
+              disabled={cantidadAjustada <= 1}
+              onClick={() => setCantidad(Math.max(1, cantidadAjustada - 1))}
+            >
+              −
+            </button>
+            <input
+              type="number"
+              name="passengerCount"
+              min="1"
+              max={maxCantidad}
+              value={cantidadAjustada}
+              onChange={(event) => setCantidad(Number(event.target.value) || 1)}
+              onBlur={() => setCantidad(cantidadAjustada)}
+              required
+            />
+            <button
+              type="button"
+              aria-label="Un lugar más"
+              disabled={cantidadAjustada >= maxCantidad}
+              onClick={() => setCantidad(Math.min(maxCantidad, cantidadAjustada + 1))}
+            >
+              +
+            </button>
+          </div>
+        </div>
+        <p className="salida-resumen">
+          {selected ? (
+            <>
+              <strong>{selected.dayLabel} · {selected.timeLabel}</strong>
+              <span>{rutaElegida}</span>
+              <small>{selected.availableSeats} lugares libres</small>
+            </>
+          ) : (
+            "Elegí una salida para continuar."
+          )}
+        </p>
+      </div>
     </div>
   );
 }
@@ -179,12 +209,11 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
 type CalendarioProps = {
   value: string;
   counts: Map<string, number>;
-  labels: Map<string, string>;
   onChange: (value: string) => void;
 };
 
 /** Mini calendario del filtro Fecha: sólo los días con salidas son clickeables. */
-function Calendario({ value, counts, labels, onChange }: CalendarioProps) {
+function Calendario({ value, counts, onChange }: CalendarioProps) {
   const [abierto, setAbierto] = useState(false);
   const [mes, setMes] = useState(() => value.slice(0, 7) || "hoy");
   const contenedor = useRef<HTMLDivElement>(null);
@@ -243,7 +272,7 @@ function Calendario({ value, counts, labels, onChange }: CalendarioProps) {
         aria-expanded={abierto}
         onClick={abrir}
       >
-        <span>{value ? labels.get(value) ?? value : "Todas las fechas"}</span>
+        <span>Otra fecha</span>
         <span aria-hidden="true" className="salida-cal-caret">▾</span>
       </button>
 
@@ -260,8 +289,8 @@ function Calendario({ value, counts, labels, onChange }: CalendarioProps) {
           </div>
 
           <div className="salida-cal-week" aria-hidden="true">
-            {SEMANA.map((dia, indice) => (
-              <span key={`${dia}-${indice}`}>{dia}</span>
+            {SEMANA.map((diaSemana, indice) => (
+              <span key={`${diaSemana}-${indice}`}>{diaSemana}</span>
             ))}
           </div>
 
@@ -305,17 +334,21 @@ function Calendario({ value, counts, labels, onChange }: CalendarioProps) {
               type="button"
               className="salida-cal-todas"
               onClick={() => {
-                onChange("");
+                onChange(primeraFechaConSalidas(counts));
                 setAbierto(false);
               }}
             >
-              Todas las fechas
+              Próximo día con salidas
             </button>
           </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+function primeraFechaConSalidas(counts: Map<string, number>) {
+  return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))[0]?.[0] ?? "";
 }
 
 function hoyKey(now = new Date()) {
@@ -325,8 +358,4 @@ function hoyKey(now = new Date()) {
     month: "2-digit",
     day: "2-digit"
   }).format(now);
-}
-
-function unique(values: string[]) {
-  return [...new Set(values)].sort((left, right) => left.localeCompare(right, "es"));
 }
