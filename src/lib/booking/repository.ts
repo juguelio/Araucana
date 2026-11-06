@@ -1,9 +1,9 @@
-import { adminReservationWhere, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createTicketCode } from "./codes";
 import {
   AdminRouteRowDto,
-  AdminReservationRowDto,
+  AdminReservationsPageDto,
   AdminScheduleRowDto,
   PublicRouteDto,
   ReservationDetailDto,
@@ -157,6 +157,7 @@ type BookingTransactionClient = {
     findFirst(args: unknown): Promise<ReservationRecord | null>;
     findMany(args?: unknown): Promise<ReservationRecord[]>;
     findUnique(args: unknown): Promise<ReservationRecord | null>;
+    count(args?: unknown): Promise<number>;
     create(args: unknown): Promise<ReservationRecord>;
     update(args: unknown): Promise<ReservationRecord>;
   };
@@ -874,36 +875,62 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       }));
     },
 
-    async listAdminReservations(filters: AdminReservationFilters = {}): Promise<AdminReservationRowDto[]> {
+    /**
+     * Listado del panel, paginado: el `count` se hace con la misma condición que la página y en el
+     * cliente sólo entran `pageSize` filas. Si la página pedida quedó fuera de rango (por ejemplo
+     * porque un filtro achicó el total) se devuelve la última existente en vez de una tabla vacía.
+     */
+    async listAdminReservations(filters: AdminReservationFilters = {}): Promise<AdminReservationsPageDto> {
+      const where = adminReservationWhere(filters);
+      const pageSize = ADMIN_RESERVATIONS_PAGE_SIZE;
+      const pedida = adminReservationsPage(filters);
+
+      const total = await client.reservation.count({ where });
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const page = Math.min(pedida, totalPages);
+
       const reservations = await client.reservation.findMany({
-        where: adminReservationWhere(filters),
+        where,
         include: reservationInclude(),
-        orderBy: { createdAt: "desc" }
+        orderBy: { createdAt: "desc" },
+        take: pageSize,
+        skip: (page - 1) * pageSize
       });
 
-      return reservations.map((reservation) => ({
-        id: reservation.id,
-        code: reservation.code,
-        passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
-        passengerPhone: reservation.passenger.phone,
-        route: reservation.schedule
-          ? `${reservation.schedule.route.from} -> ${reservation.schedule.route.to}`
-          : reservation.route
-            ? `${reservation.route.from} -> ${reservation.route.to}`
-            : "Ruta sin datos",
-        departureAt: reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt,
-        seatNumber: reservation.seatNumber,
-        bookingMode: reservation.bookingMode,
-        passengerCount: reservation.passengerCount,
-        chapelcoPickupName: reservation.chapelcoDetails?.pickupName ?? null,
-        chapelcoAscentSlot: reservation.chapelcoDetails?.ascentSlot ?? null,
-        status: reservation.status,
-        paymentStatus: reservation.payment?.status ?? null,
-        hasReceipt: Boolean(reservation.payment?.receiptBlobPathname),
-        receiptFileName: reservation.payment?.receiptFileName ?? null,
-        receiptUploadedAt: reservation.payment?.receiptUploadedAt ?? null,
-        createdAt: reservation.createdAt
-      }));
+      return {
+        items: reservations.map((reservation) => ({
+          id: reservation.id,
+          code: reservation.code,
+          passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
+          passengerPhone: reservation.passenger.phone,
+          route: reservation.schedule
+            ? `${reservation.schedule.route.from} -> ${reservation.schedule.route.to}`
+            : reservation.route
+              ? `${reservation.route.from} -> ${reservation.route.to}`
+              : "Ruta sin datos",
+          departureAt: reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt,
+          seatNumber: reservation.seatNumber,
+          bookingMode: reservation.bookingMode,
+          passengerCount: reservation.passengerCount,
+          chapelcoPickupName: reservation.chapelcoDetails?.pickupName ?? null,
+          chapelcoAscentSlot: reservation.chapelcoDetails?.ascentSlot ?? null,
+          status: reservation.status,
+          paymentStatus: reservation.payment?.status ?? null,
+          hasReceipt: Boolean(reservation.payment?.receiptBlobPathname),
+          receiptFileName: reservation.payment?.receiptFileName ?? null,
+          receiptUploadedAt: reservation.payment?.receiptUploadedAt ?? null,
+          createdAt: reservation.createdAt
+        })),
+        total,
+        page,
+        pageSize,
+        totalPages
+      };
+    },
+
+    /** Cuántas reservas hay con esos filtros: el panel no necesita traerlas para contarlas. */
+    async countAdminReservations(filters: AdminReservationFilters = {}): Promise<number> {
+      return client.reservation.count({ where: adminReservationWhere(filters) });
     }
   };
 }
@@ -923,3 +950,4 @@ export const approveManualPayment = defaultRepository.approveManualPayment;
 export const listAdminSchedules = defaultRepository.listAdminSchedules;
 export const listAdminRoutes = defaultRepository.listAdminRoutes;
 export const listAdminReservations = defaultRepository.listAdminReservations;
+export const countAdminReservations = defaultRepository.countAdminReservations;

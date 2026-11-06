@@ -5,9 +5,19 @@ export const adminReservationFiltersSchema = z.object({
   code: z.string().trim().max(100).optional(),
   route: z.string().trim().max(100).optional(),
   scheduleId: z.string().trim().max(100).optional(),
-  date: z.union([z.literal(""), z.iso.date()]).optional()
+  date: z.union([z.literal(""), z.iso.date()]).optional(),
+  // `?page=abc` o `?page=0` no pueden romper la búsqueda: caen en la primera página.
+  page: z.coerce.number().int().min(1).catch(1).default(1)
 });
-export type AdminReservationFilters = z.infer<typeof adminReservationFiltersSchema>;
+export type AdminReservationFilters = z.input<typeof adminReservationFiltersSchema>;
+
+/** Página pedida, normalizada con la misma regla que el schema (1 si viene rota o vacía). */
+export function adminReservationsPage(input: AdminReservationFilters): number {
+  return adminReservationFiltersSchema.parse(input).page;
+}
+
+/** Reservas por página en el panel: 25 filas entran sin scroll en un portátil. */
+export const ADMIN_RESERVATIONS_PAGE_SIZE = 25;
 
 // The date is the travel day, not the date on which the reservation was created.
 export function adminReservationWhere(input: AdminReservationFilters): Prisma.ReservationWhereInput {

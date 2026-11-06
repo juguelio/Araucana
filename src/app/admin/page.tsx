@@ -1,6 +1,6 @@
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
-import { listAdminReservations, listAdminSchedules, listPublicRoutes } from "@/lib/booking/repository";
+import { countAdminReservations, listAdminSchedules, listPublicRoutes } from "@/lib/booking/repository";
 import { LogoutButton } from "./logout-button";
 
 type AdminPageProps = {
@@ -12,10 +12,10 @@ type AdminPageProps = {
 export default async function AdminPage({ searchParams }: AdminPageProps) {
   const user = await getCurrentAdminOrRedirect();
   const params = await searchParams;
-  const [routes, schedules, reservations] = await Promise.all([
+  const [routes, schedules, reservationCount] = await Promise.all([
     listPublicRoutes(),
     listAdminSchedules(),
-    listAdminReservations()
+    countAdminReservations()
   ]);
 
   return (
@@ -35,8 +35,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <strong>{schedules.length}</strong>
         </div>
         <div className="admin-card">
-          <span className="muted">Reservas activas</span>
-          <strong>{reservations.length}</strong>
+          <span className="muted">Reservas registradas</span>
+          <strong>{reservationCount}</strong>
         </div>
       </section>
     </AdminShell>

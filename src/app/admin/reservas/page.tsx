@@ -2,8 +2,9 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { listAdminReservations } from "@/lib/booking/repository";
-import { adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
 import { approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
+import "./pagination.css";
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
@@ -12,6 +13,7 @@ type AdminReservationsPageProps = {
     date?: string;
     route?: string;
     scheduleId?: string;
+    page?: string;
   }>;
 };
 
@@ -45,11 +47,27 @@ function whatsappHref(phone: string) {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
+/** Link de página que arrastra los filtros activos (menos `notice`, que es un mensaje de una acción). */
+function paginaHref(destino: number, params: Record<string, string | undefined>) {
+  const query = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(params)) {
+    if (valor && clave !== "notice") query.set(clave, valor);
+  }
+  query.set("page", String(destino));
+  return `/admin/reservas?${query.toString()}`;
+}
+
 export default async function AdminReservationsPage({ searchParams }: AdminReservationsPageProps) {
   const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
   const parsed = adminReservationFiltersSchema.safeParse(params ?? {});
-  const reservations = parsed.success ? await listAdminReservations(parsed.data) : [];
+  const pagina = parsed.success
+    ? await listAdminReservations(parsed.data)
+    : { items: [], total: 0, page: 1, pageSize: ADMIN_RESERVATIONS_PAGE_SIZE, totalPages: 1 };
+  const { items: reservations, total, page, pageSize, totalPages } = pagina;
+  const desde = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const hasta = Math.min(page * pageSize, total);
+  const filtros = (params ?? {}) as Record<string, string | undefined>;
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -143,6 +161,31 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           })}
         </tbody>
       </table>
+      {total > 0 ? (
+        <nav className="pagination" aria-label="Paginación de reservas">
+          {page > 1 ? (
+            <Link className="pagination-link" href={paginaHref(page - 1, filtros)} rel="prev">
+              ← Anterior
+            </Link>
+          ) : (
+            <span aria-disabled="true" className="pagination-link">
+              ← Anterior
+            </span>
+          )}
+          <span className="pagination-status">
+            Mostrando {desde}–{hasta} de {total} · página {page} de {totalPages}
+          </span>
+          {page < totalPages ? (
+            <Link className="pagination-link" href={paginaHref(page + 1, filtros)} rel="next">
+              Siguiente →
+            </Link>
+          ) : (
+            <span aria-disabled="true" className="pagination-link">
+              Siguiente →
+            </span>
+          )}
+        </nav>
+      ) : null}
     </AdminShell>
   );
 }

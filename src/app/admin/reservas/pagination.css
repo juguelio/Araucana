@@ -1,0 +1,38 @@
+/* === Paginador del listado de reservas ===
+   Archivo propio para no tocar globals.css (lo está editando otra sesión). */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pagination-link {
+  padding: 8px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fffaf1;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pagination-link[aria-disabled="true"] {
+  opacity: .45;
+  cursor: default;
+}
+
+.pagination-status {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .pagination { justify-content: center; text-align: center; }
+  .pagination-status { order: -1; width: 100%; text-align: center; }
+}
