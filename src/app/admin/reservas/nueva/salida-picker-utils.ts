@@ -18,11 +18,6 @@ export type SalidaOption = {
 
 export const DIAS_EN_TIRA = 7;
 
-/** Identifica una ruta origen→destino sin chocar con nombres que tengan guiones. */
-export function claveRuta(from: string, to: string) {
-  return `${from}\u001f${to}`;
-}
-
 export type DiaConSalidas = { key: string; label: string; count: number };
 
 /** Días con salidas para la ruta elegida, en orden y con el conteo que se muestra en cada botón. */

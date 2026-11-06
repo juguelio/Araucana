@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claveRuta, diaEfectivo, diasConSalidas, tiraDeDias, type SalidaOption } from "./salida-picker-utils";
+import { diaEfectivo, diasConSalidas, tiraDeDias, type SalidaOption } from "./salida-picker-utils";
 
 function salida(id: string, dayKey: string, from = "San Martin de los Andes", to = "Aeropuerto Chapelco (CPC)"): SalidaOption {
   return {
@@ -15,11 +15,6 @@ function salida(id: string, dayKey: string, from = "San Martin de los Andes", to
 }
 
 describe("selector de salida del alta manual", () => {
-  it("identifica la ruta sin depender del texto exacto del nombre", () => {
-    expect(claveRuta("San Martin de los Andes", "Villa Traful")).not.toBe(claveRuta("Villa Traful", "San Martin de los Andes"));
-    expect(claveRuta("Aeropuerto Chapelco (CPC)", "SMA")).toBe(claveRuta("Aeropuerto Chapelco (CPC)", "SMA"));
-  });
-
   it("agrupa por día en orden y cuenta las salidas de cada día", () => {
     const dias = diasConSalidas([
       salida("c", "2026-11-08"),
