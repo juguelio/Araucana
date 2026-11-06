@@ -201,9 +201,16 @@ class FakeBookingClient {
         }) ?? null
       );
     },
-    findMany: async () => {
+    findMany: async (args?: { skip?: number; take?: number }) => {
       this.assertTransactionOpen();
-      return this.reservations.map((reservation) => this.withRelations(reservation));
+      const ordenadas = [...this.reservations].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const desde = args?.skip ?? 0;
+      const hasta = args?.take === undefined ? undefined : desde + args.take;
+      return ordenadas.slice(desde, hasta).map((reservation) => this.withRelations(reservation));
+    },
+    count: async () => {
+      this.assertTransactionOpen();
+      return this.reservations.length;
     },
     findUnique: async ({ where }: { where: { code: string } }) => {
       this.assertTransactionOpen();
@@ -781,7 +788,8 @@ describe("booking repository", () => {
       receiptUploadedAt: new Date("2026-05-11T18:00:00.000Z")
     });
 
-    await expect(repository.listAdminReservations()).resolves.toEqual([
+    const pagina = await repository.listAdminReservations();
+    expect(pagina.items).toEqual([
       expect.objectContaining({
         code: "ARC-2611-PROOF",
         passengerPhone: "+5492944000001",
@@ -790,6 +798,40 @@ describe("booking repository", () => {
         hasReceipt: true
       })
     ]);
+  });
+
+  it("pagina el listado y devuelve el total sin paginar", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    for (const code of ["ARC-P1", "ARC-P2", "ARC-P3"]) client.seedReservation({ code });
+
+    const primera = await repository.listAdminReservations({ page: 1 });
+    expect(primera.total).toBe(3);
+    expect(primera.page).toBe(1);
+    expect(primera.pageSize).toBe(25);
+    expect(primera.totalPages).toBe(1);
+    expect(primera.items).toHaveLength(3);
+  });
+
+  it("recorta la pagina cuando queda fuera de rango en vez de mostrar vacio", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    client.seedReservation({ code: "ARC-ONLY" });
+
+    const fuera = await repository.listAdminReservations({ page: 9 });
+    expect(fuera.page).toBe(1);
+    expect(fuera.items.map((item) => item.code)).toEqual(["ARC-ONLY"]);
+  });
+
+  it("sin reservas devuelve una pagina vacia con total cero", async () => {
+    const repository = createTestRepository(new FakeBookingClient());
+    expect(await repository.listAdminReservations({ page: 2 })).toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 25,
+      totalPages: 1
+    });
   });
 
   it("updates passenger details for a reservation code", async () => {

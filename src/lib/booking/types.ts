@@ -155,3 +155,12 @@ export type AdminReservationRowDto = {
   receiptUploadedAt: Date | null;
   createdAt: Date;
 };
+
+/** Una página del listado de reservas del panel: `total` es el de la búsqueda, sin paginar. */
+export type AdminReservationsPageDto = {
+  items: AdminReservationRowDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
