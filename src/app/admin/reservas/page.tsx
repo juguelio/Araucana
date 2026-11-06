@@ -14,6 +14,7 @@ type AdminReservationsPageProps = {
     route?: string;
     scheduleId?: string;
     page?: string;
+    payment?: string;
   }>;
 };
 
@@ -79,6 +80,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
         <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
         <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
         <label>ID de salida<input name="scheduleId" defaultValue={params?.scheduleId} maxLength={100} /></label>
+        <label>
+          Pago
+          <select name="payment" defaultValue={params?.payment ?? ""}>
+            <option value="">Todos</option>
+            <option value="receipt-pending">Comprobante por validar</option>
+            <option value="rejected">Comprobante rechazado</option>
+          </select>
+        </label>
         <button className="button" type="submit">Buscar reservas</button>
         <Link href="/admin/reservas">Limpiar filtros</Link>
       </form>

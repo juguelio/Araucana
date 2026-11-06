@@ -69,3 +69,24 @@ describe("paginacion del listado de reservas", () => {
     });
   });
 });
+
+describe("colas de cobro del listado", () => {
+  it("pide comprobante subido y pago todavia pendiente", () => {
+    expect(adminReservationWhere({ payment: "receipt-pending" })).toEqual({
+      AND: [
+        { status: "PENDING_PAYMENT" },
+        { payment: { is: { status: "PENDING", receiptBlobPathname: { not: null } } } }
+      ]
+    });
+  });
+
+  it("pide los comprobantes rechazados", () => {
+    expect(adminReservationWhere({ payment: "rejected" })).toEqual({
+      AND: [{ payment: { is: { status: "REJECTED" } } }]
+    });
+  });
+
+  it("una cola desconocida falla en vez de mostrar todo como si estuviera filtrado", () => {
+    expect(() => adminReservationWhere({ payment: "inventada" as never })).toThrow();
+  });
+});

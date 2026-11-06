@@ -1,13 +1,23 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+/**
+ * Colas de cobro del panel: comprobantes subidos esperando validación (`receipt-pending`) y
+ * comprobantes que secretaría rechazó y hay que volver a pedir (`rejected`).
+ */
+export const ADMIN_PAYMENT_QUEUES = ["receipt-pending", "rejected"] as const;
+export type AdminPaymentQueue = (typeof ADMIN_PAYMENT_QUEUES)[number];
+
 export const adminReservationFiltersSchema = z.object({
   code: z.string().trim().max(100).optional(),
   route: z.string().trim().max(100).optional(),
   scheduleId: z.string().trim().max(100).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
   // `?page=abc` o `?page=0` no pueden romper la búsqueda: caen en la primera página.
-  page: z.coerce.number().int().min(1).catch(1).default(1)
+  page: z.coerce.number().int().min(1).catch(1).default(1),
+  // Un valor que no es una cola conocida hace fallar el parse a propósito: la pantalla avisa
+  // "Revisá los filtros" en vez de mostrar todas las reservas como si el filtro se hubiera aplicado.
+  payment: z.enum(ADMIN_PAYMENT_QUEUES).optional()
 });
 export type AdminReservationFilters = z.input<typeof adminReservationFiltersSchema>;
 
@@ -30,6 +40,14 @@ export function adminReservationWhere(input: AdminReservationFilters): Prisma.Re
       [field]: { contains: filters.route, mode: "insensitive" }
     })) };
     AND.push({ OR: [{ route: { is: route } }, { schedule: { is: { route: { is: route } } } }] });
+  }
+  if (filters.payment === "receipt-pending") {
+    // La cola de trabajo real de secretaría: comprobante subido y pago todavía sin resolver.
+    AND.push({ status: "PENDING_PAYMENT" });
+    AND.push({ payment: { is: { status: "PENDING", receiptBlobPathname: { not: null } } } });
+  }
+  if (filters.payment === "rejected") {
+    AND.push({ payment: { is: { status: "REJECTED" } } });
   }
   if (filters.date) {
     const gte = new Date(`${filters.date}T00:00:00-03:00`);
