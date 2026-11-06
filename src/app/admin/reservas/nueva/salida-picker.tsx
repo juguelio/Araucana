@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { claveRuta, diaEfectivo as diaEfectivoDe, diasConSalidas, tiraDeDias, type SalidaOption } from "./salida-picker-utils";
+import { diaEfectivo as diaEfectivoDe, diasConSalidas, tiraDeDias, type SalidaOption } from "./salida-picker-utils";
 import "./salida-picker.css";
 
 export type { SalidaOption } from "./salida-picker-utils";
@@ -23,25 +23,23 @@ const weekdayShort = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZo
  * adelante) y se ven sólo los horarios de ese día, con los lugares libres y la cantidad a reservar.
  */
 export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
-  const [ruta, setRuta] = useState("");
+  const [origen, setOrigen] = useState("");
+  const [destino, setDestino] = useState("");
   const [dia, setDia] = useState("");
   const [pickedId, setPickedId] = useState(schedules[0]?.id ?? "");
   const [cantidad, setCantidad] = useState(1);
 
-  const rutas = useMemo(() => {
-    const mapa = new Map<string, { value: string; label: string; count: number }>();
-    for (const schedule of schedules) {
-      const value = claveRuta(schedule.from, schedule.to);
-      const actual = mapa.get(value);
-      if (actual) actual.count += 1;
-      else mapa.set(value, { value, label: `${schedule.from} → ${schedule.to}`, count: 1 });
-    }
-    return [...mapa.values()].sort((a, b) => a.label.localeCompare(b.label, "es"));
-  }, [schedules]);
+  const origenes = useMemo(() => unicos(schedules.map((schedule) => schedule.from)), [schedules]);
+
+  // El destino se ofrece en cascada: los que salen del origen elegido.
+  const destinos = useMemo(
+    () => unicos(schedules.filter((schedule) => !origen || schedule.from === origen).map((schedule) => schedule.to)),
+    [schedules, origen]
+  );
 
   const porRuta = useMemo(
-    () => schedules.filter((schedule) => !ruta || claveRuta(schedule.from, schedule.to) === ruta),
-    [schedules, ruta]
+    () => schedules.filter((schedule) => (!origen || schedule.from === origen) && (!destino || schedule.to === destino)),
+    [schedules, origen, destino]
   );
 
   // Días con salidas para la ruta elegida, con el conteo que se muestra en cada botón.
@@ -70,24 +68,47 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
   // Lo que se confirma es la salida elegida, no el filtro: la ruta del resumen sale de la salida.
   const rutaElegida = selected ? `${selected.from} → ${selected.to}` : "";
 
-  function cambiarRuta(value: string) {
-    setRuta(value);
-    const destinos = value
-      ? schedules.filter((schedule) => claveRuta(schedule.from, schedule.to) === value)
-      : schedules;
-    if (!destinos.some((schedule) => schedule.dayKey === dia)) setDia("");
+  /** Si el destino elegido no existe para el nuevo origen, se suelta; lo mismo con el día. */
+  function cambiarOrigen(value: string) {
+    setOrigen(value);
+    const destinoSigueValido = !destino || schedules.some((schedule) => schedule.from === value && schedule.to === destino);
+    if (!destinoSigueValido) setDestino("");
+    const destinoEfectivo = destinoSigueValido ? destino : "";
+    const quedan = schedules.some(
+      (schedule) => schedule.from === value && (!destinoEfectivo || schedule.to === destinoEfectivo) && schedule.dayKey === dia
+    );
+    if (dia && !quedan) setDia("");
+  }
+
+  function cambiarDestino(value: string) {
+    setDestino(value);
+    const quedan = schedules.some(
+      (schedule) => (!origen || schedule.from === origen) && (!value || schedule.to === value) && schedule.dayKey === dia
+    );
+    if (dia && !quedan) setDia("");
   }
 
   return (
     <div className="salida-picker">
       <div className="salida-top">
         <label className="salida-ruta">
-          Ruta
-          <select value={ruta} onChange={(event) => cambiarRuta(event.target.value)}>
-            <option value="">Todas las rutas</option>
-            {rutas.map((opcion) => (
-              <option value={opcion.value} key={opcion.value}>
-                {opcion.label} ({opcion.count})
+          Origen
+          <select value={origen} onChange={(event) => cambiarOrigen(event.target.value)}>
+            <option value="">Todos</option>
+            {origenes.map((opcion) => (
+              <option value={opcion} key={opcion}>
+                {opcion}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="salida-ruta">
+          Destino
+          <select value={destino} onChange={(event) => cambiarDestino(event.target.value)}>
+            <option value="">Todos</option>
+            {destinos.map((opcion) => (
+              <option value={opcion} key={opcion}>
+                {opcion}
               </option>
             ))}
           </select>
@@ -145,7 +166,11 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
                 />
                 <span className="schedule-card" title={`${schedule.from} → ${schedule.to}`}>
                   <span className="schedule-date">
-                    {schedule.status === "DOCUMENTATION" ? "Documentación" : ruta ? "Salida" : `${schedule.from} → ${schedule.to}`}
+                    {schedule.status === "DOCUMENTATION"
+                      ? "Documentación"
+                      : origen && destino
+                        ? "Salida"
+                        : `${schedule.from} → ${schedule.to}`}
                   </span>
                   <strong className="schedule-time">{schedule.timeLabel}</strong>
                   <span className="schedule-seats">
@@ -345,6 +370,10 @@ function Calendario({ value, counts, onChange }: CalendarioProps) {
       ) : null}
     </div>
   );
+}
+
+function unicos(valores: string[]) {
+  return [...new Set(valores)].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 function primeraFechaConSalidas(counts: Map<string, number>) {

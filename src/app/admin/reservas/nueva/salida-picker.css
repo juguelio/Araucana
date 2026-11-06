@@ -43,7 +43,7 @@
 /* --- Selector de salida --- */
 .salida-picker { display: grid; gap: 12px; min-width: 0; padding: 16px 18px 18px; border: 1px solid var(--line);
   border-radius: 16px; background: var(--surface); align-content: start; }
-.salida-top { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px; align-items: end; }
+.salida-top { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
 .salida-ruta,
 .salida-fecha { display: grid; gap: 7px; min-width: 0; color: var(--ink-soft); font-size: 13px; font-weight: 700; }
 /* El select no está dentro de .admin-form-grid: repetir el estilo de los campos del panel. */
@@ -87,11 +87,11 @@
 @media (max-width: 560px) { .salida-rail .schedule-option { flex-basis: calc((100% - 8px) / 2.15); } }
 
 /* --- Pie: cuántos lugares + resumen de lo elegido --- */
-.salida-pie { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 12px; align-items: center;
+.salida-pie { display: grid; grid-template-columns: minmax(104px, auto) minmax(0, 1fr); gap: 12px; align-items: center;
   padding: 11px 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
-.salida-cantidad { display: grid; gap: 4px; color: var(--ink-soft); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.salida-cantidad { display: grid; gap: 4px; min-width: 0; color: var(--ink-soft); font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .salida-cantidad-label { font-size: 11px; }
-.salida-stepper { display: grid; grid-template-columns: 34px minmax(38px, 1fr) 34px; align-items: stretch;
+.salida-stepper { display: grid; grid-template-columns: 32px minmax(40px, 1fr) 32px; align-items: stretch; min-width: 0;
   border: 1px solid var(--line-strong); border-radius: 10px; background: #fffaf1; overflow: hidden; }
 .salida-stepper button { display: grid; place-items: center; border: 0; background: transparent; color: var(--primary);
   font-size: 17px; font-weight: 800; line-height: 1; cursor: pointer; }
@@ -147,5 +147,10 @@
   font-weight: 700; text-decoration: underline; cursor: pointer; }
 
 @media (max-width: 720px) {
+  .salida-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .salida-fecha { grid-column: 1 / -1; }
   .salida-cal-pop { width: min(300px, calc(100vw - 48px)); }
+}
+@media (max-width: 460px) {
+  .salida-top { grid-template-columns: minmax(0, 1fr); }
 }
