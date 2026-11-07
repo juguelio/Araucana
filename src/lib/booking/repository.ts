@@ -430,6 +430,21 @@ function reservationInclude() {
   };
 }
 
+/**
+ * Para la tabla de reservas del panel: sólo las columnas que muestra. reservationInclude() traía
+ * además la nave con todos sus asientos y el ticket de cada fila, y cada relación es otro viaje a la base.
+ */
+function adminReservationListInclude() {
+  return {
+    schedule: { select: { departureAt: true, route: { select: { from: true, to: true } } } },
+    route: { select: { from: true, to: true } },
+    passenger: { select: { firstName: true, lastName: true, phone: true } },
+    payment: { select: { status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
+    chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
+    airportDetails: { select: { serviceDate: true, flight: { select: { scheduledAt: true } } } }
+  };
+}
+
 function scheduleInclude() {
   return {
     route: true,
@@ -904,17 +919,21 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       const pageSize = ADMIN_RESERVATIONS_PAGE_SIZE;
       const pedida = adminReservationsPage(filters);
 
-      const total = await client.reservation.count({ where });
+      const pagina = (numero: number) =>
+        client.reservation.findMany({
+          where,
+          include: adminReservationListInclude(),
+          orderBy: { createdAt: "desc" },
+          take: pageSize,
+          skip: (numero - 1) * pageSize
+        });
+
+      // Conteo y página a la vez (antes uno esperaba al otro). Sólo si la página pedida quedó fuera
+      // de rango (filtro nuevo, reservas borradas) se vuelve a pedir la última.
+      const [total, enPedida] = await Promise.all([client.reservation.count({ where }), pagina(pedida)]);
       const totalPages = Math.max(1, Math.ceil(total / pageSize));
       const page = Math.min(pedida, totalPages);
-
-      const reservations = await client.reservation.findMany({
-        where,
-        include: reservationInclude(),
-        orderBy: { createdAt: "desc" },
-        take: pageSize,
-        skip: (page - 1) * pageSize
-      });
+      const reservations = page === pedida ? enPedida : await pagina(page);
 
       return {
         items: reservations.map((reservation) => ({
