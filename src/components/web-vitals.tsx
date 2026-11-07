@@ -1,7 +1,7 @@
 "use client";
 
 import { useReportWebVitals } from "next/web-vitals";
-import { rutaSinIds } from "@/lib/observability/vitals";
+import { rutaSinIds } from "@/lib/observability/route-label";
 
 /** Manda LCP, INP, CLS, FCP y TTFB de cada visita a /api/vitals (ver esa ruta). */
 export function WebVitals() {
