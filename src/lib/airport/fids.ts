@@ -1,5 +1,8 @@
 import type { FlightDirection } from "./provider";
 
+/** Un tercero colgado no puede colgar la pantalla del aeropuerto (se llama al renderizar /reservar). */
+const EXTERNAL_TIMEOUT_MS = 8_000;
+
 /**
  * Tablero del aeropuerto (FIDS) como fuente de datos.
  *
@@ -86,7 +89,7 @@ export function parseFidsBoard(html: string): FidsFlight[] {
 /** Trae y parsea el tablero. Nunca lanza: si falla, devuelve el error y la lista vacía. */
 export async function fetchFidsBoard(direction: FlightDirection): Promise<{ flights: FidsFlight[]; error: string | null }> {
   try {
-    const res = await fetch(FIDS_PAGES[direction], { cache: "no-store" });
+    const res = await fetch(FIDS_PAGES[direction], { cache: "no-store", signal: AbortSignal.timeout(EXTERNAL_TIMEOUT_MS) });
     if (!res.ok) return { flights: [], error: `tablero HTTP ${res.status}` };
     return { flights: parseFidsBoard(await res.text()), error: null };
   } catch (e) {

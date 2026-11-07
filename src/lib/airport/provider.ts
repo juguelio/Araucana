@@ -1,3 +1,6 @@
+/** Un tercero colgado no puede colgar la pantalla del aeropuerto (se llama al renderizar /reservar). */
+const EXTERNAL_TIMEOUT_MS = 8_000;
+
 /**
  * Conector con AirLabs para los vuelos de CPC (Aeropuerto Chapelco / SAZY).
  *
@@ -95,7 +98,7 @@ export async function fetchSchedules(
   const url = `https://airlabs.co/api/v9/schedules?${param}=CPC&date=${dia}&api_key=${encodeURIComponent(key)}`;
 
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(EXTERNAL_TIMEOUT_MS) });
     if (!res.ok) return { flights: [], error: `AirLabs HTTP ${res.status}` };
     const data = (await res.json()) as { response?: RawSchedule[]; error?: { message?: string } };
     if (data.error) return { flights: [], error: data.error.message ?? "error de AirLabs" };
