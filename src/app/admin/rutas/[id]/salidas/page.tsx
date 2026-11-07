@@ -93,7 +93,8 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
   const query = await searchParams;
   const [route, schedules] = await Promise.all([
     prisma.travelRoute.findUnique({ where: { id }, select: { id: true, from: true, to: true, via: true, category: true } }),
-    listAdminSchedules()
+    // Sólo las salidas de esta ruta: antes traía las de todas las rutas y filtraba acá.
+    listAdminSchedules({ routeId: id })
   ]);
 
   if (!route) {

@@ -81,6 +81,7 @@ export function argentinaDayStart(date: string): Date {
 export const BOOKABLE_SCHEDULE_STATUSES = ["OPEN", "DOCUMENTATION"] as const;
 
 export const adminScheduleFiltersSchema = z.object({
+  routeId: z.string().trim().min(1).max(64).optional(),
   from: z.string().trim().max(120).optional(),
   to: z.string().trim().max(120).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
@@ -91,6 +92,7 @@ export type AdminScheduleFilters = z.infer<typeof adminScheduleFiltersSchema>;
 export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new Date()): Prisma.ScheduleWhereInput {
   const filters = adminScheduleFiltersSchema.parse(input);
   const AND: Prisma.ScheduleWhereInput[] = [];
+  if (filters.routeId) AND.push({ routeId: filters.routeId });
   // Nombre de parada exacto, sin distinguir mayúsculas: "sma" y "SMA" tienen que caer en la misma ruta.
   if (filters.from) AND.push({ route: { is: { from: { equals: filters.from, mode: "insensitive" } } } });
   if (filters.to) AND.push({ route: { is: { to: { equals: filters.to, mode: "insensitive" } } } });
