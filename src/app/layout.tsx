@@ -27,7 +27,7 @@ export default function RootLayout({
         <header className="site-header">
           <nav className="site-nav">
             <Link className="brand-link" href="/" id="inicio">
-              <img className="brand-logo" src="/logo.png" alt="La Araucana Viajes" />
+              <img className="brand-logo" src="/logo.webp" alt="La Araucana Viajes" />
               <span className="brand-kicker">Agencia de viajes desde 2009</span>
             </Link>
             <div className="nav-links">
