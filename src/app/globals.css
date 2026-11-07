@@ -1172,6 +1172,32 @@ svg {
   padding: 0 13px;
 }
 
+/* Descarga del Excel contable: mismo alto que el botón de filtrar. */
+.report-export {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.report-note {
+  margin: -8px 0 22px;
+  max-width: 78ch;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Monedas que no son la principal: chicas y aclaradas, nunca sumadas al total. */
+.currency-line {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .pagination-bar {
   display: flex;
   flex-wrap: wrap;
