@@ -42,6 +42,12 @@ export type ScheduleOptionDto = {
   currency: string;
 };
 
+/**
+ * Lo que el formulario de reserva necesita de cada salida. La ruta ya está en la página:
+ * repetirla en cada una de las cientos de salidas era la mayor parte del HTML de /reservar.
+ */
+export type CheckoutScheduleDto = Omit<ScheduleOptionDto, "route">;
+
 export type SeatOptionDto = {
   id: string;
   number: string;
