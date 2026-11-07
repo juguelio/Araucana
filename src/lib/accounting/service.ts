@@ -208,15 +208,21 @@ export async function getAccountingReport(options: {
 }) {
   const [reservations, expenses] = await Promise.all([
     prisma.reservation.findMany({
+      // Sólo las del período, con la misma fecha que usa reservationToIncome: la aprobación del pago
+      // o, si se confirmó sin pago aprobado, la creación. Antes traía todas las reservas confirmadas
+      // de la historia y filtraba acá: crece con cada temporada. El filtro de buildAccountingReport sigue.
       where: {
         OR: [
           {
             payment: {
-              status: "APPROVED"
+              status: "APPROVED",
+              updatedAt: { gte: options.period.from, lt: options.period.to }
             }
           },
           {
-            status: "CONFIRMED"
+            status: "CONFIRMED",
+            createdAt: { gte: options.period.from, lt: options.period.to },
+            OR: [{ payment: { is: null } }, { payment: { status: { not: "APPROVED" } } }]
           }
         ],
         ...(options.vehicleId ? { schedule: { vehicleId: options.vehicleId } } : {})
