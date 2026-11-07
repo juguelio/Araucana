@@ -101,6 +101,8 @@ export type AccountingGroup = {
   id: string;
   label: string;
   amountCents: number;
+  /** Los importes de monedas distintas no se suman: cada grupo lleva la suya. */
+  currency: string;
 };
 
 export type AccountingReport = {

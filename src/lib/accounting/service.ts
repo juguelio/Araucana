@@ -45,15 +45,24 @@ function formatPerson(user: AccountingExpenseRecord["user"]) {
   return user?.name || user?.email || "Sin usuario";
 }
 
-function groupAdd(groups: Map<string, AccountingGroup>, id: string, label: string, amountCents: number) {
-  const current = groups.get(id);
+function groupAdd(
+  groups: Map<string, AccountingGroup>,
+  id: string,
+  label: string,
+  amountCents: number,
+  currency: string
+) {
+  // La clave incluye la moneda: nunca se suman pesos con dólares.
+  const moneda = currency || "ARS";
+  const clave = `${id}\u001f${moneda}`;
+  const current = groups.get(clave);
 
   if (current) {
     current.amountCents += amountCents;
     return;
   }
 
-  groups.set(id, { id, label, amountCents });
+  groups.set(clave, { id, label, amountCents, currency: moneda });
 }
 
 function sortedGroups(groups: Map<string, AccountingGroup>) {
@@ -115,21 +124,21 @@ export function buildAccountingReport(input: {
 
   for (const income of incomes) {
     incomeCents += income.amountCents;
-    groupAdd(incomeByVehicle, income.vehicleId, income.vehicleName, income.amountCents);
+    groupAdd(incomeByVehicle, income.vehicleId, income.vehicleName, income.amountCents, income.currency);
   }
 
   for (const expense of expenses) {
     expenseCents += expense.amountCents;
 
     if (expense.vehicle) {
-      groupAdd(expensesByVehicle, expense.vehicle.id, expense.vehicle.name, expense.amountCents);
+      groupAdd(expensesByVehicle, expense.vehicle.id, expense.vehicle.name, expense.amountCents, expense.currency);
     }
 
     const category = isAccountingCategory(expense.category) ? expense.category : "OTHER";
-    groupAdd(expensesByCategory, category, ACCOUNTING_CATEGORY_LABELS[category], expense.amountCents);
+    groupAdd(expensesByCategory, category, ACCOUNTING_CATEGORY_LABELS[category], expense.amountCents, expense.currency);
 
     if (SALARY_CATEGORIES.has(category) && expense.user) {
-      groupAdd(salariesByPerson, expense.user.id, formatPerson(expense.user), expense.amountCents);
+      groupAdd(salariesByPerson, expense.user.id, formatPerson(expense.user), expense.amountCents, expense.currency);
     }
   }
 

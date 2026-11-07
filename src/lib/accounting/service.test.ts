@@ -118,13 +118,38 @@ describe("accounting service", () => {
       expenseCents: 110_000,
       balanceCents: 10_000
     });
-    expect(report.incomeByVehicle).toEqual([{ id: "veh-1", label: "Araucana 24", amountCents: 120_000 }]);
-    expect(report.expensesByVehicle).toEqual([{ id: "veh-1", label: "Araucana 24", amountCents: 40_000 }]);
-    expect(report.expensesByCategory).toEqual([
-      { id: "DRIVER_SALARY", label: "Sueldo chofer", amountCents: 70_000 },
-      { id: "FUEL", label: "Nafta", amountCents: 40_000 }
+    expect(report.incomeByVehicle).toEqual([
+      { id: "veh-1", label: "Araucana 24", amountCents: 120_000, currency: "ARS" }
     ]);
-    expect(report.salariesByPerson).toEqual([{ id: "user-1", label: "Chofer", amountCents: 70_000 }]);
+    expect(report.expensesByVehicle).toEqual([
+      { id: "veh-1", label: "Araucana 24", amountCents: 40_000, currency: "ARS" }
+    ]);
+    expect(report.expensesByCategory).toEqual([
+      { id: "DRIVER_SALARY", label: "Sueldo chofer", amountCents: 70_000, currency: "ARS" },
+      { id: "FUEL", label: "Nafta", amountCents: 40_000, currency: "ARS" }
+    ]);
+    expect(report.salariesByPerson).toEqual([
+      { id: "user-1", label: "Chofer", amountCents: 70_000, currency: "ARS" }
+    ]);
+  });
+
+  it("no suma monedas distintas dentro de un mismo grupo", () => {
+    const report = buildAccountingReport({
+      reservations: [],
+      expenses: [
+        expense({ id: "entry-ars", category: "FUEL", amountCents: 50_000, currency: "ARS" }),
+        expense({ id: "entry-usd", category: "FUEL", amountCents: 30_000, currency: "USD" })
+      ]
+    });
+
+    expect(report.expensesByCategory).toEqual([
+      { id: "FUEL", label: "Nafta", amountCents: 50_000, currency: "ARS" },
+      { id: "FUEL", label: "Nafta", amountCents: 30_000, currency: "USD" }
+    ]);
+    expect(report.expensesByVehicle).toEqual([
+      { id: "veh-1", label: "Araucana 24", amountCents: 50_000, currency: "ARS" },
+      { id: "veh-1", label: "Araucana 24", amountCents: 30_000, currency: "USD" }
+    ]);
   });
 
   it("validates salary payments with user and monthly period", () => {
