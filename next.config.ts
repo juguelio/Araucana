@@ -7,6 +7,9 @@ const projectRoot = dirname(fileURLToPath(import.meta.url));
 const nextConfig: NextConfig = {
   async headers() {
     return [
+      // Videos e imágenes de /public: sin esto el navegador revalida cada archivo en cada visita.
+      // Un día de caché + revalidación en segundo plano; si se reemplaza un archivo, conviene nombre nuevo.
+      { source: "/:file(.*\\.(?:mp4|webp|png|jpe?g|svg|ico))", headers: [{ key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" }] },
       { source: "/reservas/:code", headers: [{ key: "Referrer-Policy", value: "no-referrer" }, { key: "X-Robots-Tag", value: "noindex, nofollow" }] },
       { source: "/api/v1/reservations/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }, { key: "Cache-Control", value: "private, no-store" }] }
     ];

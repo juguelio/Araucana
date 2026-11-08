@@ -46,8 +46,21 @@ export function HistoricalMap() {
       mapRef.current = map;
       window.setTimeout(() => map.invalidateSize(), 150);
     }
-    void createMap();
-    return () => { cancelled = true; mapRef.current?.remove(); mapRef.current = null; };
+    // El mapa está al final de la home: Leaflet y los mosaicos de OpenStreetMap (~100 KB) se
+    // piden recién cuando el mapa se acerca a la pantalla, no al abrir la página.
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver === "undefined" || !mapElement.current) {
+      void createMap();
+    } else {
+      observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer?.disconnect();
+          void createMap();
+        }
+      }, { rootMargin: "400px 0px" });
+      observer.observe(mapElement.current);
+    }
+    return () => { cancelled = true; observer?.disconnect(); mapRef.current?.remove(); mapRef.current = null; };
   }, []);
 
   function focusRoute(route: typeof routes[number]) {

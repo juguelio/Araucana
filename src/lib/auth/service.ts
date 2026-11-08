@@ -152,15 +152,21 @@ export async function getAppUserFromToken(token?: string | null): Promise<AppUse
 
   const payload = verifyAccessToken(resolvedToken);
   if (!payload?.sub) return null;
-  const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(resolvedToken) },
-    include: { user: true }
+  // Una sola consulta por pedido: el usuario dueño de una sesión vigente con ese token.
+  // (`include: { user: true }` sobre la sesión eran dos viajes encadenados a la base en cada pantalla.)
+  const tokenHash = hashToken(resolvedToken);
+  const now = new Date();
+  const user = await prisma.user.findFirst({
+    where: { id: payload.sub, sessions: { some: { tokenHash, expiresAt: { gt: now } } } }
   });
-  if (!session || session.userId !== payload.sub || session.expiresAt.getTime() <= Date.now()) {
-    if (session) await prisma.session.delete({ where: { id: session.id } }).catch(() => null);
+  if (!user) {
+    // Camino raro (sesión vencida o de otro usuario): se borra como antes, sólo cuando falla.
+    await prisma.session
+      .deleteMany({ where: { tokenHash, OR: [{ expiresAt: { lte: now } }, { userId: { not: payload.sub } }] } })
+      .catch(() => null);
     return null;
   }
-  return { ...toPublicUser(session.user), isActive: session.user.isActive };
+  return { ...toPublicUser(user), isActive: user.isActive };
 }
 
 export async function deleteSessionByToken(token: string | null) {

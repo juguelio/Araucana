@@ -63,16 +63,19 @@ function formatScheduleTime(date: Date) {
   }).format(date);
 }
 
+const RAIL_MAX_SCHEDULES = 30;
+
 async function getRoutesWithScheduleCount(date?: string) {
   const routes = await listPublicRoutes();
   const schedules = await Promise.all(routes.map((route) => listSchedulesForRoute(route.id)));
   const today = todayDateKey();
 
-  return routes.map((route, index) => ({
-    ...route,
-    schedules: (schedules[index] ?? []).filter((schedule) => scheduleDateKey(schedule.departureAt) >= today && (!date || scheduleDateKey(schedule.departureAt) === date)),
-    scheduleCount: (schedules[index] ?? []).filter((schedule) => scheduleDateKey(schedule.departureAt) >= today && (!date || scheduleDateKey(schedule.departureAt) === date)).length
-  }));
+  return routes.map((route, index) => {
+    const vigentes = (schedules[index] ?? []).filter((schedule) => scheduleDateKey(schedule.departureAt) >= today && (!date || scheduleDateKey(schedule.departureAt) === date));
+    // El carril muestra las próximas salidas; el total sigue contando todas y en /reservar se eligen todas.
+    // Con la temporada cargada eran ~600 tarjetas (~550 KB de HTML) en una pantalla de celular.
+    return { ...route, schedules: vigentes.slice(0, RAIL_MAX_SCHEDULES), scheduleCount: vigentes.length };
+  });
 }
 
 type RoutesPageProps = {

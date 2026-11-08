@@ -268,8 +268,14 @@ function mapRoute(route: RouteRecord): PublicRouteDto {
   };
 }
 
-function mapSchedule(schedule: ScheduleRecord): ScheduleOptionDto {
-  const totalSeats = schedule.vehicle.seats.length;
+/** Lo mínimo para calcular el cupo de una salida en un listado (ver scheduleSummaryInclude). */
+type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations"> & {
+  vehicle: { id: string; isActive?: boolean; seats?: SeatRecord[]; _count?: { seats: number } };
+  reservations?: Array<{ status: string; passengerCount: number }>;
+};
+
+function mapSchedule(schedule: ScheduleSummaryRecord): ScheduleOptionDto {
+  const totalSeats = schedule.vehicle._count?.seats ?? schedule.vehicle.seats?.length ?? 0;
   const occupiedSeats = (schedule.reservations ?? [])
     .filter((reservation) => reservation.status !== "CANCELLED")
     .reduce((total, reservation) => total + reservation.passengerCount, 0);
@@ -424,6 +430,21 @@ function reservationInclude() {
   };
 }
 
+/**
+ * Para la tabla de reservas del panel: sólo las columnas que muestra. reservationInclude() traía
+ * además la nave con todos sus asientos y el ticket de cada fila, y cada relación es otro viaje a la base.
+ */
+function adminReservationListInclude() {
+  return {
+    schedule: { select: { departureAt: true, route: { select: { from: true, to: true } } } },
+    route: { select: { from: true, to: true } },
+    passenger: { select: { firstName: true, lastName: true, phone: true } },
+    payment: { select: { status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
+    chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
+    airportDetails: { select: { serviceDate: true, flight: { select: { scheduledAt: true } } } }
+  };
+}
+
 function scheduleInclude() {
   return {
     route: true,
@@ -433,6 +454,19 @@ function scheduleInclude() {
       }
     },
     reservations: true
+  };
+}
+
+/**
+ * Para listados de salidas (web y panel): la cantidad de asientos de la nave y los lugares tomados.
+ * scheduleInclude() traía cada asiento de la nave y cada reserva completa de cada salida sólo para
+ * contarlos; con cientos de salidas por ruta eran miles de filas por pantalla.
+ */
+function scheduleSummaryInclude() {
+  return {
+    route: true,
+    vehicle: { select: { id: true, isActive: true, _count: { select: { seats: true } } } },
+    reservations: { select: { status: true, passengerCount: true } }
   };
 }
 
@@ -528,11 +562,11 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     },
 
     async listSchedulesForRoute(routeId: string) {
-      const schedules = await client.schedule.findMany({
+      const schedules = (await client.schedule.findMany({
         where: { routeId, status: { in: ["OPEN", "DOCUMENTATION"] }, departureAt: { gt: new Date() }, route: { isActive: true }, vehicle: { isActive: true } },
-        include: scheduleInclude(),
+        include: scheduleSummaryInclude(),
         orderBy: { departureAt: "asc" }
-      });
+      })) as unknown as ScheduleSummaryRecord[];
 
       return schedules.map(mapSchedule);
     },
@@ -831,11 +865,11 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     rejectManualPayment: (code: string) => reviewManualPayment(code, "REJECTED"),
 
     async listAdminSchedules(filters: AdminScheduleFilters = {}): Promise<AdminScheduleRowDto[]> {
-      const schedules = await client.schedule.findMany({
+      const schedules = (await client.schedule.findMany({
         where: adminScheduleWhere(filters),
-        include: scheduleInclude(),
+        include: scheduleSummaryInclude(),
         orderBy: { departureAt: "asc" }
-      });
+      })) as unknown as ScheduleSummaryRecord[];
 
       return schedules.map((schedule) => {
         const option = mapSchedule(schedule);
@@ -885,17 +919,21 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       const pageSize = ADMIN_RESERVATIONS_PAGE_SIZE;
       const pedida = adminReservationsPage(filters);
 
-      const total = await client.reservation.count({ where });
+      const pagina = (numero: number) =>
+        client.reservation.findMany({
+          where,
+          include: adminReservationListInclude(),
+          orderBy: { createdAt: "desc" },
+          take: pageSize,
+          skip: (numero - 1) * pageSize
+        });
+
+      // Conteo y página a la vez (antes uno esperaba al otro). Sólo si la página pedida quedó fuera
+      // de rango (filtro nuevo, reservas borradas) se vuelve a pedir la última.
+      const [total, enPedida] = await Promise.all([client.reservation.count({ where }), pagina(pedida)]);
       const totalPages = Math.max(1, Math.ceil(total / pageSize));
       const page = Math.min(pedida, totalPages);
-
-      const reservations = await client.reservation.findMany({
-        where,
-        include: reservationInclude(),
-        orderBy: { createdAt: "desc" },
-        take: pageSize,
-        skip: (page - 1) * pageSize
-      });
+      const reservations = page === pedida ? enPedida : await pagina(page);
 
       return {
         items: reservations.map((reservation) => ({

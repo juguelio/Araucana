@@ -3,7 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { PublicRouteDto, ScheduleOptionDto, SeatMapDto } from "@/lib/booking/types";
+import type { CheckoutScheduleDto, PublicRouteDto, SeatMapDto } from "@/lib/booking/types";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -25,13 +25,13 @@ export {
 
 type CheckoutFormProps = {
   route: PublicRouteDto;
-  schedules: ScheduleOptionDto[];
+  schedules: CheckoutScheduleDto[];
   initialScheduleId?: string;
 };
 
 const bookableScheduleStatuses = new Set(["OPEN", "DOCUMENTATION"]);
 
-export function filterBookableSchedules(schedules: ScheduleOptionDto[], seatMaps: SeatMapDto[]) {
+export function filterBookableSchedules(schedules: CheckoutScheduleDto[], seatMaps: SeatMapDto[]) {
   const bookableSchedules = schedules.filter((schedule) => bookableScheduleStatuses.has(schedule.status));
   const bookableScheduleIds = new Set(bookableSchedules.map((schedule) => schedule.id));
 

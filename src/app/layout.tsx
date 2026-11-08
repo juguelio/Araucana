@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Poppins } from "next/font/google";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
+import { WebVitals } from "@/components/web-vitals";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -27,7 +28,7 @@ export default function RootLayout({
         <header className="site-header">
           <nav className="site-nav">
             <Link className="brand-link" href="/" id="inicio">
-              <img className="brand-logo" src="/logo.png" alt="La Araucana Viajes" />
+              <img className="brand-logo" src="/logo.webp" alt="La Araucana Viajes" />
               <span className="brand-kicker">Agencia de viajes desde 2009</span>
             </Link>
             <div className="nav-links">
@@ -43,6 +44,7 @@ export default function RootLayout({
           </nav>
         </header>
         {children}
+        <WebVitals />
       </body>
     </html>
   );

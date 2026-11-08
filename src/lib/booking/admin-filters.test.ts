@@ -89,4 +89,9 @@ describe("colas de cobro del listado", () => {
   it("una cola desconocida falla en vez de mostrar todo como si estuviera filtrado", () => {
     expect(() => adminReservationWhere({ payment: "inventada" as never })).toThrow();
   });
+
+  it("el calendario de una ruta pide sólo sus salidas (antes traía las de todas y filtraba en la página)", () => {
+    expect(adminScheduleWhere({ routeId: "route-sma-villa-traful" })).toEqual({ AND: [{ routeId: "route-sma-villa-traful" }] });
+    expect(() => adminScheduleFiltersSchema.parse({ routeId: "" })).toThrow();
+  });
 });

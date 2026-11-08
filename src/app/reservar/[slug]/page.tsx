@@ -194,7 +194,10 @@ export default async function ReservationPage({ params, searchParams }: Reservat
 
   const schedules = await listSchedulesForRoute(route.id);
   const today = todayInputValue();
-  const bookableSchedules = schedules.filter((schedule) => isBookableSchedule(schedule.status) && scheduleDateKey(schedule.departureAt) >= today);
+  const bookableSchedules = schedules
+    .filter((schedule) => isBookableSchedule(schedule.status) && scheduleDateKey(schedule.departureAt) >= today)
+    // Sin la ruta repetida en cada salida: el formulario la recibe una vez por `route`.
+    .map(({ route: _route, ...schedule }) => schedule);
   const initialScheduleId = query?.scheduleId;
 
   return (

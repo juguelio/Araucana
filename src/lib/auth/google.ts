@@ -86,7 +86,8 @@ function createGoogleStrategy(callbackURL: string, stateStore = createGoogleStat
     void (async () => {
       const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
         headers: { Authorization: `Bearer ${accessToken}` },
-        cache: "no-store"
+        cache: "no-store",
+        signal: AbortSignal.timeout(10_000)
       });
       if (!response.ok) throw new Error("Google no pudo confirmar el perfil de esta cuenta.");
 
