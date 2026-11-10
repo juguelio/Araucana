@@ -129,6 +129,7 @@ type ReservationRecord = {
     pickupNotes?: string | null;
   } | null;
   airportDetails?: {
+    halfFareCount?: number;
     flightNumber: string;
     direction: string;
     serviceDate: Date;
@@ -382,6 +383,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
       : null,
     airportDetails: reservation.airportDetails
       ? {
+          halfFareCount: reservation.airportDetails.halfFareCount ?? 0,
           flightNumber: reservation.airportDetails.flightNumber,
           direction: reservation.airportDetails.direction,
           serviceDate: reservation.airportDetails.serviceDate,

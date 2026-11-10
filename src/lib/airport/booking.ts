@@ -1,3 +1,4 @@
+import { airportReservationTotal } from "./passenger-fares";
 import { createReservationCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
@@ -275,10 +276,11 @@ export async function createAirportReservation(input: AirportReservationInput, f
             passengerCount: parsed.passengerCount,
             bookingMode: "AIRPORT",
             status: "PENDING_PAYMENT",
-            totalCents: rutaDelSentido.priceCents * parsed.passengerCount,
+            totalCents: airportReservationTotal(rutaDelSentido.priceCents, parsed.passengerCount, parsed.halfFareCount ?? 0),
             currency: rutaDelSentido.currency,
             airportDetails: {
               create: {
+                halfFareCount: parsed.halfFareCount ?? 0,
                 flightNumber: vuelo.number,
                 flightId: vuelo.id,
                 direction: vuelo.direction,

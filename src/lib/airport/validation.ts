@@ -22,12 +22,13 @@ export const privateFlightSchema = z.object({
 });
 
 /** Contrato del flujo público del aeropuerto: la reserva va atada a un vuelo, no a una salida fija. */
-export const airportReservationSchema = z.object({
+const airportReservationFields = z.object({
   routeSlug: z.string().min(1),
   flightNumber: z.string().min(3, "Ingresá el número de vuelo."),
   direction: z.enum(["ARRIVAL", "DEPARTURE"]),
   serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   passengerCount: z.coerce.number().int().min(1, "Al menos un pasajero.").max(24, "Máximo 24 por reserva.").default(1),
+  halfFareCount: z.number().int().min(0).max(24).optional(),
   passenger: passengerSchema,
   pickupName: z.string().max(120).optional(),
   pickupAddress: z.string().max(160).optional(),
@@ -37,7 +38,16 @@ export const airportReservationSchema = z.object({
   privateFlight: privateFlightSchema.optional()
 });
 
-export const adminAirportReservationSchema = airportReservationSchema.extend({ passenger: adminPassengerSchema });
+const halfFareFitsSeats = ({ halfFareCount = 0, passengerCount }: { halfFareCount?: number; passengerCount: number }) =>
+  halfFareCount <= passengerCount;
+const halfFareCountError = {
+  path: ["halfFareCount"],
+  message: "La cantidad de menores con media tarifa no puede superar los lugares reservados."
+};
+
+export const airportReservationSchema = airportReservationFields.refine(halfFareFitsSeats, halfFareCountError);
+export const adminAirportReservationSchema = airportReservationFields.extend({ passenger: adminPassengerSchema })
+  .refine(halfFareFitsSeats, halfFareCountError);
 
 export type AirportReservationInput = z.infer<typeof airportReservationSchema>;
 export type PrivateFlightInput = z.infer<typeof privateFlightSchema>;

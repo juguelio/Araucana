@@ -8,6 +8,7 @@ import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
+import { airportHalfFare, airportReservationTotal } from "@/lib/airport/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
@@ -140,6 +141,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [flightNumber, setFlightNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
   const [passengerCount, setPassengerCount] = useState(1);
+  const [halfFareCount, setHalfFareCount] = useState(0);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
   const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
@@ -183,7 +185,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const tarifa = fares[sentidoDelVuelo] ?? null;
   const precioPorPersona = tarifa?.priceCents ?? route.priceCents;
   const moneda = tarifa?.currency ?? route.currency;
-  const total = precioPorPersona * passengerCount;
+  const total = airportReservationTotal(precioPorPersona, passengerCount, halfFareCount);
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   function selectPickupPoint(point: PickupPoint | null) {
@@ -364,6 +366,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           direction: esPrivado ? sentido : selected!.direction,
           serviceDate: date,
           passengerCount,
+          halfFareCount,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
           pickupPoint: pickupPoint ?? undefined,
@@ -612,14 +615,32 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 disabled={isSubmitting}
                 onChange={updatePassenger}
               />
-              <QuantityPicker
-                label="Cantidad de pasajeros"
-                value={passengerCount}
-                max={selected?.available ?? 24}
-                disabled={isSubmitting}
-                help={selected ? `${selected.available} lugares en ese vuelo` : undefined}
-                onChange={setPassengerCount}
-              />
+              <div className="checkout-fields">
+                <QuantityPicker
+                  label="Lugares a reservar"
+                  value={passengerCount}
+                  max={Math.min(selected?.available ?? 24, 24)}
+                  disabled={isSubmitting}
+                  help={selected ? `${selected.available} lugares en ese vuelo` : undefined}
+                  onChange={(count) => {
+                    setPassengerCount(count);
+                    setHalfFareCount((current) => Math.min(current, count));
+                  }}
+                />
+                <QuantityPicker
+                  label="Menores que pagan media tarifa"
+                  value={halfFareCount}
+                  min={0}
+                  max={passengerCount}
+                  disabled={isSubmitting}
+                  help="Contalos también en los lugares a reservar."
+                  onChange={setHalfFareCount}
+                />
+                <p className="muted" style={{ gridColumn: "1 / -1" }}>
+                  De 4 a 8 años inclusive pagan media tarifa. Los menores de 4 viajan gratis si no ocupan asiento.
+                  Si ocupan un asiento, pagan media tarifa, con o sin sillita.
+                </p>
+              </div>
 
               <div className="checkout-fields">
                 <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
@@ -687,7 +708,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           <span>Vuelo: <strong>{esPrivado ? privadoNumero.trim().toUpperCase() || "—" : selected ? selected.number : "—"}</strong></span>
           <span>Horario: <strong>{esPrivado ? privadoHora || "—" : selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
           <span>Estado: <strong>{esPrivado ? "Privado" : selected ? estadoDe(selected) : "—"}</strong></span>
-          <span>Pasajeros: <strong>{passengerCount}</strong></span>
+          <span>Lugares: <strong>{passengerCount}</strong></span>
+          {halfFareCount > 0 ? <span>Menores con media tarifa: <strong>{halfFareCount} · {formatPrice(airportHalfFare(precioPorPersona), moneda)} cada uno</strong></span> : null}
           <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span>
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>

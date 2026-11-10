@@ -140,6 +140,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <span>{isChapelco ? "Cupo" : "Asiento"}</span>
               <strong>{`${reservation.passengerCount} ${reservation.passengerCount === 1 ? "lugar" : "lugares"}`}</strong>
             </div>
+            {airport?.halfFareCount ? <div><span>Menores con media tarifa</span><strong>{airport.halfFareCount}</strong></div> : null}
             {isChapelco && reservation.chapelcoDetails ? (
               <div>
                 <span>Busqueda</span>

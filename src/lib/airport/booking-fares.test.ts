@@ -105,6 +105,23 @@ describe("reserva de aeropuerto: ruta y tarifa del mismo sentido", () => {
     expect(pago.amountCents).toBe(8000000);
   });
 
+  it("cobra media tarifa al menor y conserva su lugar en el cupo", async () => {
+    await reserva({ halfFareCount: 1 });
+    expect(mocks.createReservation.mock.calls[0][0].data).toMatchObject({
+      passengerCount: 2,
+      totalCents: 6000000,
+      airportDetails: { create: { halfFareCount: 1 } }
+    });
+    expect(mocks.createPayment.mock.calls[0][0].data.amountCents).toBe(6000000);
+  });
+
+  it("rechaza más menores con media tarifa que lugares reservados", async () => {
+    await expect(reserva({ halfFareCount: 3 })).rejects.toMatchObject({
+      issues: [expect.objectContaining({ path: ["halfFareCount"] })]
+    });
+    expect(mocks.transaction).not.toHaveBeenCalled();
+  });
+
   it("busca la ruta canónica con un orden estable", async () => {
     await reserva();
     expect(mocks.findFirstRoute.mock.calls[0][0]).toEqual({

@@ -93,6 +93,9 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                 <span>{isChapelco ? "Cupo" : "Lugares"}</span>
                 <strong>{placesLabel(reservation.passengerCount)}</strong>
               </div>
+              {airport?.halfFareCount ? (
+                <div><span>Menores con media tarifa</span><strong>{airport.halfFareCount}</strong></div>
+              ) : null}
               {isChapelco && reservation.chapelcoDetails ? (
                 <div>
                   <span>Busqueda</span>

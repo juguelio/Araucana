@@ -119,6 +119,7 @@ export type ReservationDetailDto = {
     pickupNotes?: string | null;
   } | null;
   airportDetails?: {
+    halfFareCount?: number;
     flightNumber: string;
     direction: string;
     serviceDate: Date;
