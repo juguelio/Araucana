@@ -1,5 +1,7 @@
 "use server";
 
+import { del } from "@vercel/blob";
+import { manageReservation, reservationManagementSchema } from "@/lib/booking/admin-management";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
@@ -151,4 +153,45 @@ export async function updatePassengerAction(_state: AdminFormState, formData: Fo
   revalidatePath(`/admin/reservas/${code}`);
   revalidatePath(`/reservas/${code}`);
   return successState("Pasajero guardado con exito.");
+}
+
+export async function manageReservationAction(formData: FormData) {
+  const command = reservationManagementSchema.safeParse({
+    operation: value(formData, "operation"),
+    reference: value(formData, "reference"),
+    notes: value(formData, "notes")
+  });
+  if (command.success && command.data.operation === "delete") await getCurrentAdminOrRedirect();
+  else await getCurrentReservationsUserOrRedirect();
+
+  const code = value(formData, "code").toUpperCase();
+  if (!/^ARC-[A-Z0-9-]+$/.test(code)) redirect("/admin/reservas");
+  const detailPath = `/admin/reservas/${code}`;
+  if (!command.success) redirect(`${detailPath}?notice=${encodeURIComponent("Revisá los datos ingresados.")}`);
+
+  let result: Awaited<ReturnType<typeof manageReservation>>;
+  try {
+    result = await manageReservation(code, command.data);
+  } catch (error) {
+    const message = error instanceof BookingError ? error.message : "No pudimos actualizar la reserva. Intentalo de nuevo.";
+    redirect(`${detailPath}?notice=${encodeURIComponent(message)}`);
+  }
+
+  let receiptCleanupFailed = false;
+  if (result.receiptPath) {
+    await del(result.receiptPath).catch(() => { receiptCleanupFailed = true; });
+  }
+  for (const path of ["/admin/reservas", detailPath, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+    revalidatePath(path);
+  }
+
+  const notices = {
+    cancel: "Reserva cancelada.",
+    delete: receiptCleanupFailed ? "Reserva borrada. No pudimos eliminar el archivo del comprobante." : "Reserva borrada.",
+    confirm: "Reserva confirmada.",
+    payment: "Pago registrado.",
+    notes: "Notas guardadas."
+  };
+  const target = command.data.operation === "delete" ? "/admin/reservas" : detailPath;
+  redirect(`${target}?notice=${encodeURIComponent(notices[command.data.operation])}`);
 }
