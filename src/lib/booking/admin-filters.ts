@@ -17,7 +17,7 @@ export const adminReservationFiltersSchema = z.object({
   page: z.coerce.number().int().min(1).catch(1).default(1),
   // Un valor que no es una cola conocida hace fallar el parse a propósito: la pantalla avisa
   // "Revisá los filtros" en vez de mostrar todas las reservas como si el filtro se hubiera aplicado.
-  payment: z.enum(ADMIN_PAYMENT_QUEUES).optional()
+  payment: z.union([z.literal(""), z.enum(ADMIN_PAYMENT_QUEUES)]).optional()
 });
 export type AdminReservationFilters = z.input<typeof adminReservationFiltersSchema>;
 

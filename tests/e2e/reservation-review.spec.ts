@@ -42,7 +42,7 @@ test("secretaría filtra, rechaza y valida un nuevo comprobante sin confirmar pa
   await page.getByRole("button", { name: "Buscar reservas" }).click();
   const row = page.getByRole("row").filter({ hasText: code });
   await expect(row).toHaveCount(1);
-  await row.getByRole("button", { name: "Rechazar comprobante" }).click();
+  await row.getByRole("button", { name: "Rechazar", exact: true }).click();
   await expect(page.getByText("Comprobante rechazado. El pasajero puede enviar uno nuevo.")).toBeVisible();
   const rejected = await prisma.reservation.findUniqueOrThrow({ where: { code }, include: { payment: true } });
   expect(rejected.status).toBe("PENDING_PAYMENT");
@@ -61,5 +61,5 @@ test("secretaría filtra, rechaza y valida un nuevo comprobante sin confirmar pa
   await page.goto(`/admin/reservas?code=${code}&date=2000-01-01`);
   await expect(page.getByText("No se encontraron reservas con esos filtros.")).toBeVisible();
   await page.goto("/admin/reservas?date=2026-02-30");
-  await expect(page.getByRole("alert")).toContainText("Revisá los filtros");
+  await expect(page.getByRole("alert").filter({ hasText: "Revisá los filtros" })).toBeVisible();
 });
