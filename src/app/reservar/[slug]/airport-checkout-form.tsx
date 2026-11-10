@@ -140,7 +140,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   );
   const [flightNumber, setFlightNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
-  const [passengerCount, setPassengerCount] = useState(1);
+  const [fullFareCount, setFullFareCount] = useState(1);
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
@@ -185,6 +185,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const tarifa = fares[sentidoDelVuelo] ?? null;
   const precioPorPersona = tarifa?.priceCents ?? route.priceCents;
   const moneda = tarifa?.currency ?? route.currency;
+  const passengerCount = fullFareCount + halfFareCount;
+  const maxSeats = Math.min(selected?.available ?? 24, 24);
   const total = airportReservationTotal(precioPorPersona, passengerCount, halfFareCount);
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
@@ -617,26 +619,23 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               />
               <div className="checkout-fields">
                 <QuantityPicker
-                  label="Lugares a reservar"
-                  value={passengerCount}
-                  max={Math.min(selected?.available ?? 24, 24)}
+                  label="Pasajeros con tarifa completa"
+                  value={fullFareCount}
+                  min={halfFareCount > 0 ? 0 : 1}
+                  max={maxSeats - halfFareCount}
                   disabled={isSubmitting}
-                  help={selected ? `${selected.available} lugares en ese vuelo` : undefined}
-                  onChange={(count) => {
-                    setPassengerCount(count);
-                    setHalfFareCount((current) => Math.min(current, count));
-                  }}
+                  onChange={setFullFareCount}
                 />
                 <QuantityPicker
                   label="Menores que pagan media tarifa"
                   value={halfFareCount}
-                  min={0}
-                  max={passengerCount}
+                  min={fullFareCount > 0 ? 0 : 1}
+                  max={maxSeats - fullFareCount}
                   disabled={isSubmitting}
-                  help="Contalos también en los lugares a reservar."
                   onChange={setHalfFareCount}
                 />
                 <p className="muted" style={{ gridColumn: "1 / -1" }}>
+                  Lugares a reservar: {passengerCount}{selected ? ` de ${selected.available} disponibles` : ""}.<br />
                   De 4 a 8 años inclusive pagan media tarifa. Los menores de 4 viajan gratis si no ocupan asiento.
                   Si ocupan un asiento, pagan media tarifa, con o sin sillita.
                 </p>
