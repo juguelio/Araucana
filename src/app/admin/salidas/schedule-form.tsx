@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-import { AdminFormAlert, AdminSubmitButton, FieldError } from "../form-ui";
+import { startTransition, useActionState } from "react";
+import { FleetConflictWarning } from "../fleet-assignment-form";
+import { AdminFormAlert, FieldError } from "../form-ui";
 import { initialAdminFormState, type AdminFormState } from "../form-state";
 
 type ScheduleFormAction = (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
@@ -62,11 +63,16 @@ type ScheduleFormProps = {
 };
 
 export function ScheduleForm({ action, routes, vehicles, schedule, submitLabel }: ScheduleFormProps) {
-  const [state, formAction] = useActionState(action, initialAdminFormState);
+  const [state, dispatch, pending] = useActionState(action, initialAdminFormState);
   const errors = state.fieldErrors;
 
   return (
-    <form className="admin-form-grid" action={formAction}>
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      const data = new FormData(event.currentTarget, event.nativeEvent instanceof SubmitEvent ? event.nativeEvent.submitter : undefined);
+      startTransition(() => dispatch(data));
+    }}>
+      <fieldset className="admin-form-grid" disabled={pending}>
       <AdminFormAlert state={state} />
       {schedule?.id ? <input type="hidden" name="id" value={schedule.id} /> : null}
       <label>
@@ -130,10 +136,12 @@ export function ScheduleForm({ action, routes, vehicles, schedule, submitLabel }
         </select>
         <FieldError id="status-error" message={errors.status} />
       </label>
+      <FleetConflictWarning conflicts={state.conflicts} confirmation={state.confirmation} />
       <div className="form-actions span-2">
-        <AdminSubmitButton>{submitLabel}</AdminSubmitButton>
+        <button className="button" type="submit">{pending ? "Guardando…" : submitLabel}</button>
         <Link className="ghost-button" href={schedule?.routeId ? `/admin/rutas/${schedule.routeId}/salidas` : "/admin/rutas"}>Cancelar</Link>
       </div>
+      </fieldset>
     </form>
   );
 }

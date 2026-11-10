@@ -2,7 +2,7 @@ import { ApiError } from "@/lib/api/responses";
 import { requireAdminUser } from "@/lib/auth/service";
 
 export async function requireAdminApi(request: Request) {
-  await requireAdminUser(request);
+  return requireAdminUser(request);
 }
 
 export async function readJsonBody(request: Request) {

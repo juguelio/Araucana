@@ -6,6 +6,8 @@ import { z } from "zod";
 import { detectFlightChange } from "@/lib/airport/flights";
 import { syncAirportFlights } from "@/lib/airport/sync";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
+import { localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
 import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
@@ -136,23 +138,38 @@ export async function updateFlightAction(formData: FormData) {
 }
 
 /** Asigna una combi a un vuelo. Se puede cambiar hasta último momento: agregar, cambiar o quitar. */
-export async function assignVehicleAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+export async function assignVehicleAction(_state: unknown, formData: FormData): Promise<{ error?: string; conflicts?: FleetConflict[]; confirmation?: string }> {
+  const user = await getCurrentReservationsUserOrRedirect();
 
   const flightId = value(formData, "flightId");
   const vehicleId = value(formData, "vehicleId");
   const driverId = value(formData, "driverId") || null;
+  if (!flightId || !vehicleId) return { error: "Elegí una combi para asignar." };
 
-  if (!flightId || !vehicleId) notice("Elegí una combi para asignar.");
+  const result = await prisma.$transaction(async (tx) => {
+    await lockFleet(tx, [vehicleId]);
+    const flight = await tx.flight.findUnique({ where: { id: flightId } });
+    if (!flight) return { error: "El vuelo ya no existe." };
+    const days = new Set([flight.scheduledAt, flight.estimatedAt, flight.pickupStartOverrideAt]
+      .flatMap((date) => date ? [localInput(date).slice(0, 10)] : []));
+    const hits = ["CANCELLED", "DIVERTED"].includes(flight.status) ? [] : (await Promise.all(
+      [...days].map((day) => specialConflicts(tx, { vehicleId, ...dayInterval(day) }, undefined, true))
+    )).flat();
+    const conflicts = [...new Map(hits.map((hit) => [hit.id, hit])).values()];
+    const confirmation = conflictKey(conflicts, [flightId, vehicleId]);
+    if (conflicts.length && value(formData, "confirmation") !== confirmation) return { conflicts, confirmation };
 
-  await prisma.airportVehicleAssignment.upsert({
-    where: { flightId_vehicleId: { flightId, vehicleId } },
-    update: { driverId },
-    create: { flightId, vehicleId, driverId }
+    const assignment = await tx.airportVehicleAssignment.upsert({
+      where: { flightId_vehicleId: { flightId, vehicleId } },
+      update: { driverId },
+      create: { flightId, vehicleId, driverId }
+    });
+    await recordAcceptance(tx, "AIRPORT", assignment.id, user.id, conflicts);
+    return { day: localInput(flight.scheduledAt).slice(0, 10) };
   });
-
+  if (!result.day) return result;
   revalidatePath("/admin/aeropuerto");
-  notice("Combi asignada al vuelo.");
+  redirect(`/admin/aeropuerto?date=${result.day}&notice=${encodeURIComponent("Combi asignada al vuelo.")}`);
 }
 
 export async function removeAssignmentAction(formData: FormData) {

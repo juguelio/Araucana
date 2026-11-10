@@ -1,3 +1,6 @@
+import { dateOnly } from "@/lib/special-trips/data";
+import { FleetAssignmentForm } from "../fleet-assignment-form";
+import { assignChapelcoVehicle, releaseChapelcoVehicle } from "./actions";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
@@ -28,7 +31,7 @@ function serviceDateFromKey(dateKey: string) {
 export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminPageProps) {
   const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
-  const serviceDate = params?.date ?? todayInputValue();
+  const serviceDate = params?.date && dateOnly(params.date) ? params.date : todayInputValue();
   const route = await prisma.travelRoute.findFirst({
     where: {
       bookingMode: CHAPELCO_BOOKING_MODE,
@@ -44,7 +47,7 @@ export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminP
     );
   }
 
-  const [vehicles, reservations, availability] = await Promise.all([
+  const [vehicles, reservations, availability, duties] = await Promise.all([
     prisma.vehicle.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -88,11 +91,33 @@ export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminP
       },
       orderBy: { createdAt: "asc" }
     }),
-    getChapelcoAvailability(route.id, serviceDate)
+    getChapelcoAvailability(route.id, serviceDate),
+    prisma.chapelcoVehicleDuty.findMany({
+      where: { status: "ACTIVE", operationDay: { routeId: route.id, serviceDate: serviceDateFromKey(serviceDate) } },
+      include: { vehicle: { select: { name: true } } }
+    })
   ]);
 
   return (
     <AdminShell title="Chapelco" notice={params?.notice} role={user.role}>
+      <section className="plain-card admin-section">
+        <h2>Asignaciones de naves · {serviceDate}</h2>
+        <FleetAssignmentForm action={assignChapelcoVehicle}>
+          <input type="hidden" name="routeId" value={route.id} />
+          <input type="hidden" name="serviceDate" value={serviceDate} />
+          <label>Nave<select aria-label="Nave" name="vehicleId" required defaultValue="">
+            <option value="">Elegí una nave</option>
+            {vehicles.filter((v) => v._count.seats > 0 && !duties.some((d) => d.vehicleId === v.id)).map((v) =>
+              <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select></label>
+          <button className="ghost-button" type="submit">Asignar nave</button>
+        </FleetAssignmentForm>
+        {duties.map((duty) => <form key={duty.id} className="inline-actions" action={releaseChapelcoVehicle}>
+          <input type="hidden" name="id" value={duty.id} />
+          <span>{duty.vehicle.name}</span>
+          <button className="ghost-button" type="submit">Quitar</button>
+        </form>)}
+      </section>
       <OperationBoard
         routeId={route.id}
         serviceStartDate={route.serviceStartDate}

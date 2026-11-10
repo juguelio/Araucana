@@ -9,6 +9,7 @@ import { ScheduleForm } from "../../../../salidas/schedule-form";
 
 type EditRouteSchedulePageProps = {
   params: Promise<{ id: string; scheduleId: string }>;
+  searchParams?: Promise<{ notice?: string; status?: string }>;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -39,9 +40,9 @@ function whatsappHref(phone: string) {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
-export default async function EditRouteSchedulePage({ params }: EditRouteSchedulePageProps) {
+export default async function EditRouteSchedulePage({ params, searchParams }: EditRouteSchedulePageProps) {
   await getCurrentAdminOrRedirect();
-  const { id: routeId, scheduleId } = await params;
+  const [{ id: routeId, scheduleId }, query] = await Promise.all([params, searchParams]);
   const [schedule, formData, reservations] = await Promise.all([
     prisma.schedule.findFirst({ where: { id: scheduleId, routeId }, include: { route: true } }),
     getScheduleFormData(),
@@ -60,14 +61,14 @@ export default async function EditRouteSchedulePage({ params }: EditRouteSchedul
   }
 
   return (
-    <AdminShell title="Modificar salida" eyebrow="Salidas de la ruta">
+    <AdminShell title="Modificar salida" eyebrow="Salidas de la ruta" notice={query?.notice}>
       <section className="plain-card admin-section">
         <h2>{schedule.route.from} → {schedule.route.to}</h2>
         <ScheduleForm
           action={updateScheduleAction}
           routes={formData.routes}
           vehicles={formData.vehicles}
-          schedule={schedule}
+          schedule={{ ...schedule, status: ["OPEN", "DOCUMENTATION", "CLOSED"].includes(query?.status ?? "") ? query!.status! : schedule.status }}
           submitLabel="Guardar cambios"
         />
       </section>

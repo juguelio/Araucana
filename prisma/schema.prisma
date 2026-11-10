@@ -25,6 +25,7 @@ model User {
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
   airportDuties AirportVehicleAssignment[]
+  specialTripAssignments SpecialTripAssignment[]
 }
 
 model Session {
@@ -101,6 +102,7 @@ model Vehicle {
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
   airportAssignments AirportVehicleAssignment[]
+  specialTripAssignments SpecialTripAssignment[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -478,4 +480,69 @@ model ChapelcoManifestStop {
   @@unique([runId, reservationId])
   @@index([reservationId])
   @@index([runId, stopOrder])
+}
+
+model SpecialTrip {
+  id            String   @id @default(cuid())
+  serviceDate   DateTime @db.Date
+  client        String
+  contact       String?
+  passengers    Int?
+  status        String
+  notes         String?
+  legs          Json
+  destinationSearch String
+  billingMode   String
+  currency      String
+  totalCents    Int?
+  payments      Json
+  supplier      String?
+  invoice       String?
+  invoiceDate   DateTime? @db.Date
+  paymentStatus String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  assignments   SpecialTripAssignment[]
+  sources       SpecialTripSource[]
+
+  @@index([serviceDate, status])
+}
+
+model SpecialTripAssignment {
+  id        String      @id @default(cuid())
+  tripId    String
+  trip      SpecialTrip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle     @relation(fields: [vehicleId], references: [id])
+  driverId  String?
+  driver    User?       @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  startsAt  DateTime
+  endsAt    DateTime
+
+  @@index([vehicleId, startsAt, endsAt])
+  @@index([tripId])
+}
+
+model SpecialTripSource {
+  id       String      @id
+  tripId   String?
+  trip     SpecialTrip? @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  sheet    String
+  row      Int
+  original Json
+  version  String
+  issues   Json
+
+  @@index([tripId])
+}
+
+model FleetConflictAcceptance {
+  id         String   @id @default(cuid())
+  service    String
+  serviceId  String
+  acceptedBy String
+  conflicts  Json
+  createdAt  DateTime @default(now())
+
+  @@index([service, serviceId])
 }

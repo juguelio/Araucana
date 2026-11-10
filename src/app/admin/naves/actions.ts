@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
+import { lockFleet } from "@/lib/special-trips/conflicts";
 import { prisma } from "@/lib/db/prisma";
 import { getVehicleTemplate, type VehicleSeat } from "@/lib/vehicles/templates";
 import { parseSeatLayout } from "@/lib/vehicles/validation";
@@ -236,18 +237,19 @@ export async function deleteVehicleAction(formData: FormData) {
   await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
-  const scheduleCount = await prisma.schedule.count({ where: { vehicleId: id } });
-
-  let notice = "Nave borrada con exito.";
-  if (scheduleCount > 0) {
-    await prisma.vehicle.update({
-      where: { id },
-      data: { isActive: false }
+  const archived = await prisma.$transaction(async (tx) => {
+    await lockFleet(tx, [id]);
+    const occupied = await tx.vehicle.findUnique({
+      where: { id }, select: { _count: { select: { schedules: true, specialTripAssignments: true } } }
     });
-    notice = "Nave archivada con exito porque ya tenia salidas.";
-  } else {
-    await prisma.vehicle.delete({ where: { id } });
-  }
+    if (occupied && (occupied._count.schedules || occupied._count.specialTripAssignments)) {
+      await tx.vehicle.update({ where: { id }, data: { isActive: false } });
+      return true;
+    }
+    await tx.vehicle.delete({ where: { id } });
+    return false;
+  });
+  const notice = archived ? "Nave archivada porque ya tenía viajes o salidas." : "Nave borrada con éxito.";
 
   revalidateVehiclePaths();
   redirect(`/admin/naves?notice=${encodeURIComponent(notice)}`);

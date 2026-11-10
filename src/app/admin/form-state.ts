@@ -1,3 +1,4 @@
+import type { FleetConflict } from "@/lib/special-trips/conflicts";
 import type { ZodError } from "zod";
 
 export type AdminFieldErrors = Record<string, string>;
@@ -6,6 +7,8 @@ export type AdminFormState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors: AdminFieldErrors;
+  conflicts?: FleetConflict[];
+  confirmation?: string;
 };
 
 export const initialAdminFormState: AdminFormState = {

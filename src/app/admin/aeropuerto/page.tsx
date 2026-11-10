@@ -1,3 +1,4 @@
+import { FleetAssignmentForm } from "../fleet-assignment-form";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
@@ -168,7 +169,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                   const pickupStart = airportPickupStart(v);
 
                   return (
-                    <article className="flight-card" data-alerta={alerta} key={v.id}>
+                    <article id={`vuelo-${v.id}`} className="flight-card" data-alerta={alerta} key={v.id}>
                       <div className="flight-main">
                         <div className="flight-time">
                           <strong>{hhmm(v.scheduledAt)}</strong>
@@ -207,7 +208,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                         <details className="flight-actions">
                           <summary>Gestionar vuelo</summary>
                           <div className="flight-actions-body">
-                            <form action={assignVehicleAction} className="inline-actions">
+                            <FleetAssignmentForm action={assignVehicleAction}>
                               <input type="hidden" name="flightId" value={v.id} />
                               <select name="vehicleId" defaultValue="" aria-label={`Combi para ${v.number}`}>
                                 <option value="">Combi…</option>
@@ -216,7 +217,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                                 ))}
                               </select>
                               <button className="ghost-button" type="submit">Asignar</button>
-                            </form>
+                            </FleetAssignmentForm>
                             {v.assignments.map((a) => (
                               <form key={a.id} action={removeAssignmentAction}>
                                 <input type="hidden" name="id" value={a.id} />

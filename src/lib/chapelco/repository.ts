@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode, createTicketCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
@@ -392,10 +393,10 @@ export async function upsertChapelcoOperationDay(input: OperationDayInput) {
   });
 }
 
-export async function addChapelcoVehicleDuty(input: VehicleDutyInput) {
+export async function addChapelcoVehicleDuty(input: VehicleDutyInput, db: Prisma.TransactionClient = prisma) {
   const parsed = vehicleDutySchema.parse(input);
 
-  return prisma.chapelcoVehicleDuty.upsert({
+  return db.chapelcoVehicleDuty.upsert({
     where: {
       operationDayId_vehicleId: {
         operationDayId: parsed.operationDayId,

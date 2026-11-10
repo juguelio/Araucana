@@ -1,3 +1,4 @@
+import { lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
 import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
 import { approveManualPayment, getReservationByCode, listAdminReservations, listAdminRoutes, listAdminSchedules, updatePassengerForReservation } from "@/lib/booking/repository";
@@ -85,11 +86,13 @@ export const adminScheduleInputSchema = z.object({
   routeId: requiredString,
   vehicleId: requiredString,
   departureAt: isoDateSchema("departureAt"),
-  status: z.enum(scheduleStatuses).default("OPEN")
+  status: z.enum(scheduleStatuses).default("OPEN"),
+  confirmation: z.string().max(20000).optional()
 });
 
 export const adminScheduleStatusSchema = z.object({
-  status: z.enum(scheduleStatuses)
+  status: z.enum(scheduleStatuses),
+  confirmation: z.string().max(20000).optional()
 });
 
 export const adminVehicleInputSchema = z
@@ -284,37 +287,40 @@ export async function getAdminApiSchedule(id: string) {
   return schedule;
 }
 
-export async function createAdminApiSchedule(payload: unknown) {
-  const input = parseAdminPayload(adminScheduleInputSchema, payload);
-  const durationMin = await getRouteDuration(input.routeId);
-  const schedule = await prisma.schedule.create({
-    data: {
-      ...input,
-      arrivalAt: addMinutes(input.departureAt, durationMin)
-    }
-  });
-
-  return getAdminApiSchedule(schedule.id);
+async function persistAdminApiSchedule(
+  data: { routeId: string; vehicleId: string; departureAt: Date; arrivalAt: Date; status: string },
+  userId: string,
+  confirmation?: string,
+  id?: string,
+  statusOnly = false
+) {
+  const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, userId, confirmation ?? "", id, statusOnly));
+  if (result.conflicts) {
+    throw new ApiError("FLEET_CONFLICT", "La nave ya tiene un viaje especial en ese horario.", 409, {
+      confirmation: result.confirmation, conflicts: JSON.stringify(result.conflicts)
+    });
+  }
+  return getAdminApiSchedule(result.id);
 }
 
-export async function patchAdminApiSchedule(id: string, payload: unknown) {
-  const statusOnly = adminScheduleStatusSchema.safeParse(payload);
-
-  if (statusOnly.success && Object.keys(payload as Record<string, unknown>).length === 1) {
-    await prisma.schedule.update({ where: { id }, data: statusOnly.data });
-    return getAdminApiSchedule(id);
-  }
-
-  const input = parseAdminPayload(adminScheduleInputSchema, payload);
+async function saveAdminApiSchedule(payload: unknown, userId: string, id?: string) {
+  const { confirmation, ...input } = parseAdminPayload(adminScheduleInputSchema, payload);
   const durationMin = await getRouteDuration(input.routeId);
-  await prisma.schedule.update({
-    where: { id },
-    data: {
-      ...input,
-      arrivalAt: addMinutes(input.departureAt, durationMin)
-    }
-  });
-  return getAdminApiSchedule(id);
+  return persistAdminApiSchedule({ ...input, arrivalAt: addMinutes(input.departureAt, durationMin) }, userId, confirmation, id);
+}
+
+export async function createAdminApiSchedule(payload: unknown, userId: string) {
+  return saveAdminApiSchedule(payload, userId);
+}
+
+export async function patchAdminApiSchedule(id: string, payload: unknown, userId: string) {
+  if (payload && typeof payload === "object" && Object.keys(payload).every((key) => ["status", "confirmation"].includes(key))) {
+    const { status, confirmation } = parseAdminPayload(adminScheduleStatusSchema, payload);
+    const current = await getAdminApiSchedule(id);
+    const { routeId, vehicleId, departureAt, arrivalAt } = current;
+    return persistAdminApiSchedule({ routeId, vehicleId, departureAt, arrivalAt, status }, userId, confirmation, id, true);
+  }
+  return saveAdminApiSchedule(payload, userId, id);
 }
 
 export async function deleteAdminApiSchedule(id: string) {
@@ -449,19 +455,19 @@ export async function patchAdminApiVehicle(id: string, payload: unknown) {
 }
 
 export async function deleteAdminApiVehicle(id: string) {
-  const vehicle = await prisma.vehicle.findUnique({ where: { id }, select: { id: true } });
-  if (!vehicle) {
-    throw new ApiError("VEHICLE_NOT_FOUND", "Nave no encontrada", 404);
-  }
-
-  const scheduleCount = await prisma.schedule.count({ where: { vehicleId: id } });
-  if (scheduleCount > 0) {
-    await prisma.vehicle.update({ where: { id }, data: { isActive: false } });
-    return { archived: true };
-  }
-
-  await prisma.vehicle.delete({ where: { id } });
-  return { deleted: true };
+  return prisma.$transaction(async (tx) => {
+    await lockFleet(tx, [id]);
+    const vehicle = await tx.vehicle.findUnique({
+      where: { id }, select: { _count: { select: { schedules: true, specialTripAssignments: true } } }
+    });
+    if (!vehicle) throw new ApiError("VEHICLE_NOT_FOUND", "Nave no encontrada", 404);
+    if (vehicle._count.schedules || vehicle._count.specialTripAssignments) {
+      await tx.vehicle.update({ where: { id }, data: { isActive: false } });
+      return { archived: true };
+    }
+    await tx.vehicle.delete({ where: { id } });
+    return { deleted: true };
+  });
 }
 
 export async function listAdminApiReservations() {

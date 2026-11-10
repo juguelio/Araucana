@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
+import { savePublicSchedule } from "@/lib/special-trips/conflicts";
 import { prisma } from "@/lib/db/prisma";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
@@ -117,13 +118,20 @@ function revalidateSchedulePaths(routeSlug?: string, routeId?: string) {
   }
 }
 
+async function saveSchedule(data: Awaited<ReturnType<typeof scheduleData>>["data"], form: FormData, userId: string, id?: string) {
+  const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, userId, value(form, "confirmation"), id));
+  if (result.conflicts) return { ...errorState("La nave ya tiene un viaje especial en ese horario."), ...result };
+  return null;
+}
+
 export async function createScheduleAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const user = await getCurrentAdminOrRedirect();
 
   let schedule: Awaited<ReturnType<typeof scheduleData>>;
   try {
     schedule = await scheduleData(formData);
-    await prisma.schedule.create({ data: schedule.data });
+    const warning = await saveSchedule(schedule.data, formData, user.id);
+    if (warning) return warning;
   } catch (error) {
     return scheduleErrorState(error);
   }
@@ -133,7 +141,7 @@ export async function createScheduleAction(_state: AdminFormState, formData: For
 }
 
 export async function updateScheduleAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const user = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   if (!id) {
@@ -154,7 +162,8 @@ export async function updateScheduleAction(_state: AdminFormState, formData: For
   let schedule: Awaited<ReturnType<typeof scheduleData>>;
   try {
     schedule = await scheduleData(formData);
-    await prisma.schedule.update({ where: { id }, data: schedule.data });
+    const warning = await saveSchedule(schedule.data, formData, user.id, id);
+    if (warning) return warning;
   } catch (error) {
     return scheduleErrorState(error);
   }
@@ -165,29 +174,22 @@ export async function updateScheduleAction(_state: AdminFormState, formData: For
 }
 
 export async function setScheduleStatusAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
-
+  const user = await getCurrentAdminOrRedirect();
   const id = value(formData, "id");
   const status = value(formData, "status");
 
-  if (!scheduleStatuses.has(status)) {
-    throw new Error("Estado de salida inválido.");
-  }
+  if (!scheduleStatuses.has(status)) throw new Error("Estado de salida inválido.");
 
-  const schedule = await prisma.schedule.update({
-    where: { id },
-    data: { status },
-    select: {
-      route: {
-        select: {
-          id: true,
-          slug: true
-        }
-      }
-    }
-  });
-  revalidateSchedulePaths(schedule.route.slug, schedule.route.id);
-  redirect(`/admin/rutas/${schedule.route.id}/salidas?notice=${encodeURIComponent("Salida actualizada con exito.")}`);
+  const current = await prisma.schedule.findUniqueOrThrow({ where: { id }, include: { route: { select: { slug: true } } } });
+  const { routeId, vehicleId, departureAt, arrivalAt } = current;
+  const data = { routeId, vehicleId, departureAt, arrivalAt, status };
+  const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, user.id, "", id, true));
+  if (result.conflicts) {
+    const notice = "La nave ya tiene un viaje especial. Revisá el estado y confirmá desde el formulario.";
+    redirect(`/admin/rutas/${routeId}/salidas/${id}?status=${status}&notice=${encodeURIComponent(notice)}`);
+  }
+  revalidateSchedulePaths(current.route.slug, routeId);
+  redirect(`/admin/rutas/${routeId}/salidas?notice=${encodeURIComponent("Salida actualizada con exito.")}`);
 }
 
 export async function deleteScheduleAction(formData: FormData) {

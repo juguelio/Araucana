@@ -207,11 +207,11 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
       },
       "/api/v1/admin/schedules": {
         get: adminPath("Lista salidas para administracion.", "#/components/schemas/SchedulesEnvelope"),
-        post: adminPath("Crea una salida.", "#/components/schemas/ScheduleEnvelope")
+        post: adminPath("Crea una salida. Si responde 409 FLEET_CONFLICT, reenviar el cuerpo con confirmation del error para confirmar.", "#/components/schemas/ScheduleEnvelope")
       },
       "/api/v1/admin/schedules/{id}": {
         get: adminPath("Obtiene una salida admin.", "#/components/schemas/ScheduleEnvelope"),
-        patch: adminPath("Actualiza una salida o su estado.", "#/components/schemas/ScheduleEnvelope"),
+        patch: adminPath("Actualiza una salida o su estado. Si responde 409 FLEET_CONFLICT, reenviar el cuerpo con confirmation del error para confirmar.", "#/components/schemas/ScheduleEnvelope"),
         delete: adminPath("Borra o cierra una salida.", "#/components/schemas/DeleteEnvelope")
       },
       "/api/v1/admin/vehicles": {
