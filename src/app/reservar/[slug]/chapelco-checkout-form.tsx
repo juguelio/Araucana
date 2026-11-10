@@ -287,7 +287,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
               </label>
               <label>
                 Telefono
-                <input value={passenger.phone} onChange={(event) => updatePassenger("phone", event.target.value)} disabled={isSubmitting} />
+                <input type="tel" autoComplete="tel-national" value={passenger.phone} onChange={(event) => updatePassenger("phone", event.target.value)} disabled={isSubmitting} />
                 {fieldError(fieldErrors, "phone")}
               </label>
             </div>
@@ -302,7 +302,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
             </label>
             <label>
               Documento
-              <input value={passenger.documentId} onChange={(event) => updatePassenger("documentId", event.target.value)} disabled={isSubmitting} />
+              <input inputMode={passenger.documentType === "DNI" ? "numeric" : "text"} value={passenger.documentId} onChange={(event) => updatePassenger("documentId", event.target.value)} disabled={isSubmitting} />
               {fieldError(fieldErrors, "documentId")}
             </label>
           </div>

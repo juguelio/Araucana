@@ -30,7 +30,7 @@ const pasajero = {
   firstName: "Ana",
   lastName: "Gomez",
   email: "ana@example.com",
-  phone: "+54929441222",
+  phone: "+5492944001222",
   documentType: "DNI",
   documentId: "30111222",
   nationality: "Argentina"

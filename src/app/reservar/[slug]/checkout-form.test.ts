@@ -96,10 +96,20 @@ describe("checkout passenger validation", () => {
       lastName: "Ingresa el apellido del pasajero.",
       email: "Ingresa un email valido.",
       phoneCountryCode: "Selecciona el codigo de pais.",
-      phone: "Ingresa un telefono valido sin el codigo de pais.",
       documentType: "Selecciona el tipo de documento.",
-      documentId: "Ingresa un documento valido."
+      documentId: "Ingresá un número de documento válido."
     });
+  });
+
+  it("rejects a short or mistyped phone and a DNI with letters", () => {
+    expect(validateCheckoutPassenger({ ...validPassenger, phone: "2944-123", documentId: "30A11222" }))
+      .toMatchObject({ phone: expect.any(String), documentId: expect.any(String) });
+    expect(validateCheckoutPassenger({ ...validPassenger, phone: "9 2944 000000 ext" }).phone).toBeDefined();
+  });
+
+  it("accepts a formatted DNI and lets staff omit it", () => {
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "30.111.222" })).toEqual({});
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "", email: "" }, true)).toEqual({});
   });
 
   it("combines the mandatory country code with the local phone number", () => {

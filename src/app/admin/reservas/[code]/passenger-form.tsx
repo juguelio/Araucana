@@ -70,6 +70,8 @@ export function PassengerForm({ action, reservation }: PassengerFormProps) {
         Telefono
         <input
           name="phone"
+          type="tel"
+          autoComplete="tel"
           defaultValue={reservation.passenger.phone}
           required
           aria-invalid={Boolean(errors.phone)}

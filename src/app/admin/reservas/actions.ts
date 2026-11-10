@@ -37,7 +37,7 @@ export async function createAdminReservationAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/admin/reservas/nueva?notice=${encodeURIComponent("Revisa los datos de la reserva.")}`);
+    redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.")}`);
   }
 
   let reservation: Awaited<ReturnType<typeof createWebReservation>>;

@@ -1,19 +1,36 @@
 import { z } from "zod";
+import { normalizePassengerDocument, normalizePassengerPhone, passengerDocumentError, phoneFormatError } from "./passenger-contact";
 
-export const passengerSchema = z.object({
+const passengerFieldsSchema = z.object({
   firstName: z.string().min(2, "Ingresa el nombre del pasajero."),
   lastName: z.string().min(2, "Ingresa el apellido del pasajero."),
   email: z.string().email("Ingresa un email valido."),
-  phone: z.string().min(6, "Ingresa un telefono valido con codigo de pais."),
+  phone: z.string().transform((value, ctx) => {
+    const phone = normalizePassengerPhone(value);
+    if (phone) return phone;
+    ctx.addIssue({ code: "custom", message: phoneFormatError });
+    return z.NEVER;
+  }),
   documentType: z.string().min(1, "Selecciona el tipo de documento."),
-  documentId: z.string().min(4, "Ingresa un documento valido."),
+  documentId: z.string(),
   nationality: z.string().nullable().optional()
 });
 
-export const adminPassengerSchema = passengerSchema.extend({
-  email: passengerSchema.shape.email.or(z.literal("")).default(""),
-  documentId: passengerSchema.shape.documentId.or(z.literal("")).default("")
-});
+function validatePassengerDocument<T extends { documentType: string; documentId: string }>(passenger: T, ctx: z.RefinementCtx, optional = false) {
+  const message = passengerDocumentError(passenger.documentType, passenger.documentId, optional);
+  if (message) {
+    ctx.addIssue({ code: "custom", path: ["documentId"], message });
+    return z.NEVER;
+  }
+  return { ...passenger, documentId: normalizePassengerDocument(passenger.documentType, passenger.documentId) };
+}
+
+export const passengerSchema = passengerFieldsSchema.transform((passenger, ctx) => validatePassengerDocument(passenger, ctx));
+
+export const adminPassengerSchema = passengerFieldsSchema.extend({
+  email: passengerFieldsSchema.shape.email.or(z.literal("")).default(""),
+  documentId: z.string().default("")
+}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
 
 export const createReservationSchema = z.object({
   scheduleId: z.string().min(1, "Selecciona una salida."),

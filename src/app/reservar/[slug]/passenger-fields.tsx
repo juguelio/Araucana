@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { phoneCountries, phoneCountryLabel } from "@/lib/booking/phone-countries";
+import { normalizePassengerPhone, passengerDocumentError, phoneFormatError } from "@/lib/booking/passenger-contact";
 import type { CreateReservationInput } from "@/lib/booking/validation";
 
 /**
@@ -59,8 +60,11 @@ const nationalityCountryCodes = [
 
 let nationalityOptionsCache: string[] | null = null;
 
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, "");
+function normalizeCheckoutPhone({ phone, phoneCountryCode }: PassengerForm) {
+  const value = phone.trim();
+  const fullNumber = value.startsWith("+") || value.startsWith("00");
+  const normalized = normalizePassengerPhone(fullNumber ? value : `${phoneCountryCode}${value}`);
+  return phoneCountryCode && normalized?.startsWith(phoneCountryCode) ? normalized : null;
 }
 
 export function normalizeSearchValue(value: string) {
@@ -97,7 +101,6 @@ export function filterNationalityOptions(query: string) {
 
 export function validateCheckoutPassenger(passenger: PassengerForm, optionalIdentity = false): PassengerFieldErrors {
   const errors: PassengerFieldErrors = {};
-  const phoneDigits = onlyDigits(passenger.phone);
 
   if (passenger.firstName.trim().length < 2) {
     errors.firstName = "Ingresa el nombre del pasajero.";
@@ -113,19 +116,16 @@ export function validateCheckoutPassenger(passenger: PassengerForm, optionalIden
 
   if (!passenger.phoneCountryCode) {
     errors.phoneCountryCode = "Selecciona el codigo de pais.";
-  }
-
-  if (phoneDigits.length < 6) {
-    errors.phone = "Ingresa un telefono valido sin el codigo de pais.";
+  } else if (!normalizeCheckoutPhone(passenger)) {
+    errors.phone = phoneFormatError;
   }
 
   if (!passenger.documentType) {
     errors.documentType = "Selecciona el tipo de documento.";
   }
 
-  if ((!optionalIdentity || passenger.documentId.trim()) && passenger.documentId.trim().length < 4) {
-    errors.documentId = "Ingresa un documento valido.";
-  }
+  const documentError = passengerDocumentError(passenger.documentType, passenger.documentId, optionalIdentity);
+  if (documentError) errors.documentId = documentError;
 
   return errors;
 }
@@ -135,7 +135,7 @@ export function buildPassengerPayload(passenger: PassengerForm): CreateReservati
     firstName: passenger.firstName.trim(),
     lastName: passenger.lastName.trim(),
     email: passenger.email.trim(),
-    phone: `${passenger.phoneCountryCode}${onlyDigits(passenger.phone)}`,
+    phone: normalizeCheckoutPhone(passenger) ?? `${passenger.phoneCountryCode}${passenger.phone}`,
     documentType: passenger.documentType,
     documentId: passenger.documentId.trim(),
     nationality: passenger.nationality.trim() || undefined
@@ -317,6 +317,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
         Documento{optionalIdentity ? " (opcional)" : ""}
         <input
           name="documentId"
+          inputMode={passenger.documentType === "DNI" ? "numeric" : "text"}
           autoComplete="off"
           value={passenger.documentId}
           onChange={(event) => onChange("documentId", event.target.value)}
