@@ -5,6 +5,7 @@ import { BookingError } from "@/lib/booking/repository";
 import { airportReservationSchema } from "@/lib/airport/validation";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { lookupAirportAddress } from "@/lib/airport/address-lookup";
 
 const errorResponses: Record<string, { message: string; status: number }> = {
   ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     }
     const input = parsed.data;
     const coverage = await getAirportCoverage();
+    const address = input.pickupAddress?.trim();
     if (coverage.enabled) {
       if (!input.pickupPoint) {
         return jsonError("PICKUP_POINT_REQUIRED", "Confirmá el punto del traslado en el mapa.", 400);
@@ -40,6 +42,17 @@ export async function POST(request: Request) {
       if (!isInsideAirportPickupZone(input.pickupPoint, coverage)) {
         return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
       }
+    }
+    if (address) {
+      const { point } = await lookupAirportAddress(address);
+      const confirmedPoint = input.pickupPoint;
+      if (!confirmedPoint || point.some((coordinate, index) => Math.abs(coordinate - confirmedPoint[index]) > 0.000001)) {
+        return jsonError("ADDRESS_POINT_CHANGED", "Volvé a buscar la dirección y confirmá el punto que muestra el mapa.", 422);
+      }
+      if (coverage.enabled && !isInsideAirportPickupZone(point, coverage)) {
+        return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
+      }
+      input.pickupPoint = point;
     }
     const reservation = await createAirportReservation(input);
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });

@@ -9,7 +9,6 @@ import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { AirportAddressMap } from "@/components/airport-address-map";
-import { AirportPickupZoneMap } from "@/components/airport-pickup-zone-map";
 import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
@@ -147,6 +146,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [pickupConfirmed, setPickupConfirmed] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
+  const [searchingAddress, setSearchingAddress] = useState(false);
+  const [addressLabel, setAddressLabel] = useState("");
   const locationRequest = useRef(0);
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
@@ -181,12 +182,14 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   function selectPickupPoint(point: PickupPoint | null) {
     setPickupPoint(point);
     setPickupConfirmed(false);
+    setAddressLabel("");
     setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
     setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
   }
 
   function useCurrentLocation() {
     const request = ++locationRequest.current;
+    setSearchingAddress(false);
     setPickupMode("location");
     selectPickupPoint(null);
     setLocationError("");
@@ -212,6 +215,30 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     selectPickupPoint(null);
     setLocating(false);
     setLocationError("");
+  }
+
+  async function searchAddress() {
+    const request = ++locationRequest.current;
+    selectPickupPoint(null);
+    setSearchingAddress(true);
+    try {
+      const response = await fetch("/api/v1/airport/address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: pickupAddress.trim() })
+      });
+      const data = await response.json();
+      if (request !== locationRequest.current) return;
+      if (!response.ok) throw new Error(data.error?.message);
+      selectPickupPoint(data.point);
+      setAddressLabel(data.label);
+    } catch (error) {
+      if (request !== locationRequest.current) return;
+      const message = error instanceof Error && error.message ? error.message : "No pudimos buscar la dirección.";
+      setFieldErrors((current) => ({ ...current, pickupAddress: message }));
+    } finally {
+      if (request === locationRequest.current) setSearchingAddress(false);
+    }
   }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
@@ -573,19 +600,23 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   {locationError ? <p role="alert" className="field-error">{locationError}</p> : null}
                 </div>
                 {pickupMode === "address" ? (
-                  <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => {
-                    setPickupAddress(e.target.value);
-                    selectPickupPoint(null);
-                  }} /></label>
+                  <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
+                    <label>Dirección<input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress} onChange={(e) => {
+                      locationRequest.current++;
+                      setSearchingAddress(false);
+                      setPickupAddress(e.target.value);
+                      selectPickupPoint(null);
+                    }} /></label>
+                    <button className="ghost-button" type="button" disabled={searchingAddress || isSubmitting || !pickupAddress.trim()} onClick={searchAddress}>
+                      {searchingAddress ? "Buscando dirección…" : "Buscar dirección en el mapa"}
+                    </button>
+                  </div>
                 ) : null}
                 {fieldErrors.pickupAddress ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
-                <AirportAddressMap
-                  address={pickupMode === "location" ? "" : pickupAddress}
-                  point={pickupMode === "location" ? pickupPoint : null}
-                />
-                {pickupMode === "address" && pickupAddress.trim() ? (
-                  <AirportPickupZoneMap point={pickupPoint} onSelect={selectPickupPoint} arrival={sentidoDelVuelo === "ARRIVAL"} />
-                ) : null}
+                {pickupPoint ? <AirportAddressMap address={addressLabel} point={pickupPoint} /> : null}
+                {addressLabel ? <p className="muted" style={{ gridColumn: "1 / -1" }}>
+                  {addressLabel} · <a href="https://locationiq.com">Search by LocationIQ.com</a> · Datos de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
+                </p> : null}
                 {pickupPoint ? (
                   <label style={{ gridColumn: "1 / -1" }}>
                     <input type="checkbox" checked={pickupConfirmed} onChange={(event) => {
