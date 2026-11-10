@@ -330,7 +330,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     event.preventDefault();
     setError("");
 
-    const errors: Record<string, string> = { ...validateCheckoutPassenger(passenger) };
+    const errors: Record<string, string> = { ...validateCheckoutPassenger(passenger, fromAdmin) };
     if (esPrivado) {
       if (!privadoListo) errors.flight = "Completá el número o matrícula y la hora de tu vuelo privado.";
     } else if (!selected) {
@@ -355,7 +355,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
     setIsSubmitting(true);
     try {
-      const res = await fetch("/api/v1/airport/reservations", {
+      const res = await fetch(fromAdmin ? "/api/v1/airport/reservations?source=admin" : "/api/v1/airport/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -608,6 +608,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               <PassengerFields
                 passenger={passenger}
                 fieldErrors={fieldErrors}
+                optionalIdentity={fromAdmin}
                 disabled={isSubmitting}
                 onChange={updatePassenger}
               />

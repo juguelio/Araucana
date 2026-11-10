@@ -62,8 +62,8 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <input name="lastName" autoComplete="family-name" required />
                 </label>
                 <label>
-                  Email
-                  <input name="email" type="email" autoComplete="email" required />
+                  Email (opcional)
+                  <input name="email" type="email" autoComplete="email" />
                 </label>
                 <label>
                   Teléfono
@@ -74,8 +74,8 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <select name="documentType" defaultValue="DNI" required><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
                 </label>
                 <label>
-                  Documento
-                  <input name="documentId" required />
+                  Documento (opcional)
+                  <input name="documentId" />
                 </label>
                 <label className="span-2">
                   Nacionalidad

@@ -56,12 +56,11 @@ export function PassengerForm({ action, reservation }: PassengerFormProps) {
         <FieldError id="lastName-error" message={errors.lastName} />
       </label>
       <label>
-        Email
+        Email (opcional)
         <input
           name="email"
           type="email"
           defaultValue={reservation.passenger.email}
-          required
           aria-invalid={Boolean(errors.email)}
           aria-describedby={errors.email ? "email-error" : undefined}
         />
@@ -94,7 +93,6 @@ export function PassengerForm({ action, reservation }: PassengerFormProps) {
         <input
           name="documentId"
           defaultValue={reservation.passenger.documentId}
-          required
           aria-invalid={Boolean(errors.documentId)}
           aria-describedby={errors.documentId ? "documentId-error" : undefined}
         />

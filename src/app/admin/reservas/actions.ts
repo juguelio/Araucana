@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { reviewDisabilityDocument, approveManualPayment, rejectManualPayment, BookingError, createWebReservation, updatePassengerForReservation } from "@/lib/booking/repository";
-import { createReservationSchema, passengerSchema } from "@/lib/booking/validation";
+import { adminReservationSchema, adminPassengerSchema } from "@/lib/booking/validation";
 import {
   errorState,
   fieldErrorsFromZodError,
@@ -20,7 +20,7 @@ function value(formData: FormData, key: string) {
 export async function createAdminReservationAction(formData: FormData) {
   await getCurrentReservationsUserOrRedirect();
 
-  const parsed = createReservationSchema.safeParse({
+  const parsed = adminReservationSchema.safeParse({
     scheduleId: value(formData, "scheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
     dropoffStop: value(formData, "dropoffStop") || undefined,
@@ -42,7 +42,7 @@ export async function createAdminReservationAction(formData: FormData) {
 
   let reservation: Awaited<ReturnType<typeof createWebReservation>>;
   try {
-    reservation = await createWebReservation(parsed.data);
+    reservation = await createWebReservation(parsed.data, true);
   } catch (error) {
     const message = error instanceof BookingError && error.code === "CAPACITY_FULL"
       ? "No hay suficientes asientos disponibles para esa salida."
@@ -123,7 +123,7 @@ export async function updatePassengerAction(_state: AdminFormState, formData: Fo
     return errorState("Falta el codigo de reserva. Volve a abrirla desde el listado.");
   }
 
-  const parsed = passengerSchema.safeParse({
+  const parsed = adminPassengerSchema.safeParse({
     firstName: value(formData, "firstName"),
     lastName: value(formData, "lastName"),
     email: value(formData, "email"),

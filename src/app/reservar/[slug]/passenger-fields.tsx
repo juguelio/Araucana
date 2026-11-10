@@ -95,7 +95,7 @@ export function filterNationalityOptions(query: string) {
   return getNationalityOptions().filter((option) => normalizeSearchValue(option).includes(normalizedQuery));
 }
 
-export function validateCheckoutPassenger(passenger: PassengerForm): PassengerFieldErrors {
+export function validateCheckoutPassenger(passenger: PassengerForm, optionalIdentity = false): PassengerFieldErrors {
   const errors: PassengerFieldErrors = {};
   const phoneDigits = onlyDigits(passenger.phone);
 
@@ -107,7 +107,7 @@ export function validateCheckoutPassenger(passenger: PassengerForm): PassengerFi
     errors.lastName = "Ingresa el apellido del pasajero.";
   }
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(passenger.email.trim())) {
+  if ((!optionalIdentity || passenger.email.trim()) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(passenger.email.trim())) {
     errors.email = "Ingresa un email valido.";
   }
 
@@ -123,7 +123,7 @@ export function validateCheckoutPassenger(passenger: PassengerForm): PassengerFi
     errors.documentType = "Selecciona el tipo de documento.";
   }
 
-  if (passenger.documentId.trim().length < 4) {
+  if ((!optionalIdentity || passenger.documentId.trim()) && passenger.documentId.trim().length < 4) {
     errors.documentId = "Ingresa un documento valido.";
   }
 
@@ -146,11 +146,12 @@ type PassengerFieldsProps = {
   passenger: PassengerForm;
   fieldErrors: PassengerFieldErrors;
   disabled?: boolean;
+  optionalIdentity?: boolean;
   onChange: (field: keyof PassengerForm, value: string) => void;
 };
 
 /** Los campos del pasajero. El combobox de nacionalidad maneja su propia búsqueda. */
-export function PassengerFields({ passenger, fieldErrors, disabled = false, onChange }: PassengerFieldsProps) {
+export function PassengerFields({ passenger, fieldErrors, disabled = false, optionalIdentity = false, onChange }: PassengerFieldsProps) {
   const [nationalitySearch, setNationalitySearch] = useState("");
   const [isNationalityListOpen, setIsNationalityListOpen] = useState(false);
   const nationalityOptions = useMemo(() => getNationalityOptions(), []);
@@ -227,7 +228,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, onCh
         ) : null}
       </label>
       <label>
-        Email
+        Email{optionalIdentity ? " (opcional)" : ""}
         <input
           name="email"
           type="email"
@@ -237,7 +238,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, onCh
           disabled={disabled}
           aria-invalid={Boolean(fieldErrors.email)}
           aria-describedby={fieldErrors.email ? "email-error" : undefined}
-          required
+          required={!optionalIdentity}
         />
         {fieldErrors.email ? (
           <span className="field-error" id="email-error">
@@ -313,7 +314,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, onCh
         ) : null}
       </label>
       <label>
-        Documento
+        Documento{optionalIdentity ? " (opcional)" : ""}
         <input
           name="documentId"
           autoComplete="off"
@@ -322,7 +323,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, onCh
           disabled={disabled}
           aria-invalid={Boolean(fieldErrors.documentId)}
           aria-describedby={fieldErrors.documentId ? "documentId-error" : undefined}
-          required
+          required={!optionalIdentity}
         />
         {fieldErrors.documentId ? (
           <span className="field-error" id="documentId-error">

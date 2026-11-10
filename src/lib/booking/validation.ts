@@ -10,6 +10,11 @@ export const passengerSchema = z.object({
   nationality: z.string().nullable().optional()
 });
 
+export const adminPassengerSchema = passengerSchema.extend({
+  email: passengerSchema.shape.email.or(z.literal("")).default(""),
+  documentId: passengerSchema.shape.documentId.or(z.literal("")).default("")
+});
+
 export const createReservationSchema = z.object({
   scheduleId: z.string().min(1, "Selecciona una salida."),
   seatNumber: z.string().optional(),
@@ -18,6 +23,8 @@ export const createReservationSchema = z.object({
   passengerCount: z.coerce.number().int().min(1, "Selecciona al menos un asiento.").max(24, "La cantidad de asientos no es valida.").default(1),
   passenger: passengerSchema
 });
+
+export const adminReservationSchema = createReservationSchema.extend({ passenger: adminPassengerSchema });
 
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type PassengerInput = z.infer<typeof passengerSchema>;

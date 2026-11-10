@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { passengerSchema } from "@/lib/booking/validation";
+import { adminPassengerSchema, passengerSchema } from "@/lib/booking/validation";
 
 /**
  * Vuelo privado: el pasajero lo carga porque no figura en la lista del día (charter, avión
@@ -36,6 +36,8 @@ export const airportReservationSchema = z.object({
   /** Cuando viene, el vuelo no se busca: se reutiliza el del mismo número o se crea. */
   privateFlight: privateFlightSchema.optional()
 });
+
+export const adminAirportReservationSchema = airportReservationSchema.extend({ passenger: adminPassengerSchema });
 
 export type AirportReservationInput = z.infer<typeof airportReservationSchema>;
 export type PrivateFlightInput = z.infer<typeof privateFlightSchema>;

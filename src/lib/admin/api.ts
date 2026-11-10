@@ -2,7 +2,7 @@ import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
 import { approveManualPayment, getReservationByCode, listAdminReservations, listAdminRoutes, listAdminSchedules, updatePassengerForReservation } from "@/lib/booking/repository";
 import { getStopFares } from "@/lib/booking/stop-fares";
-import { passengerSchema } from "@/lib/booking/validation";
+import { adminPassengerSchema } from "@/lib/booking/validation";
 import { prisma } from "@/lib/db/prisma";
 import { getVehicleTemplate } from "@/lib/vehicles/templates";
 
@@ -113,7 +113,7 @@ export const adminVehicleInputSchema = z
   });
 
 export const adminReservationPassengerUpdateSchema = z.object({
-  passenger: passengerSchema
+  passenger: adminPassengerSchema
 });
 
 export function normalizeReservationCode(code: string) {

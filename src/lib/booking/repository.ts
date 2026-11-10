@@ -10,7 +10,7 @@ import {
   ScheduleOptionDto,
   SeatMapDto
 } from "./types";
-import { createReservationSchema, passengerSchema, type CreateReservationInput, type PassengerInput } from "./validation";
+import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type CreateReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
 import { getStopFares } from "./stop-fares";
@@ -628,8 +628,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       };
     },
 
-    async createWebReservation(input: CreateReservationInput) {
-      const parsed = createReservationSchema.parse(input);
+    async createWebReservation(input: CreateReservationInput, fromAdmin = false) {
+      const parsed = (fromAdmin ? adminReservationSchema : createReservationSchema).parse(input);
 
       for (let attempt = 1; attempt <= MAX_RESERVATION_CODE_ATTEMPTS; attempt += 1) {
         try {
@@ -801,7 +801,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
     async updatePassengerForReservation(code: string, input: PassengerInput) {
       const normalizedCode = code.toUpperCase();
-      const parsed = normalizePassengerInput(passengerSchema.parse(input));
+      const parsed = normalizePassengerInput(adminPassengerSchema.parse(input));
 
       return client.$transaction(async (tx) => {
         const reservation = await tx.reservation.findUnique({

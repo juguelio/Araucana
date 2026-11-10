@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createAirportReservation } from "@/lib/airport/booking";
 import { BookingError } from "@/lib/booking/repository";
-import { airportReservationSchema } from "@/lib/airport/validation";
+import { adminAirportReservationSchema, airportReservationSchema } from "@/lib/airport/validation";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+
+import { requireReservationsUser } from "@/lib/auth/service";
 
 const errorResponses: Record<string, { message: string; status: number }> = {
   ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
@@ -20,6 +22,9 @@ const errorResponses: Record<string, { message: string; status: number }> = {
 /** Reserva pública de un traslado al aeropuerto: queda atada al número de vuelo. */
 export async function POST(request: Request) {
   try {
+    const fromAdmin = new URL(request.url).searchParams.get("source") === "admin";
+    if (fromAdmin) await requireReservationsUser(request);
+
     let payload: unknown;
     try {
       payload = await request.json();
@@ -27,7 +32,7 @@ export async function POST(request: Request) {
       return jsonError("INVALID_JSON", "Revisá los datos de la reserva.", 400);
     }
 
-    const parsed = airportReservationSchema.safeParse(payload);
+    const parsed = (fromAdmin ? adminAirportReservationSchema : airportReservationSchema).safeParse(payload);
     if (!parsed.success) {
       return jsonError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.", 400);
     }
@@ -39,7 +44,7 @@ export async function POST(request: Request) {
     if (coverage.enabled && input.pickupPoint && !isInsideAirportPickupZone(input.pickupPoint, coverage)) {
       return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
     }
-    const reservation = await createAirportReservation(input);
+    const reservation = await createAirportReservation(input, fromAdmin);
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof BookingError) {
