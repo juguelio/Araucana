@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { approveManualPayment, rejectManualPayment, BookingError, createWebReservation, updatePassengerForReservation } from "@/lib/booking/repository";
+import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { reviewDisabilityDocument, approveManualPayment, rejectManualPayment, BookingError, createWebReservation, updatePassengerForReservation } from "@/lib/booking/repository";
 import { createReservationSchema, passengerSchema } from "@/lib/booking/validation";
 import {
   errorState,
@@ -22,6 +22,7 @@ export async function createAdminReservationAction(formData: FormData) {
 
   const parsed = createReservationSchema.safeParse({
     scheduleId: value(formData, "scheduleId"),
+    requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
     dropoffStop: value(formData, "dropoffStop") || undefined,
     passengerCount: value(formData, "passengerCount"),
     passenger: {
@@ -47,6 +48,8 @@ export async function createAdminReservationAction(formData: FormData) {
       ? "No hay suficientes asientos disponibles para esa salida."
       : error instanceof BookingError && error.code === "BOOKING_BUSY"
         ? "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente."
+        : error instanceof BookingError && error.code === "DISABILITY_FARE_NOT_AVAILABLE"
+        ? error.message
         : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
         ? "La parada seleccionada ya no está disponible. Volvé a elegir."
         : "No pudimos crear la reserva. Intentalo nuevamente.";
@@ -77,6 +80,31 @@ async function reviewPaymentAction(formData: FormData, decision: "approve" | "re
   revalidatePath("/admin/contabilidad");
   revalidatePath("/admin/reportes");
   redirect(`/admin/reservas?notice=${encodeURIComponent(decision === "approve" ? "Pago validado con éxito." : "Comprobante rechazado. El pasajero puede enviar uno nuevo.")}`);
+}
+
+async function reviewDisabilityDocumentAction(formData: FormData, decision: "APPROVED" | "REJECTED") {
+  await getCurrentAdminOrRedirect();
+  const code = value(formData, "code");
+  try {
+    await reviewDisabilityDocument(code, decision, value(formData, "receiptVersion"));
+  } catch (error) {
+    if (error instanceof BookingError) redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
+    throw error;
+  }
+
+  revalidatePath("/admin/reservas");
+  revalidatePath(`/admin/reservas/${code}`);
+  revalidatePath(`/reservas/${code}`);
+  const message = decision === "APPROVED" ? "Documentación aprobada. Reserva sin cargo confirmada." : "Documentación rechazada. El pasajero puede subir un comprobante nuevo.";
+  redirect(`/admin/reservas?notice=${encodeURIComponent(message)}`);
+}
+
+export async function approveDisabilityDocumentAction(formData: FormData) {
+  return reviewDisabilityDocumentAction(formData, "APPROVED");
+}
+
+export async function rejectDisabilityDocumentAction(formData: FormData) {
+  return reviewDisabilityDocumentAction(formData, "REJECTED");
 }
 
 export async function approveManualPaymentAction(formData: FormData) {

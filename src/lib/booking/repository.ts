@@ -12,6 +12,7 @@ import {
 } from "./types";
 import { createReservationSchema, passengerSchema, type CreateReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
+import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
 import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
 
@@ -134,7 +135,7 @@ type ReservationRecord = {
     pickupName?: string | null;
     pickupAddress?: string | null;
     pickupNotes?: string | null;
-    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string } | null;
+    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
   } | null;
 };
 
@@ -389,7 +390,8 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
             ? {
                 scheduledAt: reservation.airportDetails.flight.scheduledAt,
                 estimatedAt: reservation.airportDetails.flight.estimatedAt,
-                status: reservation.airportDetails.flight.status
+                status: reservation.airportDetails.flight.status,
+                pickupStartOverrideAt: reservation.airportDetails.flight.pickupStartOverrideAt ?? null
               }
             : null
         }
@@ -442,7 +444,7 @@ function adminReservationListInclude() {
     schedule: { select: { departureAt: true, route: { select: { from: true, to: true } } } },
     route: { select: { from: true, to: true } },
     passenger: { select: { firstName: true, lastName: true, phone: true } },
-    payment: { select: { status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
+    payment: { select: { provider: true, status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
     chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
     airportDetails: { select: { serviceDate: true, flight: { select: { scheduledAt: true } } } }
   };
@@ -510,7 +512,18 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
   const createCode = deps.createReservationCode ?? (() => defaultCreateReservationCode());
   const paymentProvider = deps.paymentProvider ?? manualPaymentProvider;
 
-  async function reviewManualPayment(code: string, decision: "APPROVED" | "REJECTED") {
+  async function issueScheduleTicket(tx: BookingTransactionClient, reservationId: string, scheduleId: string, passengerCount: number) {
+    const ticketCode = createTicketCode();
+    await tx.ticket.create({
+      data: {
+        reservationId,
+        code: ticketCode,
+        qrPayload: JSON.stringify({ ticketCode, scheduleId, passengerCount })
+      }
+    });
+  }
+
+  async function reviewReceipt(code: string, decision: "APPROVED" | "REJECTED", provider = "MANUAL", receiptVersion?: string) {
     const normalizedCode = code.trim().toUpperCase();
     for (let attempt = 1; ; attempt += 1) {
       try {
@@ -520,16 +533,26 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           });
           if (!reservation) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada.");
           if (!reservation.payment) throw new BookingError("PAYMENT_NOT_FOUND", "Pago no encontrado.");
-          if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || reservation.payment.status !== "PENDING") {
+          const pendingStatus = receiptPendingStatus(provider);
+          if (reservation.status !== pendingStatus || reservation.payment.provider !== provider || reservation.payment.status !== "PENDING") {
             throw new BookingError("PAYMENT_LOCKED", "El pago ya fue revisado o la reserva no admite cambios.");
           }
           if (!reservation.payment.receiptBlobPathname) {
             throw new BookingError("RECEIPT_NOT_FOUND", "No encontramos el comprobante para revisar ese pago.");
           }
+          if (provider === DISABILITY_DOCUMENT_PROVIDER) {
+            if (!receiptVersion || reservation.payment.receiptUploadedAt?.toISOString() !== receiptVersion) {
+              throw new BookingError("RECEIPT_CHANGED", "El comprobante cambió. Abrilo de nuevo antes de resolver la solicitud.");
+            }
+            if (decision === "APPROVED") {
+              if (!reservation.scheduleId) throw new BookingError("SCHEDULE_NOT_FOUND", "La reserva no tiene una salida asignada.");
+              await issueScheduleTicket(tx, reservation.id, reservation.scheduleId, reservation.passengerCount);
+            }
+          }
           await tx.payment.update({ where: { reservationId: reservation.id }, data: { status: decision } });
           await tx.reservation.update({
             where: { id: reservation.id },
-            data: { status: decision === "APPROVED" ? "CONFIRMED" : "PENDING_PAYMENT" }
+            data: { status: decision === "APPROVED" ? "CONFIRMED" : pendingStatus }
           });
           const detail = await getReservationByCodeWithClient(tx, normalizedCode);
           if (!detail) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada.");
@@ -630,7 +653,11 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             if (parsed.dropoffStop && !stop) {
               throw new BookingError("STOP_NOT_AVAILABLE", "La parada seleccionada ya no está disponible.");
             }
-            const totalCents = (stop?.priceCents ?? schedule.route.priceCents) * requestedSeats;
+            const disabilityFare = parsed.requestDisabilityFare === true;
+            if (disabilityFare && (schedule.route.bookingMode !== "SEATED" || requestedSeats !== 1)) {
+              throw new BookingError("DISABILITY_FARE_NOT_AVAILABLE", "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.");
+            }
+            const totalCents = disabilityFare ? 0 : (stop?.priceCents ?? schedule.route.priceCents) * requestedSeats;
             const availableSeats = Math.max(schedule.vehicle.seats.length - occupiedSeats, 0);
 
             if (requestedSeats > availableSeats) {
@@ -691,14 +718,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 seatNumber: seat?.number ?? null,
                 passengerCount: requestedSeats,
                 bookingMode: "SEATED",
-                status: "PENDING_PAYMENT",
+                status: disabilityFare ? DISABILITY_PENDING_STATUS : "PENDING_PAYMENT",
                 ...(stop ? { dropoffStop: stop.name } : {}),
                 totalCents,
                 currency: schedule.route.currency
               }
             });
 
-            const payment = await paymentProvider.createPendingPayment({
+            const payment = disabilityFare
+              ? { provider: DISABILITY_DOCUMENT_PROVIDER, status: "PENDING", amountCents: 0, currency: schedule.route.currency, externalRef: null }
+              : await paymentProvider.createPendingPayment({
               reservationCode: code,
               amountCents: totalCents,
               currency: schedule.route.currency
@@ -714,18 +743,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               }
             });
 
-            const ticketCode = createTicketCode();
-            await tx.ticket.create({
-              data: {
-                reservationId: reservation.id,
-                code: ticketCode,
-                qrPayload: JSON.stringify({
-                  ticketCode,
-                  scheduleId: schedule.id,
-                  passengerCount: requestedSeats
-                })
-              }
-            });
+            if (!disabilityFare) await issueScheduleTicket(tx, reservation.id, schedule.id, requestedSeats);
 
             const detail = await getReservationByCodeWithClient(tx, code);
 
@@ -835,7 +853,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
             }
 
-            if (reservation.status !== "PENDING_PAYMENT" || reservation.payment.provider !== "MANUAL" || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
+            if (reservation.status !== receiptPendingStatus(reservation.payment.provider) || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
               throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
             }
 
@@ -872,8 +890,10 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       }
     },
 
-    approveManualPayment: (code: string) => reviewManualPayment(code, "APPROVED"),
-    rejectManualPayment: (code: string) => reviewManualPayment(code, "REJECTED"),
+    approveManualPayment: (code: string) => reviewReceipt(code, "APPROVED"),
+    rejectManualPayment: (code: string) => reviewReceipt(code, "REJECTED"),
+    reviewDisabilityDocument: (code: string, decision: "APPROVED" | "REJECTED", version: string) =>
+      reviewReceipt(code, decision, DISABILITY_DOCUMENT_PROVIDER, version),
 
     async listAdminSchedules(filters: AdminScheduleFilters = {}): Promise<AdminScheduleRowDto[]> {
       const schedules = (await client.schedule.findMany({
@@ -889,6 +909,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           routeId: schedule.routeId,
           vehicleId: schedule.vehicleId,
           route: `${schedule.route.from} -> ${schedule.route.to}`,
+          bookingMode: schedule.route.bookingMode,
           stopFares: schedule.route.bookingMode === "SEATED" ? getStopFares(schedule.route) : [],
           priceCents: schedule.route.priceCents,
           currency: schedule.route.currency,
@@ -968,6 +989,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           chapelcoAscentSlot: reservation.chapelcoDetails?.ascentSlot ?? null,
           status: reservation.status,
           paymentStatus: reservation.payment?.status ?? null,
+          paymentProvider: reservation.payment?.provider ?? null,
           hasReceipt: Boolean(reservation.payment?.receiptBlobPathname),
           receiptFileName: reservation.payment?.receiptFileName ?? null,
           receiptUploadedAt: reservation.payment?.receiptUploadedAt ?? null,
@@ -998,6 +1020,7 @@ export const getReservationByCode = defaultRepository.getReservationByCode;
 export const updatePassengerForReservation = defaultRepository.updatePassengerForReservation;
 export const attachManualPaymentReceipt = defaultRepository.attachManualPaymentReceipt;
 export const rejectManualPayment = defaultRepository.rejectManualPayment;
+export const reviewDisabilityDocument = defaultRepository.reviewDisabilityDocument;
 export const approveManualPayment = defaultRepository.approveManualPayment;
 export const listAdminSchedules = defaultRepository.listAdminSchedules;
 export const listAdminRoutes = defaultRepository.listAdminRoutes;

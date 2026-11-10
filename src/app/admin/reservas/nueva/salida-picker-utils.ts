@@ -17,6 +17,7 @@ export type SalidaOption = {
   availableSeats: number;
   status: string;
   stopFares?: StopFare[];
+  bookingMode?: string;
   priceCents?: number;
   currency?: string;
 };

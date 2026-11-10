@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { AirportAddressMap } from "@/components/airport-address-map";
+import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { updatePassengerAction } from "../actions";
@@ -42,6 +44,8 @@ export default async function AdminPassengerPage({ params }: AdminPassengerPageP
 
   const passengerName = `${reservation.passenger.firstName} ${reservation.passenger.lastName}`;
   const isChapelco = reservation.bookingMode === "CHAPELCO";
+  const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails : null;
+  const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
 
   return (
     <AdminShell title={passengerName} role={user.role}>
@@ -67,13 +71,14 @@ export default async function AdminPassengerPage({ params }: AdminPassengerPageP
               </strong>
             </div>
             <div>
-              <span>{isChapelco ? "Fecha" : "Salida"}</span>
+              <span>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</span>
               <strong>
                 {isChapelco && reservation.chapelcoDetails
                   ? `${formatDateTime(reservation.chapelcoDetails.serviceDate)} · ${reservation.chapelcoDetails.ascentSlot}`
                   : formatDateTime(reservation.schedule.departureAt)}
               </strong>
             </div>
+            {pickupStart ? <div><span>{airport?.flight?.pickupStartOverrideAt ? "Inicio de recorrida" : "Inicio estimado de recorrida"}</span><strong>{formatDateTime(pickupStart)}</strong></div> : null}
             <div>
               <span>{isChapelco ? "Cupo" : "Asiento"}</span>
               <strong>{`${reservation.passengerCount} ${reservation.passengerCount === 1 ? "lugar" : "lugares"}`}</strong>
@@ -118,6 +123,16 @@ export default async function AdminPassengerPage({ params }: AdminPassengerPageP
           </div>
         </div>
       </section>
+
+      {airport?.pickupAddress?.trim() ? (
+        <section className="plain-card admin-section">
+          <h2>{airport.direction === "ARRIVAL" ? "Dirección de destino" : "Dirección de búsqueda"}</h2>
+          {airport.pickupName ? <p><strong>{airport.pickupName}</strong></p> : null}
+          <p>{airport.pickupAddress}</p>
+          {airport.pickupNotes ? <p className="muted">{airport.pickupNotes}</p> : null}
+          <AirportAddressMap address={airport.pickupAddress} />
+        </section>
+      ) : null}
 
       <section className="plain-card admin-section">
         <h2>Editar pasajero</h2>

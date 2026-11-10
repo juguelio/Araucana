@@ -1,4 +1,5 @@
 import { readReceiptFormData } from "@/lib/payments/receipt-form";
+import { redactDisabilityReceipt } from "@/lib/booking/disability-fare";
 import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { assertReceiptUploadAllowed, uploadReservationReceipt } from "@/lib/payments/receipt-upload";
@@ -33,7 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const reservation = await uploadReservationReceipt(reservationCode, receipt, request);
 
-    return NextResponse.json({ reservation }, { headers: { "Cache-Control": "private, no-store" } });
+    return NextResponse.json({ reservation: redactDisabilityReceipt(reservation) }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof BookingError) {
       const status = error.code === "RESERVATION_NOT_FOUND" ? 404 : error.code === "PAYMENT_LOCKED" || error.code === "BOOKING_BUSY" ? 409 : 400;

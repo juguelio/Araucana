@@ -1,5 +1,6 @@
 import { get } from "@vercel/blob";
 import { AuthorizationError, requireReservationsUser } from "@/lib/auth/service";
+import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { getReservationByCode } from "@/lib/booking/repository";
 
 type ReceiptRouteContext = {
@@ -18,8 +19,9 @@ function contentDisposition(fileName?: string | null) {
 }
 
 export async function GET(request: Request, context: ReceiptRouteContext) {
+  let user;
   try {
-    await requireReservationsUser(request);
+    user = await requireReservationsUser(request);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return new Response("No autorizado", { status: 401 });
@@ -30,6 +32,9 @@ export async function GET(request: Request, context: ReceiptRouteContext) {
 
   const { code } = await context.params;
   const reservation = await getReservationByCode(code.toUpperCase());
+  if (reservation?.payment?.provider === DISABILITY_DOCUMENT_PROVIDER && user.role !== "ADMIN") {
+    return new Response("No autorizado", { status: 403 });
+  }
   const pathname = reservation?.payment?.receiptBlobPathname;
 
   if (!pathname) {

@@ -31,6 +31,8 @@ export function statusHeading(status?: string | null) {
   switch (status) {
     case "CONFIRMED":
       return "Reserva confirmada";
+    case "DOCUMENTATION_PENDING":
+      return "Reserva recibida · documentación pendiente";
     case "PENDING_PAYMENT":
       return "Reserva recibida · pago pendiente";
     case "CANCELLED":
@@ -44,6 +46,8 @@ export function statusCopy(status?: string | null) {
   switch (status) {
     case "CONFIRMED":
       return "Tu reserva esta confirmada. Conserva este enlace privado para presentarlo al equipo de Araucana.";
+    case "DOCUMENTATION_PENDING":
+      return "Tu viaje sin cargo queda pendiente hasta que administración apruebe el comprobante. Conservá este enlace privado para consultar el estado.";
     case "PENDING_PAYMENT":
       return "Recibimos tu reserva y el pago queda pendiente de confirmacion manual; conserva este enlace privado para coordinar el cierre con el equipo de Araucana.";
     case "CANCELLED":

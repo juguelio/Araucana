@@ -1,5 +1,6 @@
 import { del } from "@vercel/blob";
 import { ApiError } from "@/lib/api/responses";
+import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
 import { requireReservationAccess } from "@/lib/booking/access";
 import { attachManualPaymentReceipt, BookingError, getReservationByCode } from "@/lib/booking/repository";
 import { storeManualPaymentReceipt } from "./receipt-storage";
@@ -11,7 +12,7 @@ export async function assertReceiptUploadAllowed(code: string, request?: Request
   await requireReservationAccess(code, request);
   const reservation = await getReservationByCode(code);
   if (!reservation) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada");
-  if (reservation.status !== "PENDING_PAYMENT" || reservation.payment?.provider !== "MANUAL" || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
+  if (!reservation.payment || reservation.status !== receiptPendingStatus(reservation.payment.provider) || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
     throw new ApiError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.", 409);
   }
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -21,10 +22,14 @@ export async function assertReceiptUploadAllowed(code: string, request?: Request
 }
 
 export async function uploadReservationReceipt(code: string, receipt: File, request?: Request) {
-  await assertReceiptUploadAllowed(code, request);
+  const reservation = await assertReceiptUploadAllowed(code, request);
+  const disabilityDocument = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
+  if (disabilityDocument && receipt.size > 4 * 1024 * 1024) {
+    throw new ApiError("VALIDATION_ERROR", "El comprobante no puede superar 4 MB.", 400);
+  }
   const error = await validateReceiptContent(receipt);
   if (error) throw new ApiError("VALIDATION_ERROR", error, 400);
-  const stored = await storeManualPaymentReceipt(code, receipt);
+  const stored = await storeManualPaymentReceipt(code, receipt, disabilityDocument);
   let result: Awaited<ReturnType<typeof attachManualPaymentReceipt>>;
   try {
     result = await attachManualPaymentReceipt(code, stored);

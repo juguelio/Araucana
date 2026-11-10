@@ -79,7 +79,7 @@ export function reservationToIncome(reservation: AccountingReservationRecord) {
   const approvedPayment = reservation.payment?.status === "APPROVED" ? reservation.payment : null;
   const isConfirmed = reservation.status === "CONFIRMED";
 
-  if (!approvedPayment && !isConfirmed) {
+  if (reservation.totalCents === 0 || (!approvedPayment && !isConfirmed)) {
     return null;
   }
 

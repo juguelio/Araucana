@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
-import { approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
+import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
 import "./pagination.css";
 import "./reservas.css";
 
@@ -91,7 +92,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             Pago
             <select name="payment" defaultValue={params?.payment ?? ""}>
               <option value="">Todos</option>
-              <option value="receipt-pending">Comprobante por validar</option>
+              <option value="receipt-pending">Comprobante de pago por validar</option>
+              {user.role === "ADMIN" && <option value="documentation-pending">Documentación por revisar</option>}
               <option value="rejected">Comprobante rechazado</option>
             </select>
           </label>
@@ -120,6 +122,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           </thead>
           <tbody>
             {reservations.map((reservation) => {
+              const disabilityFare = reservation.paymentProvider === DISABILITY_DOCUMENT_PROVIDER;
+              const canViewReceipt = !disabilityFare || user.role === "ADMIN";
               const whatsappUrl = whatsappHref(reservation.passengerPhone);
 
               return (
@@ -153,9 +157,9 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       : `${reservation.passengerCount} ${reservation.passengerCount === 1 ? "lugar" : "lugares"}`}
                   </td>
                   <td>{formatReservationStatus(reservation.status)}</td>
-                  <td>{formatPaymentStatus(reservation.paymentStatus)}</td>
+                  <td>{disabilityFare ? "Sin cargo" : formatPaymentStatus(reservation.paymentStatus)}</td>
                   <td>
-                    {reservation.hasReceipt ? (
+                    {reservation.hasReceipt && canViewReceipt ? (
                       <Link className="table-link" href={`/admin/reservas/${reservation.code}/comprobante`} target="_blank">
                         {reservation.receiptFileName ?? "Ver comprobante"}
                       </Link>
@@ -164,7 +168,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     )}
                   </td>
                   <td>
-                    {reservation.hasReceipt && reservation.status === "PENDING_PAYMENT" && reservation.paymentStatus === "PENDING" ? (
+                    {disabilityFare && canViewReceipt && reservation.hasReceipt && reservation.status === DISABILITY_PENDING_STATUS && reservation.paymentStatus === "PENDING" && reservation.receiptUploadedAt ? (
+                      <form className="reservas-actions" action={approveDisabilityDocumentAction}>
+                        <input type="hidden" name="code" value={reservation.code} />
+                        <input type="hidden" name="receiptVersion" value={new Date(reservation.receiptUploadedAt).toISOString()} />
+                        <button className="button table-action" type="submit">Aprobar documentación</button>
+                        <button className="ghost-button table-action" formAction={rejectDisabilityDocumentAction} type="submit">Rechazar documentación</button>
+                      </form>
+                    ) : !disabilityFare && reservation.hasReceipt && reservation.status === "PENDING_PAYMENT" && reservation.paymentStatus === "PENDING" ? (
                       <form className="reservas-actions" action={approveManualPaymentAction}>
                         <input type="hidden" name="code" value={reservation.code} />
                         <button className="button table-action" type="submit">

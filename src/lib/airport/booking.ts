@@ -2,6 +2,7 @@ import { createReservationCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
+import { airportPickupStart } from "./pickup-start";
 import type { FlightDirection } from "./provider";
 import { airportReservationSchema, type AirportReservationInput } from "./validation";
 
@@ -40,6 +41,8 @@ export type AirportFlightOption = {
   origin: string;
   scheduledAt: Date;
   estimatedAt: Date | null;
+  pickupStartAt: Date | null;
+  pickupStartCoordinated: boolean;
   status: string;
   /** "API" = dato real de la aerolínea; "ESTIMADO" = patrón proyectado; "MANUAL" = cargado a mano. */
   source: string;
@@ -112,6 +115,8 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       origin: v.origin,
       scheduledAt: v.scheduledAt,
       estimatedAt: v.estimatedAt,
+      pickupStartAt: airportPickupStart(v),
+      pickupStartCoordinated: Boolean(v.pickupStartOverrideAt),
       status: v.status,
       source: v.source,
       occupied: ocupados,

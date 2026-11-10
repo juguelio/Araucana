@@ -199,6 +199,13 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
         </label>
       ) : null}
 
+      {selected?.bookingMode === "SEATED" && cantidadAjustada === 1 && (
+        <label key={selected.id} className="checkbox-row">
+          <input type="checkbox" name="requestDisabilityFare" />
+          Solicitar viaje gratuito por discapacidad
+        </label>
+      )}
+
       <div className="salida-pie">
         <div className="salida-cantidad">
           <span className="salida-cantidad-label">Lugares</span>

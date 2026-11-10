@@ -33,10 +33,12 @@ function safeFileStem(fileName: string) {
   return normalized || "comprobante";
 }
 
-export async function storeManualPaymentReceipt(reservationCode: string, file: File): Promise<StoredReceipt> {
+export async function storeManualPaymentReceipt(reservationCode: string, file: File, disabilityDocument = false): Promise<StoredReceipt> {
   const uploadedAt = new Date();
   const extension = extensionForContentType(file.type);
-  const pathname = `manual-payment-receipts/${reservationCode}/${uploadedAt.getTime()}-${safeFileStem(file.name)}.${extension}`;
+  const folder = disabilityDocument ? "disability-documents" : "manual-payment-receipts";
+  const stem = disabilityDocument ? "documentacion" : safeFileStem(file.name);
+  const pathname = `${folder}/${reservationCode}/${uploadedAt.getTime()}-${stem}.${extension}`;
   const blob = await put(pathname, file, {
     access: "private",
     contentType: file.type,
@@ -46,7 +48,7 @@ export async function storeManualPaymentReceipt(reservationCode: string, file: F
   return {
     blobUrl: blob.url,
     blobPathname: blob.pathname,
-    fileName: file.name,
+    fileName: disabilityDocument ? `Documentación.${extension}` : file.name,
     contentType: blob.contentType || file.type,
     size: file.size,
     uploadedAt

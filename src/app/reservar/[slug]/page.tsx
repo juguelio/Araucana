@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
-import { listAirportFlights } from "@/lib/airport/booking";
+import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
-import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
 import { CheckoutForm } from "./checkout-form";
 import { AirportCheckoutForm } from "./airport-checkout-form";
@@ -90,14 +89,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
     // El día puede venir en el link (?date=YYYY-MM-DD); si no, se arranca en hoy.
     const fechaDelLink = typeof query?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : null;
     const fecha = fechaDelLink ?? todayInputValue();
-    // El día del viaje el horario tiene que ser el real: si el dato está viejo, se sincroniza antes
-    // de listar (con tope de frecuencia y de corridas diarias, ver `airport/freshness`).
-    await asegurarVuelosRealesDelDia(fecha);
-
-    // Todos los vuelos del día: el pasajero elige el suyo y el sistema sabe si es arribo o salida.
-    const vuelos = await listAirportFlights({ date: fecha });
-    // Tarifa vigente de cada sentido: la que se muestra abajo es la que graba la reserva.
-    const tarifas = await getAirportFares();
+    const [vuelos, tarifas] = await Promise.all([loadAirportCheckoutFlights(fecha), getAirportFares()]);
     const iguales = tarifas.ARRIVAL && tarifas.DEPARTURE && tarifas.ARRIVAL.priceCents === tarifas.DEPARTURE.priceCents;
 
     return (
@@ -129,18 +121,11 @@ export default async function ReservationPage({ params, searchParams }: Reservat
             fares={tarifas}
             route={{
               slug: route.slug,
-              from: route.from,
-              to: route.to,
               priceCents: route.priceCents,
-              currency: route.currency,
-              description: route.description
+              currency: route.currency
             }}
             initialDate={fecha}
-            initialFlights={vuelos.map((v) => ({
-              ...v,
-              scheduledAt: v.scheduledAt.toISOString(),
-              estimatedAt: v.estimatedAt ? v.estimatedAt.toISOString() : null
-            }))}
+            initialFlights={vuelos}
           />
         </main>
         <SiteFooter />

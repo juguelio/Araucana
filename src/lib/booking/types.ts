@@ -1,4 +1,4 @@
-export const reservationStatuses = ["PENDING_PAYMENT", "CONFIRMED", "CANCELLED"] as const;
+export const reservationStatuses = ["PENDING_PAYMENT", "DOCUMENTATION_PENDING", "CONFIRMED", "CANCELLED"] as const;
 export const scheduleStatuses = ["OPEN", "DOCUMENTATION", "CLOSED"] as const;
 
 export type ReservationStatus = (typeof reservationStatuses)[number];
@@ -125,13 +125,14 @@ export type ReservationDetailDto = {
     pickupName?: string | null;
     pickupAddress?: string | null;
     pickupNotes?: string | null;
-    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string } | null;
+    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
   } | null;
 };
 
 export type AdminScheduleRowDto = {
   id: string;
   stopFares?: import("./stop-fares").StopFare[];
+  bookingMode?: string;
   priceCents?: number;
   currency?: string;
   route: string;
@@ -160,6 +161,7 @@ export type AdminReservationRowDto = {
   chapelcoAscentSlot?: string | null;
   status: string;
   paymentStatus: string | null;
+  paymentProvider?: string | null;
   hasReceipt: boolean;
   receiptFileName: string | null;
   receiptUploadedAt: Date | null;

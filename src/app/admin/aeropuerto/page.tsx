@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
+import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { airLabsKeyState } from "@/lib/settings/app-settings";
-import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, updateFlightAction } from "./actions";
+import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction, updateFlightAction } from "./actions";
 import { FlightForm } from "./flight-form";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo?: string }> };
@@ -73,6 +75,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   });
 
   const clave = await airLabsKeyState();
+  const partidasParaCoordinar = vuelos.filter((vuelo) => airportPickupStart(vuelo));
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
 
   return (
@@ -81,9 +84,12 @@ export default async function AirportPage({ searchParams }: PageProps) {
       eyebrow="Operación"
       notice={params?.notice}
       action={
-        <form action={refreshFlightsAction}>
-          <button className="ghost-button" type="submit">Actualizar ahora</button>
-        </form>
+        <div className="form-actions">
+          <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
+          <form action={refreshFlightsAction}>
+            <button className="ghost-button" type="submit">Actualizar ahora</button>
+          </form>
+        </div>
       }
     >
       <section className="flights-toolbar">
@@ -111,6 +117,29 @@ export default async function AirportPage({ searchParams }: PageProps) {
         imprevisto.
       </p>
 
+      {partidasParaCoordinar.length ? (
+        <details className="plain-card admin-section">
+          <summary><strong>Coordinar inicio de recorrida</strong></summary>
+          <p className="muted">Seleccioná una partida o varias si la misma camioneta hace la recorrida. La hora indica cuándo empieza la búsqueda por las direcciones. Verificá que la unidad asignada tenga lugar para todos los pasajeros.</p>
+          <form action={savePickupStartAction}>
+            <input type="hidden" name="date" value={fecha} />
+            <fieldset>
+              <legend>Partidas</legend>
+              {partidasParaCoordinar.map((vuelo) => (
+                <div key={vuelo.id}>
+                  <label><input type="checkbox" name="flightId" value={vuelo.id} /> {vuelo.number} · vuelo {hhmm(vuelo.scheduledAt)} · recorrida {airportPickupDateTime.format(airportPickupStart(vuelo)!)} {vuelo.pickupStartOverrideAt ? "(coordinada)" : "(estimada)"}</label>
+                </div>
+              ))}
+            </fieldset>
+            <div className="form-actions">
+              <label>Inicio de recorrida <input type="datetime-local" name="pickupStart" /></label>
+              <button className="button" type="submit" name="operation" value="save">Guardar horario</button>
+              <button className="ghost-button" type="submit" name="operation" value="reset">Restaurar estimado</button>
+            </div>
+          </form>
+        </details>
+      ) : null}
+
       {visibles.length === 0 ? (
         <section className="plain-card admin-section">
           <p className="muted">
@@ -135,6 +164,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                   const faltanCombis = ocupados > capacidad;
                   const estima = v.estimatedAt && hhmm(v.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(v.estimatedAt) : null;
                   const extra = origenDelDato(v.source);
+                  const pickupStart = airportPickupStart(v);
 
                   return (
                     <article className="flight-card" data-alerta={alerta} key={v.id}>
@@ -165,6 +195,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
                       <div className="flight-foot">
                         <span className="muted">{v.origin}</span>
+                        {pickupStart ? <span className="muted">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
                         <span className="muted">
                           {v.assignments.length === 0
                             ? ocupados > 0

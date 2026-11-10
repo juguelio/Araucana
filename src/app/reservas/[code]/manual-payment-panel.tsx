@@ -11,6 +11,7 @@ type ManualPaymentPanelProps = {
   reservationCode: string;
   bankDetails: ManualBankDetails | null;
   receiptUploadEnabled: boolean;
+  disabilityDocument?: boolean;
   existingReceipt?: {
     fileName: string | null;
     uploadedAt: Date | string | null;
@@ -35,7 +36,7 @@ function formatUploadedAt(value: Date | string) {
   }).format(new Date(value));
 }
 
-export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetails: manualBankDetails, receiptUploadEnabled }: ManualPaymentPanelProps) {
+export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetails: manualBankDetails, receiptUploadEnabled, disabilityDocument = false }: ManualPaymentPanelProps) {
   const router = useRouter();
   const [clientError, setClientError] = useState("");
   const initialState: UploadReceiptState = {
@@ -61,7 +62,9 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
       return;
     }
 
-    const validationError = validateReceiptFile(receipt);
+    const validationError = disabilityDocument && receipt.size > 4 * 1024 * 1024
+      ? "El comprobante no puede superar 4 MB."
+      : validateReceiptFile(receipt);
     if (validationError) {
       setClientError(validationError);
       event.preventDefault();
@@ -70,6 +73,13 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
 
   return (
     <section className="plain-card manual-payment-panel">
+      {disabilityDocument ? (
+        <div>
+          <p className="eyebrow">Viaje sin cargo</p>
+          <h2 className="route-title">Comprobante de discapacidad</h2>
+          <p className="muted">Subí el comprobante en PDF o imagen de hasta 4 MB. Administración lo revisará para confirmar tu viaje.</p>
+        </div>
+      ) : <>
       <div>
         <p className="eyebrow">Pago manual</p>
         <h2 className="route-title">Transferencia bancaria</h2>
@@ -104,6 +114,7 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
           <dd>{manualBankDetails.cuit}</dd>
         </div> : null}
       </dl> : <a href="/soporte">Coordinar el pago</a>}
+      </>}
 
       {existingReceipt?.fileName ? (
         <p className="success">

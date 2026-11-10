@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { detectFlightChange } from "@/lib/airport/flights";
 import { syncAirportFlights } from "@/lib/airport/sync";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
@@ -16,6 +17,47 @@ function value(formData: FormData, key: string) {
 
 function notice(text: string): never {
   redirect(`/admin/aeropuerto?notice=${encodeURIComponent(text)}`);
+}
+
+export async function savePickupStartAction(formData: FormData) {
+  await getCurrentReservationsUserOrRedirect();
+  const date = value(formData, "date");
+  if (!z.iso.date().safeParse(date).success) notice("Revisá la fecha de la recorrida.");
+
+  function finish(message: string): never {
+    redirect(`/admin/aeropuerto?${new URLSearchParams({ date, notice: message })}`);
+  }
+
+  const ids = [...new Set(formData.getAll("flightId").filter((id): id is string => typeof id === "string" && Boolean(id)))];
+  if (!ids.length || ids.length > 100) finish("Seleccioná los vuelos que querés actualizar.");
+
+  const reset = value(formData, "operation") === "reset";
+  const local = value(formData, "pickupStart");
+  const [pickupDate, pickupTime] = local.split("T");
+  if (!reset && (!z.iso.date().safeParse(pickupDate).success || !/^([01]\d|2[0-3]):[0-5]\d$/.test(pickupTime ?? ""))) {
+    finish("Ingresá la fecha y hora de inicio de la recorrida.");
+  }
+
+  const start = reset ? null : new Date(`${local}:00-03:00`);
+  const dayStart = new Date(`${date}T00:00:00-03:00`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 3600000);
+  const where = {
+    id: { in: ids },
+    direction: "DEPARTURE",
+    status: { notIn: ["CANCELLED", "DIVERTED"] },
+    scheduledAt: { gte: dayStart, lt: dayEnd }
+  };
+  const flights = await prisma.flight.findMany({ where, select: { scheduledAt: true, estimatedAt: true } });
+  if (flights.length !== ids.length) finish("Seleccioná partidas activas del día que estás viendo.");
+  if (start && (!Number.isFinite(start.getTime()) || start.getTime() < dayStart.getTime() - 24 * 3600000 ||
+    flights.some((flight) => start >= flight.scheduledAt || (flight.estimatedAt && start >= flight.estimatedAt)))) {
+    finish("El inicio debe ser el día de los vuelos o el día anterior, y antes de todas las partidas seleccionadas.");
+  }
+
+  await prisma.flight.updateMany({ where, data: { pickupStartOverrideAt: start } });
+  revalidatePath("/admin/aeropuerto");
+  revalidatePath("/reservar/[slug]", "page");
+  finish(reset ? "Se restauró el horario estimado de las partidas seleccionadas." : "Se guardó el inicio de recorrida para las partidas seleccionadas.");
 }
 
 export async function createFlightAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {

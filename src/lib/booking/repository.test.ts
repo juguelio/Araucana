@@ -988,6 +988,39 @@ describe("booking repository", () => {
     await expect(repository.approveManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
   });
 
+  it("keeps a free public transport booking pending until the current disability document is approved", async () => {
+    const client = new FakeBookingClient();
+    const provider = { name: "MANUAL" as const, createPendingPayment: vi.fn() };
+    const repository = createTestRepository(client, "ARC-2611-DOCS", { paymentProvider: provider });
+    const reservation = await repository.createWebReservation({ ...input, requestDisabilityFare: true });
+    expect(reservation).toMatchObject({ status: "DOCUMENTATION_PENDING", totalCents: 0, ticket: null });
+    expect(provider.createPendingPayment).not.toHaveBeenCalled();
+    await expect(repository.approveManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    const firstVersion = new Date("2026-11-10T10:00:00.000Z");
+    const receipt = { blobUrl: "private", blobPathname: "private-doc", fileName: "documento.pdf", contentType: "application/pdf", size: 100, uploadedAt: firstVersion };
+    await expect(repository.reviewDisabilityDocument(reservation.code, "APPROVED", firstVersion.toISOString())).rejects.toMatchObject({ code: "RECEIPT_NOT_FOUND" });
+    await repository.attachManualPaymentReceipt(reservation.code, receipt);
+    await expect(repository.reviewDisabilityDocument(reservation.code, "REJECTED", firstVersion.toISOString())).resolves.toMatchObject({
+      status: "DOCUMENTATION_PENDING", ticket: null, payment: { status: "REJECTED" }
+    });
+    const currentVersion = new Date("2026-11-10T11:00:00.000Z");
+    await repository.attachManualPaymentReceipt(reservation.code, { ...receipt, uploadedAt: currentVersion });
+    await expect(repository.reviewDisabilityDocument(reservation.code, "APPROVED", firstVersion.toISOString())).rejects.toMatchObject({ code: "RECEIPT_CHANGED" });
+    await expect(repository.reviewDisabilityDocument(reservation.code, "APPROVED", currentVersion.toISOString())).resolves.toMatchObject({
+      status: "CONFIRMED", totalCents: 0, ticket: { code: expect.stringMatching(/^TKT-/) }
+    });
+    expect(client.tickets).toHaveLength(1);
+  });
+
+  it("rejects the disability exemption for group bookings and for airport schedules", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    await expect(repository.createWebReservation({ ...input, passengerCount: 2, requestDisabilityFare: true })).rejects.toMatchObject({ code: "DISABILITY_FARE_NOT_AVAILABLE" });
+    client.route.bookingMode = "AIRPORT";
+    await expect(repository.createWebReservation({ ...input, requestDisabilityFare: true })).rejects.toMatchObject({ code: "DISABILITY_FARE_NOT_AVAILABLE" });
+    expect(client.passengers).toHaveLength(0);
+  });
+
   it("rechecks payment state after a concurrent review wins", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);

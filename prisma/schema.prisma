@@ -201,6 +201,7 @@ model Flight {
   direction     String        @default("ARRIVAL")
   scheduledAt   DateTime
   estimatedAt   DateTime?
+  pickupStartOverrideAt DateTime?
   actualAt      DateTime?
   status        String        @default("SCHEDULED")
   passengers    Int?

@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { statusLabel } from "@/lib/airport/flights";
+import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
+import { AirportAddressMap } from "@/components/airport-address-map";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -33,11 +35,8 @@ type AirportFieldErrors = PassengerFieldErrors & {
 
 type AirportRouteProps = {
   slug: string;
-  from: string;
-  to: string;
   priceCents: number;
   currency: string;
-  description: string;
 };
 
 type FlightOption = {
@@ -52,6 +51,8 @@ type FlightOption = {
   origin?: string | null;
   scheduledAt: string;
   estimatedAt: string | null;
+  pickupStartAt?: string | null;
+  pickupStartCoordinated?: boolean;
   status: string;
   /** "API" = dato real; "ESTIMADO" = patrón proyectado (AirLabs no publica horarios futuros). */
   source?: string;
@@ -67,6 +68,7 @@ type AirportCheckoutFormProps = {
   initialDirection: "ARRIVAL" | "DEPARTURE";
   initialDate: string;
   initialFlights: FlightOption[];
+  fromAdmin?: boolean;
 };
 
 const PASOS = ["Llegada o salida", "Tu vuelo", "Tus datos"];
@@ -126,7 +128,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, fromAdmin = false }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
@@ -159,6 +161,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
+  const pickupStart = esPrivado && privadoListo
+    ? airportPickupStart({ direction: sentidoDelVuelo, scheduledAt: new Date(`${date}T${privadoHora}:00-03:00`) })
+    : selected?.pickupStartAt ? new Date(selected.pickupStartAt) : null;
+  const pickupStartLabel = !esPrivado && selected?.pickupStartCoordinated ? "Inicio de recorrida" : "Inicio estimado de recorrida";
   // La tarifa es la de la ruta canónica de ese sentido: la misma que graba la reserva.
   const tarifa = fares[sentidoDelVuelo] ?? null;
   const precioPorPersona = tarifa?.priceCents ?? route.priceCents;
@@ -276,7 +282,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
         setIsSubmitting(false);
         return;
       }
-      router.push(`/reservas/${data.reservation.code}`);
+      router.push(`${fromAdmin ? "/admin" : ""}/reservas/${data.reservation.code}`);
     } catch {
       setError("No pudimos crear la reserva. Probá de nuevo.");
       setIsSubmitting(false);
@@ -291,7 +297,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             {PASOS.map((titulo, i) => (
               <li key={titulo} data-active={paso === i + 1} data-done={paso > i + 1}>
                 <span>{i + 1}</span>
-                {titulo}
+                {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
               </li>
             ))}
           </ol>
@@ -472,7 +478,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             <>
               <div>
                 <p className="eyebrow">Paso 3 de 3</p>
-                <h2 className="route-title">Tus datos</h2>
+                <h2 className="route-title">{fromAdmin ? "Datos del pasajero" : "Tus datos"}</h2>
                 <p className="muted">
                   Vuelo elegido:{" "}
                   <strong>
@@ -485,6 +491,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 </p>
               </div>
 
+              {pickupStart && Number.isFinite(pickupStart.getTime()) ? (
+                <div className="plain-card ticket-summary">
+                  <strong>{pickupStartLabel}: {airportPickupDateTime.format(pickupStart)}</strong>
+                  <p className="muted">{AIRPORT_PICKUP_COPY}</p>
+                </div>
+              ) : null}
               <PassengerFields
                 passenger={passenger}
                 fieldErrors={fieldErrors}
@@ -504,6 +516,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 <label>{sentidoDelVuelo === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
                 <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
                 <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
+                <AirportAddressMap address={pickupAddress} />
               </div>
 
               <div className="wizard-nav">

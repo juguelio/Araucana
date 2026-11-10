@@ -1,0 +1,30 @@
+.map {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 10px;
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.actions a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.map iframe {
+  width: 100%;
+  height: clamp(250px, 42vw, 340px);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #f5f3ee;
+}
+
+.map p {
+  margin: 0;
+}

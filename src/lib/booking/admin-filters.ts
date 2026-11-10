@@ -1,11 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disability-fare";
 
 /**
  * Colas de cobro del panel: comprobantes subidos esperando validación (`receipt-pending`) y
  * comprobantes que secretaría rechazó y hay que volver a pedir (`rejected`).
  */
-export const ADMIN_PAYMENT_QUEUES = ["receipt-pending", "rejected"] as const;
+export const ADMIN_PAYMENT_QUEUES = ["receipt-pending", "rejected", "documentation-pending"] as const;
 export type AdminPaymentQueue = (typeof ADMIN_PAYMENT_QUEUES)[number];
 
 export const adminReservationFiltersSchema = z.object({
@@ -45,6 +46,10 @@ export function adminReservationWhere(input: AdminReservationFilters): Prisma.Re
     // La cola de trabajo real de secretaría: comprobante subido y pago todavía sin resolver.
     AND.push({ status: "PENDING_PAYMENT" });
     AND.push({ payment: { is: { status: "PENDING", receiptBlobPathname: { not: null } } } });
+  }
+  if (filters.payment === "documentation-pending") {
+    AND.push({ status: DISABILITY_PENDING_STATUS });
+    AND.push({ payment: { is: { provider: DISABILITY_DOCUMENT_PROVIDER, status: "PENDING", receiptBlobPathname: { not: null } } } });
   }
   if (filters.payment === "rejected") {
     AND.push({ payment: { is: { status: "REJECTED" } } });

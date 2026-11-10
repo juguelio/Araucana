@@ -93,6 +93,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   const [dropoffStop, setDropoffStop] = useState("");
   const stopFares = getStopFares(route);
   const stop = stopFares.find((fare) => fare.name === dropoffStop);
+  const [requestDisabilityFare, setRequestDisabilityFare] = useState(false);
   const [passengerCount, setPassengerCount] = useState(1);
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -143,6 +144,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
     const result = await createReservationAction({
       scheduleId: selectedSchedule.id,
       dropoffStop: stop?.name,
+      requestDisabilityFare: requestDisabilityFare && passengerCount === 1,
       passengerCount,
       passenger: buildPassengerPayload(passenger)
     });
@@ -224,6 +226,18 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             help={selectedSchedule ? `${selectedSchedule.availableSeats} lugares disponibles` : "Elegí una salida primero"}
             onChange={setPassengerCount}
           />
+          {route.bookingMode === "SEATED" && (
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={requestDisabilityFare && passengerCount === 1}
+                disabled={isSubmitting || passengerCount !== 1}
+                onChange={(event) => setRequestDisabilityFare(event.target.checked)}
+              />
+              Solicitar viaje gratuito por discapacidad
+            </label>
+          )}
+          {route.bookingMode === "SEATED" && <p className="muted">La solicitud es individual. Después de reservar, subí el comprobante para que administración confirme el viaje.</p>}
           <p className="muted">No hay asientos numerados: subís y te ubicás por orden de llegada. Tu reserva guarda los lugares del grupo.</p>
         </section>
 
@@ -262,7 +276,9 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
           <div>
             <span>Precio</span>
             <strong className="price">
-              {formatPrice((stop?.priceCents ?? selectedSchedule?.priceCents ?? route.priceCents) * passengerCount, selectedSchedule?.currency ?? route.currency)}
+              {requestDisabilityFare && passengerCount === 1
+                ? "Sin cargo, sujeto a aprobación"
+                : formatPrice((stop?.priceCents ?? selectedSchedule?.priceCents ?? route.priceCents) * passengerCount, selectedSchedule?.currency ?? route.currency)}
             </strong>
           </div>
         </div>

@@ -30,6 +30,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
       availableSeats: schedule.availableSeats,
       status: schedule.status,
       stopFares: schedule.stopFares,
+      bookingMode: schedule.bookingMode,
       priceCents: schedule.priceCents,
       currency: schedule.currency
     }));
@@ -41,6 +42,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
           <p className="eyebrow">Carga manual</p>
           <h2>Reservá lugares para un pasajero</h2>
           <p className="muted">Elegí la salida y la cantidad de asientos. No se asignan números de asiento.</p>
+          <Link className="ghost-button" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto</Link>
         </div>
         {schedules.length ? (
           <form className="alta-form" action={createAdminReservationAction}>

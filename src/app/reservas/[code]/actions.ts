@@ -1,5 +1,6 @@
 "use server";
 
+import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { revalidatePath } from "next/cache";
 import { uploadReservationReceipt } from "@/lib/payments/receipt-upload";
 import { ApiError } from "@/lib/api/responses";
@@ -42,12 +43,15 @@ export async function uploadManualPaymentReceiptAction(
   }
 
   try {
-    await uploadReservationReceipt(code, receipt);
+    const reservation = await uploadReservationReceipt(code, receipt);
+    revalidatePath("/admin/reservas");
     revalidatePath(`/reservas/${code}`);
 
     return {
       ok: true,
-      message: "Comprobante recibido. El equipo de Araucana va a validar el pago."
+      message: reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER
+        ? "Comprobante recibido. Administración va a revisar tu solicitud."
+        : "Comprobante recibido. El equipo de Araucana va a validar el pago."
     };
   } catch (error) {
     if (error instanceof ApiError || error instanceof AuthorizationError || (error instanceof BookingError && (error.code === "PAYMENT_LOCKED" || error.code === "BOOKING_BUSY"))) {

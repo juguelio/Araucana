@@ -1,3 +1,5 @@
+import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
+import { AIRPORT_PICKUP_COPY, airportPickupStart } from "@/lib/airport/pickup-start";
 import { formatDateTime, formatPrice, paymentLabel, statusHeading, statusCopy, placesLabel } from "./presentation";
 import { requireReservationAccess } from "@/lib/booking/access";
 import { AuthorizationError } from "@/lib/auth/service";
@@ -32,7 +34,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
   }
 
   const passengerName = `${reservation.passenger.firstName} ${reservation.passenger.lastName}`;
+  const disabilityFare = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
   const isChapelco = reservation.bookingMode === "CHAPELCO";
+  const airport = reservation.airportDetails;
+  const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
 
   return (
     <>
@@ -57,7 +62,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             </h2>
             <div className="summary-list">
               <div>
-                <span>{isChapelco ? "Fecha" : "Salida"}</span>
+                <span>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</span>
                 <strong>
                   {isChapelco && reservation.chapelcoDetails
                     ? `${formatDateTime(reservation.chapelcoDetails.serviceDate)} · ${reservation.chapelcoDetails.ascentSlot}`
@@ -71,6 +76,13 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                     {reservation.airportDetails.flightNumber} ·{" "}
                     {reservation.airportDetails.direction === "ARRIVAL" ? "llegada a CPC" : "salida de CPC"}
                   </strong>
+                </div>
+              ) : null}
+              {pickupStart ? (
+                <div>
+                  <span>{airport?.flight?.pickupStartOverrideAt ? "Inicio de recorrida" : "Inicio estimado de recorrida"}</span>
+                  <strong>{formatDateTime(pickupStart)}</strong>
+                  <p className="muted">{AIRPORT_PICKUP_COPY}</p>
                 </div>
               ) : null}
               <div>
@@ -101,7 +113,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               </div>
               <div>
                 <span>Estado de pago</span>
-                <strong>{paymentLabel(reservation.payment?.status)}</strong>
+                <strong>{disabilityFare ? "Sin cargo" : paymentLabel(reservation.payment?.status)}</strong>
               </div>
               <div>
                 <span>Total</span>
@@ -137,10 +149,12 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
         </section>
 
         {reservation.payment?.status === "REJECTED" && reservation.status === "PENDING_PAYMENT" ? <p className="page-shell error" role="status">El comprobante fue rechazado. Revisá los datos del pago y enviá un comprobante nuevo, o contactá al equipo de Araucana.</p> : null}
-        {reservation.status === "PENDING_PAYMENT" && reservation.payment?.provider === "MANUAL" && ["PENDING", "REJECTED"].includes(reservation.payment.status) ? (
+        {disabilityFare && reservation.payment?.status === "REJECTED" && <p className="page-shell error" role="status">No pudimos aprobar el comprobante. Podés subir uno nuevo para que administración lo revise.</p>}
+        {reservation.payment && reservation.status === receiptPendingStatus(reservation.payment.provider) && ["PENDING", "REJECTED"].includes(reservation.payment.status) ? (
           <ManualPaymentPanel
             reservationCode={reservation.code}
-            bankDetails={getManualBankDetails()}
+            disabilityDocument={disabilityFare}
+            bankDetails={disabilityFare ? null : getManualBankDetails()}
             receiptUploadEnabled={Boolean(process.env.BLOB_READ_WRITE_TOKEN)}
             existingReceipt={{
               fileName: reservation.payment.receiptFileName ?? null,
