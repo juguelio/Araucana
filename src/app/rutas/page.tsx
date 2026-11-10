@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { listPublicRoutes, listSchedulesForRoute } from "@/lib/booking/repository";
+import { claveDia, claveHoy, diasConSalidas, etiquetaDia, fechaDeClave, horaDia, tiraDeDias } from "./dias";
 
 export const revalidate = 300;
-
-function todayDateKey() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Salta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(new Date());
-}
 
 function formatDuration(minutes: number) {
   const hours = Math.floor(minutes / 60);
@@ -36,46 +28,22 @@ function formatPrice(cents: number, currency: string) {
   }).format(cents / 100);
 }
 
-function scheduleDateKey(date: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Argentina/Salta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(date);
-}
-
-function formatScheduleDate(date: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    timeZone: "America/Argentina/Salta"
-  }).format(date).replace(/\.$/, "");
-}
-
-function formatScheduleTime(date: Date) {
-  return new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "America/Argentina/Salta"
-  }).format(date);
-}
+const scheduleDateKey = claveDia;
+const formatScheduleDate = etiquetaDia;
+const formatScheduleTime = horaDia;
 
 const RAIL_MAX_SCHEDULES = 30;
+const DIAS_EN_TIRA = 8;
 
-async function getRoutesWithScheduleCount(date?: string) {
+async function getRoutesWithSchedules() {
   const routes = await listPublicRoutes();
   const schedules = await Promise.all(routes.map((route) => listSchedulesForRoute(route.id)));
-  const today = todayDateKey();
+  const today = claveHoy();
 
-  return routes.map((route, index) => {
-    const vigentes = (schedules[index] ?? []).filter((schedule) => scheduleDateKey(schedule.departureAt) >= today && (!date || scheduleDateKey(schedule.departureAt) === date));
-    // El carril muestra las próximas salidas; el total sigue contando todas y en /reservar se eligen todas.
-    // Con la temporada cargada eran ~600 tarjetas (~550 KB de HTML) en una pantalla de celular.
-    return { ...route, schedules: vigentes.slice(0, RAIL_MAX_SCHEDULES), scheduleCount: vigentes.length };
-  });
+  return routes.map((route, index) => ({
+    ...route,
+    vigentes: (schedules[index] ?? []).filter((schedule) => scheduleDateKey(schedule.departureAt) >= today)
+  }));
 }
 
 type RoutesPageProps = {
@@ -87,10 +55,35 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
   const from = params?.from?.trim() ?? "";
   const to = params?.to?.trim() ?? "";
   const date = params?.date?.trim() ?? "";
-  const allRoutes = await getRoutesWithScheduleCount(date || undefined);
-  const routes = allRoutes.filter((route) => (!from || route.from === from) && (!to || route.to === to));
+  const allRoutes = await getRoutesWithSchedules();
   const origins = Array.from(new Set(allRoutes.map((route) => route.from)));
   const destinations = Array.from(new Set(allRoutes.map((route) => route.to)));
+
+  const candidatas = allRoutes.filter((route) => (!from || route.from === from) && (!to || route.to === to));
+  const dias = diasConSalidas(candidatas.flatMap((route) => route.vigentes.map((schedule) => schedule.departureAt)));
+  // Sólo se filtra por un día que tenga salidas: si el día pedido no tiene, se muestran las próximas
+  // y se avisa, en vez de responder «no encontramos rutas» a un día sin servicio.
+  const fechaValida = date && dias.some((dia) => dia.key === date) ? date : "";
+  const fechaSinSalidas = date && !fechaValida ? date : "";
+  const tira = tiraDeDias(dias, fechaValida, DIAS_EN_TIRA);
+
+  const routes = candidatas.map((route) => {
+    const vigentes = fechaValida
+      ? route.vigentes.filter((schedule) => scheduleDateKey(schedule.departureAt) === fechaValida)
+      : route.vigentes;
+    // El carril muestra las próximas salidas; el total sigue contando todas y en /reservar se eligen todas.
+    // Con la temporada cargada eran ~600 tarjetas (~550 KB de HTML) en una pantalla de celular.
+    return { ...route, schedules: vigentes.slice(0, RAIL_MAX_SCHEDULES), scheduleCount: vigentes.length };
+  });
+
+  function hrefConDia(dia: string) {
+    const query = new URLSearchParams();
+    if (from) query.set("from", from);
+    if (to) query.set("to", to);
+    if (dia) query.set("date", dia);
+    const cadena = query.toString();
+    return cadena ? `/rutas?${cadena}` : "/rutas";
+  }
 
   return (
     <>
@@ -128,13 +121,42 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
               ))}
             </select>
           </label>
-          <label>
-            Fecha de viaje
-            <input type="date" name="date" defaultValue={date || todayDateKey()} />
-          </label>
+          <input type="hidden" name="date" value={fechaValida} />
           <button className="button" type="submit">
             Buscar salidas
           </button>
+          {dias.length ? (
+          <div className="dia-field">
+            <span className="dia-label">Días con salidas</span>
+            <div className="dia-tira" role="list">
+              <Link
+                className={`dia-chip ${fechaValida ? "" : "activo"}`}
+                href={hrefConDia("")}
+                aria-current={fechaValida ? undefined : "true"}
+              >
+                Todas
+              </Link>
+              {tira.map((dia) => (
+                <Link
+                  key={dia.key}
+                  className={`dia-chip ${dia.key === fechaValida ? "activo" : ""}`}
+                  href={hrefConDia(dia.key)}
+                  aria-current={dia.key === fechaValida ? "true" : undefined}
+                  title={`${dia.count} ${dia.count === 1 ? "salida" : "salidas"}`}
+                >
+                  {dia.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          ) : null}
+
+          {fechaSinSalidas ? (
+            <p className="dia-aviso">
+              <strong>No hay salidas el {formatScheduleDate(fechaDeClave(fechaSinSalidas))}.</strong>{" "}
+              Te mostramos las próximas fechas disponibles.
+            </p>
+          ) : null}
         </form>
 
         <section className="section" id="salidas">
