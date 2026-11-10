@@ -8,7 +8,7 @@ import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
-import { AirportAddressMap } from "@/components/airport-address-map";
+import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { MAX_PICKUP_ADJUSTMENT_METERS, OUTSIDE_PICKUP_ZONE, pickupAdjustmentMeters, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
@@ -265,19 +265,13 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   function adjustPickupPoint(point: PickupPoint) {
     if (!originalPoint || pickupAdjustmentMeters(originalPoint, point) > MAX_PICKUP_ADJUSTMENT_METERS) {
       setFieldErrors((current) => ({ ...current, pickupAddress: "Podés ajustar el punto hasta 100 metros. Si queda más lejos, buscá otra dirección." }));
-      return;
+      return false;
     }
     setPickupPoint(point);
     setPickupConfirmed(false);
     setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
     setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
-  }
-
-  function movePickupMarker(north: number, east: number) {
-    if (!pickupPoint) return;
-    const [latitude, longitude] = pickupPoint;
-    const longitudeScale = Math.max(0.001, Math.cos(latitude * Math.PI / 180));
-    adjustPickupPoint([latitude + north / 111_320, longitude + east / (111_320 * longitudeScale)]);
+    return true;
   }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
@@ -653,18 +647,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   </div>
                 ) : null}
                 {fieldErrors.pickupAddress ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
-                <AirportAddressMap address={addressLabel} point={pickupPoint} />
-                {pickupPoint && originalPoint ? (
-                  <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
-                    <span className="muted">Si hace falta, ajustá el marcador de a 5 metros y revisalo en el mapa.</span>
-                    <div className="form-actions" role="group" aria-label="Ajustar marcador">
-                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al norte" onClick={() => movePickupMarker(5, 0)}>↑</button>
-                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al sur" onClick={() => movePickupMarker(-5, 0)}>↓</button>
-                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al oeste" onClick={() => movePickupMarker(0, -5)}>←</button>
-                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al este" onClick={() => movePickupMarker(0, 5)}>→</button>
-                      <button type="button" className="ghost-button" disabled={isSubmitting || pickupPoint === originalPoint} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
-                    </div>
-                  </div>
+                <AirportDraggableMap point={pickupPoint} disabled={isSubmitting} onMove={adjustPickupPoint} />
+                {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
+                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
                 ) : null}
                 {addressLabel ? <p className="muted" style={{ gridColumn: "1 / -1" }}>
                   {addressLabel} · <a href="https://locationiq.com">Search by LocationIQ.com</a> · Datos de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
