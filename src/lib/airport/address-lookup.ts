@@ -8,8 +8,13 @@ const resultsSchema = z.array(z.object({
   lat: z.coerce.number().finite().min(-90).max(90),
   lon: z.coerce.number().finite().min(-180).max(180),
   display_name: z.string(),
+  class: z.string().optional(),
+  category: z.string().optional(),
   address: z.object({ house_number: z.string().optional() })
 }));
+
+const placeCategories = new Set(["tourism", "amenity", "shop", "leisure", "office", "building"]);
+const normalize = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
 export async function lookupAirportAddress(address: string): Promise<{ point: PickupPoint; label: string }> {
   const endpoint = process.env.AIRPORT_GEOCODER_URL;
@@ -17,10 +22,8 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "La búsqueda por dirección no está disponible en este momento.", 503);
   }
 
-  const houseNumber = address.split(",")[0].trim().match(/\b(\d+[a-z]?)$/i)?.[1]?.toLowerCase();
-  if (!houseNumber) {
-    throw new ApiError("ADDRESS_NUMBER_REQUIRED", "Ingresá la calle y la altura para ubicar la dirección.", 400);
-  }
+  const nameOrStreet = address.split(",")[0].trim();
+  const houseNumber = nameOrStreet.match(/\b(\d+[a-z]?)$/i)?.[1]?.toLowerCase();
 
   const url = new URL(endpoint);
   url.searchParams.set("q", `${address}, San Martín de los Andes, Neuquén, Argentina`);
@@ -40,10 +43,13 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar la dirección. Volvé a intentar.", 503);
   }
 
-  const matches = candidates.filter((candidate) => candidate.address.house_number?.toLowerCase() === houseNumber);
+  const matches = candidates.filter((candidate) => houseNumber
+    ? candidate.address.house_number?.toLowerCase() === houseNumber
+    : placeCategories.has(candidate.class ?? candidate.category ?? "") &&
+      normalize(candidate.display_name.split(",")[0]).startsWith(normalize(nameOrStreet)));
   const match = matches[0];
   if (!match) {
-    throw new ApiError("ADDRESS_NOT_FOUND", "No encontramos esa dirección. Revisá la calle y la altura.", 422);
+    throw new ApiError("ADDRESS_NOT_FOUND", "No encontramos el lugar. Probá con el nombre completo o con calle y altura.", 422);
   }
   if (matches.some(({ lat, lon }) => Math.abs(lat - match.lat) > 0.0001 || Math.abs(lon - match.lon) > 0.0001)) {
     throw new ApiError("ADDRESS_AMBIGUOUS", "Encontramos más de un lugar. Agregá el barrio o la localidad.", 422);

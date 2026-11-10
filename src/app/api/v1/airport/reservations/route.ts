@@ -3,7 +3,7 @@ import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createAirportReservation } from "@/lib/airport/booking";
 import { BookingError } from "@/lib/booking/repository";
 import { airportReservationSchema } from "@/lib/airport/validation";
-import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
+import { isInsideAirportPickupZone, MAX_PICKUP_ADJUSTMENT_METERS, OUTSIDE_PICKUP_ZONE, pickupAdjustmentMeters } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { lookupAirportAddress } from "@/lib/airport/address-lookup";
 
@@ -46,13 +46,9 @@ export async function POST(request: Request) {
     if (address) {
       const { point } = await lookupAirportAddress(address);
       const confirmedPoint = input.pickupPoint;
-      if (!confirmedPoint || point.some((coordinate, index) => Math.abs(coordinate - confirmedPoint[index]) > 0.000001)) {
-        return jsonError("ADDRESS_POINT_CHANGED", "Volvé a buscar la dirección y confirmá el punto que muestra el mapa.", 422);
+      if (!confirmedPoint || pickupAdjustmentMeters(point, confirmedPoint) > MAX_PICKUP_ADJUSTMENT_METERS) {
+        return jsonError("ADDRESS_POINT_CHANGED", "El marcador está demasiado lejos de la dirección buscada. Revisá la dirección y confirmá el punto.", 422);
       }
-      if (coverage.enabled && !isInsideAirportPickupZone(point, coverage)) {
-        return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
-      }
-      input.pickupPoint = point;
     }
     const reservation = await createAirportReservation(input);
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
@@ -9,7 +9,7 @@ import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { AirportAddressMap } from "@/components/airport-address-map";
-import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { MAX_PICKUP_ADJUSTMENT_METERS, OUTSIDE_PICKUP_ZONE, pickupAdjustmentMeters, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -142,6 +142,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [passengerCount, setPassengerCount] = useState(1);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
+  const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
   const [pickupMode, setPickupMode] = useState<"address" | "location">("address");
   const [pickupConfirmed, setPickupConfirmed] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -149,6 +150,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [searchingAddress, setSearchingAddress] = useState(false);
   const [addressLabel, setAddressLabel] = useState("");
   const locationRequest = useRef(0);
+  const addressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (addressTimer.current) clearTimeout(addressTimer.current);
+    locationRequest.current++;
+  }, []);
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<AirportFieldErrors>({});
@@ -181,6 +187,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
   function selectPickupPoint(point: PickupPoint | null) {
     setPickupPoint(point);
+    setOriginalPoint(point);
     setPickupConfirmed(false);
     setAddressLabel("");
     setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
@@ -188,6 +195,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }
 
   function useCurrentLocation() {
+    if (addressTimer.current) clearTimeout(addressTimer.current);
     const request = ++locationRequest.current;
     setSearchingAddress(false);
     setPickupMode("location");
@@ -210,14 +218,17 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }
 
   function useAddress() {
+    if (addressTimer.current) clearTimeout(addressTimer.current);
     locationRequest.current++;
     setPickupMode("address");
     selectPickupPoint(null);
     setLocating(false);
+    setSearchingAddress(false);
     setLocationError("");
   }
 
-  async function searchAddress() {
+  async function searchAddress(address: string) {
+    if (addressTimer.current) clearTimeout(addressTimer.current);
     const request = ++locationRequest.current;
     selectPickupPoint(null);
     setSearchingAddress(true);
@@ -225,7 +236,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
       const response = await fetch("/api/v1/airport/address", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: pickupAddress.trim() })
+        body: JSON.stringify({ address: address.trim() })
       });
       const data = await response.json();
       if (request !== locationRequest.current) return;
@@ -239,6 +250,34 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     } finally {
       if (request === locationRequest.current) setSearchingAddress(false);
     }
+  }
+
+  function changePickupAddress(address: string) {
+    if (addressTimer.current) clearTimeout(addressTimer.current);
+    locationRequest.current++;
+    setPickupAddress(address);
+    selectPickupPoint(null);
+    const shouldSearch = address.trim().length >= 3;
+    setSearchingAddress(shouldSearch);
+    if (shouldSearch) addressTimer.current = setTimeout(() => void searchAddress(address), 750);
+  }
+
+  function adjustPickupPoint(point: PickupPoint) {
+    if (!originalPoint || pickupAdjustmentMeters(originalPoint, point) > MAX_PICKUP_ADJUSTMENT_METERS) {
+      setFieldErrors((current) => ({ ...current, pickupAddress: "Podés ajustar el punto hasta 100 metros. Si queda más lejos, buscá otra dirección." }));
+      return;
+    }
+    setPickupPoint(point);
+    setPickupConfirmed(false);
+    setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
+    setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
+  }
+
+  function movePickupMarker(north: number, east: number) {
+    if (!pickupPoint) return;
+    const [latitude, longitude] = pickupPoint;
+    const longitudeScale = Math.max(0.001, Math.cos(latitude * Math.PI / 180));
+    adjustPickupPoint([latitude + north / 111_320, longitude + east / (111_320 * longitudeScale)]);
   }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
@@ -601,19 +640,32 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 </div>
                 {pickupMode === "address" ? (
                   <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
-                    <label>Dirección<input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress} onChange={(e) => {
-                      locationRequest.current++;
-                      setSearchingAddress(false);
-                      setPickupAddress(e.target.value);
-                      selectPickupPoint(null);
-                    }} /></label>
-                    <button className="ghost-button" type="button" disabled={searchingAddress || isSubmitting || !pickupAddress.trim()} onClick={searchAddress}>
+                    <label>Dirección o nombre del lugar<input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
+                      onChange={(e) => changePickupAddress(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        if (!searchingAddress && !isSubmitting && pickupAddress.trim().length >= 3) void searchAddress(pickupAddress);
+                      }} /></label>
+                    <button className="ghost-button" type="button" disabled={searchingAddress || isSubmitting || pickupAddress.trim().length < 3} onClick={() => void searchAddress(pickupAddress)}>
                       {searchingAddress ? "Buscando dirección…" : "Buscar dirección en el mapa"}
                     </button>
                   </div>
                 ) : null}
                 {fieldErrors.pickupAddress ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
-                {pickupPoint ? <AirportAddressMap address={addressLabel} point={pickupPoint} /> : null}
+                <AirportAddressMap address={addressLabel} point={pickupPoint} />
+                {pickupPoint && originalPoint ? (
+                  <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
+                    <span className="muted">Si hace falta, ajustá el marcador de a 5 metros y revisalo en el mapa.</span>
+                    <div className="form-actions" role="group" aria-label="Ajustar marcador">
+                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al norte" onClick={() => movePickupMarker(5, 0)}>↑</button>
+                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al sur" onClick={() => movePickupMarker(-5, 0)}>↓</button>
+                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al oeste" onClick={() => movePickupMarker(0, -5)}>←</button>
+                      <button type="button" className="ghost-button" disabled={isSubmitting} aria-label="Mover marcador al este" onClick={() => movePickupMarker(0, 5)}>→</button>
+                      <button type="button" className="ghost-button" disabled={isSubmitting || pickupPoint === originalPoint} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
+                    </div>
+                  </div>
+                ) : null}
                 {addressLabel ? <p className="muted" style={{ gridColumn: "1 / -1" }}>
                   {addressLabel} · <a href="https://locationiq.com">Search by LocationIQ.com</a> · Datos de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
                 </p> : null}
