@@ -124,6 +124,8 @@ export type ReservationDetailDto = {
     serviceDate: Date;
     pickupName?: string | null;
     pickupAddress?: string | null;
+    pickupLatitude?: number | null;
+    pickupLongitude?: number | null;
     pickupNotes?: string | null;
     flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
   } | null;

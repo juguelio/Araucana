@@ -285,6 +285,8 @@ export async function createAirportReservation(input: AirportReservationInput) {
                 serviceDate: desde,
                 pickupName: parsed.pickupName ?? null,
                 pickupAddress: parsed.pickupAddress ?? null,
+                pickupLatitude: parsed.pickupPoint?.[0] ?? null,
+                pickupLongitude: parsed.pickupPoint?.[1] ?? null,
                 pickupNotes: parsed.pickupNotes ?? null
               }
             }

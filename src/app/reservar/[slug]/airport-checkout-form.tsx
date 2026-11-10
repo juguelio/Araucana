@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
@@ -146,6 +146,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [pickupName, setPickupName] = useState("");
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
+  const [pickupMode, setPickupMode] = useState<"address" | "location">("address");
+  const [pickupConfirmed, setPickupConfirmed] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const locationRequest = useRef(0);
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<AirportFieldErrors>({});
@@ -177,6 +182,41 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
   const validarCobertura = coverage.enabled && sentidoDelVuelo === "DEPARTURE";
   const fueraDeCobertura = validarCobertura && pickupPoint !== null && !isInsideAirportPickupZone(pickupPoint, coverage);
+
+  function selectPickupPoint(point: PickupPoint | null) {
+    setPickupPoint(point);
+    setPickupConfirmed(false);
+    setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
+  }
+
+  function useCurrentLocation() {
+    const request = ++locationRequest.current;
+    setPickupMode("location");
+    selectPickupPoint(null);
+    setLocationError("");
+    if (!navigator.geolocation) {
+      setLocationError("Tu navegador no ofrece ubicación. Buscá el punto por dirección.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      if (request !== locationRequest.current) return;
+      selectPickupPoint([coords.latitude, coords.longitude]);
+      setLocating(false);
+    }, () => {
+      if (request !== locationRequest.current) return;
+      setLocating(false);
+      setLocationError("No pudimos obtener tu ubicación. Podés volver a intentar o buscar por dirección.");
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
+  }
+
+  function useAddress() {
+    locationRequest.current++;
+    setPickupMode("address");
+    selectPickupPoint(null);
+    setLocating(false);
+    setLocationError("");
+  }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
     setPassenger((current) => ({ ...current, [field]: value }));
@@ -247,9 +287,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     }
     if (sentidoDelVuelo === "ARRIVAL" && !pickupName.trim()) errors.pickupName = "Ingresá el hotel o lugar donde te llevamos.";
     if (sentidoDelVuelo === "ARRIVAL" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección.";
-    if (sentidoDelVuelo === "DEPARTURE" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá dónde te pasamos a buscar.";
-    if (validarCobertura && pickupAddress.trim()) {
-      if (!pickupPoint) errors.pickupAddress = "Confirmá el punto de búsqueda en el mapa de cobertura.";
+    if (sentidoDelVuelo === "DEPARTURE") {
+      if (pickupMode === "address" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección de búsqueda.";
+      else if (!pickupPoint || !pickupConfirmed) errors.pickupAddress = "Confirmá que el punto de búsqueda sea correcto.";
       else if (fueraDeCobertura) errors.pickupAddress = OUTSIDE_PICKUP_ZONE;
     }
 
@@ -271,8 +311,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           serviceDate: date,
           passengerCount,
           passenger: buildPassengerPayload(passenger),
-          pickupName: pickupName.trim() || undefined,
-          pickupAddress: pickupAddress.trim() || undefined,
+          pickupName: sentidoDelVuelo === "ARRIVAL" ? pickupName.trim() || undefined : undefined,
+          pickupAddress: sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
           pickupPoint: sentidoDelVuelo === "DEPARTURE" ? pickupPoint ?? undefined : undefined,
           pickupNotes: pickupNotes.trim() || undefined,
           ...(esPrivado
@@ -524,14 +564,44 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               />
 
               <div className="checkout-fields">
-                <label>{sentidoDelVuelo === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
-                <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => {
-                  setPickupAddress(e.target.value);
-                  setPickupPoint(null);
-                  setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
-                }} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
-                <AirportAddressMap address={pickupAddress} />
-                {validarCobertura && pickupAddress.trim() ? <AirportPickupZoneMap coverage={coverage} point={pickupPoint} onSelect={setPickupPoint} /> : null}
+                {sentidoDelVuelo === "ARRIVAL" ? (
+                  <label>Hotel o lugar (en San Martín de los Andes)<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
+                ) : (
+                  <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
+                    <strong>Punto de búsqueda</strong>
+                    <p className="muted">Usá tu ubicación actual si ya estás en el lugar. Si estás en otro lugar, buscá por dirección.</p>
+                    <div className="form-actions">
+                      <button className="ghost-button" type="button" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
+                        {locating ? "Buscando ubicación…" : "Usar mi ubicación actual"}
+                      </button>
+                      {pickupMode === "location" ? <button className="ghost-button" type="button" onClick={useAddress}>Buscar por dirección</button> : null}
+                    </div>
+                    {locationError ? <p role="alert" className="field-error">{locationError}</p> : null}
+                  </div>
+                )}
+                {sentidoDelVuelo === "ARRIVAL" || pickupMode === "address" ? (
+                  <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => {
+                    setPickupAddress(e.target.value);
+                    selectPickupPoint(null);
+                  }} /></label>
+                ) : null}
+                {fieldErrors.pickupAddress ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
+                <AirportAddressMap
+                  address={sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? "" : pickupAddress}
+                  point={sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? pickupPoint : null}
+                />
+                {sentidoDelVuelo === "DEPARTURE" && (pickupMode === "location" ? pickupPoint : pickupAddress.trim()) ? (
+                  <AirportPickupZoneMap coverage={coverage} point={pickupPoint} currentLocation={pickupMode === "location"}
+                    onSelect={(point) => { if (pickupMode === "address") selectPickupPoint(point); }} />
+                ) : null}
+                {sentidoDelVuelo === "DEPARTURE" && pickupPoint && !fueraDeCobertura ? (
+                  <label style={{ gridColumn: "1 / -1" }}>
+                    <input type="checkbox" checked={pickupConfirmed} onChange={(event) => {
+                      setPickupConfirmed(event.target.checked);
+                      setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
+                    }} /> Confirmo que el mapa marca el lugar correcto
+                  </label>
+                ) : null}
                 <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
               </div>
 

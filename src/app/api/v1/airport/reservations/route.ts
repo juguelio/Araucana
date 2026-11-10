@@ -34,8 +34,8 @@ export async function POST(request: Request) {
     const input = parsed.data;
     const coverage = input.direction === "DEPARTURE" ? await getAirportCoverage() : null;
     if (coverage?.enabled) {
-      if (!input.pickupAddress?.trim() || !input.pickupPoint) {
-        return jsonError("PICKUP_POINT_REQUIRED", "Ingresá la dirección y confirmá el punto de búsqueda en el mapa.", 400);
+      if (!input.pickupPoint) {
+        return jsonError("PICKUP_POINT_REQUIRED", "Confirmá el punto de búsqueda en el mapa.", 400);
       }
       if (!isInsideAirportPickupZone(input.pickupPoint, coverage)) {
         return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import styles from "./airport-address-map.module.css";
 
-export function AirportAddressMap({ address }: { address: string }) {
+export function AirportAddressMap({ address, point }: { address: string; point?: PickupPoint | null }) {
   const street = address.trim();
   const [settledStreet, setSettledStreet] = useState(street);
 
@@ -13,7 +14,7 @@ export function AirportAddressMap({ address }: { address: string }) {
   }, [street]);
   const location = "San Martín de los Andes, Neuquén, Argentina";
   const mapStreet = street && settledStreet;
-  const query = mapStreet ? `${mapStreet}, ${location}` : location;
+  const query = point?.join(",") ?? (mapStreet ? `${mapStreet}, ${location}` : location);
   const mapsUrl = `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query })}`;
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
   const mapSrc = apiKey
@@ -29,11 +30,12 @@ export function AirportAddressMap({ address }: { address: string }) {
         allowFullScreen
       />
       <p className="muted" aria-live="polite">
-        {!street ? "Ingresá una dirección para ubicarla en el mapa."
+        {point ? "El mapa muestra el punto de búsqueda."
+          : !street ? "Ingresá una dirección para ubicarla en el mapa."
           : street !== settledStreet ? "Actualizando la ubicación…"
             : "Verificá que el marcador coincida con la dirección ingresada."}
       </p>
-      {street && street === settledStreet ? <a href={mapsUrl} target="_blank" rel="noreferrer">Abrir en Google Maps ↗</a> : null}
+      {point || (street && street === settledStreet) ? <a href={mapsUrl} target="_blank" rel="noreferrer">Abrir en Google Maps ↗</a> : null}
     </div>
   );
 }

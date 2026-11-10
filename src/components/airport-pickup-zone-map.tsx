@@ -6,13 +6,14 @@ import "leaflet/dist/leaflet.css";
 import { airportPickupLimits, isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import styles from "./airport-address-map.module.css";
 
-export function AirportPickupZoneMap({ coverage, point, onSelect, editing = false, selectedRing, onMoveVertex }: {
+export function AirportPickupZoneMap({ coverage, point, onSelect, editing = false, selectedRing, onMoveVertex, currentLocation = false }: {
   coverage: AirportCoverage;
   point: PickupPoint | null;
   onSelect: (point: PickupPoint) => void;
   editing?: boolean;
   selectedRing?: number;
   onMoveVertex?: (index: number, point: PickupPoint) => void;
+  currentLocation?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
@@ -83,25 +84,28 @@ export function AirportPickupZoneMap({ coverage, point, onSelect, editing = fals
 
   useEffect(() => {
     if (!ready || !map.current || !marker.current) return;
-    if (point) marker.current.setLatLng(point).addTo(map.current);
+    if (point) {
+      marker.current.setLatLng(point).addTo(map.current);
+      if (currentLocation) map.current.setView(point, 16);
+    }
     else marker.current.remove();
-  }, [point, ready]);
+  }, [point, ready, currentLocation]);
 
   return (
     <div className={styles.map}>
       <strong>{editing ? "Mapa de cobertura" : "Confirmá el punto de búsqueda"}</strong>
-      <p className="muted">{editing ? "Hacé clic para agregar puntos al contorno o arrastrá un punto para moverlo." : "Marcá la dirección en el mapa de cobertura. También podés mover el mapa y usar el punto central."}</p>
+      <p className="muted">{editing ? "Hacé clic para agregar puntos al contorno o arrastrá un punto para moverlo." : currentLocation ? "Revisá que el marcador esté donde querés que te busquemos." : "Buscá la dirección en Google Maps y marcá el mismo lugar en el mapa de cobertura."}</p>
       <div className={styles.zoneMap}>
         <div ref={container} className={styles.zoneCanvas} aria-label="Mapa de cobertura de búsqueda para el aeropuerto" />
-        {ready ? <span className={styles.crosshair} aria-hidden="true">+</span> : null}
+        {ready && !currentLocation ? <span className={styles.crosshair} aria-hidden="true">+</span> : null}
       </div>
-      <button className="ghost-button" type="button" disabled={!ready} onClick={() => {
+      {!currentLocation ? <button className="ghost-button" type="button" disabled={!ready} onClick={() => {
         const center = map.current?.getCenter();
         if (center) onSelect([center.lat, center.lng]);
-      }}>{editing ? "Agregar punto en el centro" : "Usar el centro del mapa"}</button>
+      }}>{editing ? "Agregar punto en el centro" : "Marcar el punto central"}</button> : null}
       <div aria-live="polite">
-        {point && isInsideAirportPickupZone(point, coverage) ? <p>El punto está dentro de la zona de búsqueda.</p> : null}
-        {failed || (point && !isInsideAirportPickupZone(point, coverage)) ? (
+        {coverage.enabled && point && isInsideAirportPickupZone(point, coverage) ? <p>El punto está dentro de la zona de búsqueda.</p> : null}
+        {failed || (coverage.enabled && point && !isInsideAirportPickupZone(point, coverage)) ? (
           <>
             <p className="field-error">{failed ? "No pudimos cargar el mapa de cobertura." : OUTSIDE_PICKUP_ZONE}</p>
             {!editing ? <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a> : null}

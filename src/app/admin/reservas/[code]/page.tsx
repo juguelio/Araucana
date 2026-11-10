@@ -45,6 +45,8 @@ export default async function AdminPassengerPage({ params }: AdminPassengerPageP
   const passengerName = `${reservation.passenger.firstName} ${reservation.passenger.lastName}`;
   const isChapelco = reservation.bookingMode === "CHAPELCO";
   const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails : null;
+  const airportPoint = airport?.pickupLatitude != null && airport.pickupLongitude != null
+    ? [airport.pickupLatitude, airport.pickupLongitude] as const : null;
   const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
 
   return (
@@ -124,13 +126,13 @@ export default async function AdminPassengerPage({ params }: AdminPassengerPageP
         </div>
       </section>
 
-      {airport?.pickupAddress?.trim() ? (
+      {airport && (airport.pickupAddress?.trim() || airportPoint) ? (
         <section className="plain-card admin-section">
           <h2>{airport.direction === "ARRIVAL" ? "Dirección de destino" : "Dirección de búsqueda"}</h2>
           {airport.pickupName ? <p><strong>{airport.pickupName}</strong></p> : null}
-          <p>{airport.pickupAddress}</p>
+          <p>{airport.pickupAddress || "Ubicación confirmada en el mapa"}</p>
           {airport.pickupNotes ? <p className="muted">{airport.pickupNotes}</p> : null}
-          <AirportAddressMap address={airport.pickupAddress} />
+          <AirportAddressMap address={airport.pickupAddress ?? ""} point={airportPoint ? [...airportPoint] : null} />
         </section>
       ) : null}
 

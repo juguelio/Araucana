@@ -134,6 +134,8 @@ type ReservationRecord = {
     serviceDate: Date;
     pickupName?: string | null;
     pickupAddress?: string | null;
+    pickupLatitude?: number | null;
+    pickupLongitude?: number | null;
     pickupNotes?: string | null;
     flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
   } | null;
@@ -385,6 +387,8 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
           serviceDate: reservation.airportDetails.serviceDate,
           pickupName: reservation.airportDetails.pickupName,
           pickupAddress: reservation.airportDetails.pickupAddress,
+          pickupLatitude: reservation.airportDetails.pickupLatitude,
+          pickupLongitude: reservation.airportDetails.pickupLongitude,
           pickupNotes: reservation.airportDetails.pickupNotes,
           flight: reservation.airportDetails.flight
             ? {
