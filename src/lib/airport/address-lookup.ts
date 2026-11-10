@@ -16,6 +16,22 @@ const resultsSchema = z.array(z.object({
 const placeCategories = new Set(["tourism", "amenity", "shop", "leisure", "office", "building"]);
 const normalize = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
+function similarPlaceName(name: string, query: string) {
+  const words = (value: string) => value.split(/[^a-z0-9]+/).filter((word) => word && word !== "de" && word !== "del");
+  const expected = words(query);
+  const actual = words(name);
+  if (expected.length < 2 || expected.length !== actual.length) return false;
+  const differences = expected.map((word, index) => [word, actual[index]]).filter(([a, b]) => a !== b);
+  if (!differences.length) return true;
+  if (differences.length !== 1) return false;
+  const [a, b] = differences[0];
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (shorter.length < 5 || longer.length - shorter.length > 1) return false;
+  const mismatch = [...shorter].findIndex((letter, index) => letter !== longer[index]);
+  if (mismatch === -1) return longer.length === shorter.length + 1;
+  return shorter.slice(mismatch + (shorter.length === longer.length ? 1 : 0)) === longer.slice(mismatch + 1);
+}
+
 export async function lookupAirportAddress(address: string): Promise<{ point: PickupPoint; label: string }> {
   const endpoint = process.env.AIRPORT_GEOCODER_URL;
   if (!endpoint) {
@@ -45,18 +61,23 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar la dirección. Volvé a intentar.", 503);
   }
 
-  const matches = candidates.filter((candidate) => {
+  const query = normalize(nameOrStreet);
+  const localCandidates = candidates.map((candidate) => {
     const [name, ...locations] = candidate.display_name.split(",").map(normalize);
-    if (!requestedLocations.every((location) => locations.some((part) =>
+    return { ...candidate, name, locations, category: candidate.class ?? candidate.category ?? "" };
+  }).filter(({ locations }) => requestedLocations.every((location) => locations.some((part) =>
       part === location || part === `municipio de ${location}`
-    ))) return false;
+  )));
+  const exactMatches = localCandidates.filter((candidate) => {
     if (houseNumber) return candidate.address.house_number?.toLowerCase() === houseNumber;
-
-    const category = candidate.class ?? candidate.category ?? "";
-    const query = normalize(nameOrStreet);
+    const { name, category } = candidate;
     if (category === "boundary" || category === "place") return name === query;
     return placeCategories.has(category) && name.startsWith(query);
   });
+  const matches = exactMatches.length || houseNumber ? exactMatches : localCandidates.filter(({ name, category }) =>
+    (!category || category === "boundary" || category === "place" || placeCategories.has(category)) &&
+    similarPlaceName(name, query)
+  );
   const match = matches[0];
   if (!match) {
     throw new ApiError("ADDRESS_NOT_FOUND", "No encontramos el lugar. Probá con el nombre completo o con calle y altura.", 422);
