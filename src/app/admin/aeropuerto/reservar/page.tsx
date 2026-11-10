@@ -3,6 +3,7 @@ import { AirportCheckoutForm } from "@/app/reservar/[slug]/airport-checkout-form
 import { AdminShell } from "@/components/admin-shell";
 import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
+import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 
@@ -11,7 +12,7 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
   const { date } = await searchParams;
   const today = argentinaDateKey(new Date());
   const initialDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today ? date : today;
-  const fares = await getAirportFares();
+  const [fares, coverage] = await Promise.all([getAirportFares(), getAirportCoverage()]);
   const route = fares.ARRIVAL ?? fares.DEPARTURE;
   const flights = route ? await loadAirportCheckoutFlights(initialDate) : [];
 
@@ -25,6 +26,7 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
       {route ? (
         <AirportCheckoutForm
           fromAdmin
+          coverage={coverage}
           route={route}
           fares={fares}
           initialDirection={fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE"}

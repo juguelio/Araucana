@@ -9,6 +9,8 @@ import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { AirportAddressMap } from "@/components/airport-address-map";
+import { AirportPickupZoneMap } from "@/components/airport-pickup-zone-map";
+import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -69,6 +71,7 @@ type AirportCheckoutFormProps = {
   initialDate: string;
   initialFlights: FlightOption[];
   fromAdmin?: boolean;
+  coverage: AirportCoverage;
 };
 
 const PASOS = ["Llegada o salida", "Tu vuelo", "Tus datos"];
@@ -128,7 +131,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, fromAdmin = false }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, fromAdmin = false, coverage }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
@@ -142,6 +145,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [passengerCount, setPassengerCount] = useState(1);
   const [pickupName, setPickupName] = useState("");
   const [pickupAddress, setPickupAddress] = useState("");
+  const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<AirportFieldErrors>({});
@@ -171,6 +175,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const moneda = tarifa?.currency ?? route.currency;
   const total = precioPorPersona * passengerCount;
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
+  const validarCobertura = coverage.enabled && sentidoDelVuelo === "DEPARTURE";
+  const fueraDeCobertura = validarCobertura && pickupPoint !== null && !isInsideAirportPickupZone(pickupPoint, coverage);
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
     setPassenger((current) => ({ ...current, [field]: value }));
@@ -242,6 +248,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     if (sentidoDelVuelo === "ARRIVAL" && !pickupName.trim()) errors.pickupName = "Ingresá el hotel o lugar donde te llevamos.";
     if (sentidoDelVuelo === "ARRIVAL" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección.";
     if (sentidoDelVuelo === "DEPARTURE" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá dónde te pasamos a buscar.";
+    if (validarCobertura && pickupAddress.trim()) {
+      if (!pickupPoint) errors.pickupAddress = "Confirmá el punto de búsqueda en el mapa de cobertura.";
+      else if (fueraDeCobertura) errors.pickupAddress = OUTSIDE_PICKUP_ZONE;
+    }
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -263,6 +273,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           passenger: buildPassengerPayload(passenger),
           pickupName: pickupName.trim() || undefined,
           pickupAddress: pickupAddress.trim() || undefined,
+          pickupPoint: sentidoDelVuelo === "DEPARTURE" ? pickupPoint ?? undefined : undefined,
           pickupNotes: pickupNotes.trim() || undefined,
           ...(esPrivado
             ? {
@@ -514,14 +525,19 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
               <div className="checkout-fields">
                 <label>{sentidoDelVuelo === "ARRIVAL" ? "Hotel o lugar (en San Martín de los Andes)" : "Dónde te buscamos"}<input name="pickupName" value={pickupName} onChange={(e) => setPickupName(e.target.value)} />{fieldErrors.pickupName ? <span className="field-error">{fieldErrors.pickupName}</span> : null}</label>
-                <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
+                <label>Dirección<input name="pickupAddress" autoComplete="street-address" value={pickupAddress} onChange={(e) => {
+                  setPickupAddress(e.target.value);
+                  setPickupPoint(null);
+                  setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
+                }} />{fieldErrors.pickupAddress ? <span className="field-error">{fieldErrors.pickupAddress}</span> : null}</label>
                 <AirportAddressMap address={pickupAddress} />
+                {validarCobertura && pickupAddress.trim() ? <AirportPickupZoneMap coverage={coverage} point={pickupPoint} onSelect={setPickupPoint} /> : null}
                 <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
               </div>
 
               <div className="wizard-nav">
                 <button type="button" className="ghost-button" onClick={() => setPaso(2)}>← Volver</button>
-                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir}>
+                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || fueraDeCobertura}>
                   {isSubmitting ? "Reservando…" : "Reservar"}
                 </button>
               </div>
@@ -554,7 +570,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             {paso === 1 ? "Elegir vuelo →" : "Completar datos →"}
           </button>
         ) : (
-          <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir}>
+          <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || fueraDeCobertura}>
             {isSubmitting ? "Reservando…" : "Reservar"}
           </button>
         )}

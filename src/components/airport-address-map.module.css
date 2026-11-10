@@ -22,3 +22,31 @@
 .map p {
   margin: 0;
 }
+
+.zoneMap {
+  position: relative;
+  isolation: isolate;
+}
+
+.zoneCanvas {
+  height: 300px;
+  border-radius: 12px;
+}
+
+.crosshair {
+  position: absolute;
+  z-index: 500;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font: bold 26px/1 monospace;
+  color: #172832;
+  text-shadow: 0 0 3px white;
+  pointer-events: none;
+}
+
+.vertex {
+  border: 2px solid #194c37;
+  border-radius: 50%;
+  background: white;
+}

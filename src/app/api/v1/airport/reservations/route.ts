@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createAirportReservation } from "@/lib/airport/booking";
 import { BookingError } from "@/lib/booking/repository";
+import { airportReservationSchema } from "@/lib/airport/validation";
+import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
+import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 
 const errorResponses: Record<string, { message: string; status: number }> = {
   ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
@@ -24,7 +27,21 @@ export async function POST(request: Request) {
       return jsonError("INVALID_JSON", "Revisá los datos de la reserva.", 400);
     }
 
-    const reservation = await createAirportReservation(payload as never);
+    const parsed = airportReservationSchema.safeParse(payload);
+    if (!parsed.success) {
+      return jsonError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.", 400);
+    }
+    const input = parsed.data;
+    const coverage = input.direction === "DEPARTURE" ? await getAirportCoverage() : null;
+    if (coverage?.enabled) {
+      if (!input.pickupAddress?.trim() || !input.pickupPoint) {
+        return jsonError("PICKUP_POINT_REQUIRED", "Ingresá la dirección y confirmá el punto de búsqueda en el mapa.", 400);
+      }
+      if (!isInsideAirportPickupZone(input.pickupPoint, coverage)) {
+        return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
+      }
+    }
+    const reservation = await createAirportReservation(input);
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof BookingError) {

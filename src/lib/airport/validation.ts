@@ -31,6 +31,7 @@ export const airportReservationSchema = z.object({
   passenger: passengerSchema,
   pickupName: z.string().max(120).optional(),
   pickupAddress: z.string().max(160).optional(),
+  pickupPoint: z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]).optional(),
   pickupNotes: z.string().max(300).optional(),
   /** Cuando viene, el vuelo no se busca: se reutiliza el del mismo número o se crea. */
   privateFlight: privateFlightSchema.optional()
