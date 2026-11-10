@@ -6,8 +6,9 @@ import "leaflet/dist/leaflet.css";
 import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import styles from "./airport-address-map.module.css";
 
-export function AirportDraggableMap({ point, disabled, onMove }: {
+export function AirportDraggableMap({ point, approximate, disabled, onMove }: {
   point: PickupPoint | null;
+  approximate: boolean;
   disabled: boolean;
   onMove: (point: PickupPoint) => boolean;
 }) {
@@ -59,17 +60,17 @@ export function AirportDraggableMap({ point, disabled, onMove }: {
     }
     const alreadyVisible = instance.hasLayer(pin);
     pin.setLatLng(point).addTo(instance);
-    if (!alreadyVisible) instance.setView(point, 18);
+    if (!alreadyVisible) instance.setView(point, approximate ? 13 : 18);
     if (disabled) pin.dragging?.disable();
     else pin.dragging?.enable();
-  }, [point, disabled, ready]);
+  }, [point, approximate, disabled, ready]);
 
   return (
     <div className={styles.map}>
       <div className={styles.zoneMap}>
         <div ref={container} className={styles.zoneCanvas} role="region" aria-label="Mapa del punto del traslado" />
       </div>
-      {ready && point ? <p className="muted">Arrastrá el marcador hasta el punto correcto y confirmalo.</p> : null}
+      {ready && point ? <p className="muted">{approximate ? "Este lugar es una referencia. Arrastrá el marcador hasta el punto exacto y confirmalo." : "Arrastrá el marcador hasta el punto correcto y confirmalo."}</p> : null}
       {failed ? <p className="field-error" role="alert">No pudimos cargar el mapa.</p> : null}
     </div>
   );

@@ -14,6 +14,7 @@ const resultsSchema = z.array(z.object({
 }));
 
 const placeCategories = new Set(["tourism", "amenity", "shop", "leisure", "office", "building"]);
+const referenceCategories = new Set(["natural", "water", "waterway"]);
 const normalize = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
 function similarPlaceName(name: string, query: string) {
@@ -32,7 +33,7 @@ function similarPlaceName(name: string, query: string) {
   return shorter.slice(mismatch + (shorter.length === longer.length ? 1 : 0)) === longer.slice(mismatch + 1);
 }
 
-export async function lookupAirportAddress(address: string): Promise<{ point: PickupPoint; label: string }> {
+export async function lookupAirportAddress(address: string): Promise<{ point: PickupPoint; label: string; approximate?: boolean }> {
   const endpoint = process.env.AIRPORT_GEOCODER_URL;
   if (!endpoint) {
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "La búsqueda por dirección no está disponible en este momento.", 503);
@@ -52,15 +53,17 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
   const key = process.env.AIRPORT_GEOCODER_KEY;
   if (key) url.searchParams.set("key", key);
 
-  let candidates: z.infer<typeof resultsSchema>;
-  try {
-    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(6000) });
-    if (!response.ok && response.status !== 404) throw new Error("Geocoder unavailable");
-    candidates = response.status === 404 ? [] : resultsSchema.parse(await response.json());
-  } catch {
-    throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar la dirección. Volvé a intentar.", 503);
+  async function fetchCandidates() {
+    try {
+      const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      if (!response.ok && response.status !== 404) throw new Error("Geocoder unavailable");
+      return response.status === 404 ? [] : resultsSchema.parse(await response.json());
+    } catch {
+      throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar la dirección. Volvé a intentar.", 503);
+    }
   }
 
+  const candidates = await fetchCandidates();
   const query = normalize(nameOrStreet);
   const localCandidates = candidates.map((candidate) => {
     const [name, ...locations] = candidate.display_name.split(",").map(normalize);
@@ -71,13 +74,21 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
   const exactMatches = localCandidates.filter((candidate) => {
     if (houseNumber) return candidate.address.house_number?.toLowerCase() === houseNumber;
     const { name, category } = candidate;
-    if (category === "boundary" || category === "place") return name === query;
+    if (category === "boundary" || category === "place" || referenceCategories.has(category)) return name === query;
     return placeCategories.has(category) && name.startsWith(query);
   });
-  const matches = exactMatches.length || houseNumber ? exactMatches : localCandidates.filter(({ name, category }) =>
+  let matches = exactMatches.length || houseNumber ? exactMatches : localCandidates.filter(({ name, category }) =>
     (!category || category === "boundary" || category === "place" || placeCategories.has(category)) &&
     similarPlaceName(name, query)
   );
+  if (!matches.length && !houseNumber && !requestedLocations.length && /^(lago|laguna|rio|arroyo|cerro) /.test(query)) {
+    url.searchParams.set("q", `${address}, Neuquén, Argentina`);
+    matches = (await fetchCandidates()).flatMap((candidate) => {
+      const [name] = candidate.display_name.split(",").map(normalize);
+      const category = candidate.class ?? candidate.category ?? "";
+      return name === query && referenceCategories.has(category) ? [{ ...candidate, name, category, locations: [] }] : [];
+    });
+  }
   const match = matches[0];
   if (!match) {
     throw new ApiError("ADDRESS_NOT_FOUND", "No encontramos el lugar. Probá con el nombre completo o con calle y altura.", 422);
@@ -85,5 +96,5 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
   if (matches.some(({ lat, lon }) => Math.abs(lat - match.lat) > 0.0001 || Math.abs(lon - match.lon) > 0.0001)) {
     throw new ApiError("ADDRESS_AMBIGUOUS", "Encontramos más de un lugar. Agregá el barrio o la localidad.", 422);
   }
-  return { point: [match.lat, match.lon], label: match.display_name };
+  return { point: [match.lat, match.lon], label: match.display_name, ...(referenceCategories.has(match.category) ? { approximate: true } : {}) };
 }

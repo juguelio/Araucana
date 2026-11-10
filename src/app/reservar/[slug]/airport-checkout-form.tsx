@@ -148,6 +148,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [searchingAddress, setSearchingAddress] = useState(false);
+  const [approximateAddress, setApproximateAddress] = useState(false);
   const [addressLabel, setAddressLabel] = useState("");
   const locationRequest = useRef(0);
   const addressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -186,6 +187,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   function selectPickupPoint(point: PickupPoint | null) {
+    setApproximateAddress(false);
     setPickupPoint(point);
     setOriginalPoint(point);
     setPickupConfirmed(false);
@@ -243,6 +245,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
       if (!response.ok) throw new Error(data.error?.message);
       selectPickupPoint(data.point);
       setAddressLabel(data.label);
+      setApproximateAddress(data.approximate === true);
     } catch (error) {
       if (request !== locationRequest.current) return;
       const message = error instanceof Error && error.message ? error.message : "No pudimos buscar la dirección.";
@@ -644,7 +647,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   </div>
                 ) : null}
                 {fieldErrors.pickupAddress ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
-                <AirportDraggableMap point={pickupPoint} disabled={isSubmitting} onMove={adjustPickupPoint} />
+                <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} disabled={isSubmitting} onMove={adjustPickupPoint} />
                 {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
                   <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
                 ) : null}
