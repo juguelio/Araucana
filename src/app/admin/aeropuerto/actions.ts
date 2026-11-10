@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { detectFlightChange } from "@/lib/airport/flights";
+import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
+import { fechaLocal } from "@/lib/airport/projection";
 import { syncAirportFlights } from "@/lib/airport/sync";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
@@ -65,8 +66,10 @@ export async function savePickupStartAction(formData: FormData) {
 export async function createFlightAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
   await getCurrentReservationsUserOrRedirect();
 
-  const number = value(formData, "number").toUpperCase();
-  const airline = value(formData, "airline") || null;
+  const inputNumber = value(formData, "number").toUpperCase();
+  const canonical = jetSmartCanonicalNumber(inputNumber);
+  const number = canonical ?? inputNumber;
+  const airline = canonical ? "JA" : value(formData, "airline") || null;
   const origin = value(formData, "origin");
   const direction = value(formData, "direction") === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL";
   const scheduledAt = value(formData, "scheduledAt");
@@ -79,18 +82,32 @@ export async function createFlightAction(_prev: AdminFormState, formData: FormDa
   if (!scheduledAt) fieldErrors.scheduledAt = "Ingresá la fecha y hora programada.";
   if (Object.keys(fieldErrors).length > 0) return errorState("Revisá los datos del vuelo.", fieldErrors);
 
-  await prisma.flight.create({
+  const horario = new Date(scheduledAt);
+  if (!Number.isFinite(horario.getTime())) return errorState("Revisá la fecha y hora programada.");
+
+  if (canonical) {
+    const { startsAt, endsAt } = dayInterval(fechaLocal(horario));
+    const existe = await prisma.flight.findFirst({
+      where: { number, direction, scheduledAt: { gte: startsAt, lt: endsAt } }
+    });
+    if (existe) return errorState(`El vuelo ${number} ya está cargado para ese día.`);
+  }
+
+  const { count } = await prisma.flight.createMany({
+    skipDuplicates: true,
     data: {
       number,
       airline,
       origin,
       direction,
-      scheduledAt: new Date(scheduledAt),
+      scheduledAt: horario,
       passengers: passengers ? Number(passengers) : null,
       notes,
       source: "MANUAL"
     }
   });
+
+  if (!count) return errorState(`El vuelo ${number} ya está cargado.`);
 
   revalidatePath("/admin/aeropuerto");
   notice(`Vuelo ${number} cargado.`);

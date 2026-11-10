@@ -37,7 +37,18 @@ describe("conector AirLabs", () => {
       [fila({ ...comun, flight_iata: "JA3183", cs_flight_iata: "WJ3183" }), fila({ ...comun, flight_iata: "WJ3183" })],
       "ARRIVAL"
     );
-    expect(vuelos).toHaveLength(1);
+    expect(vuelos.map((vuelo) => vuelo.number)).toEqual(["JA3183"]);
+  });
+
+  it("usa JA3182 aunque la fuente solo envíe WJ3182 o difiera el horario", () => {
+    const alias = fila({ flight_iata: "WJ3182", airline_iata: "WJ" });
+    const canonico = fila({ flight_iata: "JA3182", arr_time_ts: ts("2026-10-16T19:30:00Z") });
+    expect(normalizeSchedules([alias], "ARRIVAL")).toMatchObject([{ number: "JA3182", airline: "JA" }]);
+    for (const filas of [[alias, canonico], [canonico, alias]]) {
+      expect(normalizeSchedules(filas, "ARRIVAL")).toMatchObject([
+        { number: "JA3182", scheduledAt: new Date("2026-10-16T19:30:00Z") }
+      ]);
+    }
   });
 
   it("ignora filas sin número o sin horario", () => {

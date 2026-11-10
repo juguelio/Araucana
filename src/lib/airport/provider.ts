@@ -1,3 +1,5 @@
+import { jetSmartCanonicalNumber } from "./flights";
+
 /** Un tercero colgado no puede colgar la pantalla del aeropuerto (se llama al renderizar /reservar). */
 const EXTERNAL_TIMEOUT_MS = 8_000;
 
@@ -49,12 +51,14 @@ const fecha = (ts: unknown) => (num(ts) ? new Date(num(ts)! * 1000) : null);
  * se deduplica por (origen, horario programado) y se prefiere la fila sin código compartido.
  */
 export function normalizeSchedules(items: RawSchedule[], direction: FlightDirection): NormalizedFlight[] {
-  const out = new Map<string, NormalizedFlight>();
+  const out = new Map<string, { flight: NormalizedFlight; canonical: boolean }>();
 
   for (const it of items) {
-    const number = str(it.flight_iata);
+    const rawNumber = str(it.flight_iata);
     const scheduledAt = fecha(direction === "ARRIVAL" ? it.arr_time_ts : it.dep_time_ts);
-    if (!number || !scheduledAt) continue;
+    if (!rawNumber || !scheduledAt) continue;
+    const canonicalNumber = jetSmartCanonicalNumber(rawNumber);
+    const number = canonicalNumber ?? rawNumber;
 
     const delayMin = num(direction === "ARRIVAL" ? it.arr_delayed : it.dep_delayed);
     const estimatedAt = fecha(direction === "ARRIVAL" ? it.arr_estimated_ts : it.dep_estimated_ts);
@@ -62,7 +66,7 @@ export function normalizeSchedules(items: RawSchedule[], direction: FlightDirect
 
     const vuelo: NormalizedFlight = {
       number,
-      airline: str(it.airline_iata),
+      airline: canonicalNumber ? "JA" : str(it.airline_iata),
       origin,
       destination: direction === "ARRIVAL" ? CPC : origin,
       direction,
@@ -72,15 +76,19 @@ export function normalizeSchedules(items: RawSchedule[], direction: FlightDirect
       externalId: `${number}@${scheduledAt.toISOString()}`
     };
 
-    const clave = `${direction}|${origin}|${scheduledAt.toISOString()}`;
+    const clave = canonicalNumber
+      ? `${canonicalNumber}|${new Date(scheduledAt.getTime() - 3 * 3600000).toISOString().slice(0, 10)}`
+      : `${direction}|${origin}|${scheduledAt.toISOString()}`;
     const previo = out.get(clave);
     const esCodeshare = Boolean(str(it.cs_flight_iata));
-    if (!previo || (esCodeshare === false && previo.number !== number)) {
-      out.set(clave, vuelo);
-    }
+    const canonical = Boolean(canonicalNumber && rawNumber.toUpperCase().startsWith("JA"));
+    const preferido = canonicalNumber
+      ? canonical && !previo?.canonical
+      : !esCodeshare && previo?.flight.number !== number;
+    if (!previo || preferido) out.set(clave, { flight: vuelo, canonical });
   }
 
-  return [...out.values()].sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+  return [...out.values()].map(({ flight }) => flight).sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
 }
 
 /** Trae los vuelos de un día desde AirLabs. Sin clave o con error devuelve [] (modo degradado). */

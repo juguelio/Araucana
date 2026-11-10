@@ -4,6 +4,7 @@ import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
 import { airportPickupStart } from "./pickup-start";
+import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
 import { adminAirportReservationSchema, airportReservationSchema, type AdminAirportReservationInput } from "./validation";
 
@@ -137,7 +138,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
 
 /** Número de vuelo comparable: "LV-BET ", "ar 1656" → "LVBET", "AR1656". */
 export function claveDeVuelo(numero: string): string {
-  return numero.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return jetSmartCanonicalNumber(numero) ?? numero.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
 /** Un vuelo privado se carga con día + hora local argentina: "2026-11-05" + "14:30". */
@@ -211,7 +212,11 @@ export async function createAirportReservation(input: AdminAirportReservationInp
           where: {
             scheduledAt: { gte: desde, lt: hasta },
             ...(privado ? { direction: parsed.direction } : {}),
-            OR: [{ number: parsed.flightNumber.trim() }, { number: parsed.flightNumber.trim().toUpperCase() }]
+            OR: [
+              { number: parsed.flightNumber.trim() },
+              { number: parsed.flightNumber.trim().toUpperCase() },
+              ...(jetSmartCanonicalNumber(parsed.flightNumber) ? [{ number: numero }] : [])
+            ]
           },
           include: incluirCupo
         });
@@ -222,6 +227,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
         // pasajero para que la operación lo revise.
         if (!vuelo && privado) {
           const horario = new Date(privado.scheduledAt);
+          const canonico = jetSmartCanonicalNumber(privado.number);
           const delMismoSentido = await tx.flight.findMany({
             where: { scheduledAt: { gte: desde, lt: hasta }, direction: parsed.direction },
             include: incluirCupo
@@ -230,8 +236,8 @@ export async function createAirportReservation(input: AdminAirportReservationInp
             elegirVueloExistente(delMismoSentido, privado.number, horario) ??
             (await tx.flight.create({
               data: {
-                number: privado.number.trim().toUpperCase(),
-                airline: privado.airline?.trim() || null,
+                number: canonico ?? privado.number.trim().toUpperCase(),
+                airline: canonico ? "JA" : privado.airline?.trim() || null,
                 origin: privado.origin?.trim() || ORIGEN_PRIVADO_DESCONOCIDO,
                 direction: parsed.direction,
                 scheduledAt: horario,

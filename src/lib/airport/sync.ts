@@ -1,4 +1,4 @@
-import { detectFlightChange } from "@/lib/airport/flights";
+import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { DIAS_PROYECTADOS, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
@@ -110,7 +110,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
         }
 
         if (!previo) {
-          await prisma.flight.create({
+          const { count } = await prisma.flight.createMany({
+            skipDuplicates: true,
             data: {
               number: vuelo.number,
               airline: vuelo.airline,
@@ -125,7 +126,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
               source: "API"
             }
           });
-          resumen.creados += 1;
+          resumen.creados += count;
           continue;
         }
 
@@ -157,9 +158,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
   }
 
   // Tablero del aeropuerto: complementa lo que AirLabs no cubre (American Jet, por ejemplo) y trae
-  // los estados del propio aeropuerto. Nunca pisa un vuelo de la API: si hay otro vuelo del mismo
-  // sentido a menos de 25 minutos, se trata como el mismo vuelo físico con otro código (código
-  // compartido) y se saltea.
+  // los estados del propio aeropuerto. Se actualiza el vuelo existente por número y día.
   for (const direction of direcciones) {
     const { flights: delTablero, error } = await fetchFidsBoard(direction);
     resumen.corridas += 1;
@@ -168,9 +167,19 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       continue;
     }
 
-    for (const f of delTablero) {
+    // Procesar primero las filas JA para que una fila WJ del mismo día no las pise.
+    const tablero = delTablero.map((f) => ({ f, canonical: jetSmartCanonicalNumber(f.number) }));
+    tablero.sort((a, b) => Number(b.canonical === b.f.number) - Number(a.canonical === a.f.number));
+    const vistos = new Set<string>();
+
+    for (const { f, canonical } of tablero) {
       const fecha = fechaDelTablero(f.scheduled);
       if (!fecha) continue;
+      const number = canonical ?? f.number;
+      const airline = canonical ? "JA" : f.airlineCode;
+      const clave = `${fecha}|${number}`;
+      if (canonical && vistos.has(clave)) continue;
+      if (canonical) vistos.add(clave);
       const scheduledAt = new Date(`${fecha}T${f.scheduled}:00-03:00`);
       const estimatedAt = f.estimated ? new Date(`${fecha}T${f.estimated}:00-03:00`) : null;
       // El estado declarado por el tablero, corregido con los horarios: si la estima se corrió
@@ -183,7 +192,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       const desdeElDia = new Date(`${fecha}T00:00:00-03:00`);
       const hastaElDia = new Date(desdeElDia.getTime() + 86400000);
       const candidatos = await prisma.flight.findMany({
-        where: { number: f.number, direction, scheduledAt: { gte: desdeElDia, lt: hastaElDia } },
+        where: { number, direction, scheduledAt: { gte: desdeElDia, lt: hastaElDia } },
         include: { _count: { select: { reservations: true, assignments: true } } }
       });
 
@@ -212,7 +221,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
           data: {
             status: estado,
             estimatedAt,
-            airline: f.airlineCode,
+            airline,
             origin: propio.origin && propio.origin !== "—" ? propio.origin : f.city || "—",
             source: "FIDS",
             lastCheckedAt: new Date(),
@@ -230,7 +239,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
         // de ese mismo vuelo para que el pasajero vea el horario bueno desde hoy.
         {
           const futuros = await prisma.flight.findMany({
-            where: { number: f.number, direction, source: "ESTIMADO", scheduledAt: { gte: hastaElDia } },
+            where: { number, direction, source: "ESTIMADO", scheduledAt: { gte: hastaElDia } },
             select: { id: true, scheduledAt: true }
           });
           for (const fut of futuros) {
@@ -240,7 +249,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
             const destino = new Date(`${fechaFutura}T${f.scheduled}:00-03:00`);
             const ocupado = await prisma.flight.findFirst({
               where: {
-                number: f.number,
+                number,
                 direction,
                 scheduledAt: { gte: new Date(destino.getTime() - 60000), lte: new Date(destino.getTime() + 60000) },
                 id: { not: fut.id }
@@ -254,7 +263,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
         continue;
       }
 
-      const gemelo = await prisma.flight.findFirst({
+      const gemelo = canonical ? null : await prisma.flight.findFirst({
         where: {
           direction,
           scheduledAt: {
@@ -265,10 +274,11 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       });
       if (gemelo) continue;
 
-      await prisma.flight.create({
+      const { count } = await prisma.flight.createMany({
+        skipDuplicates: true,
         data: {
-          number: f.number,
-          airline: f.airlineCode,
+          number,
+          airline,
           origin: f.city || "—",
           destination: direction === "ARRIVAL" ? "Aeropuerto Chapelco (CPC)" : f.city || "—",
           direction,
@@ -279,8 +289,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
           lastCheckedAt: new Date()
         }
       });
-      resumen.creados += 1;
-      resumen.desdeTablero += 1;
+      resumen.creados += count;
+      resumen.desdeTablero += count;
     }
   }
 
@@ -334,9 +344,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       });
       if (mismoVuelo) continue;
 
-      // Código compartido: si ya hay otro vuelo del mismo sentido a menos de 25 minutos, es el
-      // mismo vuelo físico con otro número (WJ/JA en JetSMART) y no se duplica.
-      const gemeloProyectado = await prisma.flight.findFirst({
+      // Para vuelos sin equivalencia explícita, se conserva la heurística de cercanía horaria.
+      const gemeloProyectado = jetSmartCanonicalNumber(proyectado.number) ? null : await prisma.flight.findFirst({
         where: {
           direction: proyectado.direction,
           scheduledAt: {
@@ -347,7 +356,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       });
       if (gemeloProyectado) continue;
 
-      await prisma.flight.create({
+      const { count } = await prisma.flight.createMany({
+        skipDuplicates: true,
         data: {
           number: proyectado.number,
           airline: proyectado.airline,
@@ -362,7 +372,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
           lastCheckedAt: null
         }
       });
-      resumen.proyectados += 1;
+      resumen.proyectados += count;
     }
   }
 

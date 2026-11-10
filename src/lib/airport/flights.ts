@@ -9,6 +9,12 @@
 export type FlightStatus = "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "CANCELLED" | "DIVERTED" | "LANDED";
 export type FlightDirection = "ARRIVAL" | "DEPARTURE";
 
+/** Equivalencias confirmadas para los servicios de JetSMART en Chapelco. */
+export function jetSmartCanonicalNumber(number: string): string | null {
+  const match = /^(?:JA|WJ)\s*(318[23])$/i.exec(number.trim());
+  return match ? `JA${match[1]}` : null;
+}
+
 export const FLIGHT_STATUSES: Array<{ code: FlightStatus; label: string }> = [
   { code: "SCHEDULED", label: "Programado" },
   { code: "DELAYED", label: "Demorado" },
