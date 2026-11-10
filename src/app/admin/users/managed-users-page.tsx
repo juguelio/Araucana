@@ -4,6 +4,7 @@ import { getManagedUserRoleName, getManagedUserPath, type ManagedUserRole } from
 import { formatCurrency } from "@/lib/admin/salary";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
+import { CrmNavigation } from "../crm-navigation";
 import { deleteManagedUserAction, setManagedUserActiveAction } from "./actions";
 
 type ManagedUsersPageProps = { role?: ManagedUserRole; notice?: string; query?: string };
@@ -24,6 +25,7 @@ export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUser
 
   return (
     <AdminShell title={role ? getManagedUserRoleName(role) : "CRM · Usuarios y roles"} eyebrow="Panel de administración" notice={notice}>
+      {!role && <CrmNavigation current="usuarios" />}
       <section className="admin-grid">
         <div className="admin-card"><span className="muted">Pendientes</span><strong>{pendingCount}</strong></div>
         <div className="admin-card"><span className="muted">Activos</span><strong>{activeCount}</strong></div>
