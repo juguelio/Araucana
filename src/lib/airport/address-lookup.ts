@@ -22,11 +22,13 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "La búsqueda por dirección no está disponible en este momento.", 503);
   }
 
-  const nameOrStreet = address.split(",")[0].trim();
+  const [firstPart, ...locationParts] = address.split(",");
+  const nameOrStreet = firstPart.trim();
+  const requestedLocations = locationParts.map(normalize).filter(Boolean);
   const houseNumber = nameOrStreet.match(/\b(\d+[a-z]?)$/i)?.[1]?.toLowerCase();
 
   const url = new URL(endpoint);
-  url.searchParams.set("q", `${address}, San Martín de los Andes, Neuquén, Argentina`);
+  url.searchParams.set("q", `${address}, ${requestedLocations.length ? "" : "San Martín de los Andes, "}Neuquén, Argentina`);
   url.searchParams.set("format", "json");
   url.searchParams.set("countrycodes", "ar");
   url.searchParams.set("addressdetails", "1");
@@ -43,10 +45,18 @@ export async function lookupAirportAddress(address: string): Promise<{ point: Pi
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar la dirección. Volvé a intentar.", 503);
   }
 
-  const matches = candidates.filter((candidate) => houseNumber
-    ? candidate.address.house_number?.toLowerCase() === houseNumber
-    : placeCategories.has(candidate.class ?? candidate.category ?? "") &&
-      normalize(candidate.display_name.split(",")[0]).startsWith(normalize(nameOrStreet)));
+  const matches = candidates.filter((candidate) => {
+    const [name, ...locations] = candidate.display_name.split(",").map(normalize);
+    if (!requestedLocations.every((location) => locations.some((part) =>
+      part === location || part === `municipio de ${location}`
+    ))) return false;
+    if (houseNumber) return candidate.address.house_number?.toLowerCase() === houseNumber;
+
+    const category = candidate.class ?? candidate.category ?? "";
+    const query = normalize(nameOrStreet);
+    if (category === "boundary" || category === "place") return name === query;
+    return placeCategories.has(category) && name.startsWith(query);
+  });
   const match = matches[0];
   if (!match) {
     throw new ApiError("ADDRESS_NOT_FOUND", "No encontramos el lugar. Probá con el nombre completo o con calle y altura.", 422);
