@@ -10,7 +10,7 @@ import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "
 import { AirlineBadge } from "@/components/airline-badge";
 import { AirportAddressMap } from "@/components/airport-address-map";
 import { AirportPickupZoneMap } from "@/components/airport-pickup-zone-map";
-import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -71,7 +71,6 @@ type AirportCheckoutFormProps = {
   initialDate: string;
   initialFlights: FlightOption[];
   fromAdmin?: boolean;
-  coverage: AirportCoverage;
 };
 
 const PASOS = ["Llegada o salida", "Tu vuelo", "Tus datos"];
@@ -131,7 +130,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, fromAdmin = false, coverage }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, fromAdmin = false }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
@@ -180,12 +179,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const moneda = tarifa?.currency ?? route.currency;
   const total = precioPorPersona * passengerCount;
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
-  const validarCobertura = coverage.enabled && sentidoDelVuelo === "DEPARTURE";
-  const fueraDeCobertura = validarCobertura && pickupPoint !== null && !isInsideAirportPickupZone(pickupPoint, coverage);
 
   function selectPickupPoint(point: PickupPoint | null) {
     setPickupPoint(point);
     setPickupConfirmed(false);
+    setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
     setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
   }
 
@@ -290,7 +288,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     if (sentidoDelVuelo === "DEPARTURE") {
       if (pickupMode === "address" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección de búsqueda.";
       else if (!pickupPoint || !pickupConfirmed) errors.pickupAddress = "Confirmá que el punto de búsqueda sea correcto.";
-      else if (fueraDeCobertura) errors.pickupAddress = OUTSIDE_PICKUP_ZONE;
     }
 
     if (Object.keys(errors).length > 0) {
@@ -353,7 +350,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             ))}
           </ol>
 
-          {error ? <p className="error">{error}</p> : null}
+          {error ? <p className="error" role="alert">{error} {error === OUTSIDE_PICKUP_ZONE ? <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a> : null}</p> : null}
 
           {paso === 1 ? (
             <>
@@ -590,11 +587,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   address={sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? "" : pickupAddress}
                   point={sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? pickupPoint : null}
                 />
-                {sentidoDelVuelo === "DEPARTURE" && (pickupMode === "location" ? pickupPoint : pickupAddress.trim()) ? (
-                  <AirportPickupZoneMap coverage={coverage} point={pickupPoint} currentLocation={pickupMode === "location"}
-                    onSelect={(point) => { if (pickupMode === "address") selectPickupPoint(point); }} />
+                {sentidoDelVuelo === "DEPARTURE" && pickupMode === "address" && pickupAddress.trim() ? (
+                  <AirportPickupZoneMap point={pickupPoint} onSelect={selectPickupPoint} />
                 ) : null}
-                {sentidoDelVuelo === "DEPARTURE" && pickupPoint && !fueraDeCobertura ? (
+                {sentidoDelVuelo === "DEPARTURE" && pickupPoint ? (
                   <label style={{ gridColumn: "1 / -1" }}>
                     <input type="checkbox" checked={pickupConfirmed} onChange={(event) => {
                       setPickupConfirmed(event.target.checked);
@@ -607,7 +603,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
               <div className="wizard-nav">
                 <button type="button" className="ghost-button" onClick={() => setPaso(2)}>← Volver</button>
-                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || fueraDeCobertura}>
+                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir}>
                   {isSubmitting ? "Reservando…" : "Reservar"}
                 </button>
               </div>
@@ -640,7 +636,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             {paso === 1 ? "Elegir vuelo →" : "Completar datos →"}
           </button>
         ) : (
-          <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || fueraDeCobertura}>
+          <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir}>
             {isSubmitting ? "Reservando…" : "Reservar"}
           </button>
         )}

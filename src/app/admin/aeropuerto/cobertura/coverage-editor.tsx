@@ -34,7 +34,7 @@ export function CoverageEditor({ initialCoverage }: { initialCoverage: AirportCo
           setCoverage((current) => ({ ...current, exclusions: [...current.exclusions, []] }));
         }}>Agregar sector excluido</button>
       </div>
-      <AirportPickupZoneMap editing selectedRing={selectedRing} coverage={coverage} point={null}
+      <AirportPickupZoneMap selectedRing={selectedRing} coverage={coverage} point={null}
         onSelect={(point) => editRing((points) => points.length < 250 ? [...points, point] : points)}
         onMoveVertex={(index, point) => editRing((points) => points.map((previous, i) => i === index ? point : previous))} />
       <div className="form-actions">
