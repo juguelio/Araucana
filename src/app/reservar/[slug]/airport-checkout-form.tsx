@@ -9,7 +9,7 @@ import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
-import { MAX_PICKUP_ADJUSTMENT_METERS, OUTSIDE_PICKUP_ZONE, pickupAdjustmentMeters, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -263,10 +263,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }
 
   function adjustPickupPoint(point: PickupPoint) {
-    if (!originalPoint || pickupAdjustmentMeters(originalPoint, point) > MAX_PICKUP_ADJUSTMENT_METERS) {
-      setFieldErrors((current) => ({ ...current, pickupAddress: "Podés ajustar el punto hasta 100 metros. Si queda más lejos, buscá otra dirección." }));
-      return false;
-    }
+    if (!originalPoint) return false;
     setPickupPoint(point);
     setPickupConfirmed(false);
     setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);

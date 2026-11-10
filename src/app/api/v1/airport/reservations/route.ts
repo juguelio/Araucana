@@ -3,9 +3,8 @@ import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createAirportReservation } from "@/lib/airport/booking";
 import { BookingError } from "@/lib/booking/repository";
 import { airportReservationSchema } from "@/lib/airport/validation";
-import { isInsideAirportPickupZone, MAX_PICKUP_ADJUSTMENT_METERS, OUTSIDE_PICKUP_ZONE, pickupAdjustmentMeters } from "@/lib/airport/pickup-zone";
+import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
-import { lookupAirportAddress } from "@/lib/airport/address-lookup";
 
 const errorResponses: Record<string, { message: string; status: number }> = {
   ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
@@ -34,21 +33,11 @@ export async function POST(request: Request) {
     }
     const input = parsed.data;
     const coverage = await getAirportCoverage();
-    const address = input.pickupAddress?.trim();
-    if (coverage.enabled) {
-      if (!input.pickupPoint) {
-        return jsonError("PICKUP_POINT_REQUIRED", "Confirmá el punto del traslado en el mapa.", 400);
-      }
-      if (!isInsideAirportPickupZone(input.pickupPoint, coverage)) {
-        return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
-      }
+    if (!input.pickupPoint && (coverage.enabled || input.pickupAddress?.trim())) {
+      return jsonError("PICKUP_POINT_REQUIRED", "Confirmá el punto del traslado en el mapa.", 400);
     }
-    if (address) {
-      const { point } = await lookupAirportAddress(address);
-      const confirmedPoint = input.pickupPoint;
-      if (!confirmedPoint || pickupAdjustmentMeters(point, confirmedPoint) > MAX_PICKUP_ADJUSTMENT_METERS) {
-        return jsonError("ADDRESS_POINT_CHANGED", "El marcador está demasiado lejos de la dirección buscada. Revisá la dirección y confirmá el punto.", 422);
-      }
+    if (coverage.enabled && input.pickupPoint && !isInsideAirportPickupZone(input.pickupPoint, coverage)) {
+      return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
     }
     const reservation = await createAirportReservation(input);
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
