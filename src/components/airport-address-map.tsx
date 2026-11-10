@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./airport-address-map.module.css";
 
 export function AirportAddressMap({ address }: { address: string }) {
   const street = address.trim();
+  const [settledStreet, setSettledStreet] = useState(street);
 
-  // Remount the preview when the address changes so it never shows a stale location.
-  return <MapPreview key={street} address={street} />;
-}
-
-function MapPreview({ address }: { address: string }) {
-  const [visible, setVisible] = useState(false);
-  const query = `${address}, San Martín de los Andes, Neuquén, Argentina`;
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledStreet(street), 600);
+    return () => clearTimeout(timer);
+  }, [street]);
+  const location = "San Martín de los Andes, Neuquén, Argentina";
+  const mapStreet = street && settledStreet;
+  const query = mapStreet ? `${mapStreet}, ${location}` : location;
   const mapsUrl = `https://www.google.com/maps/search/?${new URLSearchParams({ api: "1", query })}`;
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
   const mapSrc = apiKey
@@ -21,23 +22,18 @@ function MapPreview({ address }: { address: string }) {
 
   return (
     <div className={styles.map}>
-      <div className={styles.actions}>
-        <button className="ghost-button" type="button" disabled={!address} aria-expanded={visible} onClick={() => setVisible(!visible)}>
-          {visible ? "Ocultar mapa" : "Ver dirección en el mapa"}
-        </button>
-        {visible ? <a href={mapsUrl} target="_blank" rel="noreferrer">Abrir en Google Maps ↗</a> : null}
-      </div>
-      {visible ? (
-        <>
-          <iframe
-            title="Ubicación de la dirección en Google Maps"
-            src={mapSrc}
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-          />
-          <p className="muted">Verificá que el marcador coincida con la dirección ingresada.</p>
-        </>
-      ) : null}
+      <iframe
+        title="Ubicación de la dirección en Google Maps"
+        src={mapSrc}
+        referrerPolicy="strict-origin-when-cross-origin"
+        allowFullScreen
+      />
+      <p className="muted" aria-live="polite">
+        {!street ? "Ingresá una dirección para ubicarla en el mapa."
+          : street !== settledStreet ? "Actualizando la ubicación…"
+            : "Verificá que el marcador coincida con la dirección ingresada."}
+      </p>
+      {street && street === settledStreet ? <a href={mapsUrl} target="_blank" rel="noreferrer">Abrir en Google Maps ↗</a> : null}
     </div>
   );
 }

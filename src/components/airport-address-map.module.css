@@ -5,14 +5,8 @@
   min-width: 0;
 }
 
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-}
-
-.actions a {
+.map a {
+  justify-self: start;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
