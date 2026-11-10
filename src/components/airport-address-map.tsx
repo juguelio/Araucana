@@ -30,7 +30,7 @@ export function AirportAddressMap({ address, point }: { address: string; point?:
         allowFullScreen
       />
       <p className="muted" aria-live="polite">
-        {point ? "El mapa muestra el punto de búsqueda."
+        {point ? "El mapa muestra el punto marcado."
           : !street ? "Ingresá una dirección para ubicarla en el mapa."
           : street !== settledStreet ? "Actualizando la ubicación…"
             : "Verificá que el marcador coincida con la dirección ingresada."}
