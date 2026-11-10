@@ -5,6 +5,8 @@
  * listar todas, tiene que abrir en el próximo día con salidas y ofrecer una tira corta de días.
  */
 
+import type { StopFare } from "@/lib/booking/stop-fares";
+
 export type SalidaOption = {
   id: string;
   from: string;
@@ -14,6 +16,9 @@ export type SalidaOption = {
   timeLabel: string;
   availableSeats: number;
   status: string;
+  stopFares?: StopFare[];
+  priceCents?: number;
+  currency?: string;
 };
 
 export const DIAS_EN_TIRA = 7;

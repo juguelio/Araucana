@@ -53,7 +53,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
           <div className="plain-card ticket-summary">
             <p className="eyebrow">Detalle</p>
             <h2 className="route-title">
-              {reservation.route.from} - {reservation.route.to}
+              {reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
             </h2>
             <div className="summary-list">
               <div>

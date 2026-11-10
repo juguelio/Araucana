@@ -6,6 +6,10 @@ import "./salida-picker.css";
 
 export type { SalidaOption } from "./salida-picker-utils";
 
+function formatFare(priceCents: number, currency: string) {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency }).format(priceCents / 100);
+}
+
 const SEMANA = ["L", "M", "M", "J", "V", "S", "D"];
 const monthFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
 const dayFormatter = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -182,6 +186,18 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
           </div>
         )}
       </fieldset>
+
+      {selected?.stopFares?.length ? (
+        <label className="salida-ruta">
+          Dónde baja el pasajero
+          <select key={selected.id} name="dropoffStop" defaultValue="">
+            <option value="">{selected.to} · {formatFare(selected.priceCents ?? 0, selected.currency ?? "ARS")}</option>
+            {selected.stopFares.map((fare) => (
+              <option key={fare.name} value={fare.name}>{fare.name} · {formatFare(fare.priceCents, selected.currency ?? "ARS")}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <div className="salida-pie">
         <div className="salida-cantidad">

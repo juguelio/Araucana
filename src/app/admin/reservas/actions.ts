@@ -22,6 +22,7 @@ export async function createAdminReservationAction(formData: FormData) {
 
   const parsed = createReservationSchema.safeParse({
     scheduleId: value(formData, "scheduleId"),
+    dropoffStop: value(formData, "dropoffStop") || undefined,
     passengerCount: value(formData, "passengerCount"),
     passenger: {
       firstName: value(formData, "firstName"),
@@ -46,6 +47,8 @@ export async function createAdminReservationAction(formData: FormData) {
       ? "No hay suficientes asientos disponibles para esa salida."
       : error instanceof BookingError && error.code === "BOOKING_BUSY"
         ? "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente."
+        : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
+        ? "La parada seleccionada ya no está disponible. Volvé a elegir."
         : "No pudimos crear la reserva. Intentalo nuevamente.";
     redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(message)}`);
   }

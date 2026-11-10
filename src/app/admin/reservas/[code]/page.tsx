@@ -63,7 +63,7 @@ export default async function AdminPassengerPage({ params }: AdminPassengerPageP
             <div>
               <span>Ruta</span>
               <strong>
-                {reservation.route.from} - {reservation.route.to}
+                {reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
               </strong>
             </div>
             <div>

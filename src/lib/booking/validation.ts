@@ -13,6 +13,7 @@ export const passengerSchema = z.object({
 export const createReservationSchema = z.object({
   scheduleId: z.string().min(1, "Selecciona una salida."),
   seatNumber: z.string().optional(),
+  dropoffStop: z.string().trim().min(1).max(160).optional(),
   passengerCount: z.coerce.number().int().min(1, "Selecciona al menos un asiento.").max(24, "La cantidad de asientos no es valida.").default(1),
   passenger: passengerSchema
 });

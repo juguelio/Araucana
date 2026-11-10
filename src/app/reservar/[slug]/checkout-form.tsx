@@ -13,6 +13,7 @@ import {
   type PassengerFieldErrors,
   type PassengerForm
 } from "./passenger-fields";
+import { getStopFares } from "@/lib/booking/stop-fares";
 import { createReservationAction } from "./actions";
 
 // Se mantienen los exports de siempre: los dos checkouts comparten la lógica del pasajero.
@@ -75,7 +76,8 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   }).format(cents / 100);
 }
 
@@ -88,6 +90,9 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   const firstScheduleId = bookableOptions.schedules[0]?.id ?? "";
   const preferredScheduleId = initialScheduleId && bookableOptions.schedules.some((schedule) => schedule.id === initialScheduleId) ? initialScheduleId : firstScheduleId;
   const [scheduleId, setScheduleId] = useState(preferredScheduleId);
+  const [dropoffStop, setDropoffStop] = useState("");
+  const stopFares = getStopFares(route);
+  const stop = stopFares.find((fare) => fare.name === dropoffStop);
   const [passengerCount, setPassengerCount] = useState(1);
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -137,6 +142,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
 
     const result = await createReservationAction({
       scheduleId: selectedSchedule.id,
+      dropoffStop: stop?.name,
       passengerCount,
       passenger: buildPassengerPayload(passenger)
     });
@@ -191,6 +197,20 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
           ) : null}
         </section>
 
+        {stopFares.length > 0 && (
+          <section className="form-panel checkout-panel">
+            <label>
+              Dónde bajás
+              <select value={stop?.name ?? ""} disabled={isSubmitting} onChange={(event) => setDropoffStop(event.target.value)}>
+                <option value="">{route.to} · {formatPrice(route.priceCents, route.currency)}</option>
+                {stopFares.map((fare) => (
+                  <option key={fare.name} value={fare.name}>{fare.name} · {formatPrice(fare.priceCents, route.currency)}</option>
+                ))}
+              </select>
+            </label>
+          </section>
+        )}
+
         <section className="form-panel checkout-panel">
           <div>
             <p className="eyebrow">Cupos</p>
@@ -224,7 +244,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
       <aside className="checkout-summary plain-card">
         <p className="eyebrow">Resumen</p>
         <h2 className="route-title">
-          {route.from} - {route.to}
+          {route.from} - {stop?.name ?? route.to}
         </h2>
         <div className="summary-list">
           <div>
@@ -242,7 +262,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
           <div>
             <span>Precio</span>
             <strong className="price">
-              {formatPrice((selectedSchedule?.priceCents ?? route.priceCents) * passengerCount, selectedSchedule?.currency ?? route.currency)}
+              {formatPrice((stop?.priceCents ?? selectedSchedule?.priceCents ?? route.priceCents) * passengerCount, selectedSchedule?.currency ?? route.currency)}
             </strong>
           </div>
         </div>

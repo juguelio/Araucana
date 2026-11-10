@@ -325,6 +325,7 @@ model Reservation {
   seatId      String?
   seat        Seat?      @relation(fields: [seatId], references: [id], onDelete: Restrict)
   seatNumber  String?
+  dropoffStop String?
   passengerCount Int     @default(1)
   bookingMode String     @default("SEATED")
   status      String     @default("PENDING_PAYMENT")

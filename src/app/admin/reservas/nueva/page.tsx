@@ -28,7 +28,10 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
       dayLabel: dayFormatter.format(schedule.departureAt),
       timeLabel: timeFormatter.format(schedule.departureAt),
       availableSeats: schedule.availableSeats,
-      status: schedule.status
+      status: schedule.status,
+      stopFares: schedule.stopFares,
+      priceCents: schedule.priceCents,
+      currency: schedule.currency
     }));
 
   return (

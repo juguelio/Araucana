@@ -96,6 +96,7 @@ export type ReservationDetailDto = {
   id: string;
   code: string;
   bookingMode: string;
+  dropoffStop?: string | null;
   passengerCount: number;
   status: ReservationStatus | string;
   seatNumber: string | null;
@@ -130,6 +131,9 @@ export type ReservationDetailDto = {
 
 export type AdminScheduleRowDto = {
   id: string;
+  stopFares?: import("./stop-fares").StopFare[];
+  priceCents?: number;
+  currency?: string;
   route: string;
   from: string;
   to: string;

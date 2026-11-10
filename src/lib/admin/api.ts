@@ -1,6 +1,7 @@
 import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
 import { approveManualPayment, getReservationByCode, listAdminReservations, listAdminRoutes, listAdminSchedules, updatePassengerForReservation } from "@/lib/booking/repository";
+import { getStopFares } from "@/lib/booking/stop-fares";
 import { passengerSchema } from "@/lib/booking/validation";
 import { prisma } from "@/lib/db/prisma";
 import { getVehicleTemplate } from "@/lib/vehicles/templates";
@@ -19,7 +20,8 @@ const stopSchema = z.object({
   name: requiredString,
   km: z.coerce.number().nonnegative().default(0),
   minutes: z.coerce.number().nonnegative().default(0),
-  note: z.string().trim().default("")
+  note: z.string().trim().default(""),
+  priceCents: z.number().int().positive().optional()
 });
 
 const seatSchema = z.object({
@@ -67,6 +69,12 @@ export const adminRouteInputSchema = z
     featured: z.coerce.boolean().default(false),
     isActive: z.coerce.boolean().default(true),
     stops: z.array(stopSchema).default([])
+  })
+  .superRefine((input, context) => {
+    const pricedStops = input.stops.filter((stop) => stop.priceCents !== undefined);
+    if (getStopFares(input).length !== pricedStops.length) {
+      context.addIssue({ code: "custom", path: ["stops"], message: "Usá nombres distintos en las paradas intermedias y una tarifa menor que la ruta completa." });
+    }
   })
   .transform((input) => ({
     ...input,

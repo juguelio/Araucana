@@ -12,6 +12,7 @@ import {
 } from "./types";
 import { createReservationSchema, passengerSchema, type CreateReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
+import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
 
 type RouteRecord = {
@@ -103,6 +104,7 @@ type ReservationRecord = {
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
+  dropoffStop?: string | null;
   seatId: string | null;
   seatNumber: string | null;
   passengerCount: number;
@@ -314,6 +316,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     id: reservation.id,
     code: reservation.code,
     bookingMode: reservation.bookingMode,
+    dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
     status: reservation.status,
     seatNumber: reservation.seatNumber,
@@ -621,6 +624,13 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               .filter((reservation) => reservation.status !== "CANCELLED")
               .reduce((total, reservation) => total + reservation.passengerCount, 0);
             const requestedSeats = parsed.passengerCount;
+            const stop = parsed.dropoffStop && schedule.route.bookingMode === "SEATED"
+              ? getStopFares(schedule.route).find((fare) => fare.name === parsed.dropoffStop)
+              : undefined;
+            if (parsed.dropoffStop && !stop) {
+              throw new BookingError("STOP_NOT_AVAILABLE", "La parada seleccionada ya no está disponible.");
+            }
+            const totalCents = (stop?.priceCents ?? schedule.route.priceCents) * requestedSeats;
             const availableSeats = Math.max(schedule.vehicle.seats.length - occupiedSeats, 0);
 
             if (requestedSeats > availableSeats) {
@@ -682,14 +692,15 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 passengerCount: requestedSeats,
                 bookingMode: "SEATED",
                 status: "PENDING_PAYMENT",
-                totalCents: schedule.route.priceCents * requestedSeats,
+                ...(stop ? { dropoffStop: stop.name } : {}),
+                totalCents,
                 currency: schedule.route.currency
               }
             });
 
             const payment = await paymentProvider.createPendingPayment({
               reservationCode: code,
-              amountCents: schedule.route.priceCents * requestedSeats,
+              amountCents: totalCents,
               currency: schedule.route.currency
             });
             await tx.payment.create({
@@ -878,6 +889,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           routeId: schedule.routeId,
           vehicleId: schedule.vehicleId,
           route: `${schedule.route.from} -> ${schedule.route.to}`,
+          stopFares: schedule.route.bookingMode === "SEATED" ? getStopFares(schedule.route) : [],
+          priceCents: schedule.route.priceCents,
+          currency: schedule.route.currency,
           from: schedule.route.from,
           to: schedule.route.to,
           departureAt: schedule.departureAt,
@@ -942,7 +956,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
           passengerPhone: reservation.passenger.phone,
           route: reservation.schedule
-            ? `${reservation.schedule.route.from} -> ${reservation.schedule.route.to}`
+            ? `${reservation.schedule.route.from} -> ${reservation.dropoffStop ?? reservation.schedule.route.to}`
             : reservation.route
               ? `${reservation.route.from} -> ${reservation.route.to}`
               : "Ruta sin datos",

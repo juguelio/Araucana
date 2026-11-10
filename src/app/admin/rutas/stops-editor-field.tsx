@@ -43,6 +43,7 @@ export function StopsEditorField({ stops }: StopsEditorFieldProps) {
           Agregar parada
         </button>
       </div>
+      <p className="muted">Ingresá la tarifa desde el origen en la moneda de la ruta. Dejá el campo vacío si la parada no se vende por separado.</p>
       <div className="stops-editor-list">
         {rows.map((row, index) => {
           const rowId = `${id}-${index}`;
@@ -85,6 +86,17 @@ export function StopsEditorField({ stops }: StopsEditorFieldProps) {
                   value={row.note}
                   onChange={(event) => updateRow(index, "note", event.target.value)}
                   placeholder="Salida"
+                />
+              </label>
+              <label>
+                Tarifa por pasajero
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={row.price ?? ""}
+                  onChange={(event) => updateRow(index, "price", event.target.value)}
+                  placeholder="Sin tarifa"
                 />
               </label>
               <button className="danger-button" type="button" onClick={() => removeRow(index)}>

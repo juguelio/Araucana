@@ -204,6 +204,7 @@ export function DriverRouteSchedulesPanel({ routes, schedules }: DriverRouteSche
                         <th>Pasajero</th>
                         <th>Telefono</th>
                         <th>Documento</th>
+                        <th>Bajada</th>
                         <th>Asiento</th>
                         <th>Estado</th>
                         <th>Pago</th>
@@ -227,6 +228,7 @@ export function DriverRouteSchedulesPanel({ routes, schedules }: DriverRouteSche
                               )}
                             </td>
                             <td>{passenger.documentLabel}</td>
+                            <td>{passenger.dropoffStop ?? selectedSchedule.route.to}</td>
                             <td>{passenger.seatNumber ?? "-"}</td>
                             <td>{formatReservationStatus(passenger.reservationStatus)}</td>
                             <td>{formatPaymentStatus(passenger.paymentStatus)}</td>
@@ -235,7 +237,7 @@ export function DriverRouteSchedulesPanel({ routes, schedules }: DriverRouteSche
                       })}
                       {selectedSchedule.passengers.length === 0 ? (
                         <tr>
-                          <td colSpan={7}>No hay pasajeros para esta salida.</td>
+                          <td colSpan={8}>No hay pasajeros para esta salida.</td>
                         </tr>
                       ) : null}
                     </tbody>

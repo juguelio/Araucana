@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getStopFares } from "@/lib/booking/stop-fares";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
@@ -37,7 +38,8 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   }).format(cents / 100);
 }
 
@@ -73,6 +75,7 @@ export default async function RouteDetailPage({ params }: RouteDetailPageProps) 
 
   const schedules = await listSchedulesForRoute(route.id);
   const stops = normalizeStops(route.stops);
+  const fares = new Map((route.bookingMode === "SEATED" ? getStopFares(route) : []).map((fare) => [fare.name, fare.priceCents]));
   const duration = formatDuration(route.durationMin);
 
   return (
@@ -128,13 +131,17 @@ export default async function RouteDetailPage({ params }: RouteDetailPageProps) 
             <p className="lead">Este detalle será la base del flujo mobile y web de reservas.</p>
           </div>
           <div className="lake-grid">
-            {stops.map((stop, index) => (
-              <div className="lake-card" key={`${stop.name}-${index}`}>
-                <small>0{index + 1} · km {stop.km}</small>
-                <strong>{stop.name}</strong>
-                <p className="muted">{stop.note} · +{stop.minutes}m</p>
-              </div>
-            ))}
+            {stops.map((stop, index) => {
+              const fare = fares.get(stop.name.trim());
+              return (
+                <div className="lake-card" key={`${stop.name}-${index}`}>
+                  <small>0{index + 1} · km {stop.km}</small>
+                  <strong>{stop.name}</strong>
+                  <p className="muted">{stop.note} · +{stop.minutes}m</p>
+                  {fare !== undefined && <p>{formatPrice(fare, route.currency)} por pasajero</p>}
+                </div>
+              );
+            })}
           </div>
         </section>
       </main>

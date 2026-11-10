@@ -8,6 +8,7 @@ const bookingErrorResponses: Record<string, { message: string; status: number }>
   SEAT_OCCUPIED: { message: "El asiento ya esta ocupado", status: 409 },
   SCHEDULE_NOT_FOUND: { message: "Horario no encontrado", status: 404 },
   SEAT_NOT_FOUND: { message: "Asiento no encontrado", status: 404 },
+  STOP_NOT_AVAILABLE: { message: "La parada seleccionada ya no está disponible", status: 409 },
   SCHEDULE_CLOSED: { message: "El horario no esta disponible para reservas", status: 409 },
   CAPACITY_FULL: { message: "No hay suficientes asientos disponibles", status: 409 },
   BOOKING_BUSY: { message: "La salida está recibiendo otras reservas. Intentalo nuevamente.", status: 409 },

@@ -23,6 +23,7 @@ const bookingMessages: Record<string, string> = {
   SEAT_OCCUPIED: "Ese asiento ya fue reservado. Elegi otro asiento.",
   SCHEDULE_NOT_FOUND: "La salida seleccionada ya no esta disponible.",
   SEAT_NOT_FOUND: "El asiento seleccionado no existe para esta salida.",
+  STOP_NOT_AVAILABLE: "La parada seleccionada ya no está disponible. Actualizá la página y volvé a elegir.",
   SCHEDULE_CLOSED: "La salida seleccionada ya no acepta reservas.",
   CAPACITY_FULL: "No hay suficientes asientos disponibles para esa cantidad.",
   BOOKING_BUSY: "La salida está recibiendo otras reservas. Intentalo nuevamente.",

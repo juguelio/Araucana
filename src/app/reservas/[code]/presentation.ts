@@ -10,7 +10,8 @@ export function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency,
-    maximumFractionDigits: 0
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
   }).format(cents / 100);
 }
 

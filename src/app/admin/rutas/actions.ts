@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
+import { getStopFares } from "@/lib/booking/stop-fares";
 import { prisma } from "@/lib/db/prisma";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
@@ -35,22 +36,31 @@ function slugify(text: string) {
     .replace(/(^-|-$)/g, "");
 }
 
-function parseStops(raw: string): Prisma.InputJsonValue {
+function parseStops(raw: string, route: { from: string; to: string; priceCents: number }): Prisma.InputJsonValue {
   const stops = raw
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [name = "", km = "0", minutes = "0", note = ""] = line.split("|").map((item) => item.trim());
+      const [name = "", km = "0", minutes = "0", note = "", price = ""] = line.split("|").map((item) => item.trim());
 
+      const priceCents = Math.round(Number(price) * 100);
+      if (price && (!/^\d+(\.\d{1,2})?$/.test(price) || !Number.isSafeInteger(priceCents) || priceCents <= 0 || priceCents >= route.priceCents)) {
+        throw new FormValidationError(`La tarifa de ${name} debe ser mayor a cero y menor que la tarifa de la ruta completa.`, {});
+      }
       return {
         name,
+        ...(price ? { priceCents } : {}),
         km: Number(km) || 0,
         minutes: Number(minutes) || 0,
         note
       };
     })
     .filter((stop) => stop.name);
+
+  if (getStopFares({ ...route, stops }).length !== stops.filter((stop) => stop.priceCents !== undefined).length) {
+    throw new FormValidationError("Asigná tarifas a paradas intermedias con nombres distintos de hasta 160 caracteres.", {});
+  }
 
   return stops;
 }
@@ -104,7 +114,7 @@ function routeData(formData: FormData) {
     description: value(formData, "description"),
     featured: formData.get("featured") === "on",
     isActive: formData.get("isActive") === "on",
-    stops: parseStops(value(formData, "stops"))
+    stops: parseStops(value(formData, "stops"), { from, to, priceCents: Math.round(price * 100) })
   };
 }
 

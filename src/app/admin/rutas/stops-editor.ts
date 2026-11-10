@@ -3,6 +3,7 @@ export type StopRow = {
   km: string;
   minutes: string;
   note: string;
+  price?: string;
 };
 
 export const emptyStopRow: StopRow = {
@@ -28,7 +29,7 @@ export function normalizeStopRows(stops: unknown): StopRow[] {
         return null;
       }
 
-      const item = stop as { name?: unknown; km?: unknown; minutes?: unknown; note?: unknown };
+      const item = stop as { name?: unknown; km?: unknown; minutes?: unknown; note?: unknown; priceCents?: unknown };
       const name = String(item.name ?? "").trim();
 
       if (!name) {
@@ -39,7 +40,8 @@ export function normalizeStopRows(stops: unknown): StopRow[] {
         name,
         km: numericText(item.km),
         minutes: numericText(item.minutes),
-        note: String(item.note ?? "").trim()
+        note: String(item.note ?? "").trim(),
+        ...(typeof item.priceCents === "number" ? { price: String(item.priceCents / 100) } : {})
       };
     })
     .filter((stop): stop is StopRow => Boolean(stop));
@@ -58,7 +60,8 @@ export function serializeStopRows(rows: StopRow[]) {
         name,
         numericText(row.km.trim()),
         numericText(row.minutes.trim()),
-        row.note.trim()
+        row.note.trim(),
+        ...(row.price?.trim() ? [row.price.trim()] : [])
       ].join(" | ");
     })
     .filter(Boolean)

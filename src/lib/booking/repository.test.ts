@@ -16,6 +16,7 @@ type RouteRecord = {
   description: string;
   featured: boolean;
   isActive: boolean;
+  bookingMode: string;
   stops: unknown;
 };
 
@@ -116,6 +117,7 @@ class FakeBookingClient {
       description: "Ruta escenica",
       featured: true,
       isActive: true,
+      bookingMode: "SEATED",
       stops: []
     };
     this.inactiveRoute = {
@@ -574,6 +576,34 @@ describe("booking repository", () => {
     expect(reservation.ticket?.code).not.toContain("ARC-2611-TEST");
     expect(client.tickets[0]?.qrPayload).not.toContain("ARC-2611-TEST");
     expect(JSON.parse(client.tickets[0]?.qrPayload ?? "{}")).not.toHaveProperty("reservationCode");
+  });
+
+  it("charges the configured stop fare per passenger and keeps the dropoff after route changes", async () => {
+    const client = new FakeBookingClient();
+    client.route.stops = [{ name: "Villa La Angostura", priceCents: 700050 }];
+    const repository = createTestRepository(client);
+
+    const reservation = await repository.createWebReservation({
+      ...input, seatNumber: undefined, passengerCount: 2, dropoffStop: "Villa La Angostura"
+    });
+    client.route.stops = [];
+
+    await expect(repository.getReservationByCode(reservation.code)).resolves.toMatchObject({
+      dropoffStop: "Villa La Angostura",
+      totalCents: 1400100,
+      payment: { amountCents: 1400100 }
+    });
+  });
+
+  it("rejects an unpriced or foreign stop without creating a reservation", async () => {
+    const client = new FakeBookingClient();
+    client.route.stops = [{ name: "Parada sin tarifa" }];
+    const repository = createTestRepository(client);
+
+    for (const dropoffStop of ["Parada sin tarifa", "Otra ruta"]) {
+      await expect(repository.createWebReservation({ ...input, dropoffStop })).rejects.toMatchObject({ code: "STOP_NOT_AVAILABLE" });
+    }
+    expect(client.passengers).toHaveLength(0);
   });
 
   it("rejects a second reservation for the same schedule and seat", async () => {
