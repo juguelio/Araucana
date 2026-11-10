@@ -284,10 +284,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
       errors.passengerCount = `Sólo quedan ${selected.available} lugares en ese vuelo.`;
     }
     if (sentidoDelVuelo === "ARRIVAL" && !pickupName.trim()) errors.pickupName = "Ingresá el hotel o lugar donde te llevamos.";
-    if (sentidoDelVuelo === "ARRIVAL" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección.";
-    if (sentidoDelVuelo === "DEPARTURE") {
-      if (pickupMode === "address" && !pickupAddress.trim()) errors.pickupAddress = "Ingresá la dirección de búsqueda.";
-      else if (!pickupPoint || !pickupConfirmed) errors.pickupAddress = "Confirmá que el punto de búsqueda sea correcto.";
+    if ((sentidoDelVuelo === "ARRIVAL" || pickupMode === "address") && !pickupAddress.trim()) {
+      errors.pickupAddress = "Ingresá la dirección.";
+    } else if (!pickupPoint || !pickupConfirmed) {
+      errors.pickupAddress = "Confirmá que el punto marcado sea correcto.";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -310,7 +310,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           passenger: buildPassengerPayload(passenger),
           pickupName: sentidoDelVuelo === "ARRIVAL" ? pickupName.trim() || undefined : undefined,
           pickupAddress: sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
-          pickupPoint: sentidoDelVuelo === "DEPARTURE" ? pickupPoint ?? undefined : undefined,
+          pickupPoint: pickupPoint ?? undefined,
           pickupNotes: pickupNotes.trim() || undefined,
           ...(esPrivado
             ? {
@@ -371,6 +371,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     data-selected={sentido === s.code}
                     disabled={!fares[s.code]}
                     onClick={() => {
+                      if (s.code !== sentido) {
+                        useAddress();
+                        setPickupAddress("");
+                        setPickupName("");
+                      }
                       setSentido(s.code);
                       setSelectedId("");
                       setError("");
@@ -587,10 +592,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   address={sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? "" : pickupAddress}
                   point={sentidoDelVuelo === "DEPARTURE" && pickupMode === "location" ? pickupPoint : null}
                 />
-                {sentidoDelVuelo === "DEPARTURE" && pickupMode === "address" && pickupAddress.trim() ? (
-                  <AirportPickupZoneMap point={pickupPoint} onSelect={selectPickupPoint} />
+                {(sentidoDelVuelo === "ARRIVAL" || pickupMode === "address") && pickupAddress.trim() ? (
+                  <AirportPickupZoneMap point={pickupPoint} onSelect={selectPickupPoint} arrival={sentidoDelVuelo === "ARRIVAL"} />
                 ) : null}
-                {sentidoDelVuelo === "DEPARTURE" && pickupPoint ? (
+                {pickupPoint ? (
                   <label style={{ gridColumn: "1 / -1" }}>
                     <input type="checkbox" checked={pickupConfirmed} onChange={(event) => {
                       setPickupConfirmed(event.target.checked);

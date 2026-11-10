@@ -41,7 +41,7 @@ export const airportPickupLimits: PickupPoint[][] = [
   ]
 ];
 
-export const OUTSIDE_PICKUP_ZONE = "La dirección queda fuera de la zona de búsqueda. Consultanos antes de reservar.";
+export const OUTSIDE_PICKUP_ZONE = "El punto marcado queda fuera de la zona de servicio. Consultanos antes de reservar.";
 
 export const initialAirportCoverage: AirportCoverage = { enabled: false, boundary: airportPickupZone, exclusions: [] };
 

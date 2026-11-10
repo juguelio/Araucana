@@ -32,10 +32,10 @@ export async function POST(request: Request) {
       return jsonError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.", 400);
     }
     const input = parsed.data;
-    const coverage = input.direction === "DEPARTURE" ? await getAirportCoverage() : null;
-    if (coverage?.enabled) {
+    const coverage = await getAirportCoverage();
+    if (coverage.enabled) {
       if (!input.pickupPoint) {
-        return jsonError("PICKUP_POINT_REQUIRED", "Confirmá el punto de búsqueda en el mapa.", 400);
+        return jsonError("PICKUP_POINT_REQUIRED", "Confirmá el punto del traslado en el mapa.", 400);
       }
       if (!isInsideAirportPickupZone(input.pickupPoint, coverage)) {
         return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);

@@ -6,12 +6,13 @@ import "leaflet/dist/leaflet.css";
 import { airportPickupLimits, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import styles from "./airport-address-map.module.css";
 
-export function AirportPickupZoneMap({ coverage, point, onSelect, selectedRing, onMoveVertex }: {
+export function AirportPickupZoneMap({ coverage, point, onSelect, selectedRing, onMoveVertex, arrival = false }: {
   coverage?: AirportCoverage;
   point: PickupPoint | null;
   onSelect: (point: PickupPoint) => void;
   selectedRing?: number;
   onMoveVertex?: (index: number, point: PickupPoint) => void;
+  arrival?: boolean;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
@@ -86,12 +87,14 @@ export function AirportPickupZoneMap({ coverage, point, onSelect, selectedRing, 
     else marker.current.remove();
   }, [point, ready]);
 
+  const pointLabel = arrival ? "punto de destino" : "punto de búsqueda";
+
   return (
     <div className={styles.map}>
-      <strong>{coverage ? "Mapa de cobertura" : "Confirmá el punto de búsqueda"}</strong>
+      <strong>{coverage ? "Mapa de cobertura" : `Confirmá el ${pointLabel}`}</strong>
       <p className="muted">{coverage ? "Hacé clic para agregar puntos al contorno o arrastrá un punto para moverlo." : "Buscá la dirección en Google Maps y marcá el mismo lugar en este mapa."}</p>
       <div className={styles.zoneMap}>
-        <div ref={container} className={styles.zoneCanvas} aria-label={coverage ? "Mapa de cobertura de búsqueda para el aeropuerto" : "Mapa del punto de búsqueda"} />
+        <div ref={container} className={styles.zoneCanvas} aria-label={coverage ? "Mapa de cobertura de búsqueda para el aeropuerto" : `Mapa del ${pointLabel}`} />
         {ready ? <span className={styles.crosshair} aria-hidden="true">+</span> : null}
       </div>
       <button className="ghost-button" type="button" disabled={!ready} onClick={() => {

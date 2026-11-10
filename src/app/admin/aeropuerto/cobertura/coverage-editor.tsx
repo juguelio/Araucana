@@ -20,8 +20,8 @@ export function CoverageEditor({ initialCoverage }: { initialCoverage: AirportCo
 
   return (
     <form action={save}>
-      <h2>Zona de búsqueda</h2>
-      <p className="muted">El verde indica dónde buscamos pasajeros para llevarlos al aeropuerto. Dibujá un sector excluido a partir de cada corte rojo donde haga falta. Los trazos rojos discontinuos del mapa original sirven de referencia.</p>
+      <h2>Zona de servicio</h2>
+      <p className="muted">El verde indica dónde buscamos y dejamos pasajeros en los traslados hacia y desde el aeropuerto. Dibujá un sector excluido a partir de cada corte rojo donde haga falta. Los trazos rojos discontinuos del mapa original sirven de referencia.</p>
       <div className="form-actions">
         <label>Contorno a editar
           <select value={selectedRing} onChange={(event) => setSelectedRing(Number(event.target.value))}>
