@@ -36,7 +36,7 @@ const pasajero = {
   nationality: "Argentina"
 };
 
-const reserva = (extra: Record<string, unknown> = {}) =>
+const reserva = (extra: Record<string, unknown> = {}, fromAdmin = false) =>
   createAirportReservation({
     routeSlug: "aeropuerto-chapelco-sma",
     flightNumber: "AR1656",
@@ -45,7 +45,7 @@ const reserva = (extra: Record<string, unknown> = {}) =>
     passengerCount: 2,
     passenger: pasajero,
     ...extra
-  } as Parameters<typeof createAirportReservation>[0]);
+  } as Parameters<typeof createAirportReservation>[0], fromAdmin);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -103,6 +103,12 @@ describe("reserva de aeropuerto: ruta y tarifa del mismo sentido", () => {
 
     const pago = mocks.createPayment.mock.calls[0][0].data;
     expect(pago.amountCents).toBe(8000000);
+  });
+
+  it("usa un total manual solo para la carga administrativa", async () => {
+    await expect(reserva({ overrideTotalCents: 123456 }, true)).resolves.toMatchObject({ totalCents: 123456 });
+    expect(mocks.createPayment.mock.calls[0][0].data.amountCents).toBe(123456);
+    await expect(reserva({ overrideTotalCents: 123456 })).resolves.toMatchObject({ totalCents: 8000000 });
   });
 
   it("cobra media tarifa al menor y conserva su lugar en el cupo", async () => {

@@ -82,6 +82,13 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <input name="nationality" placeholder="Opcional" />
                 </label>
               </div>
+              <div className="admin-form-grid alta-campos">
+                <label>
+                  Precio total de la reserva (opcional)
+                  <input name="customPrice" inputMode="decimal" placeholder="Usar tarifa automática" />
+                  <small>Ingresá el importe para todos los lugares en la moneda de la salida.</small>
+                </label>
+              </div>
               <div className="form-actions">
                 <button className="button" type="submit">Crear reserva</button>
                 <Link className="ghost-button" href="/admin/reservas">Cancelar</Link>

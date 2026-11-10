@@ -10,7 +10,7 @@ import {
   ScheduleOptionDto,
   SeatMapDto
 } from "./types";
-import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type CreateReservationInput, type PassengerInput } from "./validation";
+import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type AdminReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
 import { getStopFares } from "./stop-fares";
@@ -630,8 +630,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       };
     },
 
-    async createWebReservation(input: CreateReservationInput, fromAdmin = false) {
-      const parsed = (fromAdmin ? adminReservationSchema : createReservationSchema).parse(input);
+    async createWebReservation(input: AdminReservationInput, fromAdmin = false) {
+      const parsed: AdminReservationInput = (fromAdmin ? adminReservationSchema : createReservationSchema).parse(input);
 
       for (let attempt = 1; attempt <= MAX_RESERVATION_CODE_ATTEMPTS; attempt += 1) {
         try {
@@ -663,7 +663,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             if (disabilityFare && (schedule.route.bookingMode !== "SEATED" || requestedSeats !== 1)) {
               throw new BookingError("DISABILITY_FARE_NOT_AVAILABLE", "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.");
             }
-            const totalCents = disabilityFare ? 0 : (stop?.priceCents ?? schedule.route.priceCents) * requestedSeats;
+            const totalCents = disabilityFare ? 0 : parsed.overrideTotalCents ?? (stop?.priceCents ?? schedule.route.priceCents) * requestedSeats;
             const availableSeats = Math.max(schedule.vehicle.seats.length - occupiedSeats, 0);
 
             if (requestedSeats > availableSeats) {

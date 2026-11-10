@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const tx = vi.hoisted(() => ({
   reservation: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
-  payment: { upsert: vi.fn() },
+  payment: { upsert: vi.fn(), update: vi.fn() },
   chapelcoManifestStop: { deleteMany: vi.fn() }
 }));
 
@@ -33,6 +33,17 @@ describe("administración de reservas", () => {
       update: { status: "APPROVED", amountCents: pending.totalCents, currency: "ARS", externalRef: "Efectivo" }
     }));
     expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("actualiza juntos el total y el pago pendiente, y protege un comprobante por revisar", async () => {
+    await manageReservation(code, { operation: "price", totalCents: 1000000 });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 1000000 } });
+    expect(tx.payment.update).toHaveBeenCalledWith({ where: { reservationId: pending.id }, data: { amountCents: 1000000 } });
+    tx.reservation.findUnique.mockResolvedValue({
+      ...pending, payment: { ...pending.payment, receiptBlobPathname: "receipt" }
+    });
+    await expect(manageReservation(code, { operation: "price", totalCents: 500000 })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(tx.payment.update).toHaveBeenCalledTimes(1);
   });
 
   it("exige el pago antes de confirmar una reserva con cargo", async () => {

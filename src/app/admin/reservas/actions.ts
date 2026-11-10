@@ -1,5 +1,6 @@
 "use server";
 
+import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { del } from "@vercel/blob";
 import { manageReservation, reservationManagementSchema } from "@/lib/booking/admin-management";
 import { revalidatePath } from "next/cache";
@@ -22,7 +23,11 @@ function value(formData: FormData, key: string) {
 export async function createAdminReservationAction(formData: FormData) {
   await getCurrentReservationsUserOrRedirect();
 
+  const customPrice = value(formData, "customPrice");
+  const overrideTotalCents = customPrice ? parseReservationPrice(customPrice) : undefined;
+  if (overrideTotalCents === null) redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(reservationPriceError)}`);
   const parsed = adminReservationSchema.safeParse({
+    overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
     dropoffStop: value(formData, "dropoffStop") || undefined,
@@ -158,6 +163,7 @@ export async function updatePassengerAction(_state: AdminFormState, formData: Fo
 export async function manageReservationAction(formData: FormData) {
   const command = reservationManagementSchema.safeParse({
     operation: value(formData, "operation"),
+    totalCents: parseReservationPrice(value(formData, "customPrice")),
     reference: value(formData, "reference"),
     notes: value(formData, "notes")
   });
@@ -167,7 +173,7 @@ export async function manageReservationAction(formData: FormData) {
   const code = value(formData, "code").toUpperCase();
   if (!/^ARC-[A-Z0-9-]+$/.test(code)) redirect("/admin/reservas");
   const detailPath = `/admin/reservas/${code}`;
-  if (!command.success) redirect(`${detailPath}?notice=${encodeURIComponent("Revisá los datos ingresados.")}`);
+  if (!command.success) redirect(`${detailPath}?notice=${encodeURIComponent(value(formData, "operation") === "price" ? reservationPriceError : "Revisá los datos ingresados.")}`);
 
   let result: Awaited<ReturnType<typeof manageReservation>>;
   try {
@@ -190,7 +196,8 @@ export async function manageReservationAction(formData: FormData) {
     delete: receiptCleanupFailed ? "Reserva borrada. No pudimos eliminar el archivo del comprobante." : "Reserva borrada.",
     confirm: "Reserva confirmada.",
     payment: "Pago registrado.",
-    notes: "Notas guardadas."
+    notes: "Notas guardadas.",
+    price: "Precio actualizado."
   };
   const target = command.data.operation === "delete" ? "/admin/reservas" : detailPath;
   redirect(`${target}?notice=${encodeURIComponent(notices[command.data.operation])}`);

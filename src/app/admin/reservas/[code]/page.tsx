@@ -5,6 +5,7 @@ import { AirportAddressMap } from "@/components/airport-address-map";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
+import { canEditReservationTotal } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { manageReservationAction, updatePassengerAction } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
@@ -193,6 +194,19 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
       ) : null}
 
       <section id="editar-reserva" className="plain-card admin-section">
+        {canEditReservationTotal(reservation.status, payment) ? (
+          <>
+            <h2>Editar precio de la reserva</h2>
+            <form className="admin-form-grid" action={manageReservationAction}>
+              <input type="hidden" name="code" value={reservation.code} />
+              <input type="hidden" name="operation" value="price" />
+              <label>Precio total ({reservation.currency})
+                <input name="customPrice" inputMode="decimal" required defaultValue={(reservation.totalCents / 100).toFixed(2)} />
+              </label>
+              <button className="ghost-button" type="submit">Guardar precio</button>
+            </form>
+          </>
+        ) : null}
         <h2>Editar pasajero</h2>
         <PassengerForm action={updatePassengerAction} reservation={reservation} />
       </section>

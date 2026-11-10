@@ -1,3 +1,4 @@
+import { reservationPriceCents } from "@/lib/booking/admin-price";
 import { z } from "zod";
 import { adminPassengerSchema, passengerSchema } from "@/lib/booking/validation";
 
@@ -46,9 +47,10 @@ const halfFareCountError = {
 };
 
 export const airportReservationSchema = airportReservationFields.refine(halfFareFitsSeats, halfFareCountError);
-export const adminAirportReservationSchema = airportReservationFields.extend({ passenger: adminPassengerSchema })
+export const adminAirportReservationSchema = airportReservationFields.extend({ passenger: adminPassengerSchema, overrideTotalCents: reservationPriceCents.optional() })
   .refine(halfFareFitsSeats, halfFareCountError);
 
 export type AirportReservationInput = z.infer<typeof airportReservationSchema>;
+export type AdminAirportReservationInput = z.infer<typeof adminAirportReservationSchema>;
 export type PrivateFlightInput = z.infer<typeof privateFlightSchema>;
 

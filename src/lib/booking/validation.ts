@@ -1,3 +1,4 @@
+import { reservationPriceCents } from "./admin-price";
 import { z } from "zod";
 import { normalizePassengerDocument, normalizePassengerPhone, passengerDocumentError, phoneFormatError } from "./passenger-contact";
 
@@ -41,7 +42,11 @@ export const createReservationSchema = z.object({
   passenger: passengerSchema
 });
 
-export const adminReservationSchema = createReservationSchema.extend({ passenger: adminPassengerSchema });
+export const adminReservationSchema = createReservationSchema.extend({
+  passenger: adminPassengerSchema,
+  overrideTotalCents: reservationPriceCents.optional()
+});
 
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
+export type AdminReservationInput = z.infer<typeof adminReservationSchema>;
 export type PassengerInput = z.infer<typeof passengerSchema>;

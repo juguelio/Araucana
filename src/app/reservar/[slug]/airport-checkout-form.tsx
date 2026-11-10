@@ -8,6 +8,7 @@ import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
+import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { airportHalfFare, airportReservationTotal } from "@/lib/airport/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
@@ -25,6 +26,7 @@ import {
 type AirportFieldErrors = PassengerFieldErrors & {
   flight?: string;
   passengerCount?: string;
+  customPrice?: string;
   pickupAddress?: string;
 };
 
@@ -141,6 +143,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [flightNumber, setFlightNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
   const [fullFareCount, setFullFareCount] = useState(1);
+  const [customPrice, setCustomPrice] = useState("");
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
@@ -187,7 +190,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const moneda = tarifa?.currency ?? route.currency;
   const passengerCount = fullFareCount + halfFareCount;
   const maxSeats = Math.min(selected?.available ?? 24, 24);
-  const total = airportReservationTotal(precioPorPersona, passengerCount, halfFareCount);
+  const overrideTotalCents = fromAdmin && customPrice.trim() ? parseReservationPrice(customPrice) : undefined;
+  const total = overrideTotalCents ?? airportReservationTotal(precioPorPersona, passengerCount, halfFareCount);
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   function selectPickupPoint(point: PickupPoint | null) {
@@ -335,6 +339,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setError("");
 
     const errors: Record<string, string> = { ...validateCheckoutPassenger(passenger, fromAdmin) };
+    if (overrideTotalCents === null) errors.customPrice = reservationPriceError;
     if (esPrivado) {
       if (!privadoListo) errors.flight = "Completá el número o matrícula y la hora de tu vuelo privado.";
     } else if (!selected) {
@@ -369,6 +374,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           serviceDate: date,
           passengerCount,
           halfFareCount,
+          overrideTotalCents,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
           pickupPoint: pickupPoint ?? undefined,
@@ -641,6 +647,17 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 </p>
               </div>
 
+              {fromAdmin ? (
+                <div className="checkout-fields">
+                  <label>
+                    Precio total de la reserva ({moneda}, opcional)
+                    <input inputMode="decimal" value={customPrice} onChange={(event) => setCustomPrice(event.target.value)}
+                      placeholder="Usar tarifa automática" disabled={isSubmitting} aria-invalid={Boolean(fieldErrors.customPrice)} />
+                    {fieldErrors.customPrice ? <span className="field-error" role="alert">{fieldErrors.customPrice}</span> : null}
+                  </label>
+                </div>
+              ) : null}
+
               <div className="checkout-fields">
                 <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
                   <strong>{sentidoDelVuelo === "ARRIVAL" ? "Punto de destino" : "Punto de búsqueda"}</strong>
@@ -708,8 +725,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           <span>Horario: <strong>{esPrivado ? privadoHora || "—" : selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
           <span>Estado: <strong>{esPrivado ? "Privado" : selected ? estadoDe(selected) : "—"}</strong></span>
           <span>Lugares: <strong>{passengerCount}</strong></span>
-          {halfFareCount > 0 ? <span>Menores con media tarifa: <strong>{halfFareCount} · {formatPrice(airportHalfFare(precioPorPersona), moneda)} cada uno</strong></span> : null}
-          <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span>
+          {halfFareCount > 0 ? <span>Menores con media tarifa: <strong>{halfFareCount}{overrideTotalCents == null ? ` · ${formatPrice(airportHalfFare(precioPorPersona), moneda)} cada uno` : ""}</strong></span> : null}
+          {overrideTotalCents == null ? <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span> : <span>Precio total ajustado por administración</span>}
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>
         {paso < 3 ? (

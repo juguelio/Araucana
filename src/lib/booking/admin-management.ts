@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
+import { canEditReservationTotal, reservationPriceCents } from "./admin-price";
 import { BookingError } from "./repository";
 
 export const reservationManagementSchema = z.discriminatedUnion("operation", [
@@ -8,6 +9,7 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("delete") }),
   z.object({ operation: z.literal("confirm") }),
   z.object({ operation: z.literal("payment"), reference: z.string().trim().max(120) }),
+  z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
   z.object({ operation: z.literal("notes"), notes: z.string().trim().max(300) })
 ]);
 
@@ -59,6 +61,13 @@ export async function manageReservation(code: string, command: ReservationOperat
             update: paymentData,
             create: { ...paymentData, reservationId: id, provider: "MANUAL" }
           });
+          break;
+        case "price":
+          if (!canEditReservationTotal(status, payment)) {
+            throw new BookingError("PAYMENT_LOCKED", "El precio solo se puede cambiar mientras la reserva esté pendiente y sin un comprobante por revisar.");
+          }
+          await tx.reservation.update({ where: { id }, data: { totalCents: command.totalCents } });
+          if (payment) await tx.payment.update({ where: { reservationId: id }, data: { amountCents: command.totalCents } });
           break;
         case "notes":
           if (status === "CANCELLED") throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");

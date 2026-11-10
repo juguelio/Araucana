@@ -5,7 +5,7 @@ import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
 import { airportPickupStart } from "./pickup-start";
 import type { FlightDirection } from "./provider";
-import { adminAirportReservationSchema, airportReservationSchema, type AirportReservationInput } from "./validation";
+import { adminAirportReservationSchema, airportReservationSchema, type AdminAirportReservationInput } from "./validation";
 
 /**
  * Reserva de traslados al aeropuerto: **el pasajero elige un vuelo**, no una salida fija.
@@ -174,8 +174,8 @@ export function elegirVueloExistente<T extends { number: string; scheduledAt: Da
 export const ORIGEN_PRIVADO_DESCONOCIDO = "Vuelo privado";
 
 /** Crea la reserva atada al vuelo, con control de cupo dentro de la misma transacción. */
-export async function createAirportReservation(input: AirportReservationInput, fromAdmin = false) {
-  const parsed = (fromAdmin ? adminAirportReservationSchema : airportReservationSchema).parse(input);
+export async function createAirportReservation(input: AdminAirportReservationInput, fromAdmin = false) {
+  const parsed: AdminAirportReservationInput = (fromAdmin ? adminAirportReservationSchema : airportReservationSchema).parse(input);
 
   const route = await prisma.travelRoute.findUnique({ where: { slug: parsed.routeSlug } });
   if (!route || !route.isActive || route.bookingMode !== "AIRPORT") {
@@ -276,7 +276,7 @@ export async function createAirportReservation(input: AirportReservationInput, f
             passengerCount: parsed.passengerCount,
             bookingMode: "AIRPORT",
             status: "PENDING_PAYMENT",
-            totalCents: airportReservationTotal(rutaDelSentido.priceCents, parsed.passengerCount, parsed.halfFareCount ?? 0),
+            totalCents: parsed.overrideTotalCents ?? airportReservationTotal(rutaDelSentido.priceCents, parsed.passengerCount, parsed.halfFareCount ?? 0),
             currency: rutaDelSentido.currency,
             airportDetails: {
               create: {

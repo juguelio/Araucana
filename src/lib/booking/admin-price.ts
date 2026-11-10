@@ -1,0 +1,22 @@
+import { z } from "zod";
+import { parseMoney } from "@/lib/special-trips/data";
+
+export const reservationPriceError = "Ingresá un precio válido, sin separadores de miles y con hasta dos decimales.";
+
+export const reservationPriceCents = z.number().int().min(0).max(2_147_483_647);
+
+export function parseReservationPrice(value: string) {
+  return parseMoney(value.trim());
+}
+
+export function canEditReservationTotal(status: string, payment?: {
+  provider: string;
+  status: string;
+  receiptBlobPathname?: string | null;
+} | null) {
+  return status === "PENDING_PAYMENT" && (!payment || (
+    payment.provider === "MANUAL" && (
+      payment.status === "REJECTED" || (payment.status === "PENDING" && !payment.receiptBlobPathname)
+    )
+  ));
+}
