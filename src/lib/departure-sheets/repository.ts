@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { isDepartureSheetToken, createDepartureSheetToken } from "./codes";
-import { planillaKindsForReservation, planillaNotApplicableReason } from "./applicability";
+import { parseTripLegs, planillaKindsForSpecialTrip, planillaNotApplicableReason } from "./applicability";
 import type { DeparturePassengerInput } from "./validation";
 import type { DepartureSheetKind } from "./types";
 
@@ -16,57 +16,43 @@ export class DepartureSheetError extends Error {
   }
 }
 
-/** Lo que necesita el link público y el detalle: la planilla, su reserva y los pasajeros cargados. */
+/** Lo que necesita el link público y el detalle: la planilla, su viaje y los pasajeros cargados. */
 const sheetInclude = {
   passengers: { orderBy: [{ position: "asc" as const }, { createdAt: "asc" as const }] },
-  reservation: {
+  specialTrip: {
     select: {
-      code: true,
+      id: true,
+      client: true,
+      contact: true,
+      serviceDate: true,
+      passengers: true,
       status: true,
-      dropoffStop: true,
-      passengerCount: true,
-      route: { select: { from: true, to: true } },
-      schedule: { select: { departureAt: true } },
-      chapelcoDetails: { select: { serviceDate: true, ascentSlot: true } },
-      airportDetails: { select: { serviceDate: true, flightNumber: true, direction: true } },
-      passenger: {
-        select: { firstName: true, lastName: true, documentType: true, documentId: true, nationality: true }
-      }
+      destinationSearch: true,
+      legs: true
     }
   }
 };
 
 /**
- * Devuelve el link de la planilla de esa reserva, creándolo la primera vez. Una por reserva y tipo:
- * si el operador aprieta dos veces, no se generan dos links distintos.
+ * Devuelve el link de la planilla de ese viaje especial, creándolo la primera vez. Una por viaje y
+ * tipo: si el operador aprieta dos veces, no se generan dos links distintos.
  *
  * No se genera planilla para un viaje que no sale de la provincia: el tipo tiene que corresponder al
  * destino (DUT si sale del país, registro si sale de la provincia).
  */
-export async function ensureDepartureSheet(code: string, kind: DepartureSheetKind, createdBy?: string | null) {
-  const routeSelect = { select: { to: true, via: true, slug: true, category: true } };
-
-  const reservation = await prisma.reservation.findUnique({
-    where: { code: code.trim().toUpperCase() },
-    select: {
-      id: true,
-      dropoffStop: true,
-      route: routeSelect,
-      schedule: { select: { route: routeSelect } }
-    }
+export async function ensureDepartureSheet(specialTripId: string, kind: DepartureSheetKind, createdBy?: string | null) {
+  const trip = await prisma.specialTrip.findUnique({
+    where: { id: specialTripId },
+    select: { id: true, destinationSearch: true, legs: true }
   });
 
-  if (!reservation) {
+  if (!trip) {
     throw new DepartureSheetError("NOT_FOUND");
   }
 
-  const route = reservation.schedule?.route ?? reservation.route;
-  const kinds = planillaKindsForReservation({
-    to: route?.to,
-    via: route?.via,
-    slug: route?.slug,
-    category: route?.category,
-    dropoffStop: reservation.dropoffStop
+  const kinds = planillaKindsForSpecialTrip({
+    destinationSearch: trip.destinationSearch,
+    legs: parseTripLegs(trip.legs)
   });
 
   if (!kinds.includes(kind)) {
@@ -74,10 +60,10 @@ export async function ensureDepartureSheet(code: string, kind: DepartureSheetKin
   }
 
   return prisma.departureSheet.upsert({
-    where: { reservationId_kind: { reservationId: reservation.id, kind } },
+    where: { specialTripId_kind: { specialTripId: trip.id, kind } },
     update: {},
     create: {
-      reservationId: reservation.id,
+      specialTripId: trip.id,
       kind,
       token: createDepartureSheetToken(),
       createdBy: createdBy ?? null
@@ -85,10 +71,10 @@ export async function ensureDepartureSheet(code: string, kind: DepartureSheetKin
   });
 }
 
-/** Planillas ya generadas para una reserva, con cuántos pasajeros cargó cada una. */
-export async function listDepartureSheetsForReservation(reservationId: string) {
+/** Planillas ya generadas para un viaje especial, con cuántos pasajeros cargó cada una. */
+export async function listDepartureSheetsForSpecialTrip(specialTripId: string) {
   return prisma.departureSheet.findMany({
-    where: { reservationId },
+    where: { specialTripId },
     include: { _count: { select: { passengers: true } } }
   });
 }

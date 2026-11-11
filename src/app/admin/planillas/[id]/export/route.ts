@@ -25,7 +25,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return new Response("No encontramos la planilla", { status: 404 });
   }
 
-  const meta = { kind: sheet.kind, reservationCode: sheet.reservation.code };
+  const trip = sheet.specialTrip;
+  const day = trip.serviceDate.toISOString().slice(0, 10);
+  const meta = { kind: sheet.kind, reference: `${day} ${trip.client}` };
   const workbook = await buildDepartureSheetWorkbook(meta, sheet.passengers);
 
   return new Response(new Uint8Array(workbook), {

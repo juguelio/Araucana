@@ -9,8 +9,8 @@ import {
 
 export type DepartureSheetExportMeta = {
   kind: string;
-  /** Código de la reserva a la que pertenece la planilla (ARC-YYMM-…). */
-  reservationCode: string;
+  /** Identifica el viaje en el nombre del archivo (fecha y cliente del viaje especial). */
+  reference: string;
 };
 
 const HEADER_FILL = "FFE7DFCB";
@@ -51,7 +51,7 @@ export function departureSheetFileBase(meta: DepartureSheetExportMeta) {
       .replace(/^-|-$/g, "")
       .toLowerCase();
 
-  return `planilla-${slug(kind)}-${slug(meta.reservationCode)}`;
+  return `planilla-${slug(kind)}-${slug(meta.reference)}`;
 }
 
 /** Genera el .xlsx que reemplaza la planilla en blanco que mandó el cliente. */

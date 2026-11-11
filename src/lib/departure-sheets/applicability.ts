@@ -164,52 +164,66 @@ function hitsAny(texts: string[], places: string[]) {
   return texts.some((text) => places.some((place) => matches(text, place)));
 }
 
-export type PlanillaRouteInfo = {
-  /** Destino de la ruta: es lo que decide. */
-  to?: string | null;
-  /** Punto de bajada elegido por el pasajero, si la ruta tiene paradas. */
-  dropoffStop?: string | null;
-  /** Pistas de la ruta («via», slug, categoría) para casos donde el destino está abreviado. */
-  via?: string | null;
-  slug?: string | null;
-  category?: string | null;
+export type PlanillaTripLeg = {
+  /** `AR`, `AR_CL` en el tramo que cruza a Chile, etc. */
+  country?: string | null;
+  origin?: string | null;
+  destination?: string | null;
+  description?: string | null;
+  stops?: string | null;
 };
 
-/**
- * Planillas que corresponden. Devuelve `[]` cuando el viaje no sale de la provincia.
- *
- * Manda el destino real del pasajero: si la ruta tiene paradas, el punto de bajada; si no, el
- * destino de la ruta. Las pistas de la ruta (categoría, slug, «via») sólo se usan cuando el destino
- * es un texto que el nomenclador no reconoce.
- */
-export function planillaKindsForReservation(route: PlanillaRouteInfo): DepartureSheetKind[] {
-  const destination = normalize(route.dropoffStop || route.to || "");
+export type PlanillaTripInfo = {
+  destinationSearch?: string | null;
+  legs?: PlanillaTripLeg[] | null;
+};
 
-  if (destination) {
-    if (hitsAny([destination], CHILE)) {
-      return ["DUT"];
-    }
-    // Neuquén se chequea antes que el resto del país: «Villa La Angostura» no es una provincia.
-    if (hitsAny([destination], NEUQUEN)) {
-      return [];
-    }
-    if (hitsAny([destination], OTRAS_PROVINCIAS)) {
-      return ["PROVINCIA"];
-    }
+/** `legs` es un Json en la base: se lee defensivamente antes de decidir. */
+export function parseTripLegs(value: unknown): PlanillaTripLeg[] {
+  return Array.isArray(value) ? (value as PlanillaTripLeg[]) : [];
+}
+
+/**
+ * Planillas que corresponden al viaje especial. Devuelve `[]` cuando no sale de la provincia.
+ *
+ * El itinerario ya trae el país por tramo (`legs[].country`: `AR`, `AR_CL`…), así que ése manda; el
+ * texto del destino se usa para distinguir una salida a otra provincia de un viaje local.
+ */
+export function planillaKindsForSpecialTrip(trip: PlanillaTripInfo): DepartureSheetKind[] {
+  const legs = trip.legs ?? [];
+
+  // El país del tramo es el dato más confiable: `AR_CL` es el cruce a Chile.
+  if (legs.some((leg) => /CL|CHILE/i.test(String(leg.country ?? "")))) {
+    return ["DUT"];
   }
 
-  const hints = [route.via, route.slug, route.category]
-    .filter((value): value is string => Boolean(value))
-    .map(normalize)
-    .filter(Boolean);
+  const texts = [
+    ...legs.flatMap((leg) => [leg.destination, leg.description, leg.stops]),
+    trip.destinationSearch
+  ]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .map(normalize);
 
-  if (hitsAny(hints, CHILE)) {
+  if (texts.length === 0) {
+    return [];
+  }
+
+  // Sin país cargado, el destino puede delatarlo igual.
+  if (hitsAny(texts, CHILE)) {
     return ["DUT"];
+  }
+
+  // Neuquén se chequea antes que el resto del país: «Villa La Angostura» no es una provincia.
+  if (hitsAny(texts, NEUQUEN)) {
+    return [];
+  }
+
+  if (hitsAny(texts, OTRAS_PROVINCIAS)) {
+    return ["PROVINCIA"];
   }
 
   return [];
 }
 
-/** Mensaje corto para el panel cuando la reserva no lleva planilla. */
-export const planillaNotApplicableReason =
-  "Esta reserva no sale de la provincia: no necesita planilla.";
+/** Mensaje corto para el panel cuando el viaje no lleva planilla. */
+export const planillaNotApplicableReason = "Este viaje no sale de la provincia: no necesita planilla.";

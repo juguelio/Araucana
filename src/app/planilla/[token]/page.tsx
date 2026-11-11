@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getCountryOptions } from "@/lib/booking/nationality-countries";
+import { parseTripLegs } from "@/lib/departure-sheets/applicability";
 import { getDepartureSheetByToken } from "@/lib/departure-sheets/repository";
 import { departureSheetCopy, isDepartureSheetKind, type DepartureSheetKind } from "@/lib/departure-sheets/types";
 import { PlanillaForm } from "./form";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 function formatDay(value: Date | null | undefined) {
   if (!value) return null;
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "America/Argentina/Salta" }).format(value);
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" }).format(value);
 }
 
 export default async function DepartureSheetPublicPage({ params }: { params: Promise<{ token: string }> }) {
@@ -29,32 +30,31 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
 
   const kind: DepartureSheetKind = isDepartureSheetKind(sheet.kind) ? sheet.kind : "DUT";
   const copy = departureSheetCopy[kind];
-  const reservation = sheet.reservation;
-  const departureAt =
-    reservation.schedule?.departureAt ?? reservation.chapelcoDetails?.serviceDate ?? reservation.airportDetails?.serviceDate ?? null;
-  const day = formatDay(departureAt);
-  const routeLabel = reservation.route
-    ? `${reservation.route.from} - ${reservation.dropoffStop ?? reservation.route.to}`
-    : "Traslado";
+  const trip = sheet.specialTrip;
+  const day = formatDay(trip.serviceDate);
+  const legs = parseTripLegs(trip.legs);
+  const destino =
+    legs.map((leg) => leg.destination || leg.description).filter(Boolean).join(" · ") ||
+    trip.destinationSearch.replaceAll("\n", " · ");
 
   return (
     <>
       <main className="page-shell section planilla-page">
         <section className="planilla-hero">
-          <p className="eyebrow">La Araucana Viajes · Reserva {reservation.code}</p>
+          <p className="eyebrow">La Araucana Viajes · Viaje del {day}</p>
           <h1 className="section-title">{copy.shortLabel}</h1>
           <p className="lead">{copy.label}</p>
           <div className="planilla-datos">
-            <div>
-              <span>Ruta</span>
-              <strong>{routeLabel}</strong>
-            </div>
-            {day ? (
+            {destino ? (
               <div>
-                <span>Fecha de salida</span>
-                <strong>{day}</strong>
+                <span>Destino</span>
+                <strong>{destino}</strong>
               </div>
             ) : null}
+            <div>
+              <span>Fecha del viaje</span>
+              <strong>{day}</strong>
+            </div>
             <div>
               <span>Pasajeros en la planilla</span>
               <strong>{sheet.passengers.length}</strong>
@@ -68,18 +68,7 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
         </section>
 
         {sheet.isOpen ? (
-          <PlanillaForm
-            token={sheet.token}
-            kind={kind}
-            countries={getCountryOptions()}
-            prefill={{
-              firstName: reservation.passenger.firstName,
-              lastName: reservation.passenger.lastName,
-              documentType: reservation.passenger.documentType,
-              documentNumber: reservation.passenger.documentId,
-              nationality: reservation.passenger.nationality ?? ""
-            }}
-          />
+          <PlanillaForm token={sheet.token} kind={kind} countries={getCountryOptions()} />
         ) : (
           <section className="form-panel planilla-panel">
             <p className="eyebrow">Planilla cerrada</p>
