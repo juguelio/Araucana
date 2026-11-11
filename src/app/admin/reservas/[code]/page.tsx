@@ -8,8 +8,10 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { listDepartureSheetsForReservation } from "@/lib/departure-sheets/repository";
 import { manageReservationAction } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
+import { PlanillasSection } from "./planillas-section";
 
 type AdminPassengerPageProps = {
   searchParams: Promise<{ notice?: string }>;
@@ -63,6 +65,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const pickupPoint: PickupPoint | null = pickupDetails?.pickupLatitude != null && pickupDetails.pickupLongitude != null
     ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
   const detailPath = `/admin/reservas/${reservation.code}`;
+  const departureSheets = await listDepartureSheetsForReservation(reservation.id);
 
   return (
     <AdminShell title={passengerName} role={user.role}>
@@ -107,6 +110,8 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
           {canRecordPayment ? <Link className="ghost-button" href={`${detailPath}/pago`}>Registrar pago</Link> : null}
         </div>
       </section>
+
+      <PlanillasSection code={reservation.code} sheets={departureSheets} />
 
       <section className="ticket-layout admin-section">
         <div className="plain-card ticket-summary">

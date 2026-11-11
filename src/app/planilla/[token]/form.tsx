@@ -6,15 +6,28 @@ import { submitDeparturePassengerAction } from "./actions";
 import { initialSubmitState } from "./state";
 import "./planilla.css";
 
+export type PlanillaPrefill = {
+  firstName: string;
+  lastName: string;
+  documentType: string;
+  documentNumber: string;
+  nationality: string;
+};
+
 type PlanillaFormProps = {
   token: string;
   kind: string;
   countries: string[];
+  /** Datos que ya tiene la reserva: el pasajero sólo confirma y completa lo que falta. */
+  prefill?: PlanillaPrefill;
 };
 
-export function PlanillaForm({ token, kind, countries }: PlanillaFormProps) {
+export function PlanillaForm({ token, kind, countries, prefill }: PlanillaFormProps) {
   const [state, formAction, pending] = useActionState(submitDeparturePassengerAction, initialSubmitState);
   const asksResidence = kind === "PROVINCIA";
+  const knownDocumentType = documentTypes.includes(prefill?.documentType as (typeof documentTypes)[number])
+    ? prefill?.documentType
+    : "DNI";
 
   if (state.status === "ok") {
     return (
@@ -40,15 +53,15 @@ export function PlanillaForm({ token, kind, countries }: PlanillaFormProps) {
       <div className="planilla-grid">
         <label>
           Apellido
-          <input name="lastName" required minLength={2} maxLength={60} autoComplete="family-name" />
+          <input name="lastName" required minLength={2} maxLength={60} autoComplete="family-name" defaultValue={prefill?.lastName ?? ""} />
         </label>
         <label>
           Nombre
-          <input name="firstName" required minLength={2} maxLength={60} autoComplete="given-name" />
+          <input name="firstName" required minLength={2} maxLength={60} autoComplete="given-name" defaultValue={prefill?.firstName ?? ""} />
         </label>
         <label>
           Tipo de documento
-          <select name="documentType" defaultValue="DNI" required>
+          <select name="documentType" defaultValue={knownDocumentType} required>
             {documentTypes.map((type) => (
               <option value={type} key={type}>
                 {documentTypeLabels[type]}
@@ -58,7 +71,14 @@ export function PlanillaForm({ token, kind, countries }: PlanillaFormProps) {
         </label>
         <label>
           Número de documento
-          <input name="documentNumber" required maxLength={30} inputMode="text" autoComplete="off" />
+          <input
+            name="documentNumber"
+            required
+            maxLength={30}
+            inputMode="text"
+            autoComplete="off"
+            defaultValue={prefill?.documentNumber ?? ""}
+          />
         </label>
         <label>
           Sexo
@@ -79,7 +99,15 @@ export function PlanillaForm({ token, kind, countries }: PlanillaFormProps) {
         </label>
         <label>
           Nacionalidad
-          <input name="nationality" required minLength={2} maxLength={60} list="planilla-paises" placeholder="Argentina" />
+          <input
+            name="nationality"
+            required
+            minLength={2}
+            maxLength={60}
+            list="planilla-paises"
+            placeholder="Argentina"
+            defaultValue={prefill?.nationality ?? ""}
+          />
         </label>
         {asksResidence ? (
           <label>

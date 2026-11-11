@@ -14,7 +14,7 @@ export const metadata = {
 
 export const dynamic = "force-dynamic";
 
-function formatDay(value: Date | null) {
+function formatDay(value: Date | null | undefined) {
   if (!value) return null;
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "America/Argentina/Salta" }).format(value);
 }
@@ -29,32 +29,30 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
 
   const kind: DepartureSheetKind = isDepartureSheetKind(sheet.kind) ? sheet.kind : "DUT";
   const copy = departureSheetCopy[kind];
-  const day = formatDay(sheet.departureAt);
+  const reservation = sheet.reservation;
+  const departureAt =
+    reservation.schedule?.departureAt ?? reservation.chapelcoDetails?.serviceDate ?? reservation.airportDetails?.serviceDate ?? null;
+  const day = formatDay(departureAt);
+  const routeLabel = reservation.route
+    ? `${reservation.route.from} - ${reservation.dropoffStop ?? reservation.route.to}`
+    : "Traslado";
 
   return (
     <>
       <main className="page-shell section planilla-page">
         <section className="planilla-hero">
-          <p className="eyebrow">La Araucana Viajes · Planilla de salida</p>
-          <h1 className="section-title">{sheet.title}</h1>
+          <p className="eyebrow">La Araucana Viajes · Reserva {reservation.code}</p>
+          <h1 className="section-title">{copy.shortLabel}</h1>
           <p className="lead">{copy.label}</p>
           <div className="planilla-datos">
+            <div>
+              <span>Ruta</span>
+              <strong>{routeLabel}</strong>
+            </div>
             {day ? (
               <div>
                 <span>Fecha de salida</span>
                 <strong>{day}</strong>
-              </div>
-            ) : null}
-            {sheet.destination ? (
-              <div>
-                <span>Destino</span>
-                <strong>{sheet.destination}</strong>
-              </div>
-            ) : null}
-            {kind === "DUT" && sheet.borderCrossing ? (
-              <div>
-                <span>Paso fronterizo</span>
-                <strong>{sheet.borderCrossing}</strong>
               </div>
             ) : null}
             <div>
@@ -70,7 +68,18 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
         </section>
 
         {sheet.isOpen ? (
-          <PlanillaForm token={sheet.token} kind={kind} countries={getCountryOptions()} />
+          <PlanillaForm
+            token={sheet.token}
+            kind={kind}
+            countries={getCountryOptions()}
+            prefill={{
+              firstName: reservation.passenger.firstName,
+              lastName: reservation.passenger.lastName,
+              documentType: reservation.passenger.documentType,
+              documentNumber: reservation.passenger.documentId,
+              nationality: reservation.passenger.nationality ?? ""
+            }}
+          />
         ) : (
           <section className="form-panel planilla-panel">
             <p className="eyebrow">Planilla cerrada</p>
