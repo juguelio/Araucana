@@ -86,6 +86,7 @@ type PaymentRecord = {
   status: string;
   amountCents: number;
   currency: string;
+  method?: string | null;
   externalRef?: string | null;
   receiptBlobUrl?: string | null;
   receiptBlobPathname?: string | null;
@@ -360,6 +361,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
           amountCents: reservation.payment.amountCents,
           amount: centsToPrice(reservation.payment.amountCents),
           currency: reservation.payment.currency,
+          method: reservation.payment.method,
           externalRef: reservation.payment.externalRef,
           receiptBlobUrl: reservation.payment.receiptBlobUrl,
           receiptBlobPathname: reservation.payment.receiptBlobPathname,

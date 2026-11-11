@@ -9,6 +9,11 @@ export function parseReservationPrice(value: string) {
   return parseMoney(value.trim());
 }
 
+export function canCorrectManualPayment(status: string, payment?: { provider: string; status: string } | null) {
+  return (status === "PENDING_PAYMENT" || status === "CONFIRMED") &&
+    payment?.provider === "MANUAL" && payment.status === "APPROVED";
+}
+
 export function canEditReservationTotal(status: string, payment?: {
   provider: string;
   status: string;

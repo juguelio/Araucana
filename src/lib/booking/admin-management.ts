@@ -1,14 +1,20 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
-import { canEditReservationTotal, reservationPriceCents } from "./admin-price";
+import { canCorrectManualPayment, canEditReservationTotal, reservationPriceCents } from "./admin-price";
 import { BookingError } from "./repository";
+
+const paymentFields = {
+  method: z.string().trim().max(60).optional(),
+  reference: z.string().trim().max(120)
+};
 
 export const reservationManagementSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("cancel") }),
   z.object({ operation: z.literal("delete") }),
   z.object({ operation: z.literal("confirm") }),
-  z.object({ operation: z.literal("payment"), reference: z.string().trim().max(120) }),
+  z.object({ operation: z.literal("payment"), ...paymentFields }),
+  z.object({ operation: z.literal("correctPayment"), ...paymentFields, totalCents: reservationPriceCents }),
   z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
   z.object({ operation: z.literal("notes"), notes: z.string().trim().max(300) })
 ]);
@@ -54,12 +60,27 @@ export async function manageReservation(code: string, command: ReservationOperat
             status: "APPROVED",
             amountCents: reservation.totalCents,
             currency: reservation.currency,
+            ...(command.method ? { method: command.method } : {}),
             externalRef: command.reference || null
           };
           await tx.payment.upsert({
             where: { reservationId: id },
             update: paymentData,
             create: { ...paymentData, reservationId: id, provider: "MANUAL" }
+          });
+          break;
+        case "correctPayment":
+          if (!canCorrectManualPayment(status, payment)) {
+            throw new BookingError("PAYMENT_LOCKED", "Esta reserva no tiene un pago manual que se pueda corregir.");
+          }
+          await tx.reservation.update({ where: { id }, data: { totalCents: command.totalCents } });
+          await tx.payment.update({
+            where: { reservationId: id },
+            data: {
+              amountCents: command.totalCents,
+              method: command.method || null,
+              externalRef: command.reference || null
+            }
           });
           break;
         case "price":
