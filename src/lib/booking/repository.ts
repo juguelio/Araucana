@@ -86,6 +86,7 @@ type PaymentRecord = {
   status: string;
   amountCents: number;
   currency: string;
+  method?: string | null;
   externalRef?: string | null;
   receiptBlobUrl?: string | null;
   receiptBlobPathname?: string | null;
@@ -360,6 +361,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
           amountCents: reservation.payment.amountCents,
           amount: centsToPrice(reservation.payment.amountCents),
           currency: reservation.payment.currency,
+          method: reservation.payment.method,
           externalRef: reservation.payment.externalRef,
           receiptBlobUrl: reservation.payment.receiptBlobUrl,
           receiptBlobPathname: reservation.payment.receiptBlobPathname,
@@ -457,7 +459,7 @@ function adminReservationListInclude() {
     passenger: { select: { firstName: true, lastName: true, phone: true } },
     payment: { select: { provider: true, status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
     chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
-    airportDetails: { select: { serviceDate: true, flight: { select: { scheduledAt: true } } } }
+    airportDetails: { select: { serviceDate: true, flightNumber: true, flight: { select: { scheduledAt: true } } } }
   };
 }
 
@@ -1003,6 +1005,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           passengerCount: reservation.passengerCount,
           chapelcoPickupName: reservation.chapelcoDetails?.pickupName ?? null,
           chapelcoAscentSlot: reservation.chapelcoDetails?.ascentSlot ?? null,
+          flightNumber: reservation.airportDetails?.flightNumber ?? null,
           status: reservation.status,
           paymentStatus: reservation.payment?.status ?? null,
           paymentProvider: reservation.payment?.provider ?? null,

@@ -78,6 +78,7 @@ export type PaymentDto = {
   amountCents: number;
   amount: number;
   currency: string;
+  method?: string | null;
   externalRef?: string | null;
   receiptBlobUrl?: string | null;
   receiptBlobPathname?: string | null;
@@ -164,6 +165,7 @@ export type AdminReservationRowDto = {
   passengerCount: number;
   chapelcoPickupName?: string | null;
   chapelcoAscentSlot?: string | null;
+  flightNumber: string | null;
   status: string;
   paymentStatus: string | null;
   paymentProvider?: string | null;

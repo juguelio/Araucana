@@ -17,6 +17,14 @@ Aplicación con Next.js, Prisma y PostgreSQL en Neon. La autenticación usa Pass
 
 Configurar `DATABASE_URL`, `AUTH_JWT_SECRET` (secreto aleatorio de al menos 32 bytes), `AUTH_BOOTSTRAP_TOKEN` (secreto aleatorio de un solo uso), `AUTH_BASE_URL`, `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`. El botón de Google aparece cuando los dos valores OAuth están configurados. Opcionalmente, `SESSION_DAYS` controla la duración de las sesiones.
 
+## Buscador de traslados al aeropuerto
+
+Para activar Google Maps, habilitar la facturación, Maps JavaScript API y Places API (New) en Google Cloud. Configurar `NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY` con una clave web restringida a esas dos APIs y a los dominios autorizados, y `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` con el ID de un mapa de tipo JavaScript. Los valores se aplican al compilar la web.
+
+El campo muestra sugerencias a medida que se escribe. Para buscar una esquina, se pueden separar las dos calles con «y» o «esquina», y agregar una localidad después de una coma. GeoRef Argentina devuelve los cruces, y Google Maps busca direcciones, barrios y comercios. Si Google Maps no está configurado, se usa el autocompletado de LocationIQ con `AIRPORT_GEOCODER_URL` y `AIRPORT_GEOCODER_KEY`. En desarrollo, sin esas claves, el buscador usa el servidor de demostración de Photon. Para una instancia propia, configurar `AIRPORT_PHOTON_URL`.
+
+La reserva guarda el punto que la persona marca y confirma y, si la escribe, la dirección o referencia para el chofer. El servidor comprueba el punto contra la cobertura y sus exclusiones.
+
 ## API de autenticación
 
 - `POST /api/v1/auth/register` crea una cuenta pendiente.

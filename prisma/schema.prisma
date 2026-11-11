@@ -374,6 +374,7 @@ model Payment {
   status              String      @default("PENDING")
   amountCents         Int
   currency            String      @default("ARS")
+  method              String?
   externalRef         String?
   receiptBlobUrl      String?
   receiptBlobPathname String?

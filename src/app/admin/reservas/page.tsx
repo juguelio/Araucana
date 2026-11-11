@@ -150,7 +150,10 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       <span className="muted">-</span>
                     )}
                   </td>
-                  <td>{reservation.route}</td>
+                  <td>
+                    {reservation.route}
+                    {reservation.flightNumber ? <div className="muted">Vuelo {reservation.flightNumber}</div> : null}
+                  </td>
                   <td>
                     {reservation.bookingMode === "CHAPELCO"
                       ? `${reservation.passengerCount} personas${reservation.chapelcoAscentSlot ? ` · ${reservation.chapelcoAscentSlot}` : ""}`

@@ -164,6 +164,7 @@ export async function manageReservationAction(formData: FormData) {
   const command = reservationManagementSchema.safeParse({
     operation: value(formData, "operation"),
     totalCents: parseReservationPrice(value(formData, "customPrice")),
+    method: value(formData, "method"),
     reference: value(formData, "reference"),
     notes: value(formData, "notes")
   });
@@ -173,7 +174,10 @@ export async function manageReservationAction(formData: FormData) {
   const code = value(formData, "code").toUpperCase();
   if (!/^ARC-[A-Z0-9-]+$/.test(code)) redirect("/admin/reservas");
   const detailPath = `/admin/reservas/${code}`;
-  if (!command.success) redirect(`${detailPath}?notice=${encodeURIComponent(value(formData, "operation") === "price" ? reservationPriceError : "Revisá los datos ingresados.")}`);
+  if (!command.success) {
+    const invalidPrice = command.error.issues.some((issue) => issue.path[0] === "totalCents");
+    redirect(`${detailPath}?notice=${encodeURIComponent(invalidPrice ? reservationPriceError : "Revisá los datos ingresados.")}`);
+  }
 
   let result: Awaited<ReturnType<typeof manageReservation>>;
   try {
@@ -196,6 +200,7 @@ export async function manageReservationAction(formData: FormData) {
     delete: receiptCleanupFailed ? "Reserva borrada. No pudimos eliminar el archivo del comprobante." : "Reserva borrada.",
     confirm: "Reserva confirmada.",
     payment: "Pago registrado.",
+    correctPayment: "Datos del pago actualizados.",
     notes: "Notas guardadas.",
     price: "Precio actualizado."
   };

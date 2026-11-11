@@ -135,6 +135,9 @@ export default function PrivacyPage() {
           <li><strong>Neon</strong> — base de datos donde se almacenan reservas, pasajeros y usuarios del portal.</li>
           <li><strong>Vercel</strong> — alojamiento de la aplicación y del almacenamiento privado de los comprobantes de pago.</li>
           <li><strong>Google</strong> — inicio de sesión del portal interno cuando el usuario elige “Continuar con Google”.</li>
+          <li><strong>Google Maps</strong> puede recibir las búsquedas de direcciones que ingresás en el mapa de la reserva.
+            Consultá los <a href="https://www.google.com/help/terms_maps/">términos de Google Maps</a> y la{" "}
+            <a href="https://policies.google.com/privacy">política de privacidad de Google</a>.</li>
           <li><strong>WhatsApp / Meta</strong> — canal de contacto con el pasajero, cuando la comunicación se realiza por esa vía.</li>
           <li>
             <strong>Fuentes de información de vuelos</strong> (aerolíneas, tablero del Aeropuerto Chapelco y servicios de datos de

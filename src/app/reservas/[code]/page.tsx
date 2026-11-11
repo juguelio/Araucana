@@ -61,6 +61,15 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               {reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
             </h2>
             <div className="summary-list">
+              {airport ? (
+                <div>
+                  <span>Número de vuelo</span>
+                  <strong>
+                    {airport.flightNumber} ·{" "}
+                    {airport.direction === "ARRIVAL" ? "llegada a CPC" : "salida de CPC"}
+                  </strong>
+                </div>
+              ) : null}
               <div>
                 <span>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</span>
                 <strong>
@@ -69,15 +78,6 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                     : formatDateTime(reservation.schedule.departureAt)}
                 </strong>
               </div>
-              {reservation.airportDetails ? (
-                <div>
-                  <span>Vuelo</span>
-                  <strong>
-                    {reservation.airportDetails.flightNumber} ·{" "}
-                    {reservation.airportDetails.direction === "ARRIVAL" ? "llegada a CPC" : "salida de CPC"}
-                  </strong>
-                </div>
-              ) : null}
               {pickupStart ? (
                 <div>
                   <span>{airport?.flight?.pickupStartOverrideAt ? "Inicio de recorrida" : "Inicio estimado de recorrida"}</span>

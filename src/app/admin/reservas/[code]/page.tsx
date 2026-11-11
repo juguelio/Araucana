@@ -5,7 +5,7 @@ import { AirportAddressMap } from "@/components/airport-address-map";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
-import { canEditReservationTotal } from "@/lib/booking/admin-price";
+import { canCorrectManualPayment, canEditReservationTotal } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { manageReservationAction, updatePassengerAction } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
@@ -81,6 +81,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
       <section className="plain-card admin-section">
         <h2>Gestionar reserva</h2>
         <p>{disability ? "Tarifa por discapacidad" : `Total: ${total} · ${paid ? "Pago registrado" : "Sin pago registrado"}`}</p>
+        {payment?.method && paid ? <p className="muted">Forma de pago: {payment.method}</p> : null}
         {payment?.externalRef && paid ? <p className="muted">Referencia: {payment.externalRef}</p> : null}
         <div className="form-actions">
           <Link className="ghost-button" href="#editar-reserva">Editar reserva</Link>
@@ -110,7 +111,8 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
           <form className="admin-form-grid" action={manageReservationAction}>
             <input type="hidden" name="code" value={reservation.code} />
             <input type="hidden" name="operation" value="payment" />
-            <label>Medio de pago o referencia (opcional)<input name="reference" maxLength={120} /></label>
+            <label>Forma de pago<input name="method" maxLength={60} placeholder="Efectivo, transferencia, tarjeta…" /></label>
+            <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
             <p className="muted">Registrá el pago cuando hayas recibido el total de {total}.</p>
             <button className="ghost-button" type="submit">Registrar pago</button>
           </form>
@@ -128,6 +130,15 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
                 {reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
               </strong>
             </div>
+            {airport ? (
+              <div>
+                <span>Número de vuelo</span>
+                <strong>
+                  {airport.flightNumber} ·{" "}
+                  {airport.direction === "ARRIVAL" ? "llegada a CPC" : "salida de CPC"}
+                </strong>
+              </div>
+            ) : null}
             <div>
               <span>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</span>
               <strong>
@@ -208,20 +219,35 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             </form>
           </>
         ) : null}
+        {canCorrectManualPayment(reservation.status, payment) ? (
+          <>
+            <h2>Editar pago registrado</h2>
+            <form className="admin-form-grid" action={manageReservationAction}>
+              <input type="hidden" name="code" value={reservation.code} />
+              <input type="hidden" name="operation" value="correctPayment" />
+              <label>Monto total ({reservation.currency})
+                <input name="customPrice" inputMode="decimal" required defaultValue={(reservation.totalCents / 100).toFixed(2)} />
+              </label>
+              <label>Forma de pago<input name="method" maxLength={60} defaultValue={payment?.method ?? ""} /></label>
+              <label>Referencia (opcional)<input name="reference" maxLength={120} defaultValue={payment?.externalRef ?? ""} /></label>
+              <button className="ghost-button" type="submit">Guardar pago</button>
+            </form>
+          </>
+        ) : null}
         <h2>Editar pasajero</h2>
         <PassengerForm action={updatePassengerAction} reservation={reservation} />
+        {pickupDetails && !cancelled ? (
+          <>
+            <h2>Editar notas del traslado</h2>
+            <form className="admin-form-grid" action={manageReservationAction}>
+              <input type="hidden" name="code" value={reservation.code} />
+              <input type="hidden" name="operation" value="notes" />
+              <label>Notas<textarea name="notes" maxLength={300} defaultValue={pickupDetails.pickupNotes ?? ""} /></label>
+              <button className="ghost-button" type="submit">Guardar notas</button>
+            </form>
+          </>
+        ) : null}
       </section>
-      {pickupDetails && !cancelled ? (
-        <section className="plain-card admin-section">
-          <h2>Editar notas del traslado</h2>
-          <form className="admin-form-grid" action={manageReservationAction}>
-            <input type="hidden" name="code" value={reservation.code} />
-            <input type="hidden" name="operation" value="notes" />
-            <label>Notas<textarea name="notes" maxLength={300} defaultValue={pickupDetails.pickupNotes ?? ""} /></label>
-            <button className="ghost-button" type="submit">Guardar notas</button>
-          </form>
-        </section>
-      ) : null}
     </AdminShell>
   );
 }

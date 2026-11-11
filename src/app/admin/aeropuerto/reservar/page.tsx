@@ -3,6 +3,7 @@ import { AirportCheckoutForm } from "@/app/reservar/[slug]/airport-checkout-form
 import { AdminShell } from "@/components/admin-shell";
 import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
+import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 
@@ -13,7 +14,9 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
   const initialDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today ? date : today;
   const fares = await getAirportFares();
   const route = fares.ARRIVAL ?? fares.DEPARTURE;
-  const flights = route ? await loadAirportCheckoutFlights(initialDate) : [];
+  const checkout = route ? await Promise.all([
+    loadAirportCheckoutFlights(initialDate), getAirportCoverage()
+  ]).then(([flights, coverage]) => ({ flights, coverage })) : null;
 
   return (
     <AdminShell
@@ -22,14 +25,15 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
       role={user.role}
       action={<Link className="ghost-button" href="/admin/aeropuerto">Volver a aeropuerto</Link>}
     >
-      {route ? (
+      {route && checkout ? (
         <AirportCheckoutForm
           fromAdmin
           route={route}
           fares={fares}
           initialDirection={fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE"}
           initialDate={initialDate}
-          initialFlights={flights}
+          initialFlights={checkout.flights}
+          coverage={checkout.coverage}
         />
       ) : <p className="muted">No hay rutas de aeropuerto activas para reservar.</p>}
     </AdminShell>

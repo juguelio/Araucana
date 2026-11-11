@@ -46,6 +46,27 @@ describe("administración de reservas", () => {
     expect(tx.payment.update).toHaveBeenCalledTimes(1);
   });
 
+  it("corrige el total, la forma de pago y la referencia de una reserva pagada", async () => {
+    tx.reservation.findUnique.mockResolvedValue({
+      ...pending,
+      status: "CONFIRMED",
+      payment: { ...pending.payment, status: "APPROVED", receiptBlobPathname: "receipt" }
+    });
+    const command = { operation: "correctPayment", totalCents: 1150000, method: "Transferencia", reference: "123" } as const;
+
+    await manageReservation(code, command);
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 1150000 } });
+    expect(tx.payment.update).toHaveBeenCalledWith({
+      where: { reservationId: pending.id },
+      data: { amountCents: 1150000, method: "Transferencia", externalRef: "123" }
+    });
+
+    tx.reservation.findUnique.mockResolvedValue(pending);
+    await expect(manageReservation(code, command)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(tx.payment.update).toHaveBeenCalledTimes(1);
+  });
+
   it("exige el pago antes de confirmar una reserva con cargo", async () => {
     await expect(manageReservation(code, { operation: "confirm" })).rejects.toMatchObject({ code: "RESERVATION_LOCKED" });
     tx.reservation.findUnique.mockResolvedValue({ ...pending, payment: { ...pending.payment, status: "APPROVED" } });
