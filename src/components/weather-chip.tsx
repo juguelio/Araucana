@@ -1,4 +1,5 @@
-import { CONDITION_TEXT, getSanMartinWeather, type WeatherCondition } from "@/lib/weather/current";
+import { getSanMartinWeather, type WeatherCondition } from "@/lib/weather/current";
+import { getI18n } from "@/i18n/server";
 import "./weather-chip.css";
 
 const ICON_PATHS: Record<WeatherCondition, string> = {
@@ -16,10 +17,11 @@ const ICON_PATHS: Record<WeatherCondition, string> = {
  * Si el proveedor falla, no se renderiza nada y el header queda igual.
  */
 export async function WeatherChip() {
-  const weather = await getSanMartinWeather();
+  const [weather, { dict }] = await Promise.all([getSanMartinWeather(), getI18n()]);
   if (!weather) return null;
 
-  const detalle = `${weather.location}: ${CONDITION_TEXT[weather.condition]}, ${weather.temperature}° (máx ${weather.max}° / mín ${weather.min}°)`;
+  const condicion = dict.weather.conditions[weather.condition];
+  const detalle = `${weather.location}: ${condicion}, ${weather.temperature}° (máx ${weather.max}° / mín ${weather.min}°)`;
 
   return (
     <span className="weather-chip" title={detalle} aria-label={detalle}>
@@ -27,7 +29,7 @@ export async function WeatherChip() {
         <path d={ICON_PATHS[weather.condition]} />
       </svg>
       <span className="weather-chip-temp">{weather.temperature}°</span>
-      <span className="weather-chip-text">{CONDITION_TEXT[weather.condition]}</span>
+      <span className="weather-chip-text">{condicion}</span>
     </span>
   );
 }
