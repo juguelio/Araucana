@@ -2,17 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { AirportAddressMap } from "@/components/airport-address-map";
-import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
-import { initialAirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
+import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
-import { canCorrectManualPayment, canEditReservationTotal } from "@/lib/booking/admin-price";
+import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
-import { manageReservationAction, updateReservationAction } from "../actions";
+import { manageReservationAction } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
-import { ReservationEditForm } from "./reservation-edit-form";
-import "../reservas.css";
 
 type AdminPassengerPageProps = {
   searchParams: Promise<{ notice?: string }>;
@@ -60,13 +57,12 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const paid = payment?.status === "APPROVED" && !disability;
   const cancelled = reservation.status === "CANCELLED";
   const pending = reservation.status === "PENDING_PAYMENT";
-  const canRecordPayment = !disability && reservation.totalCents > 0 && (pending || reservation.status === "CONFIRMED") &&
-    (!payment || (payment.provider === "MANUAL" && ["PENDING", "REJECTED"].includes(payment.status)));
+  const canRecordPayment = canRegisterManualPayment(reservation.status, reservation.totalCents, payment);
   const total = new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.total);
   const pickupDetails = airport ?? reservation.chapelcoDetails;
   const pickupPoint: PickupPoint | null = pickupDetails?.pickupLatitude != null && pickupDetails.pickupLongitude != null
     ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
-  const coverage = airport && !cancelled ? await getAirportCoverage() : initialAirportCoverage;
+  const detailPath = `/admin/reservas/${reservation.code}`;
 
   return (
     <AdminShell title={passengerName} role={user.role}>
@@ -88,7 +84,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         {payment?.method && paid ? <p className="muted">Forma de pago: {payment.method}</p> : null}
         {payment?.externalRef && paid ? <p className="muted">Referencia: {payment.externalRef}</p> : null}
         <div className="form-actions">
-          <Link className="ghost-button" href="#editar-reserva">Editar reserva</Link>
+          <Link className="ghost-button" href={`${detailPath}/editar`}>Editar reserva</Link>
           {pending && !disability ? (
             <form action={manageReservationAction}>
               <input type="hidden" name="code" value={reservation.code} />
@@ -108,45 +104,8 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <ConfirmReservationButton operation="delete" />
             </form>
           ) : null}
+          {canRecordPayment ? <Link className="ghost-button" href={`${detailPath}/pago`}>Registrar pago</Link> : null}
         </div>
-        {canRecordPayment ? (
-          <form className="admin-form-grid" action={manageReservationAction}>
-            <input type="hidden" name="code" value={reservation.code} />
-            <input type="hidden" name="operation" value="payment" />
-            <label>Forma de pago<input name="method" maxLength={60} placeholder="Efectivo, transferencia, tarjeta…" /></label>
-            <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
-            <p className="muted">Registrá el pago cuando hayas recibido el total de {total}.</p>
-            <button className="ghost-button" type="submit">Registrar pago</button>
-          </form>
-        ) : null}
-        {canEditReservationTotal(reservation.status, payment) ? (
-          <>
-            <h2>Editar precio de la reserva</h2>
-            <form className="admin-form-grid" action={manageReservationAction}>
-              <input type="hidden" name="code" value={reservation.code} />
-              <input type="hidden" name="operation" value="price" />
-              <label>Precio total ({reservation.currency})
-                <input name="customPrice" inputMode="decimal" required defaultValue={(reservation.totalCents / 100).toFixed(2)} />
-              </label>
-              <button className="ghost-button" type="submit">Guardar precio</button>
-            </form>
-          </>
-        ) : null}
-        {canCorrectManualPayment(reservation.status, payment) ? (
-          <>
-            <h2>Editar pago registrado</h2>
-            <form className="admin-form-grid" action={manageReservationAction}>
-              <input type="hidden" name="code" value={reservation.code} />
-              <input type="hidden" name="operation" value="correctPayment" />
-              <label>Monto total ({reservation.currency})
-                <input name="customPrice" inputMode="decimal" required defaultValue={(reservation.totalCents / 100).toFixed(2)} />
-              </label>
-              <label>Forma de pago<input name="method" maxLength={60} defaultValue={payment?.method ?? ""} /></label>
-              <label>Referencia (opcional)<input name="reference" maxLength={120} defaultValue={payment?.externalRef ?? ""} /></label>
-              <button className="ghost-button" type="submit">Guardar pago</button>
-            </form>
-          </>
-        ) : null}
       </section>
 
       <section className="ticket-layout admin-section">
@@ -235,18 +194,6 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         </section>
       ) : null}
 
-      <section id="editar-reserva" className="plain-card admin-section">
-        <h2>Editar reserva</h2>
-        <ReservationEditForm action={updateReservationAction} code={reservation.code} passenger={reservation.passenger}
-          transfer={pickupDetails && !cancelled ? {
-            address: pickupDetails.pickupAddress ?? "",
-            point: pickupPoint,
-            notes: pickupDetails.pickupNotes ?? "",
-            airport: Boolean(airport),
-            direction: airport?.direction,
-            coverage
-          } : undefined} />
-      </section>
     </AdminShell>
   );
 }

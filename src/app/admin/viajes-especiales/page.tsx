@@ -131,9 +131,9 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
         {orden === "asc" ? <span>Del más próximo al más lejano</span> : <span>Del más reciente al más antiguo</span>}
       </p>
       {!!trips.length && <div className="table-scroll"><table className="data-table vesp-tabla">
-        <thead><tr><th>Fecha</th><th>Cliente</th><th>Destino o servicio</th><th>Pax</th><th>Nave</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Cliente</th><th>Destino o servicio</th><th>Pax</th><th>Nave</th><th>Estado</th><th>Acciones</th></tr></thead>
         {grupos.map((grupo) => <tbody key={grupo.clave} className="vesp-grupo">
-          {(grupos.length > 1 || filtroMes === null) && <tr><th colSpan={6} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
+          {(grupos.length > 1 || filtroMes === null) && <tr><th colSpan={7} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
           {grupo.items.map((trip) => {
             const asignadas = [...new Set(trip.assignments.map((a) => naves.get(a.vehicleId) ?? "Nave"))];
             const estado = tonoFila(trip, asignadas.length > 0, hoy);
@@ -144,6 +144,7 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
               <td className="vesp-num">{trip.passengers ?? "—"}</td>
               <td className="vesp-nave">{asignadas.length ? <strong>{asignadas.join(", ")}</strong> : "Sin nave"}</td>
               <td><span className="pill pill-estado" data-tono={estado.tono}>{estado.label}</span></td>
+              <td><Link className="table-link" href={`${base}/${trip.id}/editar`}>Editar</Link></td>
             </tr>;
           })}
         </tbody>)}

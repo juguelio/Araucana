@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { isInsideAirportPickupZone, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import type { PassengerDto } from "@/lib/booking/types";
-import { AdminFormAlert } from "../../form-ui";
+import { AdminFormAlert, FieldError } from "../../form-ui";
 import { errorState, initialAdminFormState, type AdminFormState } from "../../form-state";
 import { PassengerFields, type PassengerDraft } from "./passenger-form";
 import { PickupAddressFields, type PickupAddressDraft } from "./pickup-address-form";
@@ -12,23 +12,29 @@ type ReservationEditFormProps = {
   action: (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
   code: string;
   passenger: PassengerDto;
+  financial?: { operation: "price" | "correctPayment"; currency: string; total: string; method: string; reference: string };
   transfer?: { address: string; point: PickupPoint | null; notes: string; airport: boolean; direction?: string; coverage: AirportCoverage };
 };
 
-export function ReservationEditForm({ action, code, passenger, transfer }: ReservationEditFormProps) {
+export function ReservationEditForm({ action, code, passenger, transfer, financial }: ReservationEditFormProps) {
   const [draft, setDraft] = useState<PassengerDraft>({ ...passenger, nationality: passenger.nationality ?? "" });
   const [pickup, setPickup] = useState<PickupAddressDraft>({
     address: transfer?.address ?? "", point: transfer?.point ?? null, confirmed: false
   });
   const [notes, setNotes] = useState(transfer?.notes ?? "");
-  const [saved, setSaved] = useState({ passenger: draft, pickup, notes });
+  const [total, setTotal] = useState(financial?.total ?? "");
+  const [method, setMethod] = useState(financial?.method ?? "");
+  const [reference, setReference] = useState(financial?.reference ?? "");
+  const priceChanged = Boolean(financial && total.trim() !== financial.total);
+  const methodChanged = financial?.operation === "correctPayment" && method.trim() !== financial.method;
+  const referenceChanged = financial?.operation === "correctPayment" && reference.trim() !== financial.reference;
   const changedPassenger = (Object.keys(draft) as (keyof PassengerDraft)[])
-    .filter((field) => draft[field].trim() !== saved.passenger[field].trim());
-  const addressChanged = pickup.address.trim() !== saved.pickup.address.trim()
-    || pickup.point?.[0] !== saved.pickup.point?.[0] || pickup.point?.[1] !== saved.pickup.point?.[1];
-  const notesChanged = notes.trim() !== saved.notes.trim();
+    .filter((field) => draft[field].trim() !== (passenger[field] ?? "").trim());
+  const addressChanged = pickup.address.trim() !== (transfer?.address ?? "").trim()
+    || pickup.point?.[0] !== transfer?.point?.[0] || pickup.point?.[1] !== transfer?.point?.[1];
+  const notesChanged = notes.trim() !== (transfer?.notes ?? "").trim();
   const outside = Boolean(transfer?.coverage.enabled && pickup.point && !isInsideAirportPickupZone(pickup.point, transfer.coverage));
-  const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged;
+  const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || priceChanged || methodChanged || referenceChanged;
   const canSave = hasChanges && (!addressChanged || Boolean(pickup.point && pickup.confirmed && !outside));
 
   const [state, formAction, pending] = useActionState(async (previous: AdminFormState, _formData: FormData) => {
@@ -43,9 +49,13 @@ export function ReservationEditForm({ action, code, passenger, transfer }: Reser
       changes.set("longitude", String(pickup.point[1]));
       changes.set("confirmed", "on");
     }
-    const result = await action(previous, changes);
-    if (result.status === "success") setSaved({ passenger: draft, pickup, notes });
-    return result;
+    if (financial && (priceChanged || methodChanged || referenceChanged)) {
+      changes.set("financialOperation", financial.operation);
+      if (priceChanged) changes.set("customPrice", total);
+      if (methodChanged) changes.set("method", method);
+      if (referenceChanged) changes.set("reference", reference);
+    }
+    return action(previous, changes);
   }, initialAdminFormState);
 
   return (
@@ -65,12 +75,33 @@ export function ReservationEditForm({ action, code, passenger, transfer }: Reser
           </label>
         </>
       ) : null}
+      {financial ? (
+        <>
+          <h3 className="reservation-edit-wide">{financial.operation === "correctPayment" ? "Pago registrado" : "Precio"}</h3>
+          <label className="span-2">
+            Precio total ({financial.currency})
+            <input name="customPrice" inputMode="decimal" value={total} disabled={pending}
+              aria-invalid={Boolean(state.fieldErrors.customPrice)}
+              aria-describedby={state.fieldErrors.customPrice ? "reservation-price-error" : undefined}
+              onChange={(event) => setTotal(event.target.value)} />
+            <FieldError id="reservation-price-error" message={state.fieldErrors.customPrice} />
+          </label>
+          {financial.operation === "correctPayment" ? (
+            <>
+              <label>Forma de pago<input name="method" maxLength={60} value={method} disabled={pending}
+                onChange={(event) => setMethod(event.target.value)} /></label>
+              <label>Referencia (opcional)<input name="reference" maxLength={120} value={reference} disabled={pending}
+                onChange={(event) => setReference(event.target.value)} /></label>
+            </>
+          ) : null}
+        </>
+      ) : null}
       <div className="form-actions reservation-edit-wide">
         <button type="submit" className="button" disabled={pending || !canSave}>
           {pending ? "Guardando…" : "Guardar cambios"}
         </button>
       </div>
-      {state.status !== "success" || !hasChanges ? <AdminFormAlert state={state} /> : null}
+      <AdminFormAlert state={state} />
     </form>
   );
 }

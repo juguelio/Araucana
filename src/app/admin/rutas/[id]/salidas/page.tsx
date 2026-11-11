@@ -190,7 +190,7 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
                         <small>{statusLabel(schedule.status)}</small>
                         <div className="calendar-schedule-actions">
                           <Link href={`/admin/rutas/${route.id}/salidas/${schedule.id}`}>Ver reservas</Link>
-                          <Link href={`/admin/rutas/${route.id}/salidas/${schedule.id}`}>Modificar</Link>
+                          <Link href={`/admin/rutas/${route.id}/salidas/${schedule.id}/editar`}>Editar</Link>
                           <form action={setScheduleStatusAction}>
                             <input type="hidden" name="id" value={schedule.id} />
                             <input type="hidden" name="status" value={schedule.status === "CLOSED" ? "OPEN" : "CLOSED"} />

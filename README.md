@@ -38,6 +38,8 @@ La reserva guarda el punto que la persona marca y confirma y, si la escribe, la 
 
 ## Desarrollo
 
+En el panel, las acciones de edición abren una página propia. Cuando un registro tiene una vista de detalle, el formulario se abre en una ruta separada.
+
 ```bash
 npm install
 npx prisma generate

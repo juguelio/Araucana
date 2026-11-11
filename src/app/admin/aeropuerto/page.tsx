@@ -9,7 +9,7 @@ import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { airLabsKeyState } from "@/lib/settings/app-settings";
-import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction, updateFlightAction } from "./actions";
+import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo?: string }> };
@@ -205,6 +205,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                               : "sin combi asignada"
                             : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
                         </span>
+                        <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
                         <details className="flight-actions">
                           <summary>Gestionar vuelo</summary>
                           <div className="flight-actions-body">
@@ -224,20 +225,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
                                 <button className="ghost-button" type="submit">Quitar {a.vehicle.name}</button>
                               </form>
                             ))}
-                            <form action={updateFlightAction} className="inline-actions">
-                              <input type="hidden" name="id" value={v.id} />
-                              <input
-                                type="datetime-local"
-                                name="estimatedAt"
-                                title="Nueva hora estimada (para demoras o adelantos)"
-                                aria-label={`Nueva hora estimada de ${v.number}`}
-                              />
-                              {(["DELAYED", "CANCELLED", "LANDED"] as const).map((s) => (
-                                <button key={s} className="ghost-button" type="submit" name="status" value={s}>
-                                  {statusDetail({ ...snapshot, status: s, estimatedAt: snapshot.estimatedAt })}
-                                </button>
-                              ))}
-                            </form>
                             <form action={deleteFlightAction}>
                               <input type="hidden" name="id" value={v.id} />
                               <button className="ghost-button" type="submit">Borrar vuelo</button>

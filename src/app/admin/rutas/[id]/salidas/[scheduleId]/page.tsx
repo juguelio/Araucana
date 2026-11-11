@@ -3,13 +3,10 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { updateScheduleAction } from "../../../../salidas/actions";
-import { getScheduleFormData } from "../../../../salidas/form-data";
-import { ScheduleForm } from "../../../../salidas/schedule-form";
 
-type EditRouteSchedulePageProps = {
+type RouteSchedulePageProps = {
   params: Promise<{ id: string; scheduleId: string }>;
-  searchParams?: Promise<{ notice?: string; status?: string }>;
+  searchParams?: Promise<{ notice?: string }>;
 };
 
 const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -40,12 +37,11 @@ function whatsappHref(phone: string) {
   return digits ? `https://wa.me/${digits}` : null;
 }
 
-export default async function EditRouteSchedulePage({ params, searchParams }: EditRouteSchedulePageProps) {
+export default async function RouteSchedulePage({ params, searchParams }: RouteSchedulePageProps) {
   await getCurrentAdminOrRedirect();
   const [{ id: routeId, scheduleId }, query] = await Promise.all([params, searchParams]);
-  const [schedule, formData, reservations] = await Promise.all([
-    prisma.schedule.findFirst({ where: { id: scheduleId, routeId }, include: { route: true } }),
-    getScheduleFormData(),
+  const [schedule, reservations] = await Promise.all([
+    prisma.schedule.findFirst({ where: { id: scheduleId, routeId }, include: { route: true, vehicle: { select: { name: true } } } }),
     prisma.reservation.findMany({
       where: { scheduleId },
       include: {
@@ -60,19 +56,20 @@ export default async function EditRouteSchedulePage({ params, searchParams }: Ed
     notFound();
   }
 
+  const status = { OPEN: "Abierta", DOCUMENTATION: "Documentación", CLOSED: "Cerrada" }[schedule.status] ?? schedule.status;
   return (
-    <AdminShell title="Modificar salida" eyebrow="Salidas de la ruta" notice={query?.notice}>
+    <AdminShell title={`${schedule.route.from} → ${schedule.route.to}`} eyebrow="Salida" notice={query?.notice}
+      action={<div className="inline-actions">
+        <Link className="ghost-button" href={`/admin/rutas/${routeId}/salidas`}>Volver a salidas</Link>
+        <Link className="button" href={`/admin/rutas/${routeId}/salidas/${scheduleId}/editar`}>Editar salida</Link>
+      </div>}>
       <section className="plain-card admin-section">
-        <h2>{schedule.route.from} → {schedule.route.to}</h2>
-        <ScheduleForm
-          action={updateScheduleAction}
-          routes={formData.routes}
-          vehicles={formData.vehicles}
-          schedule={{ ...schedule, status: ["OPEN", "DOCUMENTATION", "CLOSED"].includes(query?.status ?? "") ? query!.status! : schedule.status }}
-          submitLabel="Guardar cambios"
-        />
+        <h2>Datos de la salida</h2>
+        <div className="summary-list">
+          <div><span>Nave</span><strong>{schedule.vehicle.name}</strong></div>
+          <div><span>Estado</span><strong>{status}</strong></div>
+        </div>
       </section>
-
       <section className="plain-card admin-section schedule-reservations-panel">
         <div className="admin-edit-head">
           <div>

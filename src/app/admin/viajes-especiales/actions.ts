@@ -103,5 +103,8 @@ export async function saveTrip(id: string | null, version: string | null, _state
   }
 
   revalidatePath("/admin/viajes-especiales");
-  redirect(`/admin/viajes-especiales/${tripId}?guardado=1`);
+  const detailPath = `/admin/viajes-especiales/${tripId}`;
+  revalidatePath(detailPath);
+  revalidatePath(`${detailPath}/editar`);
+  redirect(`${detailPath}?guardado=1`);
 }

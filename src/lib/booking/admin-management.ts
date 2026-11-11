@@ -4,7 +4,7 @@ import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
 import { airportPickupPointSchema } from "@/lib/airport/validation";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
-import { canCorrectManualPayment, canEditReservationTotal, reservationPriceCents } from "./admin-price";
+import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment, reservationPriceCents } from "./admin-price";
 import { BookingError } from "./repository";
 import { adminPassengerPatchSchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
@@ -25,7 +25,16 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
     operation: z.literal("edit"),
     passenger: adminPassengerPatchSchema,
     pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema }).optional(),
-    notes: z.string().trim().max(300).optional()
+    notes: z.string().trim().max(300).optional(),
+    financial: z.discriminatedUnion("operation", [
+      z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
+      z.object({
+        operation: z.literal("correctPayment"),
+        totalCents: reservationPriceCents.optional(),
+        method: paymentFields.method,
+        reference: paymentFields.reference.optional()
+      }).refine(({ totalCents, method, reference }) => totalCents !== undefined || method !== undefined || reference !== undefined)
+    ]).optional()
   })
 ]);
 
@@ -62,8 +71,7 @@ export async function manageReservation(code: string, command: ReservationOperat
           await tx.reservation.update({ where: { id }, data: { status: "CONFIRMED" } });
           break;
         case "payment":
-          if (!["PENDING_PAYMENT", "CONFIRMED"].includes(status) || needsDocumentation || reservation.totalCents <= 0 ||
-              (payment && (payment.provider !== "MANUAL" || !["PENDING", "REJECTED"].includes(payment.status)))) {
+          if (!canRegisterManualPayment(status, reservation.totalCents, payment)) {
             throw new BookingError("PAYMENT_LOCKED", "La reserva no admite un nuevo pago manual.");
           }
           const paymentData = {
@@ -80,27 +88,34 @@ export async function manageReservation(code: string, command: ReservationOperat
           });
           break;
         case "correctPayment":
-          if (!canCorrectManualPayment(status, payment)) {
-            throw new BookingError("PAYMENT_LOCKED", "Esta reserva no tiene un pago manual que se pueda corregir.");
-          }
-          await tx.reservation.update({ where: { id }, data: { totalCents: command.totalCents } });
-          await tx.payment.update({
-            where: { reservationId: id },
-            data: {
-              amountCents: command.totalCents,
-              method: command.method || null,
-              externalRef: command.reference || null
-            }
-          });
-          break;
         case "price":
-          if (!canEditReservationTotal(status, payment)) {
-            throw new BookingError("PAYMENT_LOCKED", "El precio solo se puede cambiar mientras la reserva esté pendiente y sin un comprobante por revisar.");
-          }
-          await tx.reservation.update({ where: { id }, data: { totalCents: command.totalCents } });
-          if (payment) await tx.payment.update({ where: { reservationId: id }, data: { amountCents: command.totalCents } });
-          break;
         case "edit": {
+          const financial = command.operation === "edit" ? command.financial : command;
+          if (financial?.operation === "price") {
+            if (!canEditReservationTotal(status, payment)) {
+              throw new BookingError("PAYMENT_LOCKED", "El precio solo se puede cambiar mientras la reserva esté pendiente y sin un comprobante por revisar.");
+            }
+            await tx.reservation.update({ where: { id }, data: { totalCents: financial.totalCents } });
+            if (payment) await tx.payment.update({ where: { reservationId: id }, data: { amountCents: financial.totalCents } });
+          } else if (financial?.operation === "correctPayment") {
+            if (!canCorrectManualPayment(status, payment)) {
+              throw new BookingError("PAYMENT_LOCKED", "Esta reserva no tiene un pago manual que se pueda corregir.");
+            }
+            const { totalCents, method, reference } = financial;
+            if (totalCents !== undefined) {
+              await tx.reservation.update({ where: { id }, data: { totalCents } });
+            }
+            await tx.payment.update({
+              where: { reservationId: id },
+              data: {
+                ...(totalCents !== undefined && { amountCents: totalCents }),
+                ...((method !== undefined || command.operation === "correctPayment") && { method: method || null }),
+                ...(reference !== undefined && { externalRef: reference || null })
+              }
+            });
+          }
+
+          if (command.operation !== "edit") break;
           const { pickup, notes, passenger } = command;
           if (pickup || notes !== undefined) {
             if (status === "CANCELLED") throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");

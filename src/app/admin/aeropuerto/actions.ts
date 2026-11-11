@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
+import { detectFlightChange, FLIGHT_STATUSES, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { fechaLocal } from "@/lib/airport/projection";
 import { syncAirportFlights } from "@/lib/airport/sync";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
-import { localInput } from "@/lib/special-trips/data";
+import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
 import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
@@ -127,11 +127,11 @@ export async function updateFlightAction(formData: FormData) {
   const prev = await prisma.flight.findUnique({ where: { id } });
   if (!prev) notice("El vuelo ya no existe.");
 
-  const next = {
-    status: status || prev.status,
-    scheduledAt: prev.scheduledAt,
-    estimatedAt: estimatedAt ? new Date(estimatedAt) : prev.estimatedAt
-  };
+  const estimate = estimatedAt ? localDateTime(estimatedAt, argentina) : prev.estimatedAt;
+  if ((status && status !== prev.status && !FLIGHT_STATUSES.some((item) => item.code === status)) || (estimatedAt && !estimate)) {
+    redirect(`/admin/aeropuerto/${id}/editar?notice=${encodeURIComponent("Revisá el estado y la hora estimada del vuelo.")}`);
+  }
+  const next = { status: status || prev.status, scheduledAt: prev.scheduledAt, estimatedAt: estimate };
 
   const cambio = detectFlightChange(
     { status: prev.status, scheduledAt: prev.scheduledAt, estimatedAt: prev.estimatedAt },
@@ -143,7 +143,7 @@ export async function updateFlightAction(formData: FormData) {
     data: {
       status: next.status,
       estimatedAt: next.estimatedAt,
-      actualAt: next.status === "LANDED" ? new Date() : prev.actualAt,
+      actualAt: next.status === "LANDED" && prev.status !== "LANDED" ? new Date() : prev.actualAt,
       ...(cambio
         ? { events: { create: { kind: cambio.kind, fromValue: cambio.fromValue, toValue: cambio.toValue } } }
         : {})
@@ -151,7 +151,9 @@ export async function updateFlightAction(formData: FormData) {
   });
 
   revalidatePath("/admin/aeropuerto");
-  notice(cambio ? `Cambio registrado: ${cambio.kind} (${next.status}).` : "Vuelo actualizado.");
+  revalidatePath(`/admin/aeropuerto/${id}/editar`);
+  const message = cambio ? `Cambio registrado: ${cambio.kind} (${next.status}).` : "Vuelo actualizado.";
+  redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(prev.scheduledAt), notice: message })}#vuelo-${id}`);
 }
 
 /** Asigna una combi a un vuelo. Se puede cambiar hasta último momento: agregar, cambiar o quitar. */

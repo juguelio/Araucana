@@ -11,7 +11,6 @@ import { adminReservationSchema, adminPassengerPatchSchema } from "@/lib/booking
 import {
   errorState,
   fieldErrorsFromZodError,
-  successState,
   type AdminFormState
 } from "../form-state";
 
@@ -143,11 +142,21 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     }
     pickup = { address: value(formData, "address"), point: [Number(latitude), Number(longitude)] };
   }
-  if (!pickup && notes === undefined && Object.keys(passenger).length === 0) {
+  const priceChanged = formData.has("customPrice");
+  const paymentChanged = formData.has("method") || formData.has("reference");
+  const totalCents = priceChanged ? parseReservationPrice(value(formData, "customPrice")) : undefined;
+  if (totalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
+  const financial = priceChanged || paymentChanged ? {
+    operation: value(formData, "financialOperation"),
+    totalCents,
+    method: formData.has("method") ? value(formData, "method") : undefined,
+    reference: formData.has("reference") ? value(formData, "reference") : undefined
+  } : undefined;
+  if (!pickup && notes === undefined && !financial && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
-  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes });
+  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, financial });
   if (!command.success) {
     return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
   }
@@ -160,10 +169,10 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
       ? { documentId: message } : {});
   }
 
-  for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+  for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {
     revalidatePath(path);
   }
-  return successState("Cambios guardados.");
+  redirect(reservationNotice(`/admin/reservas/${code}`, "Cambios guardados."));
 }
 
 function reservationNotice(path: string, message: string, query = "") {
@@ -204,7 +213,7 @@ export async function manageReservationAction(formData: FormData) {
   if (result.receiptPath) {
     await del(result.receiptPath).catch(() => { receiptCleanupFailed = true; });
   }
-  for (const path of ["/admin/reservas", detailPath, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+  for (const path of ["/admin/reservas", detailPath, `${detailPath}/editar`, `${detailPath}/pago`, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
     revalidatePath(path);
   }
 

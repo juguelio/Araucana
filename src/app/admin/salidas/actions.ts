@@ -170,7 +170,15 @@ export async function updateScheduleAction(_state: AdminFormState, formData: For
 
   revalidateSchedulePaths(schedule.routeSlug, schedule.data.routeId);
   revalidateSchedulePaths(current?.route.slug, current?.route.id);
-  redirect(`/admin/rutas/${schedule.data.routeId}/salidas?notice=${encodeURIComponent("Salida guardada con exito.")}`);
+  const detailPath = `/admin/rutas/${schedule.data.routeId}/salidas/${id}`;
+  revalidatePath(detailPath);
+  revalidatePath(`${detailPath}/editar`);
+  if (current && current.route.id !== schedule.data.routeId) {
+    const oldDetailPath = `/admin/rutas/${current.route.id}/salidas/${id}`;
+    revalidatePath(oldDetailPath);
+    revalidatePath(`${oldDetailPath}/editar`);
+  }
+  redirect(`${detailPath}?notice=${encodeURIComponent("Salida guardada con éxito.")}`);
 }
 
 export async function setScheduleStatusAction(formData: FormData) {
@@ -186,7 +194,7 @@ export async function setScheduleStatusAction(formData: FormData) {
   const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, user.id, "", id, true));
   if (result.conflicts) {
     const notice = "La nave ya tiene un viaje especial. Revisá el estado y confirmá desde el formulario.";
-    redirect(`/admin/rutas/${routeId}/salidas/${id}?status=${status}&notice=${encodeURIComponent(notice)}`);
+    redirect(`/admin/rutas/${routeId}/salidas/${id}/editar?status=${status}&notice=${encodeURIComponent(notice)}`);
   }
   revalidateSchedulePaths(current.route.slug, routeId);
   redirect(`/admin/rutas/${routeId}/salidas?notice=${encodeURIComponent("Salida actualizada con exito.")}`);

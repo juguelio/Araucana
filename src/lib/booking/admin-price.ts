@@ -25,3 +25,8 @@ export function canEditReservationTotal(status: string, payment?: {
     )
   ));
 }
+
+export function canRegisterManualPayment(status: string, totalCents: number, payment?: { provider: string; status: string } | null) {
+  return (status === "PENDING_PAYMENT" || status === "CONFIRMED") && totalCents > 0 &&
+    (!payment || (payment.provider === "MANUAL" && (payment.status === "PENDING" || payment.status === "REJECTED")));
+}
