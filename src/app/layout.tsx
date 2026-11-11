@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Poppins } from "next/font/google";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
+import { WeatherChip } from "@/components/weather-chip";
 import { WebVitals } from "@/components/web-vitals";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({
               <img className="brand-logo" src="/logo.webp" alt="La Araucana Viajes" />
               <span className="brand-kicker">Agencia de viajes desde 2009</span>
             </Link>
+            <WeatherChip />
             <div className="nav-links">
               <Link href="/">Inicio</Link><Link href="/rutas" prefetch={true}>Traslados</Link><Link href="/#servicios">Servicios</Link><Link href="/#destinos">Destinos</Link><Link href="/#contacto">Grupos y empresas</Link><Link href="/#nosotros">Nosotros</Link><Link href="/#contacto">Contacto</Link>
             </div>
