@@ -130,6 +130,15 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
                 {reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
               </strong>
             </div>
+            {airport ? (
+              <div>
+                <span>Número de vuelo</span>
+                <strong>
+                  {airport.flightNumber} ·{" "}
+                  {airport.direction === "ARRIVAL" ? "llegada a CPC" : "salida de CPC"}
+                </strong>
+              </div>
+            ) : null}
             <div>
               <span>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</span>
               <strong>

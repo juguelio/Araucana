@@ -165,6 +165,7 @@ export type AdminReservationRowDto = {
   passengerCount: number;
   chapelcoPickupName?: string | null;
   chapelcoAscentSlot?: string | null;
+  flightNumber: string | null;
   status: string;
   paymentStatus: string | null;
   paymentProvider?: string | null;
