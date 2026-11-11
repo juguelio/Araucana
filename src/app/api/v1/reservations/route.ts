@@ -28,7 +28,9 @@ export async function POST(request: Request) {
     const body = createReservationSchema.safeParse(payload);
 
     if (!body.success) {
-      return jsonError("VALIDATION_ERROR", "Revisa los datos de la reserva", 400);
+      // El primer problema concreto, para que el formulario pueda decir qué corregir.
+      const motivo = body.error.issues[0]?.message ?? "Revisa los datos de la reserva";
+      return jsonError("VALIDATION_ERROR", motivo, 400);
     }
 
     const reservation = await createWebReservation(body.data);

@@ -34,6 +34,16 @@ export function fareCounts(passengerCount: number, half = 0, free = 0): FareCoun
   return { full: Math.max(total - halfSan - freeSan, 0), half: halfSan, free: freeSan };
 }
 
+/**
+ * Una reserva necesita al menos un pasajero de tarifa entera: un grupo de sólo menores
+ * no es una venta real y dejaba crear reservas de $0 declarando a todos «menores de 4».
+ */
+export function hasFullFare(counts: FareCounts) {
+  return counts.full >= 1;
+}
+
+export const sinAdultoMensaje = "Tiene que haber al menos un pasajero de tarifa entera (9 años o más).";
+
 /** Texto corto para comprobantes y listados. */
 export function fareSummary(counts: FareCounts) {
   const partes: string[] = [];

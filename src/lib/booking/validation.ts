@@ -1,5 +1,6 @@
 import { reservationPriceCents } from "./admin-price";
 import { z } from "zod";
+import { fareCounts, hasFullFare, sinAdultoMensaje } from "./passenger-fares";
 import { normalizePassengerDocument, normalizePassengerPhone, passengerDocumentError, phoneFormatError } from "./passenger-contact";
 
 const passengerFieldsSchema = z.object({
@@ -55,14 +56,22 @@ const faresNotFitError = {
   message: "La cantidad de menores no puede superar la de pasajeros."
 };
 
-export const createReservationSchema = reservationFields.refine(faresFitPassengers, faresNotFitError);
+// Alguien paga tarifa entera: sin esto, 6 pasajeros «menores de 4» creaban una reserva de $0.
+const faresHaveFull = ({ halfFareCount = 0, freeFareCount = 0, passengerCount }: { halfFareCount?: number; freeFareCount?: number; passengerCount: number }) =>
+  hasFullFare(fareCounts(passengerCount, halfFareCount, freeFareCount));
+const noFullFareError = { path: ["freeFareCount"], message: sinAdultoMensaje };
+
+export const createReservationSchema = reservationFields
+  .refine(faresFitPassengers, faresNotFitError)
+  .refine(faresHaveFull, noFullFareError);
 
 export const adminReservationSchema = reservationFields
   .extend({
     passenger: adminPassengerSchema,
     overrideTotalCents: reservationPriceCents.optional()
   })
-  .refine(faresFitPassengers, faresNotFitError);
+  .refine(faresFitPassengers, faresNotFitError)
+  .refine(faresHaveFull, noFullFareError);
 
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type AdminReservationInput = z.infer<typeof adminReservationSchema>;
