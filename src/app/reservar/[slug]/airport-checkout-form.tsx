@@ -15,8 +15,7 @@ import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
-import { chargesZoneExtra, isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
-import { airportExtrasBreakdown, MAX_SPORTS_LUGGAGE, type AirportExtras } from "@/lib/airport/extras";
+import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -77,8 +76,6 @@ type AirportCheckoutFormProps = {
   initialDate: string;
   initialFlights: FlightOption[];
   coverage: AirportCoverage;
-  /** Recargo de zona y equipaje deportivo vigentes (el servidor recalcula al reservar). */
-  extras: Pick<AirportExtras, "zoneExtraCents" | "sportsLuggageCents">;
   fromAdmin?: boolean;
 };
 
@@ -139,7 +136,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, fromAdmin = false }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, fromAdmin = false }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
@@ -154,7 +151,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [customPrice, setCustomPrice] = useState("");
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [freeFareCount, setFreeFareCount] = useState(0);
-  const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
   const [useGooglePickup, setUseGooglePickup] = useState(googlePickupConfigured);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
@@ -199,12 +195,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const passengerCount = fullFareCount + halfFareCount + freeFareCount;
   const maxSeats = Math.min(selected?.available ?? 24, 24);
   const overrideTotalCents = fromAdmin && customPrice.trim() ? parseReservationPrice(customPrice) : undefined;
-  const ofreceEquipaje = extras.sportsLuggageCents > 0;
-  const adicionales = airportExtrasBreakdown(
-    { zoneExtra: chargesZoneExtra(pickupPoint, coverage), sportsLuggageCount: ofreceEquipaje ? sportsLuggageCount : 0 },
-    extras
-  );
-  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents;
+  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount));
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   const outsideCoverage = Boolean(coverage.enabled && pickupPoint && !isInsideAirportPickupZone(pickupPoint, coverage));
@@ -369,7 +360,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           passengerCount,
           halfFareCount,
           freeFareCount,
-          sportsLuggageCount: adicionales.sportsLuggageCount,
           overrideTotalCents,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
@@ -649,21 +639,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   De 4 a 8 años inclusive pagan media tarifa. Los menores de 4 no pagan, pero ocupan un lugar:
                   contalos como un lugar más del vehículo.
                 </p>
-                {ofreceEquipaje ? (
-                  <>
-                    <QuantityPicker
-                      label={`Equipaje deportivo · ${formatPrice(extras.sportsLuggageCents, moneda)} por bulto`}
-                      value={sportsLuggageCount}
-                      min={0}
-                      max={MAX_SPORTS_LUGGAGE}
-                      disabled={isSubmitting}
-                      onChange={setSportsLuggageCount}
-                    />
-                    <p className="muted" style={{ gridColumn: "1 / -1" }}>
-                      Esquíes, tablas de snowboard, bicicletas u otro equipo deportivo: contá cada funda o bulto por separado.
-                    </p>
-                  </>
-                ) : null}
               </div>
 
               {fromAdmin ? (
@@ -716,9 +691,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   <p className={outsideCoverage ? "field-error" : "muted"} role="status" style={{ gridColumn: "1 / -1" }}>
                     {outsideCoverage ? (
                       <>{OUTSIDE_PICKUP_ZONE} <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a></>
-                    ) : adicionales.zoneExtraCents > 0
-                      ? `El punto marcado está en la zona con recargo: se suman ${formatPrice(adicionales.zoneExtraCents, moneda)} a la reserva.`
-                      : "El punto marcado está dentro de la cobertura."}
+                    ) : "El punto marcado está dentro de la cobertura."}
                   </p>
                 ) : null}
                 {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
@@ -766,8 +739,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           {halfFareCount > 0 ? <span>Menores con media tarifa: <strong>{halfFareCount}{overrideTotalCents == null ? ` · ${formatPrice(halfFareCents(precioPorPersona), moneda)} cada uno` : ""}</strong></span> : null}
           {freeFareCount > 0 ? <span>Menores de 4 sin cargo: <strong>{freeFareCount}</strong></span> : null}
           {overrideTotalCents == null ? <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span> : <span>Precio total ajustado por administración</span>}
-          {adicionales.sportsLuggageCount > 0 ? <span>Equipaje deportivo: <strong>{adicionales.sportsLuggageCount}{overrideTotalCents == null ? ` · ${formatPrice(adicionales.sportsLuggageTotalCents, moneda)}` : ""}</strong></span> : null}
-          {adicionales.zoneExtraCents > 0 && overrideTotalCents == null ? <span>Recargo por zona: <strong>{formatPrice(adicionales.zoneExtraCents, moneda)}</strong></span> : null}
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>
         {paso < 3 ? (

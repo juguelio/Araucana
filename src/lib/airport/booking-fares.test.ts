@@ -17,13 +17,6 @@ const mocks = {
   transaction: vi.fn()
 };
 
-const settings = vi.hoisted(() => ({
-  extras: { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 0 },
-  coverage: { enabled: false, boundary: [] as Array<[number, number]>, exclusions: [] as Array<Array<[number, number]>>, extraBoundary: [] as Array<[number, number]> }
-}));
-vi.mock("./extras-settings", () => ({ getAirportExtras: async () => settings.extras }));
-vi.mock("./pickup-zone-settings", () => ({ getAirportCoverage: async () => settings.coverage }));
-
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     travelRoute: { findUnique: (...a: unknown[]) => mocks.findUniqueRoute(...a) },
@@ -56,8 +49,6 @@ const reserva = (extra: Record<string, unknown> = {}, fromAdmin = false) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  settings.extras = { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 0 };
-  settings.coverage = { enabled: false, boundary: [], exclusions: [], extraBoundary: [] };
   // La ruta de la página (slug): 25.000 por persona.
   mocks.findUniqueRoute.mockResolvedValue({
     id: "ruta-slug",
@@ -169,53 +160,5 @@ describe("reserva de aeropuerto: ruta y tarifa del mismo sentido", () => {
 
     await expect(reserva()).resolves.toMatchObject({ id: "res-1" });
     expect(mocks.createReservation).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("reserva de aeropuerto: extras", () => {
-  const verde: Array<[number, number]> = [[-40.17, -71.37], [-40.17, -71.30], [-40.13, -71.30], [-40.13, -71.37]];
-  const naranja: Array<[number, number]> = [[-40.25, -71.45], [-40.25, -71.20], [-40.05, -71.20], [-40.05, -71.45]];
-
-  beforeEach(() => {
-    settings.extras = { zoneExtraCents: 500000, sportsLuggageCents: 300000, arrivalCutoffMinutes: 0 };
-    settings.coverage = { enabled: true, boundary: verde, exclusions: [], extraBoundary: naranja };
-  });
-
-  it("suma el equipaje deportivo por bulto y guarda el precio vigente", async () => {
-    await reserva({ sportsLuggageCount: 2, pickupPoint: [-40.15, -71.34] });
-    expect(mocks.createReservation.mock.calls[0][0].data).toMatchObject({
-      totalCents: 8000000 + 600000,
-      airportDetails: { create: { sportsLuggageCount: 2, sportsLuggageUnitCents: 300000, zoneExtraCents: 0 } }
-    });
-    expect(mocks.createPayment.mock.calls[0][0].data.amountCents).toBe(8600000);
-  });
-
-  it("cobra el recargo cuando el punto cae en la zona con recargo", async () => {
-    await reserva({ pickupPoint: [-40.10, -71.25] });
-    expect(mocks.createReservation.mock.calls[0][0].data).toMatchObject({
-      totalCents: 8000000 + 500000,
-      airportDetails: { create: { zoneExtraCents: 500000 } }
-    });
-  });
-
-  it("sin el mapa aplicado no cobra recargo de zona", async () => {
-    settings.coverage = { ...settings.coverage, enabled: false };
-    await reserva({ pickupPoint: [-40.10, -71.25] });
-    expect(mocks.createReservation.mock.calls[0][0].data.totalCents).toBe(8000000);
-  });
-
-  it("el total manual del panel reemplaza también a los extras", async () => {
-    await reserva({ sportsLuggageCount: 1, pickupPoint: [-40.10, -71.25], overrideTotalCents: 100000 }, true);
-    expect(mocks.createReservation.mock.calls[0][0].data.totalCents).toBe(100000);
-  });
-
-  it("cierra el arribo antes de aterrizar según la configuración", async () => {
-    settings.extras = { ...settings.extras, arrivalCutoffMinutes: 20 };
-    vi.useFakeTimers({ now: new Date("2030-01-01T18:30:00Z"), toFake: ["Date"] });
-    try {
-      await expect(reserva()).rejects.toMatchObject({ code: "SCHEDULE_CLOSED" });
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

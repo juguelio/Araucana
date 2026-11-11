@@ -1,4 +1,0 @@
-ALTER TABLE "AirportReservationDetails"
-ADD COLUMN "sportsLuggageCount" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN "sportsLuggageUnitCents" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN "zoneExtraCents" INTEGER NOT NULL DEFAULT 0;
