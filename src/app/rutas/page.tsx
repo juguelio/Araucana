@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
+import { getI18n } from "@/i18n/server";
+import { localizePath } from "@/i18n/config";
 import { listPublicRoutes, listSchedulesForRoute } from "@/lib/booking/repository";
 import { claveDia, claveHoy, diasConSalidas, etiquetaDia, fechaDeClave, horaDia, tiraDeDias } from "./dias";
 
@@ -51,6 +53,8 @@ type RoutesPageProps = {
 };
 
 export default async function RoutesPage({ searchParams }: RoutesPageProps) {
+  const { locale, dict } = await getI18n();
+  const t = dict.routes;
   const params = await searchParams;
   const from = params?.from?.trim() ?? "";
   const to = params?.to?.trim() ?? "";
@@ -90,8 +94,8 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
       <main className="page-shell section">
         <div className="section-head">
           <div>
-            <p className="eyebrow">Rutas y horarios</p>
-            <h1 className="section-title">Elegí tu próximo tramo.</h1>
+            <p className="eyebrow">{t.title}</p>
+            <h1 className="section-title">{t.subtitle}</h1>
           </div>
           <Link className="button" href="#salidas">
             Buscar salidas
@@ -102,7 +106,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
           <label>
             Origen
             <select name="from" defaultValue={from}>
-              <option value="">Todos los orígenes</option>
+              <option value="">{t.allOrigins}</option>
               {origins.map((origin) => (
                 <option value={origin} key={origin}>
                   {origin}
@@ -113,7 +117,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
           <label>
             Destino
             <select name="to" defaultValue={to}>
-              <option value="">Todos los destinos</option>
+              <option value="">{t.allDestinations}</option>
               {destinations.map((destination) => (
                 <option value={destination} key={destination}>
                   {destination}
@@ -127,7 +131,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
           </button>
           {dias.length ? (
           <div className="dia-field">
-            <span className="dia-label">Días con salidas</span>
+            <span className="dia-label">{t.days}</span>
             <div className="dia-tira" role="list">
               <Link
                 className={`dia-chip ${fechaValida ? "" : "activo"}`}
@@ -177,7 +181,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
                   </div>
                   <form className="route-quick-book" action={`/reservar/${route.slug}`}>
                     {route.schedules.length ? <fieldset className="schedule-picker">
-                      <legend>Elegí tu salida</legend>
+                      <legend>{t.pickDeparture}</legend>
                       <div className="schedule-rail" aria-label="Salidas disponibles">
                         {route.schedules.map((schedule, index) => (
                           <label className="schedule-option" key={schedule.id}>
@@ -191,14 +195,14 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
                         ))}
                       </div>
                     </fieldset> : null}
-                     <button className="button" type="submit">Consultar disponibilidad ↗</button>
+                     <button className="button" type="submit">{t.check} ↗</button>
                   </form>
                   <Link className="route-detail-link" href={`/rutas/${route.slug}`} prefetch={true}>
                     Ver detalles de la ruta
                   </Link>
                 </div>
               </article>
-            )) : <div className="empty-search-state"><strong>No encontramos rutas con esos datos.</strong><p>Probá con otro origen, destino o fecha.</p><Link className="button" href="/rutas">Limpiar búsqueda</Link></div>}
+            )) : <div className="empty-search-state"><strong>{t.empty}</strong><p>{t.emptyHint}</p><Link className="button" href={localizePath("/rutas", locale)}>{t.clear}</Link></div>}
           </div>
         </section>
       </main>

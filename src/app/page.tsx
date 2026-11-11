@@ -3,6 +3,8 @@ import type { CSSProperties } from "react";
 import { HistoricalMap } from "@/components/historical-map";
 import { ServicesGrid } from "@/components/services-grid";
 import { SiteFooter } from "@/components/site-footer";
+import { getI18n } from "@/i18n/server";
+import { localizePath } from "@/i18n/config";
 import { listPublicRoutes } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
 import laninSummer from "../../lanin-verano.webp";
@@ -15,6 +17,8 @@ function todayDateKey() {
 }
 
 export default async function HomePage() {
+  const { locale, dict } = await getI18n();
+  const home = (path: string) => localizePath(path, locale);
   const routes = await listPublicRoutes();
   // El traslado al aeropuerto se reserva por vuelo: el home enlaza directo a cada sentido.
   const rutasAeropuerto = await prisma.travelRoute.findMany({
@@ -24,20 +28,155 @@ export default async function HomePage() {
   const rutaAeropuerto = rutasAeropuerto.find((r) => r.specialType !== "DEPARTURE") ?? rutasAeropuerto[0] ?? null;
   const rutaAeropuertoVuelta = rutasAeropuerto.find((r) => r.specialType === "DEPARTURE") ?? null;
   const finalStyle = { "--final-image": `url(${laninSummer.src})` } as CSSProperties;
-  const destinations = [["San Martín de los Andes", "Lagos, bosque y montaña"], ["Chapelco", "Nieve y experiencias de altura"], ["Lago Hermoso", "Un refugio en la cordillera"], ["Villa La Angostura", "Ruta, lago y bosque"]];
-  return <>
-    <section className="new-hero"><video className="new-hero-video" autoPlay muted loop playsInline preload="metadata" poster="/hero-araucana-poster.webp" aria-hidden="true"><source src="/hero-araucana-movil.mp4" media="(max-width: 760px)" type="video/mp4" /><source src="/hero-araucana.mp4" type="video/mp4" /></video><div className="new-hero-inner"><div className="new-hero-copy"><h1>MUCHO MÁS QUE<br /><em>UN TRASLADO</em></h1><p className="new-hero-lead">Vos disfrutá el viaje,<br />nosotros nos ocupamos del camino.</p><p className="new-hero-detail">Traslados ida y vuelta al Aeropuerto Chapelco. Conexiones con los principales centros de ski. Servicio público, privado y soluciones grupales.</p><div className="hero-actions"><Link className="accent-button" href="/rutas" prefetch={true}>Reservar mi traslado <span>↗</span></Link><a className="hero-whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">Hablar por WhatsApp <span>↗</span></a></div></div><div className="new-hero-badge"><span className="hero-note-dot" /> Experiencia local <strong>desde 2009</strong></div></div></section>
-    <main>
-      <section className="page-shell new-section service-showcase" id="servicios"><div className="section-head"><div><p className="eyebrow">Elegí cómo viajar</p><h2 className="section-title">Tu viaje empieza<br /><span className="brand-green-text">acá.</span></h2></div><p className="lead section-intro">Una forma simple, cuidada y cómoda de descubrir la Patagonia. Elegí el servicio que necesitás y nosotros nos ocupamos del resto.</p></div><ServicesGrid services={[{ number: "01", title: "Traslados aeropuerto", text: "Chapelco ↔ San Martín de los Andes y otros destinos.", href: rutaAeropuerto ? `/reservar/${rutaAeropuerto.slug}` : "#chapelco", tone: "service-green" }, { number: "02", title: "Traslados privados", text: "Puerta a puerta para viajar con comodidad y flexibilidad.", href: whatsappUrl, tone: "service-snow" }, { number: "03", title: "Excursiones y destinos", text: "Movilidad para conocer los paisajes más increíbles.", href: `${whatsappUrl}?text=${encodeURIComponent("Hola, quiero consultar por excursiones y destinos.")}`, tone: "service-sky" }, { number: "04", title: "Grupos y empresas", text: "Soluciones para colegios, eventos, equipos y contingentes.", href: `${whatsappUrl}?text=${encodeURIComponent("Hola, quiero consultar por un traslado grupal.")}`, tone: "service-red" }]} /></section>
-      <section className="chapelco-section page-shell" id="chapelco"><div className="chapelco-copy"><p className="eyebrow eyebrow-light">Servicio destacado</p><h2>Del aeropuerto<br />a tu destino.<br /><em>Sin complicaciones.</em></h2><p>Llegás a Chapelco y nosotros nos ocupamos del resto. Traslados cómodos, seguros y coordinados para que empieces tu viaje desde el primer momento.</p><div className="route-pills">{rutaAeropuerto ? <Link href={`/reservar/${rutaAeropuerto.slug}`} prefetch={true}>Chapelco <b>→</b> San Martín</Link> : <span>Chapelco <b>→</b> San Martín</span>}{rutaAeropuertoVuelta ? <Link href={`/reservar/${rutaAeropuertoVuelta.slug}`} prefetch={true}>San Martín <b>→</b> Chapelco</Link> : <span>San Martín <b>→</b> Chapelco</span>}</div><div className="chapelco-actions">{rutaAeropuerto ? <Link className="accent-button" href={`/reservar/${rutaAeropuerto.slug}`} prefetch={true}>Reservar por vuelo <span>↗</span></Link> : null}<Link className="cream-button" href="/rutas" prefetch={true}>Reservar traslado <span>↗</span></Link></div></div><form className="chapelco-form" action="/rutas" method="get"><div className="booking-card-top"><span>Buscá tu traslado</span><span className="status-dot">● Disponible</span></div><label><small>Origen</small><select name="from" defaultValue=""><option value="">Elegí un origen</option>{Array.from(new Set(routes.map((route) => route.from))).map((origin) => <option value={origin} key={origin}>{origin}</option>)}</select></label><label><small>Destino</small><select name="to" defaultValue=""><option value="">Elegí un destino</option>{Array.from(new Set(routes.map((route) => route.to))).map((destination) => <option value={destination} key={destination}>{destination}</option>)}</select></label><label><small>Fecha</small><input type="date" name="date" defaultValue={todayDateKey()} /></label><button className="accent-button" type="submit">Ver horarios ↗</button></form></section>
-      <section className="page-shell new-section destination-section" id="destinos"><div className="section-head"><div><p className="eyebrow">Nuestros destinos</p><h2 className="section-title">Paisajes que<br /><span>quedan.</span></h2></div><p className="lead section-intro">Conocemos cada curva, cada lago y cada camino. Consultá tu traslado al destino que quieras descubrir.</p></div><div className="destination-grid">{destinations.map(([title, detail], index) => <a className={`destination-card destination-${index + 1}`} href={whatsappUrl} target="_blank" rel="noreferrer" key={title}><span className="destination-number">0{index + 1}</span><span className="destination-shade" /><div><small>{detail}</small><h3>{title}</h3><span className="destination-link">Consultar traslado ↗</span></div></a>)}</div></section>
-      <section className="promise-section page-shell" id="nosotros"><div className="promise-image"><img src="/story-araucana.webp" alt="Unidad de La Araucana preparada para viajar" loading="lazy" decoding="async" /></div><div className="promise-copy"><p className="eyebrow">Mucho más que un traslado</p><h2 className="section-title">Viajar bien también<br /><span>es parte del viaje.</span></h2><p className="lead">En La Araucana entendemos que el viaje empieza mucho antes de llegar al destino.</p><p>Por eso cuidamos cada detalle: coordinación, puntualidad, confort y atención. Queremos que subas y sientas: <strong>“Estoy en buenas manos.”</strong></p><div className="trust-list"><span>Puntualidad</span><span>Coordinación</span><span>Confort</span><span>Atención personalizada</span></div></div></section>
-      <section className="fleet-section page-shell"><div><p className="eyebrow">Flota</p><h2 className="section-title">Preparada para<br /><span>Patagonia.</span></h2><p className="lead">Unidades impecables, seguras y listas para acompañarte en cada recorrido.</p><a className="text-link" href={whatsappUrl} target="_blank" rel="noreferrer">Consultar disponibilidad ↗</a></div><div className="fleet-photo-card"><img src="/fleet-araucana-700.webp" alt="Paisaje nevado de la cordillera patagónica" loading="lazy" decoding="async" /><div className="fleet-photo-caption"><span>La ruta también es parte del viaje</span><strong>Tu próxima aventura<br />viaja cómoda.</strong></div></div></section>
-      <section className="page-shell new-section map-section" id="mapa"><div className="section-head"><div><p className="eyebrow">Área de operación</p><h2 className="section-title">Patagonia para<br /><span>descubrir.</span></h2></div><p className="lead section-intro">Explorá algunos de los lugares donde llegamos. Mové el mapa y encontrá tu próximo destino.</p></div><HistoricalMap /></section>
-      <section className="trust-band page-shell"><div className="trust-badge">✓</div><div><p className="eyebrow">Respaldo y experiencia</p><h2>Una atención cercana para viajar con tranquilidad.</h2></div><p>Empresa habilitada como Agencia de Turismo Estudiantil.</p></section>
-      <section className="final-image" style={finalStyle}><div><p className="eyebrow eyebrow-light">Patagonia te espera</p><h2>El viaje<br />es <em>ahora.</em></h2><Link className="cream-button" href="/rutas" prefetch={true}>Empezá a viajar <span>↗</span></Link></div></section>
-      <section className="contact-section page-shell" id="contacto"><div className="contact-copy"><p className="eyebrow">Contacto</p><h2 className="section-title">¿A dónde vas?<br /><span>Nosotros te llevamos.</span></h2><p className="lead">Estamos para ayudarte a organizar tu próximo traslado.</p><p className="address">Mariano Moreno 829<br />San Martín de los Andes<br />Todos los días · 8:30 a 21:00 hs</p></div><div className="contact-card"><small>Hablemos</small><a href={whatsappUrl} target="_blank" rel="noreferrer" className="contact-whatsapp">WhatsApp +54 9 2944 64-9049 ↗</a><a href="tel:+542972420285">02972 420285</a><a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a><div className="socials"><a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram ↗</a><a href="https://www.google.com/maps/search/?api=1&query=Mariano+Moreno+829+San+Martin+de+los+Andes" target="_blank" rel="noreferrer">Cómo llegar ↗</a></div></div></section>
-    </main>
-    <a className="floating-whatsapp" href={whatsappUrl} target="_blank" rel="noreferrer" aria-label="Hablar por WhatsApp"><span className="whatsapp-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><circle cx="16" cy="16" r="16" fill="currentColor" /><path fill="#fff" d="M22.3 18.7c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.6-.9-.8-1.6-1.8-1.8-2.1-.2-.3 0-.5.1-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.7-.1-.2-.7-1.7-.9-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.1 1.1-1.1 2.7 0 1.6 1.1 3.1 1.3 3.3.2.2 2.2 3.4 5.4 4.7.8.3 1.4.5 1.9.6.8.2 1.5.2 2 .1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.4ZM16 6.3a9.7 9.7 0 0 0-8.3 14.7L6.4 26l5.1-1.3A9.7 9.7 0 1 0 16 6.3Zm0 17.8c-1.6 0-3.1-.4-4.5-1.2l-.3-.2-3 .8.8-2.9-.2-.3a8.1 8.1 0 1 1 7.2 3.8Z" /></svg></span></a><SiteFooter />
-  </>;
+  const servicios = dict.services.items.map((item, index) => ({
+    number: `0${index + 1}`,
+    title: item.title,
+    text: item.text,
+    cta: [dict.services.book, dict.services.ask, dict.services.ask, dict.services.quote][index],
+    href: [
+      rutaAeropuerto ? `/reservar/${rutaAeropuerto.slug}` : "#chapelco",
+      whatsappUrl,
+      `${whatsappUrl}?text=${encodeURIComponent("Hola, quiero consultar por excursiones y destinos.")}`,
+      `${whatsappUrl}?text=${encodeURIComponent("Hola, quiero consultar por un traslado grupal.")}`
+    ][index],
+    tone: ["service-green", "service-snow", "service-sky", "service-red"][index]
+  }));
+
+  return (
+    <>
+      <section className="new-hero">
+        <video className="new-hero-video" autoPlay muted loop playsInline preload="metadata" poster="/hero-araucana-poster.webp" aria-hidden="true">
+          <source src="/hero-araucana-movil.mp4" media="(max-width: 760px)" type="video/mp4" />
+          <source src="/hero-araucana.mp4" type="video/mp4" />
+        </video>
+        <div className="new-hero-inner">
+          <div className="new-hero-copy">
+            <h1>{dict.hero.titleA}<br /><em>{dict.hero.titleB}</em></h1>
+            <p className="new-hero-lead">{dict.hero.leadA}<br />{dict.hero.leadB}</p>
+            <p className="new-hero-detail">{dict.hero.detail}</p>
+            <div className="hero-actions">
+              <Link className="accent-button" href={home("/rutas")} prefetch={true}>{dict.hero.cta} <span>↗</span></Link>
+              <a className="hero-whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">{dict.nav.whatsapp} <span>↗</span></a>
+            </div>
+          </div>
+          <div className="new-hero-badge"><span className="hero-note-dot" /> {dict.hero.badge} <strong>{dict.hero.badgeYear}</strong></div>
+        </div>
+      </section>
+      <main>
+        <section className="page-shell new-section service-showcase" id="servicios">
+          <div className="section-head">
+            <div><p className="eyebrow">{dict.services.eyebrow}</p><h2 className="section-title">{dict.services.titleA}<br /><span className="brand-green-text">{dict.services.titleB}</span></h2></div>
+            <p className="lead section-intro">{dict.services.intro}</p>
+          </div>
+          <ServicesGrid services={servicios} />
+        </section>
+
+        <section className="chapelco-section page-shell" id="chapelco">
+          <div className="chapelco-copy">
+            <p className="eyebrow eyebrow-light">{dict.featured.eyebrow}</p>
+            <h2>{dict.featured.titleA}<br />{dict.featured.titleB}<br /><em>{dict.featured.titleC}</em></h2>
+            <p>{dict.featured.text}</p>
+            <div className="route-pills">
+              {rutaAeropuerto ? <Link href={home(`/reservar/${rutaAeropuerto.slug}`)} prefetch={true}>{dict.featured.fromAirport} <b>→</b> {dict.featured.fromAirportArrow}</Link> : <span>{dict.featured.fromAirport} <b>→</b> {dict.featured.fromAirportArrow}</span>}
+              {rutaAeropuertoVuelta ? <Link href={home(`/reservar/${rutaAeropuertoVuelta.slug}`)} prefetch={true}>{dict.featured.toAirportArrow} <b>→</b> {dict.featured.toAirport}</Link> : <span>{dict.featured.toAirportArrow} <b>→</b> {dict.featured.toAirport}</span>}
+            </div>
+            <div className="chapelco-actions">
+              {rutaAeropuerto ? <Link className="accent-button" href={home(`/reservar/${rutaAeropuerto.slug}`)} prefetch={true}>{dict.featured.ctaFlight} <span>↗</span></Link> : null}
+              <Link className="cream-button" href={home("/rutas")} prefetch={true}>{dict.featured.ctaTransfer} <span>↗</span></Link>
+            </div>
+          </div>
+          <form className="chapelco-form" action={home("/rutas")} method="get">
+            <div className="booking-card-top"><span>{dict.featured.formTitle}</span><span className="status-dot">● {dict.featured.formStatus}</span></div>
+            <label><small>{dict.featured.origin}</small><select name="from" defaultValue=""><option value="">{dict.featured.pickOrigin}</option>{Array.from(new Set(routes.map((route) => route.from))).map((origin) => <option value={origin} key={origin}>{origin}</option>)}</select></label>
+            <label><small>{dict.featured.destination}</small><select name="to" defaultValue=""><option value="">{dict.featured.pickDestination}</option>{Array.from(new Set(routes.map((route) => route.to))).map((destination) => <option value={destination} key={destination}>{destination}</option>)}</select></label>
+            <label><small>{dict.featured.date}</small><input type="date" name="date" defaultValue={todayDateKey()} /></label>
+            <button className="accent-button" type="submit">{dict.featured.submit} ↗</button>
+          </form>
+        </section>
+
+        <section className="page-shell new-section destination-section" id="destinos">
+          <div className="section-head">
+            <div><p className="eyebrow">{dict.destinations.eyebrow}</p><h2 className="section-title">{dict.destinations.titleA}<br /><span>{dict.destinations.titleB}</span></h2></div>
+            <p className="lead section-intro">{dict.destinations.intro}</p>
+          </div>
+          <div className="destination-grid">
+            {dict.destinations.items.map((item, index) => (
+              <a className={`destination-card destination-${index + 1}`} href={whatsappUrl} target="_blank" rel="noreferrer" key={item.title}>
+                <span className="destination-number">0{index + 1}</span>
+                <span className="destination-shade" />
+                <div><small>{item.detail}</small><h3>{item.title}</h3><span className="destination-link">{dict.destinations.cta} ↗</span></div>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section className="promise-section page-shell" id="nosotros">
+          <div className="promise-image"><img src="/story-araucana.webp" alt={dict.promise.alt} loading="lazy" decoding="async" /></div>
+          <div className="promise-copy">
+            <p className="eyebrow">{dict.promise.eyebrow}</p>
+            <h2 className="section-title">{dict.promise.titleA}<br /><span>{dict.promise.titleB}</span></h2>
+            <p className="lead">{dict.promise.lead}</p>
+            <p>{dict.promise.text} <strong>{dict.promise.quote}</strong></p>
+            <div className="trust-list">{dict.promise.trust.map((item) => <span key={item}>{item}</span>)}</div>
+          </div>
+        </section>
+
+        <section className="fleet-section page-shell">
+          <div>
+            <p className="eyebrow">{dict.fleet.eyebrow}</p>
+            <h2 className="section-title">{dict.fleet.titleA}<br /><span>{dict.fleet.titleB}</span></h2>
+            <p className="lead">{dict.fleet.lead}</p>
+            <a className="text-link" href={whatsappUrl} target="_blank" rel="noreferrer">{dict.fleet.cta} ↗</a>
+          </div>
+          <div className="fleet-photo-card">
+            <img src="/fleet-araucana-700.webp" alt={dict.fleet.alt} loading="lazy" decoding="async" />
+            <div className="fleet-photo-caption"><span>{dict.fleet.captionSmall}</span><strong>{dict.fleet.captionBigA}<br />{dict.fleet.captionBigB}</strong></div>
+          </div>
+        </section>
+
+        <section className="page-shell new-section map-section" id="mapa">
+          <div className="section-head">
+            <div><p className="eyebrow">{dict.map.eyebrow}</p><h2 className="section-title">{dict.map.titleA}<br /><span>{dict.map.titleB}</span></h2></div>
+            <p className="lead section-intro">{dict.map.intro}</p>
+          </div>
+          <HistoricalMap />
+        </section>
+
+        <section className="trust-band page-shell">
+          <div className="trust-badge">✓</div>
+          <div><p className="eyebrow">{dict.trust.eyebrow}</p><h2>{dict.trust.title}</h2></div>
+          <p>{dict.trust.text}</p>
+        </section>
+
+        <section className="final-image" style={finalStyle}>
+          <div>
+            <p className="eyebrow eyebrow-light">{dict.final.eyebrow}</p>
+            <h2>{dict.final.titleA}<br />{dict.final.titleB} <em>{dict.final.accent}</em></h2>
+            <Link className="cream-button" href={home("/rutas")} prefetch={true}>{dict.final.cta} <span>↗</span></Link>
+          </div>
+        </section>
+
+        <section className="contact-section page-shell" id="contacto">
+          <div className="contact-copy">
+            <p className="eyebrow">{dict.contact.eyebrow}</p>
+            <h2 className="section-title">{dict.contact.titleA}<br /><span>{dict.contact.titleB}</span></h2>
+            <p className="lead">{dict.contact.lead}</p>
+            <p className="address">{dict.contact.addressA}<br />{dict.contact.addressB}<br />{dict.contact.addressC}</p>
+          </div>
+          <div className="contact-card">
+            <small>{dict.contact.cardTitle}</small>
+            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="contact-whatsapp">WhatsApp +54 9 2944 64-9049 ↗</a>
+            <a href="tel:+542****0285">02972 420285</a>
+            <a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a>
+            <div className="socials">
+              <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">{dict.contact.instagram} ↗</a>
+              <a href="https://www.google.com/maps/search/?api=1&query=Mariano+Moreno+829+San+Martin+de+los+Andes" target="_blank" rel="noreferrer">{dict.contact.directions} ↗</a>
+            </div>
+          </div>
+        </section>
+      </main>
+      <a className="floating-whatsapp" href={whatsappUrl} target="_blank" rel="noreferrer" aria-label={dict.nav.whatsapp}><span className="whatsapp-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><circle cx="16" cy="16" r="16" fill="currentColor" /><path fill="#fff" d="M22.3 18.7c-.3-.2-1.8-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.6-.9-.8-1.6-1.8-1.8-2.1-.2-.3 0-.5.1-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.5 0-.7-.1-.2-.7-1.7-.9-2.3-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.1 1.1-1.1 2.7 0 1.6 1.1 3.1 1.3 3.3.2.2 2.2 3.4 5.4 4.7.8.3 1.4.5 1.9.6.8.2 1.5.2 2 .1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.4ZM16 6.3a9.7 9.7 0 0 0-8.3 14.7L6.4 26l5.1-1.3A9.7 9.7 0 1 0 16 6.3Zm0 17.8c-1.6 0-3.1-.4-4.5-1.2l-.3-.2-3 .8.8-2.9-.2-.3a8.1 8.1 0 1 1 7.2 3.8Z" /></svg></span></a>
+      <SiteFooter />
+    </>
+  );
 }

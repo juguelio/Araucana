@@ -1,0 +1,47 @@
+/* Selector de idioma del header (sobre fondo oscuro). */
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 2px;
+}
+
+.language-switcher a {
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: rgba(251, 246, 235, 0.62);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.language-switcher a:hover {
+  color: #fff;
+  background: rgba(251, 246, 235, 0.1);
+}
+
+.language-switcher a[aria-current="true"] {
+  color: #f2c896;
+  background: rgba(242, 200, 150, 0.12);
+}
+
+/* En el menú mobile el selector va a lo ancho, en su propia fila. */
+.mobile-navigation .language-switcher {
+  margin: 8px 0 0;
+  justify-content: center;
+  gap: 6px;
+}
+
+.mobile-navigation .language-switcher a {
+  padding: 8px 12px;
+  border: 1px solid rgba(251, 246, 235, 0.25);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .site-nav > .nav-actions > .language-switcher {
+    display: none;
+  }
+}
