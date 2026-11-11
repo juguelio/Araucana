@@ -12,7 +12,10 @@ import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admi
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
-import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
+import { AirportGooglePickup } from "@/components/airport-google-pickup";
+import { googlePickupConfigured } from "@/lib/airport/google-maps";
+import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -72,6 +75,7 @@ type AirportCheckoutFormProps = {
   initialDirection: "ARRIVAL" | "DEPARTURE";
   initialDate: string;
   initialFlights: FlightOption[];
+  coverage: AirportCoverage;
   fromAdmin?: boolean;
 };
 
@@ -132,7 +136,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, fromAdmin = false }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, fromAdmin = false }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
@@ -147,6 +151,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [customPrice, setCustomPrice] = useState("");
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [freeFareCount, setFreeFareCount] = useState(0);
+  const [useGooglePickup, setUseGooglePickup] = useState(googlePickupConfigured);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
   const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
@@ -154,13 +159,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [pickupConfirmed, setPickupConfirmed] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
-  const [searchingAddress, setSearchingAddress] = useState(false);
   const [approximateAddress, setApproximateAddress] = useState(false);
-  const [addressLabel, setAddressLabel] = useState("");
+  const [googleReference, setGoogleReference] = useState<AirportSelectedPlace | null>(null);
   const locationRequest = useRef(0);
-  const addressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
-    if (addressTimer.current) clearTimeout(addressTimer.current);
     locationRequest.current++;
   }, []);
   const [pickupNotes, setPickupNotes] = useState("");
@@ -196,20 +198,20 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount));
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
+  const outsideCoverage = Boolean(coverage.enabled && pickupPoint && !isInsideAirportPickupZone(pickupPoint, coverage));
+
   function selectPickupPoint(point: PickupPoint | null) {
     setApproximateAddress(false);
     setPickupPoint(point);
     setOriginalPoint(point);
     setPickupConfirmed(false);
-    setAddressLabel("");
+    setGoogleReference(null);
     setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
     setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
   }
 
   function useCurrentLocation() {
-    if (addressTimer.current) clearTimeout(addressTimer.current);
     const request = ++locationRequest.current;
-    setSearchingAddress(false);
     setPickupMode("location");
     selectPickupPoint(null);
     setLocationError("");
@@ -230,49 +232,30 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }
 
   function useAddress() {
-    if (addressTimer.current) clearTimeout(addressTimer.current);
     locationRequest.current++;
     setPickupMode("address");
     selectPickupPoint(null);
     setLocating(false);
-    setSearchingAddress(false);
     setLocationError("");
   }
 
-  async function searchAddress(address: string) {
-    if (addressTimer.current) clearTimeout(addressTimer.current);
-    const request = ++locationRequest.current;
-    selectPickupPoint(null);
-    setSearchingAddress(true);
-    try {
-      const response = await fetch("/api/v1/airport/address", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: address.trim() })
-      });
-      const data = await response.json();
-      if (request !== locationRequest.current) return;
-      if (!response.ok) throw new Error(data.error?.message);
-      selectPickupPoint(data.point);
-      setAddressLabel(data.label);
-      setApproximateAddress(data.approximate === true);
-    } catch (error) {
-      if (request !== locationRequest.current) return;
-      const message = error instanceof Error && error.message ? error.message : "No pudimos buscar la dirección.";
-      setFieldErrors((current) => ({ ...current, pickupAddress: message }));
-    } finally {
-      if (request === locationRequest.current) setSearchingAddress(false);
-    }
+  function markPickupPoint(point: PickupPoint) {
+    locationRequest.current++;
+    setLocating(false);
+    setLocationError("");
+    setGoogleReference(null);
+    if (!adjustPickupPoint(point)) selectPickupPoint(point);
   }
 
-  function changePickupAddress(address: string) {
-    if (addressTimer.current) clearTimeout(addressTimer.current);
+  function selectSearchPlace(place: AirportSelectedPlace) {
     locationRequest.current++;
-    setPickupAddress(address);
-    selectPickupPoint(null);
-    const shouldSearch = address.trim().length >= 3;
-    setSearchingAddress(shouldSearch);
-    if (shouldSearch) addressTimer.current = setTimeout(() => void searchAddress(address), 750);
+    setLocating(false);
+    setLocationError("");
+    const google = place.source === "google";
+    setPickupAddress(google ? "" : place.label.slice(0, 160));
+    selectPickupPoint(google ? null : place.point);
+    setApproximateAddress(place.approximate);
+    if (google) setGoogleReference(place);
   }
 
   function adjustPickupPoint(point: PickupPoint) {
@@ -352,8 +335,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     if (!esPrivado && selected && passengerCount > selected.available) {
       errors.passengerCount = `Sólo quedan ${selected.available} lugares en ese vuelo.`;
     }
-    if (pickupMode === "address" && !pickupAddress.trim()) {
-      errors.pickupAddress = "Ingresá la dirección.";
+    if (outsideCoverage) {
+      errors.pickupAddress = OUTSIDE_PICKUP_ZONE;
     } else if (!pickupPoint || !pickupConfirmed) {
       errors.pickupAddress = "Confirmá que el punto marcado sea correcto.";
     }
@@ -672,7 +655,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               <div className="checkout-fields">
                 <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
                   <strong>{sentidoDelVuelo === "ARRIVAL" ? "Punto de destino" : "Punto de búsqueda"}</strong>
-                  <p className="muted">Usá tu ubicación actual si ya estás en el lugar. Si estás en otro lugar, buscá por dirección.</p>
+                  <p className="muted">
+                    Buscá un lugar o marcá el punto en el mapa. Si ya estás en el lugar, podés usar tu ubicación actual.
+                  </p>
                   <div className="form-actions">
                     <button className="ghost-button" type="button" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
                       {locating ? "Buscando ubicación…" : "Usar mi ubicación actual"}
@@ -682,33 +667,48 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   {locationError ? <p role="alert" className="field-error">{locationError}</p> : null}
                 </div>
                 {pickupMode === "address" ? (
-                  <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
-                    <label>Dirección o nombre del lugar<input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
-                      onChange={(e) => changePickupAddress(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        if (!searchingAddress && !isSubmitting && pickupAddress.trim().length >= 3) void searchAddress(pickupAddress);
-                      }} /></label>
-                    <button className="ghost-button" type="button" disabled={searchingAddress || isSubmitting || pickupAddress.trim().length < 3} onClick={() => void searchAddress(pickupAddress)}>
-                      {searchingAddress ? "Buscando dirección…" : "Buscar dirección en el mapa"}
-                    </button>
-                  </div>
+                  <AirportPlaceSearch coverage={coverage} useGoogle={useGooglePickup} disabled={isSubmitting}
+                    onSelect={selectSearchPlace} onChange={() => {
+                      setPickupAddress("");
+                      selectPickupPoint(null);
+                    }} />
                 ) : null}
-                {fieldErrors.pickupAddress ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
-                <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} disabled={isSubmitting} onMove={adjustPickupPoint} />
+                {fieldErrors.pickupAddress && !outsideCoverage ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
+                {useGooglePickup ? (
+                  <AirportGooglePickup
+                    coverage={coverage}
+                    point={pickupPoint}
+                    reference={googleReference}
+                    approximate={approximateAddress}
+                    disabled={isSubmitting}
+                    onPoint={markPickupPoint}
+                    onUnavailable={() => setUseGooglePickup(false)}
+                  />
+                ) : (
+                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
+                )}
+                {coverage.enabled && pickupPoint ? (
+                  <p className={outsideCoverage ? "field-error" : "muted"} role="status" style={{ gridColumn: "1 / -1" }}>
+                    {outsideCoverage ? (
+                      <>{OUTSIDE_PICKUP_ZONE} <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a></>
+                    ) : "El punto marcado está dentro de la cobertura."}
+                  </p>
+                ) : null}
                 {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
                   <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
                 ) : null}
-                {addressLabel ? <p className="muted" style={{ gridColumn: "1 / -1" }}>
-                  {addressLabel} · <a href="https://locationiq.com">Search by LocationIQ.com</a> · Datos de <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>
-                </p> : null}
-                {pickupPoint ? (
+                {pickupPoint && !outsideCoverage ? (
                   <label style={{ gridColumn: "1 / -1" }}>
-                    <input type="checkbox" checked={pickupConfirmed} onChange={(event) => {
+                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting} onChange={(event) => {
                       setPickupConfirmed(event.target.checked);
                       setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
                     }} /> Confirmo que el mapa marca el lugar correcto
+                  </label>
+                ) : null}
+                {pickupMode === "address" && pickupPoint ? (
+                  <label>Dirección o referencia para el chofer (opcional)
+                    <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
+                      disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />
                   </label>
                 ) : null}
                 <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
@@ -716,7 +716,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
               <div className="wizard-nav">
                 <button type="button" className="ghost-button" onClick={() => setPaso(2)}>← Volver</button>
-                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir}>
+                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || outsideCoverage}>
                   {isSubmitting ? "Reservando…" : "Reservar"}
                 </button>
               </div>
@@ -751,7 +751,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             {paso === 1 ? "Elegir vuelo →" : "Completar datos →"}
           </button>
         ) : (
-          <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir}>
+          <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || outsideCoverage}>
             {isSubmitting ? "Reservando…" : "Reservar"}
           </button>
         )}

@@ -6,17 +6,21 @@ import "leaflet/dist/leaflet.css";
 import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import styles from "./airport-address-map.module.css";
 
-export function AirportDraggableMap({ point, approximate, disabled, onMove }: {
+export function AirportDraggableMap({ point, approximate, disabled, onMove, onSelect }: {
   point: PickupPoint | null;
   approximate: boolean;
   disabled: boolean;
   onMove: (point: PickupPoint) => boolean;
+  onSelect: (point: PickupPoint) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<LeafletMap | null>(null);
   const marker = useRef<Marker | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const select = useEffectEvent(({ lat, lng }: { lat: number; lng: number }) => {
+    if (!disabled) onSelect([lat, lng]);
+  });
   const finishDrag = useEffectEvent((pin: Marker) => {
     const { lat, lng } = pin.getLatLng();
     if ((disabled || !onMove([lat, lng])) && point) pin.setLatLng(point);
@@ -28,6 +32,7 @@ export function AirportDraggableMap({ point, approximate, disabled, onMove }: {
       if (cancelled || !container.current) return;
       const instance = L.map(container.current, { scrollWheelZoom: false }).setView([-40.153, -71.344], 14);
       map.current = instance;
+      instance.on("click", (event) => select(event.latlng));
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19
@@ -60,7 +65,7 @@ export function AirportDraggableMap({ point, approximate, disabled, onMove }: {
     }
     const alreadyVisible = instance.hasLayer(pin);
     pin.setLatLng(point).addTo(instance);
-    if (!alreadyVisible) instance.setView(point, approximate ? 13 : 18);
+    if (!alreadyVisible || !instance.getBounds().contains(point)) instance.setView(point, approximate ? 13 : 18);
     if (disabled) pin.dragging?.disable();
     else pin.dragging?.enable();
   }, [point, approximate, disabled, ready]);
@@ -71,6 +76,7 @@ export function AirportDraggableMap({ point, approximate, disabled, onMove }: {
         <div ref={container} className={styles.zoneCanvas} role="region" aria-label="Mapa del punto del traslado" />
       </div>
       {ready && point ? <p className="muted">{approximate ? "Este lugar es una referencia. Arrastrá el marcador hasta el punto exacto y confirmalo." : "Arrastrá el marcador hasta el punto correcto y confirmalo."}</p> : null}
+      {ready && !point ? <p className="muted">Tocá el mapa para marcar el punto exacto.</p> : null}
       {failed ? <p className="field-error" role="alert">No pudimos cargar el mapa.</p> : null}
     </div>
   );

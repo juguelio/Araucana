@@ -50,3 +50,41 @@
   border-radius: 50%;
   background: white;
 }
+
+.search {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 8px;
+  min-width: 0;
+}
+
+.search p {
+  margin: 0;
+}
+
+.suggestions {
+  display: grid;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: white;
+}
+
+.suggestions li {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.suggestions li:hover,
+.suggestions li[aria-selected="true"] {
+  background: #eaf1ed;
+}
+
+.suggestions small {
+  display: block;
+  margin-top: 3px;
+  color: var(--ink-muted);
+}
