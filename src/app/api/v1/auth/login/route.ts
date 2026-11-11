@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { cuposDeAcceso, limitarPedido } from "@/lib/api/rate-limit";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createSessionForCredentials } from "@/lib/auth/service";
 import { setSessionCookie } from "@/lib/auth/cookie";
@@ -10,6 +11,9 @@ const loginSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const rafaga = await limitarPedido(request, cuposDeAcceso);
+  if (rafaga) return rafaga;
+
   try {
     const parsed = loginSchema.safeParse(await request.json());
     if (!parsed.success) return jsonError("VALIDATION_ERROR", "Email y contraseña son requeridos.", 400);

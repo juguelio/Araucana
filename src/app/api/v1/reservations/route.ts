@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import { cuposDeReserva, limitarPedido } from "@/lib/api/rate-limit";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { BookingError, createWebReservation } from "@/lib/booking/repository";
 import { createReservationSchema } from "@/lib/booking/validation";
@@ -16,6 +17,9 @@ const bookingErrorResponses: Record<string, { message: string; status: number }>
 };
 
 export async function POST(request: Request) {
+  const rafaga = await limitarPedido(request, cuposDeReserva);
+  if (rafaga) return rafaga;
+
   try {
     let payload: unknown;
 
