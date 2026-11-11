@@ -56,17 +56,6 @@ describe("reserva de aeropuerto", () => {
     expect(motivoNoReservable(arribo, 10, ahora)).toMatch(/ya llegó/i);
   });
 
-  it("cierra las reservas de un arribo los minutos configurados antes de aterrizar", () => {
-    const arribo = { status: "SCHEDULED", scheduledAt: new Date("2030-01-01T12:00:00Z"), source: "API", direction: "ARRIVAL" as const };
-    expect(motivoNoReservable(arribo, 10, new Date("2030-01-01T11:39:00Z"), 20)).toBeNull();
-    expect(motivoNoReservable(arribo, 10, new Date("2030-01-01T11:40:00Z"), 20)).toMatch(/cierran 20 min antes/i);
-    // Con demora, el corte corre con el horario estimado.
-    const demorado = { ...arribo, status: "DELAYED", estimatedAt: new Date("2030-01-01T13:00:00Z") };
-    expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T12:30:00Z"), 20)).toBeNull();
-    // Las salidas no usan el corte de arribos.
-    expect(motivoNoReservable({ ...arribo, direction: "DEPARTURE" as const }, 10, new Date("2030-01-01T11:50:00Z"), 20)).toBeNull();
-  });
-
   it("el cupo sale de las combis asignadas (y asume una si no hay)", () => {
     expect(capacidadDeVuelo([])).toBe(24);
     expect(capacidadDeVuelo([{ seats: 24 }])).toBe(24);

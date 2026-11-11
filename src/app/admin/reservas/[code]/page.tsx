@@ -59,7 +59,6 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const pending = reservation.status === "PENDING_PAYMENT";
   const canRecordPayment = canRegisterManualPayment(reservation.status, reservation.totalCents, payment);
   const total = new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.total);
-  const money = (cents: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(cents / 100);
   const pickupDetails = airport ?? reservation.chapelcoDetails;
   const pickupPoint: PickupPoint | null = pickupDetails?.pickupLatitude != null && pickupDetails.pickupLongitude != null
     ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
@@ -144,8 +143,6 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             </div>
             {reservation.halfFareCount ? <div><span>Menores con media tarifa</span><strong>{reservation.halfFareCount}</strong></div> : null}
             {reservation.freeFareCount ? <div><span>Menores de 4 sin cargo</span><strong>{reservation.freeFareCount}</strong></div> : null}
-            {airport?.sportsLuggageCount ? <div><span>Equipaje deportivo</span><strong>{airport.sportsLuggageCount} {airport.sportsLuggageCount === 1 ? "bulto" : "bultos"} · {money(airport.sportsLuggageCount * (airport.sportsLuggageUnitCents ?? 0))}</strong></div> : null}
-            {airport?.zoneExtraCents ? <div><span>Recargo por zona</span><strong>{money(airport.zoneExtraCents)}</strong></div> : null}
             {isChapelco && reservation.chapelcoDetails ? (
               <div>
                 <span>Busqueda</span>

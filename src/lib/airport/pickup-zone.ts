@@ -1,11 +1,5 @@
 export type PickupPoint = [latitude: number, longitude: number];
-/**
- * `boundary` es la zona verde (tarifa normal). `extraBoundary` es el segundo límite: lo que queda
- * dentro de él pero fuera del verde se atiende con recargo de zona. Los sectores excluidos mandan
- * sobre los dos.
- */
-export type AirportCoverage = { enabled: boolean; boundary: PickupPoint[]; exclusions: PickupPoint[][]; extraBoundary?: PickupPoint[] };
-export type AirportPickupZone = "BASE" | "EXTRA";
+export type AirportCoverage = { enabled: boolean; boundary: PickupPoint[]; exclusions: PickupPoint[][] };
 
 // Exportado de Google My Maps «mapa aeropuerto», capa «zona ok».
 export const airportPickupZone: PickupPoint[] = [
@@ -51,21 +45,8 @@ export const OUTSIDE_PICKUP_ZONE = "El punto marcado queda fuera de la zona de s
 
 export const initialAirportCoverage: AirportCoverage = { enabled: false, boundary: airportPickupZone, exclusions: [] };
 
-/** En qué zona cae el punto: `BASE` (verde), `EXTRA` (con recargo) o `null` si no se atiende. */
-export function airportPickupZoneOf(point: PickupPoint, coverage: AirportCoverage): AirportPickupZone | null {
-  if (coverage.exclusions.some((ring) => pointInPolygon(point, ring))) return null;
-  if (pointInPolygon(point, coverage.boundary)) return "BASE";
-  if (coverage.extraBoundary && pointInPolygon(point, coverage.extraBoundary)) return "EXTRA";
-  return null;
-}
-
 export function isInsideAirportPickupZone(point: PickupPoint, coverage: AirportCoverage) {
-  return airportPickupZoneOf(point, coverage) !== null;
-}
-
-/** El recargo sólo corre con el mapa aplicado: con la validación apagada el mapa no decide nada. */
-export function chargesZoneExtra(point: PickupPoint | null | undefined, coverage: AirportCoverage) {
-  return Boolean(coverage.enabled && point && airportPickupZoneOf(point, coverage) === "EXTRA");
+  return pointInPolygon(point, coverage.boundary) && !coverage.exclusions.some((ring) => pointInPolygon(point, ring));
 }
 
 function pointInPolygon([latitude, longitude]: PickupPoint, ring: PickupPoint[]) {

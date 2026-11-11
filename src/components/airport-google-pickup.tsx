@@ -62,20 +62,8 @@ export function AirportGooglePickup({
     if (!map || !coverage.enabled) return;
     let active = true;
     let polygon: google.maps.Polygon | undefined;
-    let extraPolygon: google.maps.Polygon | undefined;
     void loadGoogleLibrary("maps").then(({ Polygon }) => {
       if (!active) return;
-      if (coverage.extraBoundary && coverage.extraBoundary.length >= 3) {
-        extraPolygon = new Polygon({
-          map,
-          paths: coverage.extraBoundary.map(toLatLng),
-          clickable: false,
-          strokeColor: "#d07a12",
-          strokeWeight: 2,
-          fillColor: "#d07a12",
-          fillOpacity: 0.1
-        });
-      }
       polygon = new Polygon({
         map,
         paths: [coverage.boundary, ...coverage.exclusions].map((ring, index) => {
@@ -97,7 +85,6 @@ export function AirportGooglePickup({
     return () => {
       active = false;
       polygon?.setMap(null);
-      extraPolygon?.setMap(null);
     };
   }, [coverage, map]);
 

@@ -123,9 +123,6 @@ export type ReservationDetailDto = {
   } | null;
   airportDetails?: {
     halfFareCount?: number;
-    sportsLuggageCount?: number;
-    sportsLuggageUnitCents?: number;
-    zoneExtraCents?: number;
     flightNumber: string;
     direction: string;
     serviceDate: Date;

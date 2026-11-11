@@ -251,11 +251,6 @@ model AirportReservationDetails {
   pickupLongitude Float?
   pickupNotes   String?
   halfFareCount Int         @default(0)
-  /// Bultos de equipaje deportivo y precio unitario vigente al reservar.
-  sportsLuggageCount     Int @default(0)
-  sportsLuggageUnitCents Int @default(0)
-  /// Recargo por zona (segundo límite del mapa) cobrado al reservar.
-  zoneExtraCents         Int @default(0)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
