@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db/prisma";
 import { hashPassword, isValidPassword } from "@/lib/auth/password";
 import { parseMonthlySalaryCents } from "@/lib/admin/salary";
 import { getManagedUserPath, isManagedUserRole, type ManagedUserRole } from "@/lib/admin/users";
+import { validateManagedUserDraft } from "@/lib/admin/user-draft";
 import { errorState, type AdminFormState } from "../form-state";
 
 function value(formData: FormData, key: string) {
@@ -39,6 +40,44 @@ async function ensureAdminRemains(tx: Prisma.TransactionClient, userId: string, 
   const activeAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true } });
   const activeAdminsAfterChange = activeAdmins - (target.isActive ? 1 : 0);
   if (activeAdminsAfterChange < 1) throw new Error("No se puede quitar o desactivar al último administrador activo.");
+}
+
+export async function createManagedUserAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
+  await getCurrentAdminOrRedirect();
+  const passwordValue = formData.get("password");
+
+  const validated = validateManagedUserDraft({
+    email: value(formData, "email"),
+    name: value(formData, "name"),
+    password: typeof passwordValue === "string" ? passwordValue : "",
+    role: value(formData, "role"),
+    isActive: value(formData, "isActive") !== "false",
+    monthlySalary: value(formData, "monthlySalary")
+  });
+
+  if (!validated.ok) {
+    return errorState("Revisá los datos de la cuenta.", validated.errors);
+  }
+
+  const { draft } = validated;
+  try {
+    await prisma.user.create({
+      data: {
+        email: draft.email,
+        name: draft.name,
+        role: draft.role,
+        isActive: draft.isActive,
+        monthlySalaryCents: draft.monthlySalaryCents,
+        salaryCurrency: "ARS",
+        passwordHash: await hashPassword(draft.password)
+      }
+    });
+  } catch (error) {
+    return reportError(error);
+  }
+
+  refreshUsers();
+  notice(`Cuenta creada para ${draft.email}. Entregale la contraseña inicial y pedile que la cambie.`);
 }
 
 export async function updateManagedUserAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
