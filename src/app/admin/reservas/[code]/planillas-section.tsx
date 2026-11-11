@@ -33,7 +33,8 @@ export function PlanillasSection({ code, sheets }: { code: string; sheets: Sheet
           <div className="planilla-fila" key={kind}>
             <div className="planilla-fila-titulo">
               <strong>{copy.shortLabel}</strong>
-              <span className="muted">
+              <span className="muted">{copy.label}</span>
+              <span className="muted planilla-fila-estado">
                 {sheet
                   ? `${sheet._count.passengers} ${sheet._count.passengers === 1 ? "pasajero cargado" : "pasajeros cargados"} · ${sheet.isOpen ? "recibiendo datos" : "cerrada"}`
                   : "Todavía sin link"}
