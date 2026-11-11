@@ -30,6 +30,8 @@ const airportReservationFields = z.object({
   serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida."),
   passengerCount: z.coerce.number().int().min(1, "Al menos un pasajero.").max(24, "Máximo 24 por reserva.").default(1),
   halfFareCount: z.number().int().min(0).max(24).optional(),
+  /** Menores de 4 años: no pagan, pero ocupan un lugar. */
+  freeFareCount: z.number().int().min(0).max(24).optional(),
   passenger: passengerSchema,
   pickupName: z.string().max(120).optional(),
   pickupAddress: z.string().max(160).optional(),
@@ -39,11 +41,11 @@ const airportReservationFields = z.object({
   privateFlight: privateFlightSchema.optional()
 });
 
-const halfFareFitsSeats = ({ halfFareCount = 0, passengerCount }: { halfFareCount?: number; passengerCount: number }) =>
-  halfFareCount <= passengerCount;
+const halfFareFitsSeats = ({ halfFareCount = 0, freeFareCount = 0, passengerCount }: { halfFareCount?: number; freeFareCount?: number; passengerCount: number }) =>
+  halfFareCount + freeFareCount <= passengerCount;
 const halfFareCountError = {
   path: ["halfFareCount"],
-  message: "La cantidad de menores con media tarifa no puede superar los lugares reservados."
+  message: "La cantidad de menores no puede superar los lugares reservados."
 };
 
 export const airportReservationSchema = airportReservationFields.refine(halfFareFitsSeats, halfFareCountError);

@@ -2033,6 +2033,8 @@ body { background: var(--bg); }
 .schedule-time { color:inherit; font-size:21px; line-height:1; }
 .schedule-seats { color:var(--ink-muted); font-size:10px; font-weight:700; white-space:nowrap; }
 .route-quick-book .button { width:100%; font-size:12px; }
+.fare-pickers { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+@media (max-width: 760px) { .fare-pickers { grid-template-columns:1fr; } }
 .quantity-field { display:grid; gap:7px; max-width:260px; color:var(--ink-muted); font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
 .quantity-picker { display:flex; align-items:center; justify-content:space-between; width:170px; min-height:58px; border:1px solid var(--line-strong); border-radius:14px; background:#fff; color:var(--ink); overflow:hidden; }
 .quantity-picker strong { min-width:52px; color:var(--primary); font-size:24px; text-align:center; }

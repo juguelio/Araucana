@@ -10,6 +10,7 @@ import {
   ScheduleOptionDto,
   SeatMapDto
 } from "./types";
+import { fareCounts, reservationTotalCents, seatsFromFares } from "./passenger-fares";
 import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type AdminReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
@@ -109,6 +110,8 @@ type ReservationRecord = {
   seatId: string | null;
   seatNumber: string | null;
   passengerCount: number;
+  halfFareCount?: number;
+  freeFareCount?: number;
   bookingMode: string;
   status: string;
   totalCents: number;
@@ -322,6 +325,8 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     bookingMode: reservation.bookingMode,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
+    halfFareCount: reservation.halfFareCount ?? 0,
+    freeFareCount: reservation.freeFareCount ?? 0,
     status: reservation.status,
     seatNumber: reservation.seatNumber,
     totalCents: reservation.totalCents,
@@ -660,10 +665,13 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("STOP_NOT_AVAILABLE", "La parada seleccionada ya no está disponible.");
             }
             const disabilityFare = parsed.requestDisabilityFare === true;
-            if (disabilityFare && (schedule.route.bookingMode !== "SEATED" || requestedSeats !== 1)) {
+            const fares = fareCounts(requestedSeats, parsed.halfFareCount, parsed.freeFareCount);
+            if (disabilityFare && (schedule.route.bookingMode !== "SEATED" || requestedSeats !== 1 || seatsFromFares(fares) !== 1 || fares.half || fares.free)) {
               throw new BookingError("DISABILITY_FARE_NOT_AVAILABLE", "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.");
             }
-            const totalCents = disabilityFare ? 0 : parsed.overrideTotalCents ?? (stop?.priceCents ?? schedule.route.priceCents) * requestedSeats;
+            const totalCents = disabilityFare
+              ? 0
+              : parsed.overrideTotalCents ?? reservationTotalCents(stop?.priceCents ?? schedule.route.priceCents, fares);
             const availableSeats = Math.max(schedule.vehicle.seats.length - occupiedSeats, 0);
 
             if (requestedSeats > availableSeats) {
@@ -723,6 +731,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 seatId: seatIdForReservation,
                 seatNumber: seat?.number ?? null,
                 passengerCount: requestedSeats,
+                halfFareCount: fares.half,
+                freeFareCount: fares.free,
                 bookingMode: "SEATED",
                 status: disabilityFare ? DISABILITY_PENDING_STATUS : "PENDING_PAYMENT",
                 ...(stop ? { dropoffStop: stop.name } : {}),

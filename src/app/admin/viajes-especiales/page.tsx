@@ -5,9 +5,15 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly, localInput, statuses } from "@/lib/special-trips/data";
 import { dayInterval } from "@/lib/special-trips/conflicts";
+import {
+  agruparPorMes, claveDia, condicionVista, etiquetaFecha, etiquetaGrupo, etiquetaRelativa, mesesConViajes, rangoMes, sumarDias,
+  tonoFila, vistaDe, vistas, type Vista
+} from "./listado";
+import "./listado.css";
 
 const base = "/admin/viajes-especiales";
-const dayMs = 86_400_000;
+const porPagina = 50;
+const claves = ["vista", "mes", "q", "estado", "nave", "semana", "pagina"] as const;
 
 function duration(start: Date, end: Date) {
   const minutes = Math.floor((+end - +start) / 60_000);
@@ -21,95 +27,146 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
   const value = (key: string) => typeof params[key] === "string" ? params[key].trim() : "";
-  const week = dateOnly(value("semana")) ?? dateOnly(localInput(new Date()).slice(0, 10))!;
-  const weekKey = (days: number) => new Date(+week + days * dayMs).toISOString().slice(0, 10);
+  const hoy = dateOnly(localInput(new Date()).slice(0, 10))!;
+  const vista: Vista = vistaDe(value("vista"));
+  const mes = rangoMes(value("mes")) ? value("mes") : "";
+  const q = value("q");
+  const status = Object.hasOwn(statuses, value("estado")) ? value("estado") : "";
+  const vehicleId = value("nave");
+  const week = dateOnly(value("semana")) ?? hoy;
+  const weekKey = (days: number) => claveDia(sumarDias(week, days));
   const { startsAt } = dayInterval(weekKey(0));
   const { startsAt: endsAt } = dayInterval(weekKey(7));
-  const filterDate = dateOnly(value("fecha"));
-  const status = value("estado");
-  const vehicleId = value("nave");
+
+  // La vista fija el filtro base; un mes elegido la reemplaza por el mes completo en orden cronológico.
+  const condicion = condicionVista(vista, hoy);
+  const filtroMes = rangoMes(mes);
   const where: Prisma.SpecialTripWhereInput = {
-    ...(filterDate && { serviceDate: filterDate }),
-    ...(Object.hasOwn(statuses, status) && { status }),
-    ...(value("cliente") && { client: { contains: value("cliente"), mode: "insensitive" } }),
-    ...(value("destino") && { destinationSearch: { contains: value("destino"), mode: "insensitive" } }),
+    ...(filtroMes ? { serviceDate: filtroMes } : condicion.where),
+    ...(status && { status }),
+    ...(q && { OR: [{ client: { contains: q, mode: "insensitive" } }, { destinationSearch: { contains: q, mode: "insensitive" } }] }),
     ...(vehicleId && { assignments: { some: { vehicleId } } })
   };
+  const orden = filtroMes ? "asc" : condicion.orden;
   const page = Math.min(10000, Math.max(1, Number.parseInt(value("pagina"), 10) || 1));
-  const [vehicles, trips, count, agenda, unassigned] = await Promise.all([
+  const contar = (v: Vista) => prisma.specialTrip.count({ where: condicionVista(v, hoy).where });
+  const [vehicles, trips, count, fechas, agenda, nHoy, nSemana, nPendientes, nSinNave] = await Promise.all([
     prisma.vehicle.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    prisma.specialTrip.findMany({ where, skip: (page - 1) * 50, take: 50, orderBy: [{ serviceDate: "desc" }, { id: "asc" }] }),
+    prisma.specialTrip.findMany({
+      where, skip: (page - 1) * porPagina, take: porPagina, orderBy: [{ serviceDate: orden }, { client: "asc" }],
+      include: { assignments: { select: { vehicleId: true }, orderBy: { startsAt: "asc" } } }
+    }),
     prisma.specialTrip.count({ where }),
+    prisma.specialTrip.findMany({ select: { serviceDate: true } }),
     prisma.specialTripAssignment.findMany({
       where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt }, trip: { status: { not: "CANCELLED" } }, ...(vehicleId && { vehicleId }) },
       orderBy: { startsAt: "asc" }, include: { trip: { select: { client: true, status: true } } }
     }),
-    prisma.specialTrip.findMany({
-      where: { status: "CONFIRMED", serviceDate: { gte: week, lt: dateOnly(weekKey(7))! }, assignments: { none: {} } },
-      orderBy: { serviceDate: "asc" }
-    })
+    contar("hoy"), contar("semana"), contar("pendientes"), contar("sinNave")
   ]);
-  const url = (changes: Record<string, string>) => {
+  const naves = new Map(vehicles.map((v) => [v.id, v.name]));
+  const meses = mesesConViajes(fechas.map((f) => f.serviceDate));
+  const conteos: Partial<Record<Vista, number>> = { hoy: nHoy, semana: nSemana, pendientes: nPendientes, sinNave: nSinNave, todos: fechas.length };
+  const url = (changes: Partial<Record<typeof claves[number], string>>) => {
     const query = new URLSearchParams();
-    for (const key of ["semana", "fecha", "estado", "nave", "cliente", "destino", "pagina"]) {
+    for (const key of claves) {
       const selected = changes[key] ?? value(key);
-      if (selected) query.set(key, selected);
+      if (selected && !(key === "vista" && selected === "proximos")) query.set(key, selected);
     }
-    return `${base}?${query}`;
+    const s = query.toString();
+    return s ? `${base}?${s}` : base;
   };
+  const desde = count ? (page - 1) * porPagina + 1 : 0;
+  const hasta = Math.min(page * porPagina, count);
+  const titulo = filtroMes ? `Viajes de ${meses.find((m) => m.clave === mes)?.label ?? mes}` : vistas[vista];
+  const grupos = agruparPorMes(trips);
 
   return <AdminShell title="Viajes especiales" role={user.role} action={<div className="inline-actions">
     <Link href={`${base}/importar`} className="ghost-button">Importar historial</Link>
     <Link href={`${base}/nuevo`} className="button">Nuevo viaje</Link>
   </div>}>
     <section className="plain-card admin-section">
-      <h2>Agenda por nave</h2>
-      <p>Del {weekKey(0)} al {weekKey(6)} · Hora argentina</p>
-      <div className="inline-actions">
-        <Link href={url({ semana: weekKey(-7) })}>Semana anterior</Link>
-        <Link href={url({ semana: weekKey(7) })}>Semana siguiente</Link>
-      </div>
-      <form method="get" className="inline-actions">
-        <label>Empezar la semana el <input type="date" name="semana" defaultValue={weekKey(0)} required /></label>
-        {["fecha", "estado", "cliente", "destino", "nave"].map((key) => <input key={key} type="hidden" name={key} value={value(key)} />)}
-        <button className="ghost-button">Ver semana</button>
-      </form>
-      {vehicles.filter((v) => agenda.some((a) => a.vehicleId === v.id)).map((vehicle) => <section key={vehicle.id}>
-        <h3>{vehicle.name}</h3>
-        <ul>{agenda.filter((a) => a.vehicleId === vehicle.id).map((a) => <li key={a.id}>
-          <Link href={`${base}/${a.tripId}`}>{a.trip.client}</Link> · {localInput(a.startsAt).replace("T", " ")} → {localInput(a.endsAt).replace("T", " ")} · {duration(a.startsAt, a.endsAt)} · {statuses[a.trip.status as keyof typeof statuses]}
-        </li>)}</ul>
-      </section>)}
-      {!agenda.length && <p>Sin ocupaciones de viajes especiales en esta semana.</p>}
-      <h3>Pendientes de asignación</h3>
-      {unassigned.length ? <ul>{unassigned.map((trip) => <li key={trip.id}><Link href={`${base}/${trip.id}`}>{trip.client}</Link> · {trip.serviceDate.toISOString().slice(0, 10)}</li>)}</ul> : <p>Sin viajes confirmados pendientes de asignación.</p>}
-    </section>
-    <section className="plain-card admin-section">
-      <h2>Listado de viajes</h2>
-      <form method="get" className="admin-form-grid">
-        <input type="hidden" name="semana" value={weekKey(0)} />
-        <label>Fecha<input type="date" name="fecha" defaultValue={value("fecha")} /></label>
+      <ul className="vesp-vistas" aria-label="Vistas rápidas">
+        {(Object.keys(vistas) as Vista[]).map((v) => <li key={v}>
+          <Link href={url({ vista: v, mes: "", pagina: "" })} className={`dia-chip${v === vista && !filtroMes ? " activo" : ""}`}
+            aria-current={v === vista && !filtroMes ? "page" : undefined} data-alerta={(v === "sinNave" || v === "pendientes") && !!conteos[v]}>
+            {vistas[v]}{conteos[v] !== undefined && <small>{conteos[v]}</small>}
+          </Link>
+        </li>)}
+      </ul>
+      <form method="get" className="admin-form-grid vesp-filtros">
+        <input type="hidden" name="vista" value={vista} />
+        {mes && <input type="hidden" name="mes" value={mes} />}
+        <label>Cliente o destino<input name="q" defaultValue={q} placeholder="Buscar…" /></label>
         <label>Estado<select name="estado" defaultValue={status}><option value="">Todos</option>{Object.entries(statuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
-        <label>Cliente<input name="cliente" defaultValue={value("cliente")} /></label>
-        <label>Destino<input name="destino" defaultValue={value("destino")} /></label>
         <label>Nave<select name="nave" defaultValue={vehicleId}><option value="">Todas</option>{vehicles.map((v) => <option value={v.id} key={v.id}>{v.name}</option>)}</select></label>
-        <button className="ghost-button">Filtrar</button>
+        <div className="inline-actions">
+          <button className="ghost-button">Filtrar</button>
+          {(q || status || vehicleId || mes) && <Link href={url({ q: "", estado: "", nave: "", mes: "", pagina: "" })}>Limpiar</Link>}
+        </div>
+        {!!meses.length && <div className="dia-field vesp-meses">
+          <span className="dia-label">Por mes</span>
+          <div className="dia-tira">
+            {meses.map((m) => <Link key={m.clave} href={url({ mes: m.clave === mes ? "" : m.clave, pagina: "" })} title={`${m.count} viajes`}
+              className={`dia-chip${m.clave === mes ? " activo" : ""}`} aria-current={m.clave === mes ? "page" : undefined}>{m.label}</Link>)}
+          </div>
+        </div>}
       </form>
-      <div className="table-scroll"><table className="data-table">
-        <thead><tr><th>Fecha</th><th>Cliente</th><th>Destino o servicio</th><th>Estado</th></tr></thead>
-        <tbody>{trips.map((trip) => <tr key={trip.id}>
-          <td>{trip.serviceDate.toISOString().slice(0, 10)}</td>
-          <td><Link href={`${base}/${trip.id}`}>{trip.client}</Link></td>
-          <td>{trip.destinationSearch.replaceAll("\n", " · ")}</td>
-          <td>{statuses[trip.status as keyof typeof statuses]}</td>
-        </tr>)}</tbody>
-      </table></div>
-      {!trips.length && <p>Sin viajes para estos filtros.</p>}
-      <p>{count} viajes</p>
-      <div className="inline-actions">
-        {page > 1 && <Link href={url({ pagina: String(page - 1) })}>Página anterior</Link>}
-        {page * 50 < count && <Link href={url({ pagina: String(page + 1) })}>Página siguiente</Link>}
-      </div>
+    </section>
+
+    <section className="plain-card admin-section">
+      <h2>{titulo}</h2>
+      <p className="vesp-resumen">
+        <span>{count ? `${desde}–${hasta} de ${count} viajes` : "Sin viajes para esta vista."}</span>
+        {orden === "asc" ? <span>Del más próximo al más lejano</span> : <span>Del más reciente al más antiguo</span>}
+      </p>
+      {!!trips.length && <div className="table-scroll"><table className="data-table vesp-tabla">
+        <thead><tr><th>Fecha</th><th>Cliente</th><th>Destino o servicio</th><th>Pax</th><th>Nave</th><th>Estado</th></tr></thead>
+        {grupos.map((grupo) => <tbody key={grupo.clave} className="vesp-grupo">
+          {(grupos.length > 1 || filtroMes === null) && <tr><th colSpan={6} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
+          {grupo.items.map((trip) => {
+            const asignadas = [...new Set(trip.assignments.map((a) => naves.get(a.vehicleId) ?? "Nave"))];
+            const estado = tonoFila(trip, asignadas.length > 0, hoy);
+            return <tr key={trip.id}>
+              <td className="vesp-num" data-hoy={claveDia(trip.serviceDate) === claveDia(hoy)}>{etiquetaRelativa(trip.serviceDate, hoy) && <strong>{etiquetaRelativa(trip.serviceDate, hoy)} · </strong>}{etiquetaFecha(trip.serviceDate, hoy)}</td>
+              <td className="vesp-cliente"><Link href={`${base}/${trip.id}`}>{trip.client}</Link>{trip.contact && <small>{trip.contact}</small>}</td>
+              <td>{trip.destinationSearch.replaceAll("\n", " · ")}</td>
+              <td className="vesp-num">{trip.passengers ?? "—"}</td>
+              <td className="vesp-nave">{asignadas.length ? <strong>{asignadas.join(", ")}</strong> : "Sin nave"}</td>
+              <td><span className="pill pill-estado" data-tono={estado.tono}>{estado.label}</span></td>
+            </tr>;
+          })}
+        </tbody>)}
+      </table></div>}
+      {count > porPagina && <nav className="pagination" aria-label="Paginación de viajes">
+        {page > 1 ? <Link className="pagination-link" href={url({ pagina: String(page - 1) })} rel="prev">← Anterior</Link> : <span aria-disabled="true" className="pagination-link">← Anterior</span>}
+        <span className="pagination-status">Página {page} de {Math.ceil(count / porPagina)}</span>
+        {hasta < count ? <Link className="pagination-link" href={url({ pagina: String(page + 1) })} rel="next">Siguiente →</Link> : <span aria-disabled="true" className="pagination-link">Siguiente →</span>}
+      </nav>}
+    </section>
+
+    <section className="plain-card admin-section vesp-agenda">
+      <details open={agenda.length > 0}>
+        <summary>Agenda por nave · del {etiquetaFecha(sumarDias(week, 0), hoy)} al {etiquetaFecha(sumarDias(week, 6), hoy)}{agenda.length ? ` · ${agenda.length} ocupaciones` : " · sin ocupaciones"}</summary>
+        <p className="muted">Hora argentina. Sólo aparecen las naves con ocupaciones cargadas en el viaje.</p>
+        <div className="inline-actions">
+          <Link href={url({ semana: weekKey(-7) })}>← Semana anterior</Link>
+          <Link href={url({ semana: claveDia(hoy) })}>Esta semana</Link>
+          <Link href={url({ semana: weekKey(7) })}>Semana siguiente →</Link>
+        </div>
+        <form method="get" className="inline-actions">
+          <label>Empezar la semana el <input type="date" name="semana" defaultValue={weekKey(0)} required /></label>
+          {claves.filter((k) => k !== "semana" && k !== "pagina").map((key) => <input key={key} type="hidden" name={key} value={value(key)} />)}
+          <button className="ghost-button">Ver semana</button>
+        </form>
+        {vehicles.filter((v) => agenda.some((a) => a.vehicleId === v.id)).map((vehicle) => <section key={vehicle.id}>
+          <h3>{vehicle.name}</h3>
+          <ul>{agenda.filter((a) => a.vehicleId === vehicle.id).map((a) => <li key={a.id}>
+            <Link href={`${base}/${a.tripId}`}>{a.trip.client}</Link> · {localInput(a.startsAt).replace("T", " ")} → {localInput(a.endsAt).replace("T", " ")} · {duration(a.startsAt, a.endsAt)} · {statuses[a.trip.status as keyof typeof statuses]}
+          </li>)}</ul>
+        </section>)}
+        {!agenda.length && <p>Sin ocupaciones de naves en esta semana.</p>}
+      </details>
     </section>
   </AdminShell>;
 }

@@ -13,6 +13,7 @@ import {
   type PassengerFieldErrors,
   type PassengerForm
 } from "./passenger-fields";
+import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { getStopFares } from "@/lib/booking/stop-fares";
 import { createReservationAction } from "./actions";
 
@@ -95,6 +96,8 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   const stop = stopFares.find((fare) => fare.name === dropoffStop);
   const [requestDisabilityFare, setRequestDisabilityFare] = useState(false);
   const [passengerCount, setPassengerCount] = useState(1);
+  const [halfFareCount, setHalfFareCount] = useState(0);
+  const [freeFareCount, setFreeFareCount] = useState(0);
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -105,6 +108,12 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
     () => bookableOptions.schedules.find((schedule) => schedule.id === scheduleId) ?? bookableOptions.schedules[0] ?? null,
     [scheduleId, bookableOptions.schedules]
   );
+
+  const personas = passengerCount + halfFareCount + freeFareCount;
+  const precioUnitario = stop?.priceCents ?? selectedSchedule?.priceCents ?? route.priceCents;
+  const totalPorEdad = reservationTotalCents(precioUnitario, fareCounts(personas, halfFareCount, freeFareCount));
+  const lugaresLibres = selectedSchedule?.availableSeats ?? 0;
+
   function updatePassenger(field: keyof PassengerForm, value: string) {
     setPassenger((current) => ({
       ...current,
@@ -144,8 +153,10 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
     const result = await createReservationAction({
       scheduleId: selectedSchedule.id,
       dropoffStop: stop?.name,
-      requestDisabilityFare: requestDisabilityFare && passengerCount === 1,
-      passengerCount,
+      requestDisabilityFare: requestDisabilityFare && personas === 1,
+      passengerCount: personas,
+      halfFareCount,
+      freeFareCount,
       passenger: buildPassengerPayload(passenger)
     });
 
@@ -218,20 +229,40 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             <p className="eyebrow">Cupos</p>
             <h2 className="route-title">¿Cuántos asientos comprás?</h2>
           </div>
-          <QuantityPicker
-            label="Cantidad de asientos"
-            value={passengerCount}
-            max={selectedSchedule?.availableSeats}
-            disabled={isSubmitting || !selectedSchedule}
-            help={selectedSchedule ? `${selectedSchedule.availableSeats} lugares disponibles` : "Elegí una salida primero"}
-            onChange={setPassengerCount}
-          />
+          <div className="fare-pickers">
+            <QuantityPicker
+              label="Adultos (9 años o más)"
+              value={passengerCount}
+              max={Math.max(lugaresLibres - halfFareCount - freeFareCount, 1)}
+              disabled={isSubmitting || !selectedSchedule}
+              help={selectedSchedule ? `${lugaresLibres} lugares disponibles` : "Elegí una salida primero"}
+              onChange={setPassengerCount}
+            />
+            <QuantityPicker
+              label="Menores de 4 a 8 años · media tarifa"
+              value={halfFareCount}
+              min={0}
+              max={Math.max(lugaresLibres - passengerCount - freeFareCount, 0)}
+              disabled={isSubmitting || !selectedSchedule}
+              help={selectedSchedule ? `${formatPrice(Math.round(precioUnitario / 2), selectedSchedule.currency)} cada uno` : "Elegí una salida primero"}
+              onChange={setHalfFareCount}
+            />
+            <QuantityPicker
+              label="Menores de 4 años · sin cargo"
+              value={freeFareCount}
+              min={0}
+              max={Math.max(lugaresLibres - passengerCount - halfFareCount, 0)}
+              disabled={isSubmitting || !selectedSchedule}
+              help="Ocupan un lugar, no pagan"
+              onChange={setFreeFareCount}
+            />
+          </div>
           {route.bookingMode === "SEATED" && (
             <label className="checkbox-row">
               <input
                 type="checkbox"
-                checked={requestDisabilityFare && passengerCount === 1}
-                disabled={isSubmitting || passengerCount !== 1}
+                checked={requestDisabilityFare && personas === 1}
+                disabled={isSubmitting || personas !== 1}
                 onChange={(event) => setRequestDisabilityFare(event.target.checked)}
               />
               Solicitar viaje gratuito por discapacidad
@@ -270,15 +301,27 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             <strong>{selectedSchedule ? formatDateTime(selectedSchedule.departureAt) : "Sin salida"}</strong>
           </div>
           <div>
-            <span>Asientos</span>
-            <strong>{passengerCount} {passengerCount === 1 ? "lugar" : "lugares"}</strong>
+            <span>Lugares</span>
+            <strong>{personas} {personas === 1 ? "lugar" : "lugares"}</strong>
           </div>
+          {halfFareCount > 0 ? (
+            <div>
+              <span>Menores 4 a 8</span>
+              <strong>{halfFareCount} · media tarifa</strong>
+            </div>
+          ) : null}
+          {freeFareCount > 0 ? (
+            <div>
+              <span>Menores de 4</span>
+              <strong>{freeFareCount} · sin cargo</strong>
+            </div>
+          ) : null}
           <div>
             <span>Precio</span>
             <strong className="price">
-              {requestDisabilityFare && passengerCount === 1
+              {requestDisabilityFare && personas === 1
                 ? "Sin cargo, sujeto a aprobación"
-                : formatPrice((stop?.priceCents ?? selectedSchedule?.priceCents ?? route.priceCents) * passengerCount, selectedSchedule?.currency ?? route.currency)}
+                : formatPrice(totalPorEdad, selectedSchedule?.currency ?? route.currency)}
             </strong>
           </div>
         </div>

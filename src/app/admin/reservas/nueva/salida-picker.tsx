@@ -32,6 +32,8 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
   const [dia, setDia] = useState("");
   const [pickedId, setPickedId] = useState(schedules[0]?.id ?? "");
   const [cantidad, setCantidad] = useState(1);
+  const [mediaTarifa, setMediaTarifa] = useState(0);
+  const [sinCargo, setSinCargo] = useState(0);
 
   const origenes = useMemo(() => unicos(schedules.map((schedule) => schedule.from)), [schedules]);
 
@@ -199,7 +201,7 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
         </label>
       ) : null}
 
-      {selected?.bookingMode === "SEATED" && cantidadAjustada === 1 && (
+      {selected?.bookingMode === "SEATED" && cantidadAjustada === 1 && !mediaTarifa && !sinCargo && (
         <label key={selected.id} className="checkbox-row">
           <input type="checkbox" name="requestDisabilityFare" />
           Solicitar viaje gratuito por discapacidad
@@ -237,6 +239,30 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
               +
             </button>
           </div>
+        </div>
+        <div className="salida-menores">
+          <label>
+            Menores 4 a 8 · media
+            <input
+              type="number"
+              name="halfFareCount"
+              min="0"
+              max={cantidadAjustada - sinCargo}
+              value={mediaTarifa}
+              onChange={(event) => setMediaTarifa(Math.max(0, Math.min(cantidadAjustada - sinCargo, Number(event.target.value) || 0)))}
+            />
+          </label>
+          <label>
+            Menores de 4 · sin cargo
+            <input
+              type="number"
+              name="freeFareCount"
+              min="0"
+              max={cantidadAjustada - mediaTarifa}
+              value={sinCargo}
+              onChange={(event) => setSinCargo(Math.max(0, Math.min(cantidadAjustada - mediaTarifa, Number(event.target.value) || 0)))}
+            />
+          </label>
         </div>
         <p className="salida-resumen">
           {selected ? (

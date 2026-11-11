@@ -1,4 +1,4 @@
-import { airportReservationTotal } from "./passenger-fares";
+import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { createReservationCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
@@ -273,6 +273,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
           throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
         }
 
+        const fares = fareCounts(parsed.passengerCount, parsed.halfFareCount ?? 0, parsed.freeFareCount ?? 0);
         const passenger = await tx.passenger.create({ data: parsed.passenger });
         const reservation = await tx.reservation.create({
           data: {
@@ -282,7 +283,9 @@ export async function createAirportReservation(input: AdminAirportReservationInp
             passengerCount: parsed.passengerCount,
             bookingMode: "AIRPORT",
             status: "PENDING_PAYMENT",
-            totalCents: parsed.overrideTotalCents ?? airportReservationTotal(rutaDelSentido.priceCents, parsed.passengerCount, parsed.halfFareCount ?? 0),
+            totalCents: parsed.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(parsed.passengerCount, parsed.halfFareCount ?? 0, parsed.freeFareCount ?? 0)),
+            halfFareCount: fares.half,
+            freeFareCount: fares.free,
             currency: rutaDelSentido.currency,
             airportDetails: {
               create: {
