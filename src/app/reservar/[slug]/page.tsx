@@ -5,6 +5,7 @@ import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
+import { etiquetasDeSalida } from "@/lib/booking/schedule-days";
 import { CheckoutForm } from "./checkout-form";
 import { AirportCheckoutForm } from "./airport-checkout-form";
 import { ChapelcoCheckoutForm } from "./chapelco-checkout-form";
@@ -184,9 +185,10 @@ export default async function ReservationPage({ params, searchParams }: Reservat
   const schedules = await listSchedulesForRoute(route.id);
   const today = todayInputValue();
   const bookableSchedules = schedules
-    .filter((schedule) => isBookableSchedule(schedule.status) && scheduleDateKey(schedule.departureAt) >= today)
+    // Sólo días con lugares: una salida llena no se puede reservar y no tiene por qué aparecer.
+    .filter((schedule) => isBookableSchedule(schedule.status) && schedule.availableSeats > 0 && scheduleDateKey(schedule.departureAt) >= today)
     // Sin la ruta repetida en cada salida: el formulario la recibe una vez por `route`.
-    .map(({ route: _route, ...schedule }) => schedule);
+    .map(({ route: _route, ...schedule }) => ({ ...schedule, ...etiquetasDeSalida(schedule.departureAt) }));
   const initialScheduleId = query?.scheduleId;
 
   return (

@@ -14,6 +14,7 @@ import {
   type PassengerForm
 } from "./passenger-fields";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { diaEfectivo, diasConSalidas } from "@/lib/booking/schedule-days";
 import { getStopFares } from "@/lib/booking/stop-fares";
 import { createReservationAction } from "./actions";
 
@@ -25,9 +26,12 @@ export {
   validateCheckoutPassenger
 } from "./passenger-fields";
 
+/** Salida con el día ya etiquetado en hora argentina (lo arma la página en el servidor). */
+export type CheckoutSchedule = CheckoutScheduleDto & { dayKey: string; dayLabel: string; timeLabel: string };
+
 type CheckoutFormProps = {
   route: PublicRouteDto;
-  schedules: CheckoutScheduleDto[];
+  schedules: CheckoutSchedule[];
   initialScheduleId?: string;
 };
 
@@ -51,24 +55,6 @@ export function formatDateTime(value: Date | string) {
   }).format(new Date(value)).replace(/\u00a0/g, " ");
 }
 
-function formatScheduleDate(value: Date | string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    timeZone: "America/Argentina/Salta"
-  }).format(new Date(value)).replace(/\.$/, "");
-}
-
-function formatScheduleTime(value: Date | string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "America/Argentina/Salta"
-  }).format(new Date(value));
-}
-
 function formatPrice(cents: number, currency: string) {
   if (cents <= 0) {
     return "Consultar";
@@ -84,13 +70,21 @@ function formatPrice(cents: number, currency: string) {
 
 export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFormProps) {
   const router = useRouter();
+  // Sólo lo que se puede reservar de verdad: abiertas, con lugares y de hoy en adelante.
+  // El día es el eje (igual que el alta del panel): con 258 salidas la tira plana era inusable.
   const bookableOptions = useMemo(() => ({
-    schedules: schedules.filter((schedule) => bookableScheduleStatuses.has(schedule.status)),
+    schedules: schedules.filter((schedule) => bookableScheduleStatuses.has(schedule.status) && schedule.availableSeats > 0),
     seatMaps: [] as SeatMapDto[]
   }), [schedules]);
-  const firstScheduleId = bookableOptions.schedules[0]?.id ?? "";
-  const preferredScheduleId = initialScheduleId && bookableOptions.schedules.some((schedule) => schedule.id === initialScheduleId) ? initialScheduleId : firstScheduleId;
-  const [scheduleId, setScheduleId] = useState(preferredScheduleId);
+  const dias = useMemo(() => diasConSalidas(bookableOptions.schedules), [bookableOptions.schedules]);
+  const salidaInicial = bookableOptions.schedules.find((schedule) => schedule.id === initialScheduleId) ?? bookableOptions.schedules[0];
+  const [dia, setDia] = useState(salidaInicial?.dayKey ?? "");
+  const diaElegido = diaEfectivo(dias, dia);
+  const salidasDelDia = useMemo(
+    () => bookableOptions.schedules.filter((schedule) => schedule.dayKey === diaElegido),
+    [bookableOptions.schedules, diaElegido]
+  );
+  const [scheduleId, setScheduleId] = useState(salidaInicial?.id ?? "");
   const [dropoffStop, setDropoffStop] = useState("");
   const stopFares = getStopFares(route);
   const stop = stopFares.find((fare) => fare.name === dropoffStop);
@@ -105,8 +99,8 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   const hasBookableSchedules = bookableOptions.schedules.length > 0;
 
   const selectedSchedule = useMemo(
-    () => bookableOptions.schedules.find((schedule) => schedule.id === scheduleId) ?? bookableOptions.schedules[0] ?? null,
-    [scheduleId, bookableOptions.schedules]
+    () => salidasDelDia.find((schedule) => schedule.id === scheduleId) ?? salidasDelDia[0] ?? null,
+    [scheduleId, salidasDelDia]
   );
 
   const personas = passengerCount + halfFareCount + freeFareCount;
@@ -181,30 +175,59 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             <p className="eyebrow">Salida</p>
             <h2 className="route-title">Elegir salida</h2>
           </div>
-          {hasBookableSchedules ? <fieldset className="schedule-picker" disabled={isSubmitting}>
-            <legend>Salidas disponibles</legend>
-            <div className="schedule-rail" aria-label="Salidas disponibles">
-              {bookableOptions.schedules.map((schedule) => (
-                <label className="schedule-option" key={schedule.id}>
-                  <input
-                    type="radio"
-                    name="scheduleId"
-                    value={schedule.id}
-                    checked={selectedSchedule?.id === schedule.id}
-                    onChange={(event) => {
-                      setScheduleId(event.target.value);
-                      setPassengerCount(1);
+          {hasBookableSchedules ? (
+            <>
+              <div className="checkout-dias" role="group" aria-label="Días con salidas">
+                {dias.map((opcion) => (
+                  <button
+                    type="button"
+                    key={opcion.key}
+                    className={`dia-chip${opcion.key === diaElegido ? " activo" : ""}`}
+                    aria-pressed={opcion.key === diaElegido}
+                    title={`${opcion.count} ${opcion.count === 1 ? "salida" : "salidas"}`}
+                    disabled={isSubmitting}
+                    onClick={() => {
+                      setDia(opcion.key);
+                      const primera = bookableOptions.schedules.find((schedule) => schedule.dayKey === opcion.key);
+                      if (primera) {
+                        setScheduleId(primera.id);
+                        setPassengerCount(1);
+                      }
                     }}
-                  />
-                  <span className="schedule-card">
-                    <span className="schedule-date">{formatScheduleDate(schedule.departureAt)}</span>
-                    <strong className="schedule-time">{formatScheduleTime(schedule.departureAt)}</strong>
-                    <span className="schedule-seats">{schedule.availableSeats} asientos</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset> : null}
+                  >
+                    {opcion.label}
+                  </button>
+                ))}
+              </div>
+              <fieldset className="schedule-picker" disabled={isSubmitting}>
+                <legend>Salidas del día</legend>
+                <div className="schedule-rail" aria-label="Salidas del día">
+                  {salidasDelDia.map((schedule) => (
+                    <label className="schedule-option" key={schedule.id}>
+                      <input
+                        type="radio"
+                        name="scheduleId"
+                        value={schedule.id}
+                        checked={selectedSchedule?.id === schedule.id}
+                        onChange={(event) => {
+                          setScheduleId(event.target.value);
+                          setPassengerCount(1);
+                        }}
+                      />
+                      <span className="schedule-card">
+                        {/* El día ya está elegido arriba: acá va el estado, como en el panel. */}
+                        <span className="schedule-date">{schedule.status === "DOCUMENTATION" ? "Documentación" : "Salida"}</span>
+                        <strong className="schedule-time">{schedule.timeLabel}</strong>
+                        <span className="schedule-seats">
+                          {schedule.availableSeats} {schedule.availableSeats === 1 ? "asiento" : "asientos"}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </>
+          ) : null}
           {!hasBookableSchedules ? (
             <p className="muted">No hay salidas disponibles para reservar en este momento.</p>
           ) : null}

@@ -2022,6 +2022,9 @@ body { background: var(--bg); }
 .route-quick-book { display:grid; gap:12px; margin-top:20px; padding-top:16px; border-top:1px solid var(--line); }
 .schedule-picker { display:grid; gap:8px; min-width:0; padding:0; border:0; }
 .schedule-picker legend { padding:0; color:var(--ink-muted); font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+/* Página pública de reserva: la tira de días con salidas (mismo criterio que el alta del panel). */
+.checkout-dias { display:flex; gap:8px; min-width:0; overflow-x:auto; overscroll-behavior-inline:contain; padding:2px 2px 6px; scroll-snap-type:x proximity; scrollbar-width:thin; }
+.checkout-dias .dia-chip { display:inline-flex; align-items:center; }
 .schedule-rail { display:flex; gap:8px; min-width:0; overflow-x:auto; overscroll-behavior-inline:contain; padding:2px 2px 8px; scroll-snap-type:x proximity; scrollbar-width:thin; }
 .schedule-option { position:relative; flex:0 0 calc((100% - 16px) / 3); min-width:94px; cursor:pointer; scroll-snap-align:start; }
 .schedule-option input { position:absolute; opacity:0; pointer-events:none; }

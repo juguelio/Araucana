@@ -317,6 +317,16 @@ model Passenger {
   createdAt    DateTime      @default(now())
 }
 
+/// Contador de pedidos por IP y ventana de tiempo: el freno contra ráfagas de reservas.
+model RateLimitHit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+}
+
 model Reservation {
   id          String     @id @default(cuid())
   code        String     @unique

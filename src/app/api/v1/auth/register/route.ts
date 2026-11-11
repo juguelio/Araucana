@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { cuposDeAcceso, limitarPedido } from "@/lib/api/rate-limit";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { isValidPassword } from "@/lib/auth/password";
 import { registerWithCredentials } from "@/lib/auth/service";
@@ -11,6 +12,9 @@ const registerSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const rafaga = await limitarPedido(request, cuposDeAcceso);
+  if (rafaga) return rafaga;
+
   const parsed = registerSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return jsonError("VALIDATION_ERROR", "Revisa nombre, email y contraseña (mínimo 12 caracteres y hasta 72 bytes UTF-8).", 400);
   try {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cuposDeReserva, limitarPedido } from "@/lib/api/rate-limit";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createAirportReservation } from "@/lib/airport/booking";
 import { BookingError } from "@/lib/booking/repository";
@@ -21,6 +22,12 @@ const errorResponses: Record<string, { message: string; status: number }> = {
 
 /** Reserva pública de un traslado al aeropuerto: queda atada al número de vuelo. */
 export async function POST(request: Request) {
+  // El alta desde el panel es de un usuario logueado: el freno es para el formulario público.
+  if (new URL(request.url).searchParams.get("source") !== "admin") {
+    const rafaga = await limitarPedido(request, cuposDeReserva);
+    if (rafaga) return rafaga;
+  }
+
   try {
     const fromAdmin = new URL(request.url).searchParams.get("source") === "admin";
     if (fromAdmin) await requireReservationsUser(request);
