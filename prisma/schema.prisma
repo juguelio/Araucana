@@ -562,3 +562,53 @@ model FleetConflictAcceptance {
 
   @@index([service, serviceId])
 }
+
+/// Planilla de salida que el panel comparte por link: el DUT (salida del país) o el Registro de
+/// salida de pasajeros (salida de la provincia). El pasajero carga sus datos una sola vez.
+model DepartureSheet {
+  id             String   @id @default(cuid())
+  /// "DUT" = salida del país (CNRT) · "PROVINCIA" = salida de la provincia con habilitación puntual.
+  kind           String
+  /// Referencia que ven el panel y el pasajero: «Viaje a Chile · 20/11».
+  title          String
+  destination    String?
+  /// Fecha de salida del servicio (mediodía argentino, para que el día no se corra).
+  departureAt    DateTime?
+  /// Paso fronterizo que se declara en el DUT internacional (ej. Cardenal Samoré).
+  borderCrossing String?
+  notes          String?
+  /// Capacidad del link público: 128 bits, igual que el código privado de una reserva.
+  token          String   @unique
+  /// Cerrada = el link sigue mostrando la planilla pero no acepta más pasajeros.
+  isOpen         Boolean  @default(true)
+  createdBy      String?
+  passengers     DepartureSheetPassenger[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([kind, departureAt])
+}
+
+model DepartureSheetPassenger {
+  id               String         @id @default(cuid())
+  sheetId          String
+  sheet            DepartureSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  /// Nº de orden dentro del registro (la columna «Nº» del registro provincial).
+  position         Int            @default(0)
+  firstName        String
+  lastName         String
+  documentType     String
+  documentNumber   String
+  sex              String
+  birthDate        DateTime       @db.Date
+  nationality      String
+  /// Sólo el registro provincial pide ocupación y país de residencia.
+  occupation       String?
+  residenceCountry String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  /// El mismo documento cargado dos veces actualiza la fila en lugar de duplicarla.
+  @@unique([sheetId, documentType, documentNumber])
+  @@index([sheetId, position])
+}

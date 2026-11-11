@@ -48,6 +48,8 @@ npm run dev
 
 Para cargar vehículos, rutas y salidas de demostración, configurá `DEMO_DATABASE_URL` con una base PostgreSQL local separada y ejecutá `npm run prisma:seed`. La carga agrega únicamente registros de ejemplo que falten. Los datos existentes se conservan. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
 
+`npm run prisma:push` pasa por `scripts/local-db-only.ts` (`src/lib/db/local-database.ts`, con test): si `DATABASE_URL` falta o no apunta a `127.0.0.1`/`localhost`, no se ejecuta nada. Es la guarda de las operaciones que reescriben el esquema; no hay variable de entorno que la saltee. `prisma migrate deploy` queda afuera a propósito porque migrar producción es una operación legítima — pero se corre con la `DATABASE_URL` explícita y verificando el destino en la salida del comando.
+
 ## Seguridad de reservas y pagos
 
 Las reservas nuevas usan enlaces privados con 128 bits aleatorios: quien recibe el enlace puede consultar la reserva y adjuntar su comprobante pendiente. No compartirlo públicamente. Los códigos cortos heredados sólo se consultan con una sesión activa ADMIN/SECRETARY; el pasajero debe contactar al equipo para recuperar su reserva. No se migran ni regeneran códigos existentes automáticamente.

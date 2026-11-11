@@ -1,0 +1,81 @@
+/* Planillas de salida: listado y detalle del panel. Estilos propios para no tocar globals.css. */
+
+.planilla-hint {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.planilla-tabla small,
+.planilla-detalle small {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.planilla-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.planilla-link-box {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: #fffaf1;
+}
+
+.planilla-link-box code {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.planilla-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.planilla-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 16px 0 0;
+}
+
+.planilla-meta div {
+  display: grid;
+  gap: 3px;
+}
+
+.planilla-meta span {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.planilla-meta strong {
+  font-size: 14px;
+}
+
+.planilla-vacio {
+  padding: 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 720px) {
+  .planilla-tabla td,
+  .planilla-tabla th {
+    font-size: 12px;
+  }
+}
