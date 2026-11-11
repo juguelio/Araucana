@@ -46,7 +46,7 @@ npx prisma generate
 npm run dev
 ```
 
-El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores. No ejecutarlo contra una base con datos reales. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
+Para cargar vehículos, rutas y salidas de demostración, configurá `DEMO_DATABASE_URL` con una base PostgreSQL local separada y ejecutá `npm run prisma:seed`. La carga agrega únicamente registros de ejemplo que falten. Los datos existentes se conservan. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
 
 ## Seguridad de reservas y pagos
 
