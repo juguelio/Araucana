@@ -1,5 +1,6 @@
 import { reservationPriceCents } from "@/lib/booking/admin-price";
 import { z } from "zod";
+import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
 import { adminPassengerSchema, passengerSchema } from "@/lib/booking/validation";
 
 /**
@@ -48,9 +49,16 @@ const halfFareCountError = {
   message: "La cantidad de menores no puede superar los lugares reservados."
 };
 
-export const airportReservationSchema = airportReservationFields.refine(halfFareFitsSeats, halfFareCountError);
+const faresHaveFull = ({ halfFareCount = 0, freeFareCount = 0, passengerCount }: { halfFareCount?: number; freeFareCount?: number; passengerCount: number }) =>
+  hasFullFare(fareCounts(passengerCount, halfFareCount, freeFareCount));
+const noFullFareError = { path: ["freeFareCount"], message: sinAdultoMensaje };
+
+export const airportReservationSchema = airportReservationFields
+  .refine(halfFareFitsSeats, halfFareCountError)
+  .refine(faresHaveFull, noFullFareError);
 export const adminAirportReservationSchema = airportReservationFields.extend({ passenger: adminPassengerSchema, overrideTotalCents: reservationPriceCents.optional() })
-  .refine(halfFareFitsSeats, halfFareCountError);
+  .refine(halfFareFitsSeats, halfFareCountError)
+  .refine(faresHaveFull, noFullFareError);
 
 export type AirportReservationInput = z.infer<typeof airportReservationSchema>;
 export type AdminAirportReservationInput = z.infer<typeof adminAirportReservationSchema>;

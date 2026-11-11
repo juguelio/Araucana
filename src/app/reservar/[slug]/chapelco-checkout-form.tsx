@@ -262,7 +262,13 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
               min={1}
               max={60}
               value={passengerCount}
-              onChange={(event) => setPassengerCount(Number(event.target.value))}
+              onChange={(event) => {
+                const total = Math.max(1, Math.min(60, Number(event.target.value) || 1));
+                setPassengerCount(total);
+                // Siempre queda un pasajero de tarifa entera: un grupo de sólo menores no es una reserva.
+                setFreeFareCount((valor) => Math.min(valor, Math.max(total - halfFareCount - 1, 0)));
+                setHalfFareCount((valor) => Math.min(valor, Math.max(total - freeFareCount - 1, 0)));
+              }}
               disabled={isSubmitting}
             />
             {fieldError(fieldErrors, "passengerCount")}
@@ -275,7 +281,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
                 min={0}
                 max={passengerCount}
                 value={halfFareCount}
-                onChange={(event) => setHalfFareCount(Math.max(0, Math.min(passengerCount - freeFareCount, Number(event.target.value) || 0)))}
+                onChange={(event) => setHalfFareCount(Math.max(0, Math.min(passengerCount - freeFareCount - 1, Number(event.target.value) || 0)))}
                 disabled={isSubmitting}
               />
             </label>
@@ -286,7 +292,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
                 min={0}
                 max={passengerCount}
                 value={freeFareCount}
-                onChange={(event) => setFreeFareCount(Math.max(0, Math.min(passengerCount - halfFareCount, Number(event.target.value) || 0)))}
+                onChange={(event) => setFreeFareCount(Math.max(0, Math.min(passengerCount - halfFareCount - 1, Number(event.target.value) || 0)))}
                 disabled={isSubmitting}
               />
             </label>

@@ -123,7 +123,7 @@ describe("reserva de aeropuerto: ruta y tarifa del mismo sentido", () => {
 
   it("rechaza más menores con media tarifa que lugares reservados", async () => {
     await expect(reserva({ halfFareCount: 3 })).rejects.toMatchObject({
-      issues: [expect.objectContaining({ path: ["halfFareCount"] })]
+      issues: expect.arrayContaining([expect.objectContaining({ path: ["halfFareCount"] })])
     });
     expect(mocks.transaction).not.toHaveBeenCalled();
   });

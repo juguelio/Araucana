@@ -226,7 +226,13 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
               min="1"
               max={maxCantidad}
               value={cantidadAjustada}
-              onChange={(event) => setCantidad(Number(event.target.value) || 1)}
+              onChange={(event) => {
+                              const lugares = Math.max(1, Number(event.target.value) || 1);
+                              setCantidad(lugares);
+                              // Queda siempre un lugar de tarifa entera.
+                              setSinCargo((valor) => Math.min(valor, Math.max(lugares - mediaTarifa - 1, 0)));
+                              setMediaTarifa((valor) => Math.min(valor, Math.max(lugares - sinCargo - 1, 0)));
+                            }}
               onBlur={() => setCantidad(cantidadAjustada)}
               required
             />
@@ -249,7 +255,7 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
               min="0"
               max={cantidadAjustada - sinCargo}
               value={mediaTarifa}
-              onChange={(event) => setMediaTarifa(Math.max(0, Math.min(cantidadAjustada - sinCargo, Number(event.target.value) || 0)))}
+              onChange={(event) => setMediaTarifa(Math.max(0, Math.min(cantidadAjustada - sinCargo - 1, Number(event.target.value) || 0)))}
             />
           </label>
           <label>
@@ -260,7 +266,7 @@ export function SalidaPicker({ schedules }: { schedules: SalidaOption[] }) {
               min="0"
               max={cantidadAjustada - mediaTarifa}
               value={sinCargo}
-              onChange={(event) => setSinCargo(Math.max(0, Math.min(cantidadAjustada - mediaTarifa, Number(event.target.value) || 0)))}
+              onChange={(event) => setSinCargo(Math.max(0, Math.min(cantidadAjustada - mediaTarifa - 1, Number(event.target.value) || 0)))}
             />
           </label>
         </div>

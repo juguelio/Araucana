@@ -1,10 +1,15 @@
 import { z } from "zod";
+import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
 import { passengerSchema } from "@/lib/booking/validation";
 import { chapelcoAscentSlots, chapelcoManifestStatuses, chapelcoRunDirections } from "./constants";
 
 const chapelcoFareCounter = z.number().int().min(0, "La cantidad no puede ser negativa.").max(60).default(0);
 
-export const chapelcoReservationSchema = z.object({
+const faresHaveFull = (valores: { halfFareCount?: number; freeFareCount?: number; passengerCount: number }) =>
+  hasFullFare(fareCounts(valores.passengerCount, valores.halfFareCount ?? 0, valores.freeFareCount ?? 0));
+const noFullFareError = { path: ["freeFareCount"], message: sinAdultoMensaje };
+
+const chapelcoFields = z.object({
   routeId: z.string().min(1, "Selecciona la ruta Chapelco."),
   serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Selecciona una fecha valida."),
   ascentSlot: z.enum(chapelcoAscentSlots),
@@ -18,6 +23,13 @@ export const chapelcoReservationSchema = z.object({
   pickupNotes: z.string().max(240).nullable().optional(),
   passenger: passengerSchema
 });
+
+export const chapelcoReservationSchema = chapelcoFields
+  .refine((v) => (v.halfFareCount ?? 0) + (v.freeFareCount ?? 0) <= v.passengerCount, {
+    path: ["halfFareCount"],
+    message: "La cantidad de menores no puede superar la de pasajeros."
+  })
+  .refine(faresHaveFull, noFullFareError);
 
 export const operationDaySchema = z.object({
   routeId: z.string().min(1),

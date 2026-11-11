@@ -630,7 +630,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 <QuantityPicker
                   label="Pasajeros con tarifa completa"
                   value={fullFareCount}
-                  min={halfFareCount > 0 ? 0 : 1}
+                  min={1}
                   max={maxSeats - halfFareCount}
                   disabled={isSubmitting}
                   onChange={setFullFareCount}
@@ -638,7 +638,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 <QuantityPicker
                   label="Menores de 4 a 8 años · media tarifa"
                   value={halfFareCount}
-                  min={fullFareCount > 0 || freeFareCount > 0 ? 0 : 1}
+                  min={0}
                   max={maxSeats - fullFareCount - freeFareCount}
                   disabled={isSubmitting}
                   onChange={setHalfFareCount}
