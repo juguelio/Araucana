@@ -64,8 +64,11 @@
 }
 
 @media (max-width: 760px) {
+  /* En mobile el hero termina justo donde va el badge "Experiencia local":
+     el bloque deja de flotar y se apoya sobre el fondo, sin superponerse. */
   .weather-strip {
-    margin-top: -18px;
+    margin-top: 0;
+    padding-top: 14px;
   }
 
   .weather-card {
