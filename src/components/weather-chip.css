@@ -1,0 +1,78 @@
+/* Clima en la barra del sitio (header oscuro). */
+.weather-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 5px 10px 5px 8px;
+  border: 1px solid rgba(251, 246, 235, 0.22);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.weather-chip-icon {
+  width: 16px;
+  height: 16px;
+  color: #f2c896;
+  flex: none;
+}
+
+.weather-chip-temp {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.weather-chip-text {
+  color: rgba(251, 246, 235, 0.78);
+  font-size: 11px;
+}
+
+/* En pantallas medianas la barra se llena: queda sólo el icono y la temperatura. */
+@media (max-width: 1100px) {
+  .weather-chip-text {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .weather-chip {
+    margin-left: 0;
+    padding: 4px 8px;
+  }
+
+  .weather-chip-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  .weather-chip-temp {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 520px) {
+  .weather-chip {
+    padding: 4px 7px;
+    gap: 4px;
+  }
+
+  .weather-chip-icon {
+    width: 13px;
+    height: 13px;
+  }
+
+  .weather-chip-temp {
+    font-size: 10px;
+  }
+}
+
+/* Por debajo de 370 px el logo y el menú ya ocupan todo el ancho: el bloque se esconde
+   para no provocar scroll horizontal (verificado a 360 px). */
+@media (max-width: 369px) {
+  .weather-chip {
+    display: none;
+  }
+}
