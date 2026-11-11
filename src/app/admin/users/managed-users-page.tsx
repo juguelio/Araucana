@@ -24,7 +24,12 @@ export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUser
   const activeCount = users.filter((user) => user.isActive).length;
 
   return (
-    <AdminShell title={role ? getManagedUserRoleName(role) : "CRM · Usuarios y roles"} eyebrow="Panel de administración" notice={notice}>
+    <AdminShell
+      title={role ? getManagedUserRoleName(role) : "CRM · Usuarios y roles"}
+      eyebrow="Panel de administración"
+      notice={notice}
+      action={<Link className="button" href="/admin/usuarios/nuevo">Crear usuario</Link>}
+    >
       {!role && <CrmNavigation current="usuarios" />}
       <section className="admin-grid">
         <div className="admin-card"><span className="muted">Pendientes</span><strong>{pendingCount}</strong></div>
