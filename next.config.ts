@@ -5,6 +5,17 @@ import { fileURLToPath } from "node:url";
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      // El listado de planillas se eliminó: la planilla se genera desde la reserva del pasajero.
+      // Los bookmarks y links viejos a /admin/planillas no tienen que morir en un 404.
+      {
+        source: "/admin/planillas",
+        destination: "/admin/reservas?notice=La%20planilla%20se%20genera%20desde%20la%20reserva%20del%20pasajero",
+        permanent: false
+      }
+    ];
+  },
   async headers() {
     return [
       // Videos e imágenes de /public: sin esto el navegador revalida cada archivo en cada visita.
