@@ -103,7 +103,7 @@ export const departureSheetCopy: Record<
   }
 > = {
   DUT: {
-    label: "DUT — salida del país",
+    label: "Documento Universal de Transporte (DUT) — salida del país",
     shortLabel: "DUT",
     worksheetName: "DUT",
     columns: dutColumns,

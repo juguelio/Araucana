@@ -37,6 +37,11 @@
   gap: 10px;
 }
 
+.planilla-fila-estado {
+  flex-basis: 100%;
+  font-size: 0.85em;
+}
+
 .planilla-fila-cuerpo {
   display: grid;
   gap: 10px;
