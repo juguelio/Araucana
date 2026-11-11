@@ -44,7 +44,15 @@ npx prisma generate
 npm run dev
 ```
 
-El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores. No ejecutarlo contra una base con datos reales. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
+El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores. **Borra** reservas, pagos, pasajeros, salidas y rutas antes de cargar los datos demo, así que sólo se corre contra una base local. El propio seed se niega a arrancar si `DATABASE_URL` no apunta a `127.0.0.1`/`localhost` (`src/lib/db/seed-target.ts`, con test): no hay variable de entorno que lo fuerce contra una base remota. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
+
+```bash
+# Seed / db push: siempre con la URL local en el mismo comando (el .env del repo apunta a producción).
+DATABASE_URL="postgresql://usuario@127.0.0.1:5433/araucana_local" npm run prisma:seed
+DATABASE_URL="postgresql://usuario@127.0.0.1:5433/araucana_local" npm run prisma:push
+```
+
+`npm run prisma:push` pasa por el mismo guard (`scripts/local-db-only.ts`): si la URL falta o es remota, no se ejecuta nada. `prisma migrate deploy` queda afuera a propósito porque migrar producción es una operación legítima — pero se corre con la `DATABASE_URL` explícita y verificando el destino en la salida del comando.
 
 ## Seguridad de reservas y pagos
 

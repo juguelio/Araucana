@@ -12,7 +12,7 @@
     "test:watch": "vitest",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:push": "prisma db push",
+    "prisma:push": "tsx scripts/local-db-only.ts prisma db push",
     "prisma:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

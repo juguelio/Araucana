@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { assertSeedTarget } from "../src/lib/db/seed-target";
 import { demoRoutes } from "./demo-routes";
 
 const prisma = new PrismaClient();
@@ -87,6 +88,9 @@ async function seedVehicle() {
 }
 
 async function clearDemoBookingData() {
+  // Defensa en profundidad: si alguien llama esta función sin pasar por main(), sigue bloqueada.
+  assertSeedTarget(process.env.DATABASE_URL);
+
   await prisma.payment.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.reservation.deleteMany();
@@ -177,6 +181,11 @@ async function seedRoutesAndSchedules() {
 }
 
 async function main() {
+  const target = assertSeedTarget(process.env.DATABASE_URL);
+  console.log(
+    `Seed local sobre ${target.host}/${target.database}: borra reservas, pagos, pasajeros, salidas y rutas, y carga los datos demo.`
+  );
+
   await seedVehicle();
   await clearDemoBookingData();
   await seedRoutesAndSchedules();
