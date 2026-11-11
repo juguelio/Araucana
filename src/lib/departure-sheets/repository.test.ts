@@ -5,7 +5,7 @@ const mocks = {
   transaction: vi.fn(),
   findUniqueSheet: vi.fn(),
   lockSheet: vi.fn(),
-  findUniqueReservation: vi.fn(),
+  findUniqueTrip: vi.fn(),
   upsertSheet: vi.fn()
 };
 
@@ -15,7 +15,7 @@ vi.mock("@/lib/db/prisma", () => ({
       findUnique: (...args: unknown[]) => mocks.findUniqueSheet(...args),
       upsert: (...args: unknown[]) => mocks.upsertSheet(...args)
     },
-    reservation: { findUnique: (...args: unknown[]) => mocks.findUniqueReservation(...args) },
+    specialTrip: { findUnique: (...args: unknown[]) => mocks.findUniqueTrip(...args) },
     $transaction: (...args: unknown[]) => mocks.transaction(...args)
   }
 }));
@@ -72,26 +72,23 @@ beforeEach(() => {
   });
 });
 
-describe("link de la planilla de una reserva", () => {
-  it("crea el link la primera vez, atado a la reserva", async () => {
-    mocks.findUniqueReservation.mockResolvedValue({
-      id: "res-1",
-      dropoffStop: null,
-      route: { to: "Pucón", via: "Paso Samoré", slug: "sma-pucon", category: "Chile" },
-      schedule: null
+describe("link de la planilla de un viaje especial", () => {
+  it("crea el link la primera vez, atado al viaje", async () => {
+    mocks.findUniqueTrip.mockResolvedValue({
+      id: "trip-1",
+      destinationSearch: "Loi Suites - Pucón",
+      legs: [{ country: "AR_CL", description: "Pucón recorridos locales" }]
     });
     mocks.upsertSheet.mockResolvedValue({ id: "planilla-1", token: TOKEN });
 
-    const sheet = await ensureDepartureSheet("arc-2611-abc", "DUT", "user-1");
+    const sheet = await ensureDepartureSheet("trip-1", "DUT", "user-1");
 
-    expect(mocks.findUniqueReservation).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { code: "ARC-2611-ABC" } })
-    );
+    expect(mocks.findUniqueTrip).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "trip-1" } }));
     expect(mocks.upsertSheet).toHaveBeenCalledWith({
-      where: { reservationId_kind: { reservationId: "res-1", kind: "DUT" } },
+      where: { specialTripId_kind: { specialTripId: "trip-1", kind: "DUT" } },
       update: {},
       create: expect.objectContaining({
-        reservationId: "res-1",
+        specialTripId: "trip-1",
         kind: "DUT",
         token: expect.stringMatching(/^PLN-[A-F0-9]{32}$/),
         createdBy: "user-1"
@@ -101,57 +98,48 @@ describe("link de la planilla de una reserva", () => {
   });
 
   it("reusa el link si la planilla ya existía", async () => {
-    mocks.findUniqueReservation.mockResolvedValue({
-      id: "res-1",
-      dropoffStop: null,
-      route: { to: "San Carlos de Bariloche", via: "Ruta 40", slug: "sma-bariloche", category: "Argentina" },
-      schedule: null
+    mocks.findUniqueTrip.mockResolvedValue({
+      id: "trip-1",
+      destinationSearch: "Rodado 26",
+      legs: [{ country: "AR", destination: "San Carlos de Bariloche" }]
     });
     mocks.upsertSheet.mockResolvedValue({ id: "planilla-1", token: TOKEN });
 
-    await ensureDepartureSheet("ARC-2611-ABC", "PROVINCIA");
+    await ensureDepartureSheet("trip-1", "PROVINCIA");
 
     expect(mocks.upsertSheet).toHaveBeenCalledWith({
-      where: { reservationId_kind: { reservationId: "res-1", kind: "PROVINCIA" } },
+      where: { specialTripId_kind: { specialTripId: "trip-1", kind: "PROVINCIA" } },
       update: {},
       create: expect.objectContaining({ kind: "PROVINCIA" })
     });
   });
 
-  it("no genera link para una reserva que no sale de la provincia", async () => {
-    mocks.findUniqueReservation.mockResolvedValue({
-      id: "res-1",
-      dropoffStop: null,
-      route: { to: "Villa Traful", via: "Ruta 40", slug: "sma-villa-traful", category: "Argentina" },
-      schedule: null
+  it("no genera link para un viaje que no sale de la provincia", async () => {
+    mocks.findUniqueTrip.mockResolvedValue({
+      id: "trip-1",
+      destinationSearch: "TRF OUT APT CPC",
+      legs: [{ country: "AR", description: "Aeropuerto Chapelco" }]
     });
 
-    await expect(ensureDepartureSheet("ARC-2611-ABC", "DUT")).rejects.toMatchObject({
-      code: "NOT_APPLICABLE"
-    });
-    await expect(ensureDepartureSheet("ARC-2611-ABC", "PROVINCIA")).rejects.toMatchObject({
-      code: "NOT_APPLICABLE"
-    });
+    await expect(ensureDepartureSheet("trip-1", "DUT")).rejects.toMatchObject({ code: "NOT_APPLICABLE" });
+    await expect(ensureDepartureSheet("trip-1", "PROVINCIA")).rejects.toMatchObject({ code: "NOT_APPLICABLE" });
     expect(mocks.upsertSheet).not.toHaveBeenCalled();
   });
 
   it("no genera DUT para un viaje que sólo sale de la provincia", async () => {
-    mocks.findUniqueReservation.mockResolvedValue({
-      id: "res-1",
-      dropoffStop: null,
-      route: { to: "Bariloche", via: "Ruta 40", slug: "sma-bariloche", category: "Argentina" },
-      schedule: null
+    mocks.findUniqueTrip.mockResolvedValue({
+      id: "trip-1",
+      destinationSearch: "Bariloche",
+      legs: [{ country: "AR", destination: "San Carlos de Bariloche" }]
     });
 
-    await expect(ensureDepartureSheet("ARC-2611-ABC", "DUT")).rejects.toMatchObject({
-      code: "NOT_APPLICABLE"
-    });
+    await expect(ensureDepartureSheet("trip-1", "DUT")).rejects.toMatchObject({ code: "NOT_APPLICABLE" });
   });
 
-  it("no genera link para una reserva que no existe", async () => {
-    mocks.findUniqueReservation.mockResolvedValue(null);
+  it("no genera link para un viaje que no existe", async () => {
+    mocks.findUniqueTrip.mockResolvedValue(null);
 
-    await expect(ensureDepartureSheet("ARC-2611-NADA", "DUT")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(ensureDepartureSheet("trip-nada", "DUT")).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.upsertSheet).not.toHaveBeenCalled();
   });
 });

@@ -356,8 +356,7 @@ model Reservation {
   chapelcoDetails ChapelcoReservationDetails?
   airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
-  departureSheets DepartureSheet[]
-  createdAt   DateTime   @default(now())
+  createdAt     DateTime  @default(now())
   updatedAt   DateTime   @updatedAt
 
   @@unique([scheduleId, seatNumber])
@@ -521,6 +520,7 @@ model SpecialTrip {
   updatedAt     DateTime @updatedAt
   assignments   SpecialTripAssignment[]
   sources       SpecialTripSource[]
+  departureSheets DepartureSheet[]
 
   @@index([serviceDate, status])
 }
@@ -574,15 +574,15 @@ model DepartureSheet {
   token         String      @unique
   /// Cerrada = el link sigue mostrando la planilla pero no acepta más pasajeros.
   isOpen        Boolean     @default(true)
-  /// Una planilla por reserva y por tipo: el link se genera una vez y se reusa.
-  reservationId String
-  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  /// Una planilla por viaje especial y por tipo: el link se genera una vez y se reusa.
+  specialTripId String
+  specialTrip   SpecialTrip @relation(fields: [specialTripId], references: [id], onDelete: Cascade)
   createdBy     String?
   passengers    DepartureSheetPassenger[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
-  @@unique([reservationId, kind])
+  @@unique([specialTripId, kind])
   @@index([kind])
 }
 

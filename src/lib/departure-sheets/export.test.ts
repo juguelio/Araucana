@@ -73,7 +73,7 @@ describe("planilla exportada", () => {
 
   it("genera un .xlsx con el encabezado congelado y una fila por pasajero", async () => {
     const buffer = await buildDepartureSheetWorkbook(
-      { kind: "PROVINCIA", reservationCode: "ARC-2611-ABC123" },
+      { kind: "PROVINCIA", reference: "2027-02-01 Maria Andrea Gatti" },
       pasajeros
     );
     const workbook = new ExcelJS.Workbook();
@@ -96,12 +96,12 @@ describe("planilla exportada", () => {
     expect(sheet?.getCell("B2").value).toBe("Gómez Bruno");
   });
 
-  it("nombra el archivo con el tipo de planilla y el código de la reserva", () => {
-    expect(departureSheetFileBase({ kind: "DUT", reservationCode: "ARC-2611-ABC123" })).toBe(
-      "planilla-dut-arc-2611-abc123"
+  it("nombra el archivo con el tipo de planilla y el viaje", () => {
+    expect(departureSheetFileBase({ kind: "DUT", reference: "2027-02-01 Maria Andrea Gatti" })).toBe(
+      "planilla-dut-2027-02-01-maria-andrea-gatti"
     );
-    expect(departureSheetFileBase({ kind: "PROVINCIA", reservationCode: "ARC-2611-ABC123" })).toBe(
-      "planilla-registro-de-salida-arc-2611-abc123"
+    expect(departureSheetFileBase({ kind: "PROVINCIA", reference: "2027-02-01 Maria Andrea Gatti" })).toBe(
+      "planilla-registro-de-salida-2027-02-01-maria-andrea-gatti"
     );
   });
 });

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { parseTripLegs } from "@/lib/departure-sheets/applicability";
 import { getDepartureSheetById } from "@/lib/departure-sheets/repository";
 import {
   departureSheetCopy,
@@ -34,22 +35,22 @@ export default async function DepartureSheetDetailPage({ params }: { params: Pro
 
   const kind: DepartureSheetKind = isDepartureSheetKind(sheet.kind) ? sheet.kind : "DUT";
   const copy = departureSheetCopy[kind];
-  const reservation = sheet.reservation;
-  const departureAt =
-    reservation.schedule?.departureAt ?? reservation.chapelcoDetails?.serviceDate ?? reservation.airportDetails?.serviceDate ?? null;
-  const day = formatDay(departureAt);
-  const routeLabel = reservation.route
-    ? `${reservation.route.from} - ${reservation.dropoffStop ?? reservation.route.to}`
-    : "Traslado";
+  const trip = sheet.specialTrip;
+  const day = formatDay(trip.serviceDate);
+  const legs = parseTripLegs(trip.legs);
+  const destino =
+    legs.map((leg) => leg.destination || leg.description).filter(Boolean).join(" · ") ||
+    trip.destinationSearch.replaceAll("\n", " · ") ||
+    "Sin destino cargado";
 
   return (
     <AdminShell
-      title={`Planilla ${copy.shortLabel} · ${reservation.code}`}
+      title={`Planilla ${copy.shortLabel} · ${trip.client}`}
       eyebrow="Planilla de salida"
       role={user.role}
       action={
         <div className="inline-actions">
-          <Link className="ghost-button" href={`/admin/reservas/${reservation.code}`}>Volver a la reserva</Link>
+          <Link className="ghost-button" href={`/admin/viajes-especiales/${trip.id}`}>Volver al viaje</Link>
           <a className="button" href={`/admin/planillas/${sheet.id}/export`}>Descargar planilla (.xlsx)</a>
         </div>
       }
@@ -58,16 +59,16 @@ export default async function DepartureSheetDetailPage({ params }: { params: Pro
         <h2>{copy.label}</h2>
         <div className="planilla-meta">
           <div>
-            <span>Reserva</span>
-            <strong>{reservation.code}</strong>
+            <span>Viaje</span>
+            <strong>{trip.client}</strong>
           </div>
           <div>
-            <span>Ruta</span>
-            <strong>{routeLabel}</strong>
-          </div>
-          <div>
-            <span>Salida</span>
+            <span>Fecha del viaje</span>
             <strong>{day ?? "—"}</strong>
+          </div>
+          <div>
+            <span>Destino</span>
+            <strong>{destino}</strong>
           </div>
           <div>
             <span>Pasajeros cargados</span>
@@ -79,11 +80,11 @@ export default async function DepartureSheetDetailPage({ params }: { params: Pro
           </div>
         </div>
 
-        <PlanillaLinkBox token={sheet.token} title={`Reserva ${reservation.code} · ${copy.shortLabel}`} />
+        <PlanillaLinkBox token={sheet.token} title={`Viaje del ${day} · ${copy.shortLabel}`} />
 
         <form action={setDepartureSheetOpenAction} className="inline-actions">
           <input type="hidden" name="id" value={sheet.id} />
-          <input type="hidden" name="code" value={reservation.code} />
+          <input type="hidden" name="tripId" value={trip.id} />
           <input type="hidden" name="isOpen" value={sheet.isOpen ? "0" : "1"} />
           <button className="ghost-button" type="submit">
             {sheet.isOpen ? "Cerrar el link (no recibe más datos)" : "Reabrir el link"}
@@ -100,8 +101,8 @@ export default async function DepartureSheetDetailPage({ params }: { params: Pro
         <h2>Pasajeros</h2>
         {sheet.passengers.length === 0 ? (
           <p className="planilla-vacio">
-            Todavía no cargó nadie. Mandale el link de arriba al pasajero de la reserva: completa sus
-            datos una vez y aparece en esta lista.
+            Todavía no cargó nadie. Mandale el link de arriba a los pasajeros del viaje: cada uno completa
+            sus datos una vez y aparece en esta lista.
           </p>
         ) : (
           <div className="table-scroll">
