@@ -1,11 +1,19 @@
 /**
  * Lógica del selector de salida del alta manual (sin React, para poder testearla).
  *
- * La operación real tiene cientos de salidas futuras repartidas en meses: la pantalla no puede
- * listar todas, tiene que abrir en el próximo día con salidas y ofrecer una tira corta de días.
+ * Las funciones de agrupación por día viven en `@/lib/booking/schedule-days` porque las comparte
+ * la página pública de reserva; acá sólo queda el tipo que arma el panel.
  */
 
 import type { StopFare } from "@/lib/booking/stop-fares";
+
+export {
+  DIAS_EN_TIRA,
+  diaEfectivo,
+  diasConSalidas,
+  tiraDeDias,
+  type DiaConSalidas
+} from "@/lib/booking/schedule-days";
 
 export type SalidaOption = {
   id: string;
@@ -21,35 +29,3 @@ export type SalidaOption = {
   priceCents?: number;
   currency?: string;
 };
-
-export const DIAS_EN_TIRA = 7;
-
-export type DiaConSalidas = { key: string; label: string; count: number };
-
-/** Días con salidas para la ruta elegida, en orden y con el conteo que se muestra en cada botón. */
-export function diasConSalidas(salidas: SalidaOption[]): DiaConSalidas[] {
-  const mapa = new Map<string, DiaConSalidas>();
-  for (const salida of salidas) {
-    const actual = mapa.get(salida.dayKey);
-    if (actual) actual.count += 1;
-    else mapa.set(salida.dayKey, { key: salida.dayKey, label: salida.dayLabel, count: 1 });
-  }
-  return [...mapa.values()].sort((a, b) => a.key.localeCompare(b.key));
-}
-
-/** El día elegido si todavía tiene salidas; si no, el primero disponible. */
-export function diaEfectivo(dias: DiaConSalidas[], elegido: string): string {
-  if (elegido && dias.some((dia) => dia.key === elegido)) return elegido;
-  return dias[0]?.key ?? "";
-}
-
-/**
- * Los próximos días con salidas. Si el operador eligió una fecha lejana en el calendario, ese día
- * se agrega primero: lo seleccionado no puede quedar fuera de la tira.
- */
-export function tiraDeDias(dias: DiaConSalidas[], efectivo: string, limite = DIAS_EN_TIRA): DiaConSalidas[] {
-  const primeros = dias.slice(0, limite);
-  if (!efectivo || primeros.some((dia) => dia.key === efectivo)) return primeros;
-  const elegido = dias.find((dia) => dia.key === efectivo);
-  return elegido ? [elegido, ...primeros] : primeros;
-}
