@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ensureDepartureSheetAction, setDepartureSheetOpenAction } from "@/app/admin/planillas/actions";
 import { PlanillaLinkBox } from "@/app/admin/planillas/[id]/link-box";
-import { departureSheetCopy, departureSheetKinds } from "@/lib/departure-sheets/types";
+import { departureSheetCopy, type DepartureSheetKind } from "@/lib/departure-sheets/types";
 import "@/app/admin/planillas/planillas.css";
 
 type SheetRow = {
@@ -15,17 +15,32 @@ type SheetRow = {
 /**
  * Planillas que se le mandan al pasajero de esta reserva. El operador genera el link una vez y lo
  * comparte; el pasajero completa los datos que piden Migraciones (DUT) o la provincia.
+ *
+ * Sólo se muestran las que corresponden al destino: una reserva que no sale de la provincia no
+ * lleva ninguna, y si el viaje no sale del país no lleva DUT.
  */
-export function PlanillasSection({ code, sheets }: { code: string; sheets: SheetRow[] }) {
+export function PlanillasSection({
+  code,
+  sheets,
+  kinds
+}: {
+  code: string;
+  sheets: SheetRow[];
+  kinds: DepartureSheetKind[];
+}) {
+  if (kinds.length === 0) {
+    return null;
+  }
+
   return (
     <section className="plain-card admin-section" id="planillas">
       <h2>Planillas de salida</h2>
       <p className="muted">
-        El link es de esta reserva: se lo mandás al pasajero y él completa los datos. El DUT va para
-        salir del país; el registro de salida, para salir de la provincia.
+        El link es de esta reserva: se lo mandás al pasajero y él completa los datos.{" "}
+        {kinds.includes("DUT") ? "El DUT va para salir del país." : null}
       </p>
 
-      {departureSheetKinds.map((kind) => {
+      {kinds.map((kind) => {
         const copy = departureSheetCopy[kind];
         const sheet = sheets.find((item) => item.kind === kind);
 

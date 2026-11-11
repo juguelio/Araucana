@@ -1,11 +1,18 @@
 import { prisma } from "@/lib/db/prisma";
 import { isDepartureSheetToken, createDepartureSheetToken } from "./codes";
+import { planillaKindsForReservation, planillaNotApplicableReason } from "./applicability";
 import type { DeparturePassengerInput } from "./validation";
 import type { DepartureSheetKind } from "./types";
 
 export class DepartureSheetError extends Error {
-  constructor(public readonly code: "NOT_FOUND" | "CLOSED") {
-    super(code === "CLOSED" ? "La planilla ya no recibe datos." : "No encontramos la reserva o la planilla.");
+  constructor(public readonly code: "NOT_FOUND" | "CLOSED" | "NOT_APPLICABLE") {
+    super(
+      code === "CLOSED"
+        ? "La planilla ya no recibe datos."
+        : code === "NOT_APPLICABLE"
+          ? planillaNotApplicableReason
+          : "No encontramos la reserva o la planilla."
+    );
   }
 }
 
@@ -32,15 +39,38 @@ const sheetInclude = {
 /**
  * Devuelve el link de la planilla de esa reserva, creándolo la primera vez. Una por reserva y tipo:
  * si el operador aprieta dos veces, no se generan dos links distintos.
+ *
+ * No se genera planilla para un viaje que no sale de la provincia: el tipo tiene que corresponder al
+ * destino (DUT si sale del país, registro si sale de la provincia).
  */
 export async function ensureDepartureSheet(code: string, kind: DepartureSheetKind, createdBy?: string | null) {
+  const routeSelect = { select: { to: true, via: true, slug: true, category: true } };
+
   const reservation = await prisma.reservation.findUnique({
     where: { code: code.trim().toUpperCase() },
-    select: { id: true }
+    select: {
+      id: true,
+      dropoffStop: true,
+      route: routeSelect,
+      schedule: { select: { route: routeSelect } }
+    }
   });
 
   if (!reservation) {
     throw new DepartureSheetError("NOT_FOUND");
+  }
+
+  const route = reservation.schedule?.route ?? reservation.route;
+  const kinds = planillaKindsForReservation({
+    to: route?.to,
+    via: route?.via,
+    slug: route?.slug,
+    category: route?.category,
+    dropoffStop: reservation.dropoffStop
+  });
+
+  if (!kinds.includes(kind)) {
+    throw new DepartureSheetError("NOT_APPLICABLE");
   }
 
   return prisma.departureSheet.upsert({

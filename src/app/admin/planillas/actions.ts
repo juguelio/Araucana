@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import {
+  DepartureSheetError,
   ensureDepartureSheet,
   removeDepartureSheetPassenger,
   setDepartureSheetOpen
@@ -29,9 +30,18 @@ export async function ensureDepartureSheetAction(form: FormData) {
     redirect(reservas);
   }
 
-  await ensureDepartureSheet(code, kind, user.id);
+  let notice = "Link de la planilla listo para enviar al pasajero.";
+  try {
+    await ensureDepartureSheet(code, kind, user.id);
+  } catch (error) {
+    if (!(error instanceof DepartureSheetError)) {
+      throw error;
+    }
+    notice = error.message;
+  }
+
   revalidatePath(`${reservas}/${code}`);
-  redirect(`${reservas}/${code}?notice=${encodeURIComponent("Link de la planilla listo para enviar al pasajero.")}#planillas`);
+  redirect(`${reservas}/${code}?notice=${encodeURIComponent(notice)}#planillas`);
 }
 
 export async function setDepartureSheetOpenAction(form: FormData) {
