@@ -29,9 +29,15 @@ function validatePassengerDocument<T extends { documentType: string; documentId:
 
 export const passengerSchema = passengerFieldsSchema.transform((passenger, ctx) => validatePassengerDocument(passenger, ctx));
 
-export const adminPassengerSchema = passengerFieldsSchema.extend({
-  email: passengerFieldsSchema.shape.email.or(z.literal("")).default(""),
-  documentId: z.string().default("")
+const adminPassengerFields = passengerFieldsSchema.extend({
+  email: passengerFieldsSchema.shape.email.or(z.literal(""))
+});
+
+export const adminPassengerPatchSchema = adminPassengerFields.partial();
+
+export const adminPassengerSchema = adminPassengerFields.extend({
+  email: adminPassengerFields.shape.email.default(""),
+  documentId: adminPassengerFields.shape.documentId.default("")
 }).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
 
 const fareCounter = z.coerce.number().int().min(0, "La cantidad no puede ser negativa.").max(24).default(0);

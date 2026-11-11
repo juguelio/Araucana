@@ -1,84 +1,75 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
-import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
-import { AdminFormAlert } from "../../form-ui";
-import { initialAdminFormState, type AdminFormState } from "../../form-state";
+import { OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 
-type PickupAddressFormProps = {
-  action: (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
-  code: string;
-  address: string;
-  point: PickupPoint | null;
+export type PickupAddressDraft = { address: string; point: PickupPoint | null; confirmed: boolean };
+
+type PickupAddressFieldsProps = {
+  pickup: PickupAddressDraft;
   coverage: AirportCoverage;
   airport: boolean;
+  changed: boolean;
+  outside: boolean;
+  disabled: boolean;
+  onChange: (pickup: PickupAddressDraft) => void;
 };
 
-export function PickupAddressForm({ action, code, address, point, coverage, airport }: PickupAddressFormProps) {
-  const [state, formAction, pending] = useActionState(action, initialAdminFormState);
-  const [text, setText] = useState(address);
-  const [pin, setPin] = useState(point);
+export function PickupAddressFields({ pickup, coverage, airport, changed, outside, disabled, onChange }: PickupAddressFieldsProps) {
   const [approximate, setApproximate] = useState(false);
   const [reference, setReference] = useState<AirportSelectedPlace | null>(null);
   const [useGoogle, setUseGoogle] = useState(googlePickupConfigured);
-  const [confirmed, setConfirmed] = useState(false);
   const maxLength = airport ? 160 : 180;
-  const outside = pin && coverage.enabled && !isInsideAirportPickupZone(pin, coverage);
+  const { address, point, confirmed } = pickup;
 
   function markPoint(nextPoint: PickupPoint) {
-    setPin(nextPoint);
     setApproximate(false);
     setReference(null);
-    setConfirmed(false);
+    onChange({ ...pickup, point: nextPoint, confirmed: false });
   }
 
   function selectPlace(place: AirportSelectedPlace) {
     const google = place.source === "google";
-    setText(google ? "" : place.label.slice(0, maxLength));
-    setPin(google ? null : place.point);
     setReference(google ? place : null);
     setApproximate(place.approximate);
-    setConfirmed(false);
+    onChange({
+      address: google ? "" : place.label.slice(0, maxLength),
+      point: google ? null : place.point,
+      confirmed: false
+    });
   }
 
   return (
-    <form className="admin-form-grid" action={formAction}>
-      <AdminFormAlert state={state} />
-      <input type="hidden" name="code" value={code} />
-      <input type="hidden" name="latitude" value={pin?.[0] ?? ""} />
-      <input type="hidden" name="longitude" value={pin?.[1] ?? ""} />
-      <AirportPlaceSearch coverage={coverage} useGoogle={useGoogle} disabled={pending}
-        onChange={() => { setConfirmed(false); setReference(null); }} onSelect={selectPlace} />
+    <>
+      <AirportPlaceSearch coverage={coverage} useGoogle={useGoogle} disabled={disabled}
+        onChange={() => { setReference(null); }} onSelect={selectPlace} />
       {useGoogle ? (
-        <AirportGooglePickup coverage={coverage} point={pin} reference={reference} approximate={approximate}
-          disabled={pending} onPoint={markPoint} onUnavailable={() => setUseGoogle(false)} />
+        <AirportGooglePickup coverage={coverage} point={point} reference={reference} approximate={approximate}
+          disabled={disabled} onPoint={markPoint} onUnavailable={() => setUseGoogle(false)} />
       ) : (
-        <AirportDraggableMap point={pin} approximate={approximate} disabled={pending} onSelect={markPoint}
+        <AirportDraggableMap point={point} approximate={approximate} disabled={disabled} onSelect={markPoint}
           onMove={(nextPoint) => { markPoint(nextPoint); return true; }} />
       )}
-      {outside ? <p className="form-alert error" role="status">{OUTSIDE_PICKUP_ZONE}</p> : null}
+      {changed && outside ? <p className="form-alert error" role="status">{OUTSIDE_PICKUP_ZONE}</p> : null}
+      {changed && !point ? (
+        <p className="muted reservation-edit-wide" role="status">Marcá el nuevo punto en el mapa.</p>
+      ) : null}
       <label className="span-2">
         {airport ? "Dirección o referencia (opcional)" : "Dirección"}
-        <input name="address" autoComplete="street-address" maxLength={maxLength}
-          required={!airport} value={text} disabled={pending}
-          onChange={(event) => { setText(event.target.value); setConfirmed(false); }} />
+        <input name="address" autoComplete="street-address" maxLength={maxLength} value={address} disabled={disabled}
+          onChange={(event) => onChange({ ...pickup, address: event.target.value, confirmed: false })} />
       </label>
-      {pin && !outside ? (
-        <label style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center" }}>
-          <input type="checkbox" name="confirmed" checked={confirmed} disabled={pending}
-            style={{ width: "auto", minHeight: 0 }} onChange={(event) => setConfirmed(event.target.checked)} />
+      {changed && point && !outside ? (
+        <label className="reservation-edit-confirm reservation-edit-wide">
+          <input type="checkbox" name="confirmed" checked={confirmed} disabled={disabled}
+            onChange={(event) => onChange({ ...pickup, confirmed: event.target.checked })} />
           Confirmo que el mapa marca el lugar correcto
         </label>
       ) : null}
-      <div className="form-actions" style={{ gridColumn: "1 / -1" }}>
-        <button type="submit" className="button" disabled={pending || !pin || !confirmed || Boolean(outside)}>
-          {pending ? "Guardando…" : "Guardar dirección"}
-        </button>
-      </div>
-    </form>
+    </>
   );
 }

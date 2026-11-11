@@ -6,8 +6,8 @@ import { manageReservation, reservationManagementSchema } from "@/lib/booking/ad
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { reviewDisabilityDocument, approveManualPayment, rejectManualPayment, BookingError, createWebReservation, updatePassengerForReservation } from "@/lib/booking/repository";
-import { adminReservationSchema, adminPassengerSchema } from "@/lib/booking/validation";
+import { reviewDisabilityDocument, approveManualPayment, rejectManualPayment, BookingError, createWebReservation } from "@/lib/booking/repository";
+import { adminReservationSchema, adminPassengerPatchSchema } from "@/lib/booking/validation";
 import {
   errorState,
   fieldErrorsFromZodError,
@@ -122,71 +122,54 @@ export async function rejectManualPaymentAction(formData: FormData) {
   return reviewPaymentAction(formData, "reject");
 }
 
-export async function updatePassengerAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentReservationsUserOrRedirect();
-  const code = value(formData, "code").toUpperCase();
-
-  if (!code) {
-    return errorState("Falta el codigo de reserva. Volve a abrirla desde el listado.");
-  }
-
-  const parsed = adminPassengerSchema.safeParse({
-    firstName: value(formData, "firstName"),
-    lastName: value(formData, "lastName"),
-    email: value(formData, "email"),
-    phone: value(formData, "phone"),
-    documentType: value(formData, "documentType"),
-    documentId: value(formData, "documentId"),
-    nationality: value(formData, "nationality") || null
-  });
-
-  if (!parsed.success) {
-    return errorState("Revisa los campos marcados para guardar el pasajero.", fieldErrorsFromZodError(parsed.error));
-  }
-
-  try {
-    await updatePassengerForReservation(code, parsed.data);
-  } catch (error) {
-    if (error instanceof BookingError && error.code === "RESERVATION_NOT_FOUND") {
-      return errorState("La reserva ya no existe. Volve al listado y buscala nuevamente.");
-    }
-
-    return errorState("No pudimos guardar el pasajero. Intentalo nuevamente.");
-  }
-
-  revalidatePath("/admin/reservas");
-  revalidatePath(`/admin/reservas/${code}`);
-  revalidatePath(`/reservas/${code}`);
-  return successState("Pasajero guardado con exito.");
-}
-
-export async function updatePickupAddressAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
+export async function updateReservationAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
   await getCurrentReservationsUserOrRedirect();
   const code = value(formData, "code").toUpperCase();
   if (!/^ARC-[A-Z0-9-]+$/.test(code)) return errorState("No encontramos la reserva.");
 
-  const latitude = value(formData, "latitude");
-  const longitude = value(formData, "longitude");
-  if (!latitude || !longitude || formData.get("confirmed") !== "on") {
-    return errorState("Confirmá el punto de traslado en el mapa.");
+  const passenger = Object.fromEntries(Object.keys(adminPassengerPatchSchema.shape)
+    .filter((key) => formData.has(key))
+    .map((key) => {
+      const text = value(formData, key);
+      return [key, key === "email" ? text.toLowerCase() : key === "nationality" ? text || null : text];
+    }));
+  const notes = formData.has("notes") ? value(formData, "notes") : undefined;
+  let pickup;
+  if (formData.has("address")) {
+    const latitude = value(formData, "latitude");
+    const longitude = value(formData, "longitude");
+    if (!latitude || !longitude || formData.get("confirmed") !== "on") {
+      return errorState("Confirmá el punto de traslado en el mapa.");
+    }
+    pickup = { address: value(formData, "address"), point: [Number(latitude), Number(longitude)] };
   }
-  const command = reservationManagementSchema.safeParse({
-    operation: "address",
-    address: value(formData, "address"),
-    point: [Number(latitude), Number(longitude)]
-  });
-  if (!command.success) return errorState("Revisá la dirección y el punto marcado en el mapa.");
+  if (!pickup && notes === undefined && Object.keys(passenger).length === 0) {
+    return errorState("No hay cambios para guardar.");
+  }
+
+  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes });
+  if (!command.success) {
+    return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
+  }
 
   try {
     await manageReservation(code, command.data);
   } catch (error) {
-    return errorState(error instanceof BookingError ? error.message : "No pudimos guardar la dirección. Intentalo de nuevo.");
+    const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
+    return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
+      ? { documentId: message } : {});
   }
 
-  for (const path of [`/admin/reservas/${code}`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+  for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
     revalidatePath(path);
   }
-  return successState("Dirección actualizada.");
+  return successState("Cambios guardados.");
+}
+
+function reservationNotice(path: string, message: string, query = "") {
+  const params = new URLSearchParams(query);
+  params.set("notice", message);
+  return `${path}?${params.toString()}`;
 }
 
 export async function manageReservationAction(formData: FormData) {
@@ -194,8 +177,7 @@ export async function manageReservationAction(formData: FormData) {
     operation: value(formData, "operation"),
     totalCents: parseReservationPrice(value(formData, "customPrice")),
     method: value(formData, "method"),
-    reference: value(formData, "reference"),
-    notes: value(formData, "notes")
+    reference: value(formData, "reference")
   });
   if (command.success && command.data.operation === "delete") await getCurrentAdminOrRedirect();
   else await getCurrentReservationsUserOrRedirect();
@@ -203,9 +185,11 @@ export async function manageReservationAction(formData: FormData) {
   const code = value(formData, "code").toUpperCase();
   if (!/^ARC-[A-Z0-9-]+$/.test(code)) redirect("/admin/reservas");
   const detailPath = `/admin/reservas/${code}`;
-  if (!command.success) {
-    const invalidPrice = command.error.issues.some((issue) => issue.path[0] === "totalCents");
-    redirect(`${detailPath}?notice=${encodeURIComponent(invalidPrice ? reservationPriceError : "Revisá los datos ingresados.")}`);
+  const listQuery = formData.has("listQuery") ? value(formData, "listQuery").slice(0, 4096) : null;
+  const returnPath = listQuery === null ? detailPath : "/admin/reservas";
+  if (!command.success || command.data.operation === "edit") {
+    const invalidPrice = !command.success && command.error.issues.some((issue) => issue.path[0] === "totalCents");
+    redirect(reservationNotice(returnPath, invalidPrice ? reservationPriceError : "Revisá los datos ingresados.", listQuery ?? ""));
   }
 
   let result: Awaited<ReturnType<typeof manageReservation>>;
@@ -213,7 +197,7 @@ export async function manageReservationAction(formData: FormData) {
     result = await manageReservation(code, command.data);
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos actualizar la reserva. Intentalo de nuevo.";
-    redirect(`${detailPath}?notice=${encodeURIComponent(message)}`);
+    redirect(reservationNotice(returnPath, message, listQuery ?? ""));
   }
 
   let receiptCleanupFailed = false;
@@ -230,10 +214,8 @@ export async function manageReservationAction(formData: FormData) {
     confirm: "Reserva confirmada.",
     payment: "Pago registrado.",
     correctPayment: "Datos del pago actualizados.",
-    notes: "Notas guardadas.",
-    address: "Dirección actualizada.",
     price: "Precio actualizado."
   };
-  const target = command.data.operation === "delete" ? "/admin/reservas" : detailPath;
-  redirect(`${target}?notice=${encodeURIComponent(notices[command.data.operation])}`);
+  const target = command.data.operation === "delete" ? "/admin/reservas" : returnPath;
+  redirect(reservationNotice(target, notices[command.data.operation], listQuery ?? ""));
 }

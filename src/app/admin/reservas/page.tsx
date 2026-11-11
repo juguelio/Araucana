@@ -4,7 +4,8 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
-import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction } from "./actions";
+import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
+import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import "./pagination.css";
 import "./reservas.css";
 
@@ -71,6 +72,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const desde = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
+  const listQuery = paginaHref(page, filtros).split("?")[1];
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -117,7 +119,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
               <th>Estado</th>
               <th>Pago</th>
               <th>Comprobante</th>
-              <th>Acción</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -125,12 +127,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
               const disabilityFare = reservation.paymentProvider === DISABILITY_DOCUMENT_PROVIDER;
               const canViewReceipt = !disabilityFare || user.role === "ADMIN";
               const whatsappUrl = whatsappHref(reservation.passengerPhone);
+              const detailPath = `/admin/reservas/${reservation.code}`;
+              const canDelete = user.role === "ADMIN" && (reservation.paymentStatus !== "APPROVED" || disabilityFare);
 
               return (
                 <tr key={reservation.code}>
                   <td className="reservas-code">{reservation.code}</td>
                   <td>
-                    <Link className="table-link" href={`/admin/reservas/${reservation.code}`}>
+                    <Link className="table-link" href={detailPath}>
                       {reservation.passenger}
                     </Link>
                   </td>
@@ -171,6 +175,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     )}
                   </td>
                   <td>
+                    <form className="reservas-row-actions" action={manageReservationAction}>
+                      <input type="hidden" name="code" value={reservation.code} />
+                      <input type="hidden" name="listQuery" value={listQuery} />
+                      <Link className="ghost-button table-action" href={detailPath}>Ver</Link>
+                      <Link className="ghost-button table-action" href={`${detailPath}#editar-reserva`}>Editar</Link>
+                      {reservation.status !== "CANCELLED" ? <ConfirmReservationButton operation="cancel" compact /> : null}
+                      {canDelete ? <ConfirmReservationButton operation="delete" compact /> : null}
+                    </form>
                     {disabilityFare && canViewReceipt && reservation.hasReceipt && reservation.status === DISABILITY_PENDING_STATUS && reservation.paymentStatus === "PENDING" && reservation.receiptUploadedAt ? (
                       <form className="reservas-actions" action={approveDisabilityDocumentAction}>
                         <input type="hidden" name="code" value={reservation.code} />
@@ -188,9 +200,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                           Rechazar
                         </button>
                       </form>
-                    ) : (
-                      <span className="muted">-</span>
-                    )}
+                    ) : null}
                   </td>
                 </tr>
               );

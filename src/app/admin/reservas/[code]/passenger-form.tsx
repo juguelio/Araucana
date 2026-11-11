@@ -1,121 +1,34 @@
-"use client";
+import { FieldError } from "../../form-ui";
+import type { AdminFieldErrors } from "../../form-state";
+import type { PassengerDto } from "@/lib/booking/types";
 
-import Link from "next/link";
-import { useActionState } from "react";
-import { AdminFormAlert, AdminSubmitButton, FieldError } from "../../form-ui";
-import { initialAdminFormState, type AdminFormState } from "../../form-state";
+export type PassengerDraft = Record<keyof PassengerDto, string>;
 
-type PassengerFormAction = (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
+const fields = [
+  { name: "firstName", label: "Nombre", type: "text", required: true },
+  { name: "lastName", label: "Apellido", type: "text", required: true },
+  { name: "email", label: "Email (opcional)", type: "email", autoComplete: "email" },
+  { name: "phone", label: "Teléfono", type: "tel", autoComplete: "tel", required: true },
+  { name: "documentType", label: "Tipo de documento", type: "text", required: true },
+  { name: "documentId", label: "Número de documento", type: "text" },
+  { name: "nationality", label: "Nacionalidad", type: "text" }
+] as const;
 
-type PassengerFormData = {
-  code: string;
-  passenger: {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    documentType: string;
-    documentId: string;
-    nationality?: string | null;
-  };
+type PassengerFieldsProps = {
+  passenger: PassengerDraft;
+  errors: AdminFieldErrors;
+  disabled: boolean;
+  onChange: (name: keyof PassengerDraft, value: string) => void;
 };
 
-type PassengerFormProps = {
-  action: PassengerFormAction;
-  reservation: PassengerFormData;
-};
-
-export function PassengerForm({ action, reservation }: PassengerFormProps) {
-  const [state, formAction] = useActionState(action, initialAdminFormState);
-  const errors = state.fieldErrors;
-
-  return (
-    <form className="admin-form-grid" action={formAction}>
-      <AdminFormAlert state={state} />
-      <input type="hidden" name="code" value={reservation.code} />
-      <label>
-        Nombre
-        <input
-          name="firstName"
-          defaultValue={reservation.passenger.firstName}
-          required
-          aria-invalid={Boolean(errors.firstName)}
-          aria-describedby={errors.firstName ? "firstName-error" : undefined}
-        />
-        <FieldError id="firstName-error" message={errors.firstName} />
-      </label>
-      <label>
-        Apellido
-        <input
-          name="lastName"
-          defaultValue={reservation.passenger.lastName}
-          required
-          aria-invalid={Boolean(errors.lastName)}
-          aria-describedby={errors.lastName ? "lastName-error" : undefined}
-        />
-        <FieldError id="lastName-error" message={errors.lastName} />
-      </label>
-      <label>
-        Email (opcional)
-        <input
-          name="email"
-          type="email"
-          defaultValue={reservation.passenger.email}
-          aria-invalid={Boolean(errors.email)}
-          aria-describedby={errors.email ? "email-error" : undefined}
-        />
-        <FieldError id="email-error" message={errors.email} />
-      </label>
-      <label>
-        Telefono
-        <input
-          name="phone"
-          type="tel"
-          autoComplete="tel"
-          defaultValue={reservation.passenger.phone}
-          required
-          aria-invalid={Boolean(errors.phone)}
-          aria-describedby={errors.phone ? "phone-error" : undefined}
-        />
-        <FieldError id="phone-error" message={errors.phone} />
-      </label>
-      <label>
-        Tipo documento
-        <input
-          name="documentType"
-          defaultValue={reservation.passenger.documentType}
-          required
-          aria-invalid={Boolean(errors.documentType)}
-          aria-describedby={errors.documentType ? "documentType-error" : undefined}
-        />
-        <FieldError id="documentType-error" message={errors.documentType} />
-      </label>
-      <label>
-        Numero documento
-        <input
-          name="documentId"
-          defaultValue={reservation.passenger.documentId}
-          aria-invalid={Boolean(errors.documentId)}
-          aria-describedby={errors.documentId ? "documentId-error" : undefined}
-        />
-        <FieldError id="documentId-error" message={errors.documentId} />
-      </label>
-      <label className="span-2">
-        Nacionalidad
-        <input
-          name="nationality"
-          defaultValue={reservation.passenger.nationality ?? ""}
-          aria-invalid={Boolean(errors.nationality)}
-          aria-describedby={errors.nationality ? "nationality-error" : undefined}
-        />
-        <FieldError id="nationality-error" message={errors.nationality} />
-      </label>
-      <div className="form-actions span-2">
-        <AdminSubmitButton>Guardar cambios</AdminSubmitButton>
-        <Link className="ghost-button" href="/admin/reservas">
-          Cancelar
-        </Link>
-      </div>
-    </form>
-  );
+export function PassengerFields({ passenger, errors, disabled, onChange }: PassengerFieldsProps) {
+  return fields.map(({ name, label, type, ...attributes }) => (
+    <label key={name}>
+      {label}
+      <input name={name} type={type} {...attributes} value={passenger[name]} disabled={disabled}
+        aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `${name}-error` : undefined}
+        onChange={(event) => onChange(name, event.target.value)} />
+      <FieldError id={`${name}-error`} message={errors[name]} />
+    </label>
+  ));
 }

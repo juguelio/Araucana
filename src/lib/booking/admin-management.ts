@@ -6,6 +6,8 @@ import { airportPickupPointSchema } from "@/lib/airport/validation";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
 import { canCorrectManualPayment, canEditReservationTotal, reservationPriceCents } from "./admin-price";
 import { BookingError } from "./repository";
+import { adminPassengerPatchSchema } from "./validation";
+import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
 
 const paymentFields = {
   method: z.string().trim().max(60).optional(),
@@ -19,11 +21,11 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("payment"), ...paymentFields }),
   z.object({ operation: z.literal("correctPayment"), ...paymentFields, totalCents: reservationPriceCents }),
   z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
-  z.object({ operation: z.literal("notes"), notes: z.string().trim().max(300) }),
   z.object({
-    operation: z.literal("address"),
-    address: z.string().trim().max(180),
-    point: airportPickupPointSchema
+    operation: z.literal("edit"),
+    passenger: adminPassengerPatchSchema,
+    pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema }).optional(),
+    notes: z.string().trim().max(300).optional()
   })
 ]);
 
@@ -98,45 +100,60 @@ export async function manageReservation(code: string, command: ReservationOperat
           await tx.reservation.update({ where: { id }, data: { totalCents: command.totalCents } });
           if (payment) await tx.payment.update({ where: { reservationId: id }, data: { amountCents: command.totalCents } });
           break;
-        case "address": {
-          if (status === "CANCELLED") throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
-          const [pickupLatitude, pickupLongitude] = command.point;
-          const position = { pickupLatitude, pickupLongitude };
-          const where = { reservationId: id };
+        case "edit": {
+          const { pickup, notes, passenger } = command;
+          if (pickup || notes !== undefined) {
+            if (status === "CANCELLED") throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
+            const where = { reservationId: id };
+            const notesData = notes === undefined ? {} : { pickupNotes: notes || null };
+            const addressData = pickup && {
+              pickupAddress: pickup.address,
+              pickupLatitude: pickup.point[0],
+              pickupLongitude: pickup.point[1]
+            };
 
-          if (reservation.bookingMode === "AIRPORT") {
-            if (command.address.length > 160) {
-              throw new BookingError("INVALID_PICKUP_ADDRESS", "La dirección puede tener hasta 160 caracteres.");
+            if (reservation.bookingMode === "AIRPORT") {
+              if (pickup) {
+                if (pickup.address.length > 160) {
+                  throw new BookingError("INVALID_PICKUP_ADDRESS", "La dirección puede tener hasta 160 caracteres.");
+                }
+                const coverage = await getAirportCoverage(tx);
+                if (coverage.enabled && !isInsideAirportPickupZone(pickup.point, coverage)) {
+                  throw new BookingError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE);
+                }
+              }
+              await tx.airportReservationDetails.update({
+                where, data: { ...notesData, ...(addressData && { ...addressData, pickupAddress: addressData.pickupAddress || null }) }
+              });
+            } else if (reservation.bookingMode === "CHAPELCO") {
+              if (addressData && addressData.pickupAddress.length < 4) {
+                throw new BookingError("INVALID_PICKUP_ADDRESS", "Ingresá una dirección para el traslado.");
+              }
+              await tx.chapelcoReservationDetails.update({ where, data: { ...notesData, ...addressData } });
+              if (addressData) {
+                await tx.chapelcoManifestStop.updateMany({ where: { ...where, status: "PENDING" }, data: addressData });
+              }
+            } else {
+              throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene datos de traslado.");
             }
-            const coverage = await getAirportCoverage(tx);
-            if (coverage.enabled && !isInsideAirportPickupZone(command.point, coverage)) {
-              throw new BookingError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE);
+          }
+
+          if (Object.keys(passenger).length > 0) {
+            const where = { id: reservation.passengerId };
+            const data = { ...passenger };
+            if (data.documentType !== undefined || data.documentId !== undefined) {
+              const saved = await tx.passenger.findUniqueOrThrow({ where, select: { documentType: true, documentId: true } });
+              const documentType = data.documentType ?? saved.documentType;
+              const documentId = data.documentId ?? saved.documentId;
+              const error = passengerDocumentError(documentType, documentId, true);
+              if (error) throw new BookingError("INVALID_PASSENGER_DOCUMENT", error);
+              const normalizedId = normalizePassengerDocument(documentType, documentId);
+              if (data.documentId !== undefined || normalizedId !== saved.documentId) data.documentId = normalizedId;
             }
-            await tx.airportReservationDetails.update({
-              where, data: { ...position, pickupAddress: command.address || null }
-            });
-          } else if (reservation.bookingMode === "CHAPELCO") {
-            if (command.address.length < 4) {
-              throw new BookingError("INVALID_PICKUP_ADDRESS", "Ingresá una dirección para el traslado.");
-            }
-            const data = { ...position, pickupAddress: command.address };
-            await tx.chapelcoReservationDetails.update({ where, data });
-            await tx.chapelcoManifestStop.updateMany({ where: { ...where, status: "PENDING" }, data });
-          } else {
-            throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene dirección de traslado.");
+            await tx.passenger.update({ where, data });
           }
           break;
         }
-        case "notes":
-          if (status === "CANCELLED") throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
-          if (reservation.bookingMode === "AIRPORT") {
-            await tx.airportReservationDetails.update({ where: { reservationId: id }, data: { pickupNotes: command.notes || null } });
-          } else if (reservation.bookingMode === "CHAPELCO") {
-            await tx.chapelcoReservationDetails.update({ where: { reservationId: id }, data: { pickupNotes: command.notes || null } });
-          } else {
-            throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene notas de traslado.");
-          }
-          break;
       }
 
       return { receiptPath: null };

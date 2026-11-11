@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const tx = vi.hoisted(() => ({
   reservation: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   payment: { upsert: vi.fn(), update: vi.fn() },
+  passenger: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
   airportReservationDetails: { update: vi.fn() },
   chapelcoReservationDetails: { update: vi.fn() },
   chapelcoManifestStop: { deleteMany: vi.fn(), updateMany: vi.fn() }
@@ -21,6 +22,7 @@ import { manageReservation, reservationManagementSchema } from "./admin-manageme
 const code = "ARC-2611-TEST";
 const pending = {
   id: "reservation",
+  passengerId: "passenger",
   status: "PENDING_PAYMENT",
   totalCents: 1200000,
   currency: "ARS",
@@ -102,9 +104,10 @@ describe("administración de reservas", () => {
   });
 });
 
-describe("edición de dirección de traslado", () => {
+describe("edición de datos de la reserva", () => {
   const command = reservationManagementSchema.parse({
-    operation: "address", address: "Av. San Martín y Belgrano", point: [-40.1565, -71.3497]
+    operation: "edit", passenger: {},
+    pickup: { address: "Av. San Martín y Belgrano", point: [-40.1565, -71.3497] }
   });
   const data = { pickupAddress: "Av. San Martín y Belgrano", pickupLatitude: -40.1565, pickupLongitude: -71.3497 };
   const where = { reservationId: pending.id };
@@ -118,6 +121,39 @@ describe("edición de dirección de traslado", () => {
     expect(getAirportCoverage).toHaveBeenCalledWith(tx);
     expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where, data });
     expect(tx.payment.update).not.toHaveBeenCalled();
+  });
+
+  it("guarda pasajero, dirección y notas con una sola operación", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT" });
+    const changes = reservationManagementSchema.parse({
+      ...command, passenger: { lastName: "Pérez" }, notes: "Tocar timbre"
+    });
+
+    await manageReservation(code, changes);
+
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledOnce();
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where, data: { ...data, pickupNotes: "Tocar timbre" } });
+    expect(tx.passenger.update).toHaveBeenCalledWith({ where: { id: pending.passengerId }, data: { lastName: "Pérez" } });
+    expect(tx.passenger.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("guarda notas de una reserva anterior sin exigir dirección ni tocar el pasajero", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT" });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, notes: "" });
+
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where, data: { pickupNotes: null } });
+    expect(getAirportCoverage).not.toHaveBeenCalled();
+    expect(tx.passenger.update).not.toHaveBeenCalled();
+  });
+
+  it("valida un documento editado con el tipo que ya está guardado", async () => {
+    tx.passenger.findUniqueOrThrow.mockResolvedValue({ documentType: "DNI", documentId: "" });
+    await manageReservation(code, { operation: "edit", passenger: { documentId: "32.123.456" } });
+
+    expect(tx.passenger.update).toHaveBeenCalledWith({
+      where: { id: pending.passengerId }, data: { documentId: "32123456" }
+    });
   });
 
   it("rechaza un punto excluido y una reserva cancelada", async () => {
