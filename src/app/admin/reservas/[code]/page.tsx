@@ -8,6 +8,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { planillaKindsForReservation } from "@/lib/departure-sheets/applicability";
 import { listDepartureSheetsForReservation } from "@/lib/departure-sheets/repository";
 import { manageReservationAction } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
@@ -66,6 +67,13 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
     ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
   const detailPath = `/admin/reservas/${reservation.code}`;
   const departureSheets = await listDepartureSheetsForReservation(reservation.id);
+  const planillaKinds = planillaKindsForReservation({
+    to: reservation.route.to,
+    via: reservation.route.via,
+    slug: reservation.route.slug,
+    category: reservation.route.category,
+    dropoffStop: reservation.dropoffStop
+  });
 
   return (
     <AdminShell title={passengerName} role={user.role}>
@@ -111,7 +119,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         </div>
       </section>
 
-      <PlanillasSection code={reservation.code} sheets={departureSheets} />
+      <PlanillasSection code={reservation.code} sheets={departureSheets} kinds={planillaKinds} />
 
       <section className="ticket-layout admin-section">
         <div className="plain-card ticket-summary">
