@@ -2,8 +2,25 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { updateManagedUserAction } from "./actions";
+import { createManagedUserAction, updateManagedUserAction } from "./actions";
 import { ManagedUserForm } from "./user-form";
+import "./users.css";
+
+export async function CreateManagedUserPage() {
+  await getCurrentAdminOrRedirect();
+
+  return (
+    <AdminShell eyebrow="Panel de administración" title="Nueva cuenta">
+      <section className="plain-card admin-section">
+        <h2>Crear usuario</h2>
+        <p className="muted">
+          La cuenta queda activa al crearse. Entregale el email y la contraseña inicial; puede cambiarla desde su perfil.
+        </p>
+        <ManagedUserForm action={createManagedUserAction} />
+      </section>
+    </AdminShell>
+  );
+}
 
 export async function EditManagedUserPage({ id }: { id: string }) {
   await getCurrentAdminOrRedirect();

@@ -8,7 +8,7 @@
  * contra una base remota. Para producción se usan migraciones y backup/restore, no esto.
  */
 import { spawnSync } from "node:child_process";
-import { assertLocalDatabase } from "../src/lib/db/seed-target";
+import { assertLocalDatabase } from "../src/lib/db/local-database";
 
 const [command, ...args] = process.argv.slice(2);
 const invocation = [command, ...args].filter(Boolean).join(" ");

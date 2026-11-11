@@ -38,21 +38,17 @@ La reserva guarda el punto que la persona marca y confirma y, si la escribe, la 
 
 ## Desarrollo
 
+En el panel, las acciones de edición abren una página propia. Cuando un registro tiene una vista de detalle, el formulario se abre en una ruta separada.
+
 ```bash
 npm install
 npx prisma generate
 npm run dev
 ```
 
-El seed carga vehículos y rutas de demostración, nunca credenciales ni usuarios administradores. **Borra** reservas, pagos, pasajeros, salidas y rutas antes de cargar los datos demo, así que sólo se corre contra una base local. El propio seed se niega a arrancar si `DATABASE_URL` no apunta a `127.0.0.1`/`localhost` (`src/lib/db/seed-target.ts`, con test): no hay variable de entorno que lo fuerce contra una base remota. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
+Para cargar vehículos, rutas y salidas de demostración, configurá `DEMO_DATABASE_URL` con una base PostgreSQL local separada y ejecutá `npm run prisma:seed`. La carga agrega únicamente registros de ejemplo que falten. Los datos existentes se conservan. Las migraciones y fixtures se preparan por separado, verificando antes la identidad de la base.
 
-```bash
-# Seed / db push: siempre con la URL local en el mismo comando (el .env del repo apunta a producción).
-DATABASE_URL="postgresql://usuario@127.0.0.1:5433/araucana_local" npm run prisma:seed
-DATABASE_URL="postgresql://usuario@127.0.0.1:5433/araucana_local" npm run prisma:push
-```
-
-`npm run prisma:push` pasa por el mismo guard (`scripts/local-db-only.ts`): si la URL falta o es remota, no se ejecuta nada. `prisma migrate deploy` queda afuera a propósito porque migrar producción es una operación legítima — pero se corre con la `DATABASE_URL` explícita y verificando el destino en la salida del comando.
+`npm run prisma:push` pasa por `scripts/local-db-only.ts` (`src/lib/db/local-database.ts`, con test): si `DATABASE_URL` falta o no apunta a `127.0.0.1`/`localhost`, no se ejecuta nada. Es la guarda de las operaciones que reescriben el esquema; no hay variable de entorno que la saltee. `prisma migrate deploy` queda afuera a propósito porque migrar producción es una operación legítima — pero se corre con la `DATABASE_URL` explícita y verificando el destino en la salida del comando.
 
 ## Seguridad de reservas y pagos
 

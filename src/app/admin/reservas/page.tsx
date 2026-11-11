@@ -179,7 +179,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       <input type="hidden" name="code" value={reservation.code} />
                       <input type="hidden" name="listQuery" value={listQuery} />
                       <Link className="ghost-button table-action" href={detailPath}>Ver</Link>
-                      <Link className="ghost-button table-action" href={`${detailPath}#editar-reserva`}>Editar</Link>
+                      <Link className="ghost-button table-action" href={`${detailPath}/editar`}>Editar</Link>
                       {reservation.status !== "CANCELLED" ? <ConfirmReservationButton operation="cancel" compact /> : null}
                       {canDelete ? <ConfirmReservationButton operation="delete" compact /> : null}
                     </form>

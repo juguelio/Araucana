@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client";
-import { assertSeedTarget } from "../src/lib/db/seed-target";
+import { existsSync } from "node:fs";
+import { PrismaClient, type Prisma } from "@prisma/client";
+import { demoSeedDatabaseUrl } from "../src/lib/db/demo-seed-target";
 import { demoRoutes } from "./demo-routes";
-
-const prisma = new PrismaClient();
 
 const VEHICLE_ID = "veh-araucana-24";
 const CHAPELCO_ROUTE_ID = "route-chapelco";
@@ -41,18 +40,10 @@ function eachDateInclusive(start: string, end: string) {
   return dates;
 }
 
-async function seedVehicle() {
-  await prisma.vehicle.upsert({
-    where: { id: VEHICLE_ID },
-    update: {
-      name: "Araucana 24",
-      brand: "Mercedes-Benz",
-      model: "Sprinter Minibus 19+1",
-      licensePlate: "ARAU-24",
-      templateKey: "mercedes-sprinter-19",
-      isActive: true
-    },
-    create: {
+async function seedVehicle(db: Prisma.TransactionClient) {
+  await db.vehicle.createMany({
+    skipDuplicates: true,
+    data: {
       id: VEHICLE_ID,
       name: "Araucana 24",
       brand: "Mercedes-Benz",
@@ -62,55 +53,28 @@ async function seedVehicle() {
       isActive: true
     }
   });
-
-  for (let index = 1; index <= 24; index += 1) {
-    const number = String(index).padStart(2, "0");
-
-    await prisma.seat.upsert({
-      where: {
-        vehicleId_number: {
-          vehicleId: VEHICLE_ID,
-          number
-        }
-      },
-      update: {
-        row: Math.ceil(index / 4),
-        column: ((index - 1) % 4) + 1
-      },
-      create: {
-        vehicleId: VEHICLE_ID,
-        number,
-        row: Math.ceil(index / 4),
-        column: ((index - 1) % 4) + 1
-      }
-    });
-  }
+  await db.seat.createMany({
+    skipDuplicates: true,
+    data: Array.from({ length: 24 }, (_, index) => ({
+      vehicleId: VEHICLE_ID,
+      number: String(index + 1).padStart(2, "0"),
+      row: Math.floor(index / 4) + 1,
+      column: (index % 4) + 1
+    }))
+  });
 }
 
-async function clearDemoBookingData() {
-  // Defensa en profundidad: si alguien llama esta función sin pasar por main(), sigue bloqueada.
-  assertSeedTarget(process.env.DATABASE_URL);
-
-  await prisma.payment.deleteMany();
-  await prisma.ticket.deleteMany();
-  await prisma.reservation.deleteMany();
-  await prisma.passenger.deleteMany();
-  await prisma.schedule.deleteMany();
-  await prisma.travelRoute.deleteMany();
-}
-
-async function seedRoutesAndSchedules() {
-  for (const route of demoRoutes) {
-    const durationMin = parseDurationMin(route.duration);
-
-    await prisma.travelRoute.create({
-      data: {
+async function seedRoutesAndSchedules(db: Prisma.TransactionClient) {
+  await db.travelRoute.createMany({
+    skipDuplicates: true,
+    data: [
+      ...demoRoutes.map((route) => ({
         id: route.id,
         slug: route.slug,
         from: route.from,
         to: route.to,
         via: route.via,
-        durationMin,
+        durationMin: parseDurationMin(route.duration),
         priceCents: route.price * 100,
         currency: "ARS",
         category: route.category,
@@ -118,85 +82,66 @@ async function seedRoutesAndSchedules() {
         featured: route.featured ?? false,
         isActive: true,
         stops: route.stops
+      })),
+      {
+        id: CHAPELCO_ROUTE_ID,
+        slug: "chapelco",
+        from: "San Martin de los Andes",
+        to: "Chapelco",
+        via: "Traslado hotel - Cerro Chapelco - hotel",
+        durationMin: 90,
+        priceCents: 2500000,
+        currency: "ARS",
+        category: "Invierno",
+        description: "Traslado diario a Chapelco con busqueda por hotel y regreso incluido.",
+        featured: true,
+        isActive: true,
+        bookingMode: "CHAPELCO",
+        specialType: "CHAPELCO",
+        serviceStartDate: new Date("2026-06-01T00:00:00.000Z"),
+        serviceEndDate: new Date("2026-10-15T00:00:00.000Z"),
+        stops: []
       }
-    });
-
-    const serviceDates = eachDateInclusive(route.serviceStart, route.serviceEnd);
-
-    await prisma.schedule.createMany({
-      data: serviceDates.map((date) => {
-        const departureAt = localDateTime(date, route.departureTime);
-
-        return {
-          id: `sched-${route.slug}-${dateKey(date)}`,
-          routeId: route.id,
-          vehicleId: VEHICLE_ID,
-          departureAt,
-          arrivalAt: addMinutes(departureAt, durationMin),
-          status: "OPEN"
-        };
-      })
-    });
-  }
-
-  await prisma.travelRoute.upsert({
-    where: { slug: "chapelco" },
-    update: {
-      from: "San Martin de los Andes",
-      to: "Chapelco",
-      via: "Traslado hotel - Cerro Chapelco - hotel",
-      durationMin: 90,
-      priceCents: 2500000,
-      currency: "ARS",
-      category: "Invierno",
-      description: "Traslado diario a Chapelco con busqueda por hotel y regreso incluido.",
-      featured: true,
-      isActive: true,
-      bookingMode: "CHAPELCO",
-      specialType: "CHAPELCO",
-      serviceStartDate: new Date("2026-06-01T00:00:00.000Z"),
-      serviceEndDate: new Date("2026-10-15T00:00:00.000Z"),
-      stops: []
-    },
-    create: {
-      id: CHAPELCO_ROUTE_ID,
-      slug: "chapelco",
-      from: "San Martin de los Andes",
-      to: "Chapelco",
-      via: "Traslado hotel - Cerro Chapelco - hotel",
-      durationMin: 90,
-      priceCents: 2500000,
-      currency: "ARS",
-      category: "Invierno",
-      description: "Traslado diario a Chapelco con busqueda por hotel y regreso incluido.",
-      featured: true,
-      isActive: true,
-      bookingMode: "CHAPELCO",
-      specialType: "CHAPELCO",
-      serviceStartDate: new Date("2026-06-01T00:00:00.000Z"),
-      serviceEndDate: new Date("2026-10-15T00:00:00.000Z"),
-      stops: []
-    }
+    ]
   });
+
+  const routes = await db.travelRoute.findMany({
+    where: { id: { in: demoRoutes.map((route) => route.id) } },
+    select: { id: true, slug: true }
+  });
+  const slugsById = new Map(routes.map((route) => [route.id, route.slug]));
+  const schedules = demoRoutes.flatMap((route) => {
+    if (slugsById.get(route.id) !== route.slug) return [];
+    const durationMin = parseDurationMin(route.duration);
+    return eachDateInclusive(route.serviceStart, route.serviceEnd).map((date) => {
+      const departureAt = localDateTime(date, route.departureTime);
+      return {
+        id: `sched-${route.slug}-${dateKey(date)}`,
+        routeId: route.id,
+        vehicleId: VEHICLE_ID,
+        departureAt,
+        arrivalAt: addMinutes(departureAt, durationMin),
+        status: "OPEN"
+      };
+    });
+  });
+  await db.schedule.createMany({ data: schedules, skipDuplicates: true });
 }
 
 async function main() {
-  const target = assertSeedTarget(process.env.DATABASE_URL);
-  console.log(
-    `Seed local sobre ${target.host}/${target.database}: borra reservas, pagos, pasajeros, salidas y rutas, y carga los datos demo.`
-  );
-
-  await seedVehicle();
-  await clearDemoBookingData();
-  await seedRoutesAndSchedules();
+  if (existsSync(".env")) process.loadEnvFile(".env");
+  const prisma = new PrismaClient({ datasourceUrl: demoSeedDatabaseUrl(process.env) });
+  try {
+    await prisma.$transaction(async (db) => {
+      await seedVehicle(db);
+      await seedRoutesAndSchedules(db);
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error) => {
-    console.error(error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : "No pudimos cargar la base de demostración.");
+  process.exitCode = 1;
+});

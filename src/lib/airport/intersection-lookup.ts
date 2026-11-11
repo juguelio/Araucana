@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ApiError } from "@/lib/api/responses";
 import type { PickupPoint } from "./pickup-zone";
-import { intersectionStreets } from "./place-search-area";
+import { airportSearchLocality, intersectionStreets } from "./place-search-area";
 
 export type AirportIntersection = { point: PickupPoint; label: string };
 
@@ -18,7 +18,7 @@ const results = z.object({
 });
 
 export async function lookupAirportIntersection(address: string, requestSignal?: AbortSignal): Promise<AirportIntersection[]> {
-  const [, locality = "San Martín de los Andes"] = address.split(",", 2).map((part) => part.trim());
+  const [, locality = airportSearchLocality] = address.split(",", 2).map((part) => part.trim());
   const streets = z.tuple([street, street]).safeParse(intersectionStreets(address));
   if (!streets.success) {
     throw new ApiError("INVALID_INTERSECTION", "Ingresá dos calles, por ejemplo Av. San Martín y Belgrano.", 400);
@@ -28,7 +28,7 @@ export async function lookupAirportIntersection(address: string, requestSignal?:
   url.search = new URLSearchParams({
     direccion: streets.data.join(" y "),
     provincia: "58",
-    localidad_censal: locality || "San Martín de los Andes",
+    localidad_censal: locality || airportSearchLocality,
     max: "10"
   }).toString();
 

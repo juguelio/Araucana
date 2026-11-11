@@ -3,7 +3,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { loadGoogleLibrary } from "@/lib/airport/google-maps";
 import { isInsideAirportPickupZone, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
-import { airportSearchBounds, isIntersectionQuery } from "@/lib/airport/place-search-area";
+import {
+  airportSearchBounds, airportSearchLocality, isIntersectionQuery, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
+} from "@/lib/airport/place-search-area";
 import type { AirportPlaceSuggestion } from "@/lib/airport/place-suggestions";
 import styles from "./airport-address-map.module.css";
 
@@ -12,6 +14,7 @@ type Suggestion = AirportPlaceSuggestion | GoogleSuggestion;
 export type AirportSelectedPlace = { label: string; point: PickupPoint; approximate: boolean; source: Suggestion["source"] };
 
 const googleAreaTypes = new Set(["locality", "sublocality", "neighborhood", "route", "administrative_area_level_3"]);
+const googleAddressTypes = new Set(["street_address", "premise", "subpremise"]);
 
 async function searchLocal(address: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
   const response = await fetch("/api/v1/airport/address", {
@@ -74,13 +77,15 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
         if (!useGoogle || isIntersectionQuery(address)) {
           results = await searchLocal(address, signal);
         } else {
+          const { name, context } = splitPlaceQuery(address);
+          const numberedAddress = splitStreetAddress(name);
           let googleResults: GoogleSuggestion[] = [];
           try {
             const { AutocompleteSessionToken, AutocompleteSuggestion } = await loadGoogleLibrary("places");
             if (signal.aborted) return;
             token.current ??= new AutocompleteSessionToken();
             const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
-              input: address,
+              input: numberedAddress && !context ? `${address}, ${airportSearchLocality}` : address,
               sessionToken: token.current,
               includedRegionCodes: ["ar"],
               locationRestriction: airportSearchBounds,
@@ -94,7 +99,17 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
             token.current = null;
           }
           if (signal.aborted) return;
-          results = googleResults.length ? googleResults : await searchLocal(address, signal);
+          if (!context) googleResults = prioritizeLocalPlaces(googleResults, (place) => place.label);
+          if (numberedAddress && googleResults.length) {
+            const addresses = googleResults.filter(({ prediction }) => prediction.types.some((type) => googleAddressTypes.has(type)));
+            if (addresses.length) {
+              results = addresses;
+            } else {
+              results = await searchLocal(address, signal);
+            }
+          } else {
+            results = googleResults.length ? googleResults : await searchLocal(address, signal);
+          }
         }
         if (signal.aborted) return;
         setSuggestions(results);
@@ -200,6 +215,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => { if (!disabled) void choose(suggestion); }}>
                 {suggestion.label}
+                {suggestion.source !== "google" && suggestion.approximate ? <small>Referencia aproximada</small> : null}
                 {coverage.enabled && suggestion.source !== "google" && !suggestion.approximate ? (
                   <small>{isInsideAirportPickupZone(suggestion.point, coverage) ? "Dentro de la cobertura" : "Fuera de la cobertura"}</small>
                 ) : null}

@@ -54,3 +54,61 @@ it("usa el autocompletado de LocationIQ si está configurado", async () => {
   expect(url.hostname + url.pathname).toBe("api.locationiq.com/v1/autocomplete");
   expect(url.searchParams.get("bounded")).toBe("1");
 });
+
+it("prioriza San Martín de los Andes sobre otras localidades", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([
+    { display_name: "El Arenal, Junín de los Andes", lat: "-40.07", lon: "-71.1", type: "suburb" },
+    { display_name: "El Arenal, Municipio de San Martín de los Andes", lat: "-40.14", lon: "-71.33", type: "suburb" }
+  ])));
+
+  const matches = await suggestAirportPlaces("El Arenal", new AbortController().signal);
+  expect(matches.map((match) => match.label)).toEqual([
+    "El Arenal, Municipio de San Martín de los Andes",
+    "El Arenal, Junín de los Andes"
+  ]);
+});
+
+it("busca Curruhinca 440 en San Martín y ofrece la calle oficial como referencia", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const unrelated = { display_name: "440, Avenida San Martín, San Martín de los Andes", lat: "-40.158", lon: "-71.355", class: "building" };
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([unrelated]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "CACIQUE CURRUHUINCA" },
+      altura: { valor: 440 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([unrelated, {
+      display_name: "Cacique Curruhuinca, Cantera, San Martín de los Andes",
+      lat: "-40.1539068", lon: "-71.3434156", class: "highway"
+    }]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  await expect(suggestAirportPlaces("Curruhinca 440", new AbortController().signal)).resolves.toEqual([
+    { label: "Cacique Curruhuinca 440, San Martín de los Andes", point: [-40.1539068, -71.3434156], source: "locationiq", approximate: true }
+  ]);
+  expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("Curruhinca 440, San Martín de los Andes");
+  expect(fetchProvider.mock.calls[1][0].searchParams.get("localidad_censal")).toBe("San Martín de los Andes");
+  expect(fetchProvider.mock.calls[2][0].searchParams.get("q")).toBe("Cacique Curruhuinca 440, San Martín de los Andes");
+});
+
+it("respeta una localidad indicada y conserva la coincidencia exacta de calle y altura", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const label = "440, Avenida San Martín, Junín de los Andes";
+  const fetchProvider = vi.fn().mockResolvedValue(Response.json([
+    { display_name: "440, Belgrano, Junín de los Andes", lat: "-40.07", lon: "-71.1" },
+    { display_name: label, lat: "-40.08", lon: "-71.09" }
+  ]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  await expect(suggestAirportPlaces("San Martín 440, Junín de los Andes", new AbortController().signal)).resolves.toEqual([
+    { label, point: [-40.08, -71.09], source: "locationiq", approximate: false }
+  ]);
+  expect(fetchProvider).toHaveBeenCalledOnce();
+  expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("San Martín 440, Junín de los Andes");
+});

@@ -123,18 +123,43 @@ describe("edición de datos de la reserva", () => {
     expect(tx.payment.update).not.toHaveBeenCalled();
   });
 
-  it("guarda pasajero, dirección y notas con una sola operación", async () => {
+  it("guarda precio, pasajero, dirección y notas con una sola operación", async () => {
     tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT" });
     const changes = reservationManagementSchema.parse({
-      ...command, passenger: { lastName: "Pérez" }, notes: "Tocar timbre"
+      ...command, passenger: { lastName: "Pérez" }, notes: "Tocar timbre",
+      financial: { operation: "price", totalCents: 1150000 }
     });
 
     await manageReservation(code, changes);
 
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 1150000 } });
+    expect(tx.payment.update).toHaveBeenCalledWith({ where, data: { amountCents: 1150000 } });
     expect(tx.airportReservationDetails.update).toHaveBeenCalledOnce();
     expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where, data: { ...data, pickupNotes: "Tocar timbre" } });
     expect(tx.passenger.update).toHaveBeenCalledWith({ where: { id: pending.passengerId }, data: { lastName: "Pérez" } });
     expect(tx.passenger.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("impide guardar un precio pendiente si se registró el pago antes de guardar", async () => {
+    tx.reservation.findUnique.mockResolvedValue({
+      ...pending, payment: { ...pending.payment, status: "APPROVED" }
+    });
+    await expect(manageReservation(code, {
+      operation: "edit", passenger: { lastName: "Pérez" },
+      financial: { operation: "price", totalCents: 1150000 }
+    })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(tx.passenger.update).not.toHaveBeenCalled();
+  });
+
+  it("corrige la referencia de un pago sin reescribir el importe", async () => {
+    tx.reservation.findUnique.mockResolvedValue({
+      ...pending, status: "CONFIRMED", payment: { ...pending.payment, status: "APPROVED" }
+    });
+    await manageReservation(code, {
+      operation: "edit", passenger: {}, financial: { operation: "correctPayment", reference: "42" }
+    });
+    expect(tx.payment.update).toHaveBeenCalledWith({ where, data: { externalRef: "42" } });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
   });
 
   it("guarda notas de una reserva anterior sin exigir dirección ni tocar el pasajero", async () => {

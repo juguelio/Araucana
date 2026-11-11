@@ -1,0 +1,21 @@
+/* Formulario de alta de cuentas del panel (CRM · Usuarios y roles). */
+
+/* El campo de contraseña lleva el botón "Generar" al lado, dentro de la misma celda de la grilla. */
+.admin-form-grid label .password-field {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-form-grid label .password-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.admin-form-grid label .password-field .ghost-button {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
