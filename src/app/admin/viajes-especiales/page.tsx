@@ -37,6 +37,7 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   const weekKey = (days: number) => claveDia(sumarDias(week, days));
   const { startsAt } = dayInterval(weekKey(0));
   const { startsAt: endsAt } = dayInterval(weekKey(7));
+  const semanaFin = sumarDias(hoy, 7);
 
   // La vista fija el filtro base; un mes elegido la reemplaza por el mes completo en orden cronológico.
   const condicion = condicionVista(vista, hoy);
@@ -49,24 +50,33 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   };
   const orden = filtroMes ? "asc" : condicion.orden;
   const page = Math.min(10000, Math.max(1, Number.parseInt(value("pagina"), 10) || 1));
-  const contar = (v: Vista) => prisma.specialTrip.count({ where: condicionVista(v, hoy).where });
-  const [vehicles, trips, count, fechas, agenda, nHoy, nSemana, nPendientes, nSinNave] = await Promise.all([
+  const [vehicles, trips, count, dias, agenda, conteos] = await Promise.all([
     prisma.vehicle.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.specialTrip.findMany({
       where, skip: (page - 1) * porPagina, take: porPagina, orderBy: [{ serviceDate: orden }, { client: "asc" }],
       include: { assignments: { select: { vehicleId: true }, orderBy: { startsAt: "asc" } } }
     }),
     prisma.specialTrip.count({ where }),
-    prisma.specialTrip.findMany({ select: { serviceDate: true } }),
+    prisma.specialTrip.groupBy({ by: ["serviceDate"], _count: { _all: true } }),
     prisma.specialTripAssignment.findMany({
       where: { startsAt: { lt: endsAt }, endsAt: { gt: startsAt }, trip: { status: { not: "CANCELLED" } }, ...(vehicleId && { vehicleId }) },
       orderBy: { startsAt: "asc" }, include: { trip: { select: { client: true, status: true } } }
     }),
-    contar("hoy"), contar("semana"), contar("pendientes"), contar("sinNave")
+    // Los números de las vistas, en una sola consulta: cada count suelto es otro viaje de ida y vuelta a la base.
+    prisma.$queryRaw<{ hoy: number; semana: number; pendientes: number; sinnave: number; total: number }[]>`
+      select
+        count(*) filter (where t."serviceDate" = ${claveDia(hoy)}::date)::int as hoy,
+        count(*) filter (where t."serviceDate" >= ${claveDia(hoy)}::date and t."serviceDate" < ${claveDia(semanaFin)}::date)::int as semana,
+        count(*) filter (where t.status = 'PENDING')::int as pendientes,
+        count(*) filter (where t.status = 'CONFIRMED' and t."serviceDate" >= ${claveDia(hoy)}::date
+          and not exists (select 1 from "SpecialTripAssignment" a where a."tripId" = t.id))::int as sinnave,
+        count(*)::int as total
+      from "SpecialTrip" t`
   ]);
   const naves = new Map(vehicles.map((v) => [v.id, v.name]));
-  const meses = mesesConViajes(fechas.map((f) => f.serviceDate));
-  const conteos: Partial<Record<Vista, number>> = { hoy: nHoy, semana: nSemana, pendientes: nPendientes, sinNave: nSinNave, todos: fechas.length };
+  const meses = mesesConViajes(dias.map((d) => ({ serviceDate: d.serviceDate, count: d._count._all })));
+  const n = conteos[0] ?? { hoy: 0, semana: 0, pendientes: 0, sinnave: 0, total: 0 };
+  const numeros: Partial<Record<Vista, number>> = { hoy: n.hoy, semana: n.semana, pendientes: n.pendientes, sinNave: n.sinnave, todos: n.total };
   const url = (changes: Partial<Record<typeof claves[number], string>>) => {
     const query = new URLSearchParams();
     for (const key of claves) {
@@ -89,8 +99,8 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
       <ul className="vesp-vistas" aria-label="Vistas rápidas">
         {(Object.keys(vistas) as Vista[]).map((v) => <li key={v}>
           <Link href={url({ vista: v, mes: "", pagina: "" })} className={`dia-chip${v === vista && !filtroMes ? " activo" : ""}`}
-            aria-current={v === vista && !filtroMes ? "page" : undefined} data-alerta={(v === "sinNave" || v === "pendientes") && !!conteos[v]}>
-            {vistas[v]}{conteos[v] !== undefined && <small>{conteos[v]}</small>}
+            aria-current={v === vista && !filtroMes ? "page" : undefined} data-alerta={(v === "sinNave" || v === "pendientes") && !!numeros[v]}>
+            {vistas[v]}{numeros[v] !== undefined && <small>{numeros[v]}</small>}
           </Link>
         </li>)}
       </ul>

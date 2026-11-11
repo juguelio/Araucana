@@ -70,12 +70,12 @@ export function etiquetaMes(clave: string) {
   return formatoMes.format(new Date(clave + "-01T00:00:00Z")).replace(".", "");
 }
 
-/** Meses con viajes y cuántos tiene cada uno, en orden cronológico. */
-export function mesesConViajes(fechas: Date[]) {
+/** Meses con viajes y cuántos tiene cada uno, en orden cronológico. Recibe los días ya agrupados por la base. */
+export function mesesConViajes(dias: { serviceDate: Date; count: number }[]) {
   const conteo = new Map<string, number>();
-  for (const fecha of fechas) {
-    const clave = claveDia(fecha).slice(0, 7);
-    conteo.set(clave, (conteo.get(clave) ?? 0) + 1);
+  for (const dia of dias) {
+    const clave = claveDia(dia.serviceDate).slice(0, 7);
+    conteo.set(clave, (conteo.get(clave) ?? 0) + dia.count);
   }
   return [...conteo].sort(([a], [b]) => a.localeCompare(b)).map(([clave, count]) => ({ clave, count, label: etiquetaMes(clave) }));
 }
