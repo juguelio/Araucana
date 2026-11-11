@@ -16,6 +16,13 @@ const mocks = {
   transaction: vi.fn()
 };
 
+const settings = vi.hoisted(() => ({
+  extras: { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 0 },
+  coverage: { enabled: false, boundary: [] as Array<[number, number]>, exclusions: [] as Array<Array<[number, number]>>, extraBoundary: [] as Array<[number, number]> }
+}));
+vi.mock("./extras-settings", () => ({ getAirportExtras: async () => settings.extras }));
+vi.mock("./pickup-zone-settings", () => ({ getAirportCoverage: async () => settings.coverage }));
+
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     travelRoute: { findUnique: (...a: unknown[]) => mocks.findUniqueRoute(...a) },

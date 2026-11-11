@@ -10,7 +10,8 @@ export function AirportPickupZoneMap({ coverage, point, onSelect, selectedRing, 
   coverage?: AirportCoverage;
   point: PickupPoint | null;
   onSelect: (point: PickupPoint) => void;
-  selectedRing?: number;
+  /** Índice del contorno en edición (0 = perímetro, 1… = excluidos) o `"extra"` para la zona con recargo. */
+  selectedRing?: number | "extra";
   onMoveVertex?: (index: number, point: PickupPoint) => void;
   arrival?: boolean;
 }) {
@@ -56,13 +57,17 @@ export function AirportPickupZoneMap({ coverage, point, onSelect, selectedRing, 
       const group = shapes.current;
       if (cancelled || !group) return;
       group.clearLayers();
-      const rings = [coverage.boundary, ...coverage.exclusions];
-      rings.forEach((ring, index) => {
-        const color = index === 0 ? "#267247" : "#a52a26";
-        const style = { color, fillOpacity: 0.18, interactive: false, weight: selectedRing === index ? 5 : 3 };
+      // La zona con recargo va primero: queda debajo del verde y de los sectores excluidos.
+      const rings: Array<{ ring: PickupPoint[]; color: string; key: number | "extra"; fill: number }> = [
+        { ring: coverage.extraBoundary ?? [], color: "#d07a12", key: "extra", fill: 0.12 },
+        { ring: coverage.boundary, color: "#267247", key: 0, fill: 0.18 },
+        ...coverage.exclusions.map((ring, i) => ({ ring, color: "#a52a26", key: i + 1, fill: 0.18 }))
+      ];
+      rings.forEach(({ ring, color, key, fill }) => {
+        const style = { color, fillOpacity: fill, interactive: false, weight: selectedRing === key ? 5 : 3 };
         if (ring.length >= 3) L.polygon(ring, style).addTo(group);
         else if (ring.length === 2) L.polyline(ring, style).addTo(group);
-        if (selectedRing === index) {
+        if (selectedRing === key) {
           ring.forEach((vertex, vertexIndex) => {
             const handle = L.marker(vertex, {
               draggable: true,
