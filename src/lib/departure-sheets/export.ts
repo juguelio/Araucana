@@ -9,11 +9,8 @@ import {
 
 export type DepartureSheetExportMeta = {
   kind: string;
-  title: string;
-  destination?: string | null;
-  departureAt?: Date | null;
-  borderCrossing?: string | null;
-  notes?: string | null;
+  /** Código de la reserva a la que pertenece la planilla (ARC-YYMM-…). */
+  reservationCode: string;
 };
 
 const HEADER_FILL = "FFE7DFCB";
@@ -45,17 +42,16 @@ export function buildDepartureSheetRows(kind: string, passengers: DepartureSheet
 }
 
 export function departureSheetFileBase(meta: DepartureSheetExportMeta) {
-  const kind = isDepartureSheetKind(meta.kind) ? departureSheetCopy[meta.kind].shortLabel : "Planilla";
-  const date = meta.departureAt ? meta.departureAt.toISOString().slice(0, 10) : null;
-  const slug = [kind, date ?? meta.title]
-    .join(" ")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toLowerCase();
+  const kind = isDepartureSheetKind(meta.kind) ? departureSheetCopy[meta.kind].worksheetName : "planilla";
+  const slug = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase();
 
-  return `planilla-${slug}`;
+  return `planilla-${slug(kind)}-${slug(meta.reservationCode)}`;
 }
 
 /** Genera el .xlsx que reemplaza la planilla en blanco que mandó el cliente. */

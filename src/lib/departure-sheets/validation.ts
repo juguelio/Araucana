@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { normalizePassengerDocument, passengerDocumentError } from "@/lib/booking/passenger-contact";
-import { departureSheetKinds, documentTypes, sexOptions, type DepartureSheetKind } from "./types";
+import { documentTypes, sexOptions, type DepartureSheetKind } from "./types";
 
 /** Día argentino: el mediodía evita que la fecha se corra de día al guardarse en UTC. */
 function dayAtNoon(value: string) {
@@ -102,28 +102,3 @@ export type DeparturePassengerInput = {
   occupation: string | null;
   residenceCountry: string | null;
 };
-
-/** Formulario del panel para abrir una planilla nueva. */
-export const createDepartureSheetSchema = z.object({
-  kind: z.enum(departureSheetKinds, { message: "Elegí el tipo de planilla." }),
-  title: z.string().trim().min(3, "Ponele un nombre a la planilla.").max(120, "El nombre es demasiado largo."),
-  destination: z.string().trim().max(120, "Revisá el destino.").optional().default(""),
-  departureAt: z
-    .string()
-    .trim()
-    .optional()
-    .default("")
-    .transform((value, ctx) => {
-      if (!value) return null;
-      const date = dayAtNoon(value);
-      if (!date) {
-        ctx.addIssue({ code: "custom", message: "Revisá la fecha de salida." });
-        return z.NEVER;
-      }
-      return date;
-    }),
-  borderCrossing: z.string().trim().max(120, "Revisá el paso fronterizo.").optional().default(""),
-  notes: z.string().trim().max(600, "La nota es demasiado larga.").optional().default("")
-});
-
-export type CreateDepartureSheetInput = z.output<typeof createDepartureSheetSchema>;

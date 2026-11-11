@@ -4,53 +4,49 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import {
-  createDepartureSheet,
+  ensureDepartureSheet,
   removeDepartureSheetPassenger,
   setDepartureSheetOpen
 } from "@/lib/departure-sheets/repository";
-import { createDepartureSheetSchema } from "@/lib/departure-sheets/validation";
+import { isDepartureSheetKind } from "@/lib/departure-sheets/types";
 
-const base = "/admin/planillas";
+const reservas = "/admin/reservas";
 
 function value(form: FormData, name: string) {
   return String(form.get(name) ?? "").trim();
 }
 
-/** Abre una planilla nueva y lleva al detalle, que es donde está el link para compartir. */
-export async function createDepartureSheetAction(form: FormData) {
+/**
+ * Genera (o recupera) el link de la planilla de esa reserva. No hay alta de planillas sueltas: la
+ * planilla siempre es de un pasajero que ya tiene reserva, y el link se manda desde ahí.
+ */
+export async function ensureDepartureSheetAction(form: FormData) {
   const user = await getCurrentReservationsUserOrRedirect();
+  const code = value(form, "code").toUpperCase();
+  const kind = value(form, "kind");
 
-  const parsed = createDepartureSheetSchema.safeParse({
-    kind: value(form, "kind"),
-    title: value(form, "title"),
-    destination: value(form, "destination"),
-    departureAt: value(form, "departureAt"),
-    borderCrossing: value(form, "borderCrossing"),
-    notes: value(form, "notes")
-  });
-
-  if (!parsed.success) {
-    const message = parsed.error.issues[0]?.message ?? "Revisá los datos.";
-    redirect(`${base}?error=${encodeURIComponent(message)}`);
+  if (!code || !isDepartureSheetKind(kind)) {
+    redirect(reservas);
   }
 
-  const sheet = await createDepartureSheet(parsed.data, user.id);
-  revalidatePath(base);
-  redirect(`${base}/${sheet.id}?alta=1`);
+  await ensureDepartureSheet(code, kind, user.id);
+  revalidatePath(`${reservas}/${code}`);
+  redirect(`${reservas}/${code}?notice=${encodeURIComponent("Link de la planilla listo para enviar al pasajero.")}#planillas`);
 }
 
 export async function setDepartureSheetOpenAction(form: FormData) {
   await getCurrentReservationsUserOrRedirect();
 
   const id = value(form, "id");
-  if (!id) {
-    redirect(`${base}?error=${encodeURIComponent("No encontramos la planilla.")}`);
+  const code = value(form, "code").toUpperCase();
+  if (!id || !code) {
+    redirect(reservas);
   }
 
   await setDepartureSheetOpen(id, value(form, "isOpen") === "1");
-  revalidatePath(base);
-  revalidatePath(`${base}/${id}`);
-  redirect(`${base}/${id}`);
+  revalidatePath(`${reservas}/${code}`);
+  revalidatePath(`/admin/planillas/${id}`);
+  redirect(`${reservas}/${code}#planillas`);
 }
 
 export async function removeDepartureSheetPassengerAction(form: FormData) {
@@ -59,10 +55,10 @@ export async function removeDepartureSheetPassengerAction(form: FormData) {
   const passengerId = value(form, "passengerId");
   const sheetId = value(form, "sheetId");
   if (!passengerId || !sheetId) {
-    redirect(`${base}?error=${encodeURIComponent("No encontramos el pasajero.")}`);
+    redirect(reservas);
   }
 
   await removeDepartureSheetPassenger(passengerId);
-  revalidatePath(`${base}/${sheetId}`);
-  redirect(`${base}/${sheetId}?borrado=1`);
+  revalidatePath(`/admin/planillas/${sheetId}`);
+  redirect(`/admin/planillas/${sheetId}`);
 }

@@ -19,6 +19,29 @@
   font-variant-numeric: tabular-nums;
 }
 
+.planilla-fila {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.planilla-fila:first-of-type {
+  border-top: 0;
+}
+
+.planilla-fila-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.planilla-fila-cuerpo {
+  display: grid;
+  gap: 10px;
+}
+
 .planilla-link-box {
   display: grid;
   gap: 10px;

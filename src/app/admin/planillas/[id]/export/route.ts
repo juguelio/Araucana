@@ -25,12 +25,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return new Response("No encontramos la planilla", { status: 404 });
   }
 
-  const workbook = await buildDepartureSheetWorkbook(sheet, sheet.passengers);
+  const meta = { kind: sheet.kind, reservationCode: sheet.reservation.code };
+  const workbook = await buildDepartureSheetWorkbook(meta, sheet.passengers);
 
   return new Response(new Uint8Array(workbook), {
     headers: {
       "Content-Type": XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="${departureSheetFileBase(sheet)}.xlsx"`,
+      "Content-Disposition": `attachment; filename="${departureSheetFileBase(meta)}.xlsx"`,
       "Content-Length": String(workbook.byteLength),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff"

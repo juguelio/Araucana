@@ -1,58 +1,70 @@
 import { prisma } from "@/lib/db/prisma";
 import { isDepartureSheetToken, createDepartureSheetToken } from "./codes";
-import type { DeparturePassengerInput, CreateDepartureSheetInput } from "./validation";
+import type { DeparturePassengerInput } from "./validation";
+import type { DepartureSheetKind } from "./types";
 
 export class DepartureSheetError extends Error {
   constructor(public readonly code: "NOT_FOUND" | "CLOSED") {
-    super(code === "CLOSED" ? "La planilla ya no recibe datos." : "No encontramos la planilla.");
+    super(code === "CLOSED" ? "La planilla ya no recibe datos." : "No encontramos la reserva o la planilla.");
   }
 }
 
-export type DepartureSheetSummary = {
-  id: string;
-  kind: string;
-  title: string;
-  destination: string | null;
-  departureAt: Date | null;
-  borderCrossing: string | null;
-  notes: string | null;
-  token: string;
-  isOpen: boolean;
-  createdAt: Date;
-  passengerCount: number;
+/** Lo que necesita el link público y el detalle: la planilla, su reserva y los pasajeros cargados. */
+const sheetInclude = {
+  passengers: { orderBy: [{ position: "asc" as const }, { createdAt: "asc" as const }] },
+  reservation: {
+    select: {
+      code: true,
+      status: true,
+      dropoffStop: true,
+      passengerCount: true,
+      route: { select: { from: true, to: true } },
+      schedule: { select: { departureAt: true } },
+      chapelcoDetails: { select: { serviceDate: true, ascentSlot: true } },
+      airportDetails: { select: { serviceDate: true, flightNumber: true, direction: true } },
+      passenger: {
+        select: { firstName: true, lastName: true, documentType: true, documentId: true, nationality: true }
+      }
+    }
+  }
 };
 
-/** Abre una planilla y devuelve el link público (token incluido). */
-export async function createDepartureSheet(input: CreateDepartureSheetInput, createdBy?: string | null) {
-  return prisma.departureSheet.create({
-    data: {
-      kind: input.kind,
-      title: input.title,
-      destination: input.destination || null,
-      departureAt: input.departureAt,
-      borderCrossing: input.borderCrossing || null,
-      notes: input.notes || null,
+/**
+ * Devuelve el link de la planilla de esa reserva, creándolo la primera vez. Una por reserva y tipo:
+ * si el operador aprieta dos veces, no se generan dos links distintos.
+ */
+export async function ensureDepartureSheet(code: string, kind: DepartureSheetKind, createdBy?: string | null) {
+  const reservation = await prisma.reservation.findUnique({
+    where: { code: code.trim().toUpperCase() },
+    select: { id: true }
+  });
+
+  if (!reservation) {
+    throw new DepartureSheetError("NOT_FOUND");
+  }
+
+  return prisma.departureSheet.upsert({
+    where: { reservationId_kind: { reservationId: reservation.id, kind } },
+    update: {},
+    create: {
+      reservationId: reservation.id,
+      kind,
       token: createDepartureSheetToken(),
       createdBy: createdBy ?? null
     }
   });
 }
 
-export async function listDepartureSheets(limit = 100): Promise<DepartureSheetSummary[]> {
-  const sheets = await prisma.departureSheet.findMany({
-    orderBy: [{ createdAt: "desc" }],
-    take: limit,
+/** Planillas ya generadas para una reserva, con cuántos pasajeros cargó cada una. */
+export async function listDepartureSheetsForReservation(reservationId: string) {
+  return prisma.departureSheet.findMany({
+    where: { reservationId },
     include: { _count: { select: { passengers: true } } }
   });
-
-  return sheets.map(({ _count, ...sheet }) => ({ ...sheet, passengerCount: _count.passengers }));
 }
 
 export async function getDepartureSheetById(id: string) {
-  return prisma.departureSheet.findUnique({
-    where: { id },
-    include: { passengers: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] } }
-  });
+  return prisma.departureSheet.findUnique({ where: { id }, include: sheetInclude });
 }
 
 /** Lectura pública por token. El token mal formado no llega a la base. */
@@ -62,10 +74,7 @@ export async function getDepartureSheetByToken(token: string) {
     return null;
   }
 
-  return prisma.departureSheet.findUnique({
-    where: { token: normalized },
-    include: { passengers: { orderBy: [{ position: "asc" }, { createdAt: "asc" }] } }
-  });
+  return prisma.departureSheet.findUnique({ where: { token: normalized }, include: sheetInclude });
 }
 
 export async function setDepartureSheetOpen(id: string, isOpen: boolean) {

@@ -16,25 +16,16 @@ import { removeDepartureSheetPassengerAction, setDepartureSheetOpenAction } from
 import { PlanillaLinkBox } from "./link-box";
 import "../planillas.css";
 
-const base = "/admin/planillas";
-
-function formatDay(value: Date | null) {
+function formatDay(value: Date | null | undefined) {
   if (!value) return null;
   return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "America/Argentina/Salta" }).format(value);
 }
 
 export const dynamic = "force-dynamic";
 
-export default async function DepartureSheetDetailPage({
-  params,
-  searchParams
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function DepartureSheetDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentReservationsUserOrRedirect();
   const { id } = await params;
-  const query = await searchParams;
   const sheet = await getDepartureSheetById(id);
 
   if (!sheet) {
@@ -43,24 +34,23 @@ export default async function DepartureSheetDetailPage({
 
   const kind: DepartureSheetKind = isDepartureSheetKind(sheet.kind) ? sheet.kind : "DUT";
   const copy = departureSheetCopy[kind];
-  const day = formatDay(sheet.departureAt);
-  const notice =
-    query.alta === "1"
-      ? "Planilla creada. Copiá el link y mandáselo a los pasajeros."
-      : query.borrado === "1"
-        ? "Pasajero eliminado de la planilla."
-        : undefined;
+  const reservation = sheet.reservation;
+  const departureAt =
+    reservation.schedule?.departureAt ?? reservation.chapelcoDetails?.serviceDate ?? reservation.airportDetails?.serviceDate ?? null;
+  const day = formatDay(departureAt);
+  const routeLabel = reservation.route
+    ? `${reservation.route.from} - ${reservation.dropoffStop ?? reservation.route.to}`
+    : "Traslado";
 
   return (
     <AdminShell
-      title={sheet.title}
+      title={`Planilla ${copy.shortLabel} · ${reservation.code}`}
       eyebrow="Planilla de salida"
       role={user.role}
-      notice={notice}
       action={
         <div className="inline-actions">
-          <Link className="ghost-button" href={base}>Volver</Link>
-          <a className="button" href={`${base}/${sheet.id}/export`}>Descargar planilla (.xlsx)</a>
+          <Link className="ghost-button" href={`/admin/reservas/${reservation.code}`}>Volver a la reserva</Link>
+          <a className="button" href={`/admin/planillas/${sheet.id}/export`}>Descargar planilla (.xlsx)</a>
         </div>
       }
     >
@@ -68,19 +58,17 @@ export default async function DepartureSheetDetailPage({
         <h2>{copy.label}</h2>
         <div className="planilla-meta">
           <div>
-            <span>Salida</span>
-            <strong>{day ?? "Sin fecha"}</strong>
+            <span>Reserva</span>
+            <strong>{reservation.code}</strong>
           </div>
           <div>
-            <span>Destino</span>
-            <strong>{sheet.destination ?? "—"}</strong>
+            <span>Ruta</span>
+            <strong>{routeLabel}</strong>
           </div>
-          {kind === "DUT" ? (
-            <div>
-              <span>Paso fronterizo</span>
-              <strong>{sheet.borderCrossing ?? "—"}</strong>
-            </div>
-          ) : null}
+          <div>
+            <span>Salida</span>
+            <strong>{day ?? "—"}</strong>
+          </div>
           <div>
             <span>Pasajeros cargados</span>
             <strong>{sheet.passengers.length}</strong>
@@ -90,12 +78,12 @@ export default async function DepartureSheetDetailPage({
             <strong>{sheet.isOpen ? "Recibiendo datos" : "Cerrada"}</strong>
           </div>
         </div>
-        {sheet.notes ? <p className="muted">Nota interna: {sheet.notes}</p> : null}
 
-        <PlanillaLinkBox token={sheet.token} title={sheet.title} />
+        <PlanillaLinkBox token={sheet.token} title={`Reserva ${reservation.code} · ${copy.shortLabel}`} />
 
         <form action={setDepartureSheetOpenAction} className="inline-actions">
           <input type="hidden" name="id" value={sheet.id} />
+          <input type="hidden" name="code" value={reservation.code} />
           <input type="hidden" name="isOpen" value={sheet.isOpen ? "0" : "1"} />
           <button className="ghost-button" type="submit">
             {sheet.isOpen ? "Cerrar el link (no recibe más datos)" : "Reabrir el link"}
@@ -112,8 +100,8 @@ export default async function DepartureSheetDetailPage({
         <h2>Pasajeros</h2>
         {sheet.passengers.length === 0 ? (
           <p className="planilla-vacio">
-            Todavía no cargó nadie. Compartí el link de arriba: cada pasajero completa sus datos una vez
-            y aparece en esta lista.
+            Todavía no cargó nadie. Mandale el link de arriba al pasajero de la reserva: completa sus
+            datos una vez y aparece en esta lista.
           </p>
         ) : (
           <div className="table-scroll">

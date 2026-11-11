@@ -4,17 +4,23 @@ import type { DeparturePassengerInput } from "./validation";
 const mocks = {
   transaction: vi.fn(),
   findUniqueSheet: vi.fn(),
-  lockSheet: vi.fn()
+  lockSheet: vi.fn(),
+  findUniqueReservation: vi.fn(),
+  upsertSheet: vi.fn()
 };
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
-    departureSheet: { findUnique: (...args: unknown[]) => mocks.findUniqueSheet(...args) },
+    departureSheet: {
+      findUnique: (...args: unknown[]) => mocks.findUniqueSheet(...args),
+      upsert: (...args: unknown[]) => mocks.upsertSheet(...args)
+    },
+    reservation: { findUnique: (...args: unknown[]) => mocks.findUniqueReservation(...args) },
     $transaction: (...args: unknown[]) => mocks.transaction(...args)
   }
 }));
 
-const { DepartureSheetError, getDepartureSheetByToken, submitDepartureSheetPassenger } = await import("./repository");
+const { DepartureSheetError, ensureDepartureSheet, getDepartureSheetByToken, submitDepartureSheetPassenger } = await import("./repository");
 
 const TOKEN = "PLN-0123456789ABCDEF0123456789ABCDEF";
 
@@ -63,6 +69,51 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) => {
     const { tx } = fakeTx();
     return callback(tx);
+  });
+});
+
+describe("link de la planilla de una reserva", () => {
+  it("crea el link la primera vez, atado a la reserva", async () => {
+    mocks.findUniqueReservation.mockResolvedValue({ id: "res-1" });
+    mocks.upsertSheet.mockResolvedValue({ id: "planilla-1", token: TOKEN });
+
+    const sheet = await ensureDepartureSheet("arc-2611-abc", "DUT", "user-1");
+
+    expect(mocks.findUniqueReservation).toHaveBeenCalledWith({
+      where: { code: "ARC-2611-ABC" },
+      select: { id: true }
+    });
+    expect(mocks.upsertSheet).toHaveBeenCalledWith({
+      where: { reservationId_kind: { reservationId: "res-1", kind: "DUT" } },
+      update: {},
+      create: expect.objectContaining({
+        reservationId: "res-1",
+        kind: "DUT",
+        token: expect.stringMatching(/^PLN-[A-F0-9]{32}$/),
+        createdBy: "user-1"
+      })
+    });
+    expect(sheet).toMatchObject({ id: "planilla-1" });
+  });
+
+  it("reusa el link si la planilla ya existía", async () => {
+    mocks.findUniqueReservation.mockResolvedValue({ id: "res-1" });
+    mocks.upsertSheet.mockResolvedValue({ id: "planilla-1", token: TOKEN });
+
+    await ensureDepartureSheet("ARC-2611-ABC", "PROVINCIA");
+
+    expect(mocks.upsertSheet).toHaveBeenCalledWith({
+      where: { reservationId_kind: { reservationId: "res-1", kind: "PROVINCIA" } },
+      update: {},
+      create: expect.objectContaining({ kind: "PROVINCIA" })
+    });
+  });
+
+  it("no genera link para una reserva que no existe", async () => {
+    mocks.findUniqueReservation.mockResolvedValue(null);
+
+    await expect(ensureDepartureSheet("ARC-2611-NADA", "DUT")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.upsertSheet).not.toHaveBeenCalled();
   });
 });
 

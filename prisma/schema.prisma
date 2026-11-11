@@ -356,6 +356,7 @@ model Reservation {
   chapelcoDetails ChapelcoReservationDetails?
   airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
+  departureSheets DepartureSheet[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -563,30 +564,26 @@ model FleetConflictAcceptance {
   @@index([service, serviceId])
 }
 
-/// Planilla de salida que el panel comparte por link: el DUT (salida del país) o el Registro de
-/// salida de pasajeros (salida de la provincia). El pasajero carga sus datos una sola vez.
+/// Planilla de salida que el panel le manda al pasajero de una reserva existente: el DUT (salida
+/// del país) o el Registro de salida de pasajeros (salida de la provincia).
 model DepartureSheet {
-  id             String   @id @default(cuid())
+  id            String      @id @default(cuid())
   /// "DUT" = salida del país (CNRT) · "PROVINCIA" = salida de la provincia con habilitación puntual.
-  kind           String
-  /// Referencia que ven el panel y el pasajero: «Viaje a Chile · 20/11».
-  title          String
-  destination    String?
-  /// Fecha de salida del servicio (mediodía argentino, para que el día no se corra).
-  departureAt    DateTime?
-  /// Paso fronterizo que se declara en el DUT internacional (ej. Cardenal Samoré).
-  borderCrossing String?
-  notes          String?
+  kind          String
   /// Capacidad del link público: 128 bits, igual que el código privado de una reserva.
-  token          String   @unique
+  token         String      @unique
   /// Cerrada = el link sigue mostrando la planilla pero no acepta más pasajeros.
-  isOpen         Boolean  @default(true)
-  createdBy      String?
-  passengers     DepartureSheetPassenger[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isOpen        Boolean     @default(true)
+  /// Una planilla por reserva y por tipo: el link se genera una vez y se reusa.
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  createdBy     String?
+  passengers    DepartureSheetPassenger[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
-  @@index([kind, departureAt])
+  @@unique([reservationId, kind])
+  @@index([kind])
 }
 
 model DepartureSheetPassenger {

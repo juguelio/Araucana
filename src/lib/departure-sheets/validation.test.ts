@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDepartureSheetSchema, departurePassengerSchema } from "./validation";
+import { departurePassengerSchema } from "./validation";
 
 const pasajeroDut = {
   firstName: "Ana",
@@ -72,26 +72,5 @@ describe("registro de salida de la provincia: datos del pasajero", () => {
     });
 
     expect(result.success).toBe(true);
-  });
-});
-
-describe("alta de la planilla desde el panel", () => {
-  it("guarda la fecha de salida al mediodía argentino", () => {
-    const parsed = createDepartureSheetSchema.parse({ kind: "DUT", title: "Viaje a Chile", departureAt: "2026-11-20" });
-
-    expect(parsed.departureAt?.toISOString()).toBe("2026-11-20T15:00:00.000Z");
-    expect(parsed.destination).toBe("");
-  });
-
-  it("acepta una planilla sin fecha", () => {
-    const parsed = createDepartureSheetSchema.parse({ kind: "PROVINCIA", title: "Salida a Neuquén" });
-
-    expect(parsed.departureAt).toBeNull();
-  });
-
-  it("rechaza un tipo de planilla desconocido", () => {
-    const result = createDepartureSheetSchema.safeParse({ kind: "OTRA", title: "Planilla" });
-
-    expect(result.success).toBe(false);
   });
 });
