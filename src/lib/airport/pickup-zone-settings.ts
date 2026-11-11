@@ -19,8 +19,8 @@ export const airportCoverageSchema = z.object({
   exclusions: z.array(polygon).max(25)
 });
 
-export async function getAirportCoverage(): Promise<AirportCoverage> {
-  const saved = await getSetting(key);
+export async function getAirportCoverage(db?: Parameters<typeof getSetting>[1]): Promise<AirportCoverage> {
+  const saved = await getSetting(key, db);
   return saved ? airportCoverageSchema.parse(JSON.parse(saved)) : initialAirportCoverage;
 }
 

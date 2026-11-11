@@ -23,6 +23,8 @@ export const privateFlightSchema = z.object({
     .refine((valor) => !Number.isNaN(Date.parse(valor)), "La fecha y hora del vuelo no son válidas.")
 });
 
+export const airportPickupPointSchema = z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]);
+
 /** Contrato del flujo público del aeropuerto: la reserva va atada a un vuelo, no a una salida fija. */
 const airportReservationFields = z.object({
   routeSlug: z.string().min(1),
@@ -36,7 +38,7 @@ const airportReservationFields = z.object({
   passenger: passengerSchema,
   pickupName: z.string().max(120).optional(),
   pickupAddress: z.string().max(160).optional(),
-  pickupPoint: z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]).optional(),
+  pickupPoint: airportPickupPointSchema.optional(),
   pickupNotes: z.string().max(300).optional(),
   /** Cuando viene, el vuelo no se busca: se reutiliza el del mismo número o se crea. */
   privateFlight: privateFlightSchema.optional()

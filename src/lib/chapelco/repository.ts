@@ -523,7 +523,7 @@ export async function assignReservationToRun(input: AssignReservationInput) {
         pickupLongitude: reservation.chapelcoDetails.pickupLongitude
       }
     });
-  });
+  }, { isolationLevel: "Serializable" });
 }
 
 export async function reorderChapelcoStops(runId: string, orderedStopIds: string[]) {

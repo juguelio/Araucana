@@ -2,14 +2,17 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { AirportAddressMap } from "@/components/airport-address-map";
+import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { initialAirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { canCorrectManualPayment, canEditReservationTotal } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
-import { manageReservationAction, updatePassengerAction } from "../actions";
+import { manageReservationAction, updatePassengerAction, updatePickupAddressAction } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
 import { PassengerForm } from "./passenger-form";
+import { PickupAddressForm } from "./pickup-address-form";
 
 type AdminPassengerPageProps = {
   searchParams: Promise<{ notice?: string }>;
@@ -50,8 +53,6 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const passengerName = `${reservation.passenger.firstName} ${reservation.passenger.lastName}`;
   const isChapelco = reservation.bookingMode === "CHAPELCO";
   const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails : null;
-  const airportPoint = airport?.pickupLatitude != null && airport.pickupLongitude != null
-    ? [airport.pickupLatitude, airport.pickupLongitude] as const : null;
   const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
 
   const payment = reservation.payment;
@@ -63,6 +64,9 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
     (!payment || (payment.provider === "MANUAL" && ["PENDING", "REJECTED"].includes(payment.status)));
   const total = new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.total);
   const pickupDetails = airport ?? reservation.chapelcoDetails;
+  const pickupPoint: PickupPoint | null = pickupDetails?.pickupLatitude != null && pickupDetails.pickupLongitude != null
+    ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
+  const coverage = airport && !cancelled ? await getAirportCoverage() : initialAirportCoverage;
 
   return (
     <AdminShell title={passengerName} role={user.role}>
@@ -195,13 +199,13 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         </div>
       </section>
 
-      {airport && (airport.pickupAddress?.trim() || airportPoint) ? (
+      {airport && (airport.pickupAddress?.trim() || pickupPoint) ? (
         <section className="plain-card admin-section">
           <h2>{airport.direction === "ARRIVAL" ? "Dirección de destino" : "Dirección de búsqueda"}</h2>
           {airport.pickupName ? <p><strong>{airport.pickupName}</strong></p> : null}
           <p>{airport.pickupAddress || "Ubicación confirmada en el mapa"}</p>
           {airport.pickupNotes ? <p className="muted">{airport.pickupNotes}</p> : null}
-          <AirportAddressMap address={airport.pickupAddress ?? ""} point={airportPoint ? [...airportPoint] : null} />
+          <AirportAddressMap address={airport.pickupAddress ?? ""} point={pickupPoint} />
         </section>
       ) : null}
 
@@ -238,6 +242,9 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         <PassengerForm action={updatePassengerAction} reservation={reservation} />
         {pickupDetails && !cancelled ? (
           <>
+            <h2>{airport?.direction === "ARRIVAL" ? "Editar dirección de destino" : "Editar dirección de búsqueda"}</h2>
+            <PickupAddressForm action={updatePickupAddressAction} code={reservation.code}
+              address={pickupDetails.pickupAddress ?? ""} point={pickupPoint} airport={Boolean(airport)} coverage={coverage} />
             <h2>Editar notas del traslado</h2>
             <form className="admin-form-grid" action={manageReservationAction}>
               <input type="hidden" name="code" value={reservation.code} />

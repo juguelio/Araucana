@@ -160,6 +160,35 @@ export async function updatePassengerAction(_state: AdminFormState, formData: Fo
   return successState("Pasajero guardado con exito.");
 }
 
+export async function updatePickupAddressAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
+  await getCurrentReservationsUserOrRedirect();
+  const code = value(formData, "code").toUpperCase();
+  if (!/^ARC-[A-Z0-9-]+$/.test(code)) return errorState("No encontramos la reserva.");
+
+  const latitude = value(formData, "latitude");
+  const longitude = value(formData, "longitude");
+  if (!latitude || !longitude || formData.get("confirmed") !== "on") {
+    return errorState("Confirmá el punto de traslado en el mapa.");
+  }
+  const command = reservationManagementSchema.safeParse({
+    operation: "address",
+    address: value(formData, "address"),
+    point: [Number(latitude), Number(longitude)]
+  });
+  if (!command.success) return errorState("Revisá la dirección y el punto marcado en el mapa.");
+
+  try {
+    await manageReservation(code, command.data);
+  } catch (error) {
+    return errorState(error instanceof BookingError ? error.message : "No pudimos guardar la dirección. Intentalo de nuevo.");
+  }
+
+  for (const path of [`/admin/reservas/${code}`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+    revalidatePath(path);
+  }
+  return successState("Dirección actualizada.");
+}
+
 export async function manageReservationAction(formData: FormData) {
   const command = reservationManagementSchema.safeParse({
     operation: value(formData, "operation"),
@@ -202,6 +231,7 @@ export async function manageReservationAction(formData: FormData) {
     payment: "Pago registrado.",
     correctPayment: "Datos del pago actualizados.",
     notes: "Notas guardadas.",
+    address: "Dirección actualizada.",
     price: "Precio actualizado."
   };
   const target = command.data.operation === "delete" ? "/admin/reservas" : detailPath;

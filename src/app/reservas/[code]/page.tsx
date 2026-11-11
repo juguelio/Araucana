@@ -37,6 +37,11 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
   const disabilityFare = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
   const isChapelco = reservation.bookingMode === "CHAPELCO";
   const airport = reservation.airportDetails;
+  const airportMapUrl = airport?.pickupLatitude != null && airport.pickupLongitude != null
+    ? `https://www.google.com/maps/search/?${new URLSearchParams({
+      api: "1", query: `${airport.pickupLatitude},${airport.pickupLongitude}`
+    })}`
+    : null;
   const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
 
   return (
@@ -78,6 +83,13 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                     : formatDateTime(reservation.schedule.departureAt)}
                 </strong>
               </div>
+              {airport && (airport.pickupAddress || airportMapUrl) ? (
+                <div>
+                  <span>{airport.direction === "ARRIVAL" ? "Dirección de destino" : "Dirección de búsqueda"}</span>
+                  {airport.pickupAddress ? <strong>{airport.pickupAddress}</strong> : null}
+                  {airportMapUrl ? <a href={airportMapUrl} target="_blank" rel="noreferrer">Ver punto en el mapa</a> : null}
+                </div>
+              ) : null}
               {pickupStart ? (
                 <div>
                   <span>{airport?.flight?.pickupStartOverrideAt ? "Inicio de recorrida" : "Inicio estimado de recorrida"}</span>

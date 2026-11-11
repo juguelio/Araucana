@@ -10,8 +10,8 @@ import { prisma } from "@/lib/db/prisma";
 
 export const AIRLABS_KEY_SETTING = "airlabs.apiKey";
 
-export async function getSetting(key: string): Promise<string | null> {
-  const row = await prisma.appSetting.findUnique({ where: { key } });
+export async function getSetting(key: string, db: Pick<typeof prisma, "appSetting"> = prisma): Promise<string | null> {
+  const row = await db.appSetting.findUnique({ where: { key } });
   const value = row?.value?.trim();
   return value ? value : null;
 }
