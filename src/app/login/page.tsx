@@ -1,7 +1,14 @@
-import { LoginForm } from "./login-form";
+import { redirect } from "next/navigation";
 import { isGoogleLoginConfigured } from "@/lib/auth/google";
+import { getDefaultPathForRole } from "@/lib/auth/roles";
+import { getAppUserFromToken } from "@/lib/auth/service";
+import { LoginForm } from "./login-form";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const user = await getAppUserFromToken();
+  if (user) {
+    redirect(user.isActive ? getDefaultPathForRole(user.role) : "/acceso-pendiente");
+  }
   return (
     <main className="page-shell section">
       <div className="split">
