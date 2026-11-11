@@ -21,6 +21,8 @@ export type ChapelcoReservationInput = {
   serviceDate: string;
   ascentSlot: ChapelcoAscentSlot;
   passengerCount: number;
+  halfFareCount?: number;
+  freeFareCount?: number;
   pickupName: string;
   pickupAddress: string;
   pickupLatitude: number;

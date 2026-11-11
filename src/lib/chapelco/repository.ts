@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode, createTicketCode } from "@/lib/booking/codes";
+import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import {
   CHAPELCO_BOOKING_MODE,
@@ -177,6 +178,7 @@ export async function getChapelcoAvailability(routeId: string, serviceDate: stri
 
 export async function createChapelcoReservation(input: ChapelcoReservationInput) {
   const parsed = chapelcoReservationSchema.parse(input);
+  const fares = fareCounts(parsed.passengerCount, parsed.halfFareCount, parsed.freeFareCount);
   const date = serviceDateFromKey(parsed.serviceDate);
 
   return prisma.$transaction(async (tx) => {
@@ -241,7 +243,9 @@ export async function createChapelcoReservation(input: ChapelcoReservationInput)
         passengerCount: parsed.passengerCount,
         bookingMode: CHAPELCO_BOOKING_MODE,
         status: "PENDING_PAYMENT",
-        totalCents: route.priceCents * parsed.passengerCount,
+        totalCents: reservationTotalCents(route.priceCents, fares),
+        halfFareCount: fares.half,
+        freeFareCount: fares.free,
         currency: route.currency
       }
     });

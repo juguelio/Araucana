@@ -146,6 +146,11 @@
 .salida-cal-todas { padding: 0; border: 0; background: transparent; color: var(--primary); font: inherit; font-size: 12px;
   font-weight: 700; text-decoration: underline; cursor: pointer; }
 
+.salida-menores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+.salida-menores label { display: grid; gap: 5px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.salida-menores input { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; }
+.salida-menores input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 @media (max-width: 720px) {
   .salida-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .salida-fecha { grid-column: 1 / -1; }

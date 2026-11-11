@@ -6,6 +6,7 @@ import type { PublicRouteDto } from "@/lib/booking/types";
 import type { ChapelcoAvailabilityDto } from "@/lib/chapelco/types";
 import { chapelcoAscentSlots, type ChapelcoAscentSlot } from "@/lib/chapelco/constants";
 import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
+import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { createChapelcoReservationAction } from "./chapelco-actions";
 
 type ChapelcoCheckoutFormProps = {
@@ -78,6 +79,8 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
   const [availability, setAvailability] = useState(initialAvailability);
   const [ascentSlot, setAscentSlot] = useState<ChapelcoAscentSlot>("08:30");
   const [passengerCount, setPassengerCount] = useState(1);
+  const [halfFareCount, setHalfFareCount] = useState(0);
+  const [freeFareCount, setFreeFareCount] = useState(0);
   const [pickupName, setPickupName] = useState("");
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupLatitude, setPickupLatitude] = useState(-40.1576);
@@ -88,7 +91,11 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedAvailability = availability.slots.find((slot) => slot.slot === ascentSlot);
-  const totalCents = useMemo(() => route.priceCents * passengerCount, [passengerCount, route.priceCents]);
+  const totalCents = useMemo(
+    () => reservationTotalCents(route.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)),
+    [passengerCount, halfFareCount, freeFareCount, route.priceCents]
+  );
+  const menoresCargados = halfFareCount + freeFareCount;
   const hasCapacity = availability.isServiceActive && selectedAvailability ? selectedAvailability.availablePeople >= passengerCount : false;
   const minServiceDate = route.serviceStartDate && route.serviceStartDate > todayInputValue() ? route.serviceStartDate : todayInputValue();
 
@@ -147,6 +154,8 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
 
     if (passengerCount < 1) {
       nextErrors.passengerCount = "Ingresa al menos una persona.";
+    } else if (menoresCargados > passengerCount) {
+      nextErrors.passengerCount = "Los menores no pueden ser más que la cantidad de personas.";
     }
 
     if (!pickupName.trim()) {
@@ -173,6 +182,8 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
       serviceDate,
       ascentSlot,
       passengerCount,
+      halfFareCount,
+      freeFareCount,
       pickupName,
       pickupAddress,
       pickupLatitude,
@@ -256,6 +267,33 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
             />
             {fieldError(fieldErrors, "passengerCount")}
           </label>
+          <div className="checkout-fields">
+            <label>
+              De ellas, menores de 4 a 8 (media tarifa)
+              <input
+                type="number"
+                min={0}
+                max={passengerCount}
+                value={halfFareCount}
+                onChange={(event) => setHalfFareCount(Math.max(0, Math.min(passengerCount - freeFareCount, Number(event.target.value) || 0)))}
+                disabled={isSubmitting}
+              />
+            </label>
+            <label>
+              De ellas, menores de 4 (sin cargo)
+              <input
+                type="number"
+                min={0}
+                max={passengerCount}
+                value={freeFareCount}
+                onChange={(event) => setFreeFareCount(Math.max(0, Math.min(passengerCount - halfFareCount, Number(event.target.value) || 0)))}
+                disabled={isSubmitting}
+              />
+            </label>
+            <p className="muted" style={{ gridColumn: "1 / -1" }}>
+              De 4 a 8 años pagan media tarifa. Los menores de 4 no pagan, pero ocupan un lugar del vehículo.
+            </p>
+          </div>
           <div className="checkout-fields">
             <label>
               Nombre
@@ -377,7 +415,10 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
           </div>
           <div>
             <span>Personas</span>
-            <strong>{passengerCount}</strong>
+            <strong>
+              {passengerCount}
+              {menoresCargados ? ` (${halfFareCount ? `${halfFareCount} media` : ""}${halfFareCount && freeFareCount ? " · " : ""}${freeFareCount ? `${freeFareCount} sin cargo` : ""})` : ""}
+            </strong>
           </div>
           <div>
             <span>Regreso</span>

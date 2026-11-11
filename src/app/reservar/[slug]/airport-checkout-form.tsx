@@ -9,7 +9,8 @@ import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
-import { airportHalfFare, airportReservationTotal } from "@/lib/airport/passenger-fares";
+import { halfFareCents } from "@/lib/booking/passenger-fares";
+import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { OUTSIDE_PICKUP_ZONE, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
@@ -145,6 +146,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
   const [halfFareCount, setHalfFareCount] = useState(0);
+  const [freeFareCount, setFreeFareCount] = useState(0);
   const [pickupAddress, setPickupAddress] = useState("");
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
   const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
@@ -188,10 +190,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const tarifa = fares[sentidoDelVuelo] ?? null;
   const precioPorPersona = tarifa?.priceCents ?? route.priceCents;
   const moneda = tarifa?.currency ?? route.currency;
-  const passengerCount = fullFareCount + halfFareCount;
+  const passengerCount = fullFareCount + halfFareCount + freeFareCount;
   const maxSeats = Math.min(selected?.available ?? 24, 24);
   const overrideTotalCents = fromAdmin && customPrice.trim() ? parseReservationPrice(customPrice) : undefined;
-  const total = overrideTotalCents ?? airportReservationTotal(precioPorPersona, passengerCount, halfFareCount);
+  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount));
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   function selectPickupPoint(point: PickupPoint | null) {
@@ -374,6 +376,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           serviceDate: date,
           passengerCount,
           halfFareCount,
+          freeFareCount,
           overrideTotalCents,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
@@ -633,17 +636,25 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   onChange={setFullFareCount}
                 />
                 <QuantityPicker
-                  label="Menores que pagan media tarifa"
+                  label="Menores de 4 a 8 años · media tarifa"
                   value={halfFareCount}
-                  min={fullFareCount > 0 ? 0 : 1}
-                  max={maxSeats - fullFareCount}
+                  min={fullFareCount > 0 || freeFareCount > 0 ? 0 : 1}
+                  max={maxSeats - fullFareCount - freeFareCount}
                   disabled={isSubmitting}
                   onChange={setHalfFareCount}
                 />
+                <QuantityPicker
+                  label="Menores de 4 años · sin cargo"
+                  value={freeFareCount}
+                  min={0}
+                  max={maxSeats - fullFareCount - halfFareCount}
+                  disabled={isSubmitting}
+                  onChange={setFreeFareCount}
+                />
                 <p className="muted" style={{ gridColumn: "1 / -1" }}>
                   Lugares a reservar: {passengerCount}{selected ? ` de ${selected.available} disponibles` : ""}.<br />
-                  De 4 a 8 años inclusive pagan media tarifa. Los menores de 4 viajan gratis si no ocupan asiento.
-                  Si ocupan un asiento, pagan media tarifa, con o sin sillita.
+                  De 4 a 8 años inclusive pagan media tarifa. Los menores de 4 no pagan, pero ocupan un lugar:
+                  contalos como un lugar más del vehículo.
                 </p>
               </div>
 
@@ -725,7 +736,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           <span>Horario: <strong>{esPrivado ? privadoHora || "—" : selected ? hhmm(selected.estimatedAt ?? selected.scheduledAt) : "—"}</strong></span>
           <span>Estado: <strong>{esPrivado ? "Privado" : selected ? estadoDe(selected) : "—"}</strong></span>
           <span>Lugares: <strong>{passengerCount}</strong></span>
-          {halfFareCount > 0 ? <span>Menores con media tarifa: <strong>{halfFareCount}{overrideTotalCents == null ? ` · ${formatPrice(airportHalfFare(precioPorPersona), moneda)} cada uno` : ""}</strong></span> : null}
+          {halfFareCount > 0 ? <span>Menores con media tarifa: <strong>{halfFareCount}{overrideTotalCents == null ? ` · ${formatPrice(halfFareCents(precioPorPersona), moneda)} cada uno` : ""}</strong></span> : null}
+          {freeFareCount > 0 ? <span>Menores de 4 sin cargo: <strong>{freeFareCount}</strong></span> : null}
           {overrideTotalCents == null ? <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span> : <span>Precio total ajustado por administración</span>}
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>

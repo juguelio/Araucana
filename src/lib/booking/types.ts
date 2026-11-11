@@ -98,6 +98,8 @@ export type ReservationDetailDto = {
   bookingMode: string;
   dropoffStop?: string | null;
   passengerCount: number;
+  halfFareCount?: number;
+  freeFareCount?: number;
   status: ReservationStatus | string;
   seatNumber: string | null;
   totalCents: number;

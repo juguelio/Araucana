@@ -456,6 +456,8 @@ function throwUniqueConstraint(target: string[]): never {
 const input: CreateReservationInput = {
   scheduleId: "schedule-1",
   passengerCount: 1,
+  halfFareCount: 0,
+  freeFareCount: 0,
   seatNumber: "04",
   passenger: {
     firstName: "Camila",

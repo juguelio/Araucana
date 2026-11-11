@@ -333,6 +333,10 @@ model Reservation {
   seatNumber  String?
   dropoffStop String?
   passengerCount Int     @default(1)
+  // Tarifas por edad (issue #33): los pasajeros vienen dentro de passengerCount, que es el total
+  // que ocupa lugar. `halfFareCount` son los menores de 4 a 8 años y `freeFareCount` los menores de 4.
+  halfFareCount Int      @default(0)
+  freeFareCount Int      @default(0)
   bookingMode String     @default("SEATED")
   status      String     @default("PENDING_PAYMENT")
   totalCents  Int
