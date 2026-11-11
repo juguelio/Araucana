@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { ApiError } from "@/lib/api/responses";
 import { lookupAirportIntersection } from "./intersection-lookup";
-import { airportSearchBounds, airportSearchCenter, isIntersectionQuery } from "./place-search-area";
+import {
+  airportSearchBounds, airportSearchCenter, airportSearchLocality, isIntersectionQuery,
+  normalizePlaceText, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
+} from "./place-search-area";
 import type { PickupPoint } from "./pickup-zone";
+import { lookupStreetAddresses } from "./street-address-lookup";
 
 export type AirportPlaceSuggestion = {
   label: string;
@@ -81,7 +85,8 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
     return photonResponse.parse(payload).features.flatMap(({ properties, geometry }) => {
       const { name, street, housenumber, district, city, type } = properties;
       const address = [street, housenumber].filter(Boolean).join(" ");
-      const label = [...new Set([name, address, district, city].filter(Boolean))].join(", ");
+      const primary = housenumber && street ? address : name;
+      const label = [...new Set([primary, address, district, city].filter(Boolean))].join(", ");
       if (!label) return [];
       const [lon, lat] = geometry.coordinates;
       return [{ label, point: [lat, lon], source: "photon", approximate: areaTypes.has(type ?? "") }];
@@ -89,6 +94,50 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
   } catch {
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar lugares. Podés marcar el punto en el mapa.", 503);
   }
+}
+
+function matchesStreetNumber(label: string, street: string, number: string) {
+  const [first, second] = label.split(",").map(normalizePlaceText);
+  const address = splitStreetAddress(first);
+  const matchedStreet = first === number ? second : address?.number === number ? address.street : undefined;
+  return Boolean(matchedStreet && (matchedStreet === street || matchedStreet.endsWith(` ${street}`)));
+}
+
+async function suggestStreetAddress(name: string, context: string, address: NonNullable<ReturnType<typeof splitStreetAddress>>, signal: AbortSignal) {
+  const locality = context || airportSearchLocality;
+  const street = normalizePlaceText(address.street);
+  const named = await lookupNamedPlaces(`${name}, ${locality}`, signal).catch((error: unknown) => error);
+  const exact = Array.isArray(named)
+    ? named.filter((match) => matchesStreetNumber(match.label, street, address.number))
+    : [];
+  if (exact.length || signal.aborted) return exact;
+
+  const official = await lookupStreetAddresses(name, context.split(",")[0], signal).catch(() => []);
+  const suggestions: AirportPlaceSuggestion[] = [];
+  for (const match of official) {
+    if (String(match.altura.valor) !== address.number || signal.aborted) continue;
+    const officialStreet = match.calle.nombre.toLocaleLowerCase("es").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
+    const { nombre: city } = match.localidad_censal;
+    const label = `${officialStreet} ${address.number}, ${city}`;
+    const { lat, lon } = match.ubicacion;
+    if (lat !== null && lon !== null) {
+      suggestions.push({ label, point: [lat, lon], source: "georef", approximate: true });
+      continue;
+    }
+
+    const candidates = await lookupNamedPlaces(label, signal).catch(() => []);
+    const canonical = normalizePlaceText(officialStreet);
+    const canonicalExact = candidates.filter((candidate) => matchesStreetNumber(candidate.label, canonical, address.number));
+    if (canonicalExact.length) {
+      suggestions.push(...canonicalExact);
+      continue;
+    }
+    const reference = candidates.find((candidate) => candidate.approximate
+      && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
+    if (reference) suggestions.push({ ...reference, label, approximate: true });
+  }
+  if (!suggestions.length && !Array.isArray(named)) throw named;
+  return suggestions;
 }
 
 export async function suggestAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
@@ -99,8 +148,13 @@ export async function suggestAirportPlaces(query: string, signal: AbortSignal): 
     }
   }
 
-  const name = query.replace(/^barrio\s+/i, "");
-  if (name.length < 3 || signal.aborted) return [];
-  const matches = await lookupNamedPlaces(name, signal);
-  return [...new Map(matches.map((match) => [`${match.label}:${match.point.join(",")}`, match])).values()];
+  const search = query.replace(/^barrio\s+/i, "");
+  if (search.length < 3 || signal.aborted) return [];
+  const { name, context } = splitPlaceQuery(search);
+  const address = splitStreetAddress(name);
+  const matches = address
+    ? await suggestStreetAddress(name, context, address, signal)
+    : await lookupNamedPlaces(search, signal);
+  const unique = [...new Map(matches.map((match) => [`${match.label}:${match.point.join(",")}`, match])).values()];
+  return context ? unique : prioritizeLocalPlaces(unique, (place) => place.label);
 }
