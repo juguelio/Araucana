@@ -35,6 +35,8 @@ const airportReservationFields = z.object({
   halfFareCount: z.number().int().min(0).max(24).optional(),
   /** Menores de 4 años: no pagan, pero ocupan un lugar. */
   freeFareCount: z.number().int().min(0).max(24).optional(),
+  /** Bultos de equipaje deportivo (esquí, snowboard, bici): se cobran por bulto. */
+  sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
   passenger: passengerSchema,
   pickupName: z.string().max(120).optional(),
   pickupAddress: z.string().max(160).optional(),
