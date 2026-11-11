@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_LOCALE, LOCALES, isLocale, isPrivatePath, localizePath, splitLocale } from "./config";
 import { getDictionary, spanishDictionary } from "./dictionaries";
@@ -90,5 +92,16 @@ describe("diccionarios", () => {
 
   it("el idioma desconocido cae al español", () => {
     expect(getDictionary(DEFAULT_LOCALE)).toBe(spanishDictionary);
+  });
+});
+
+describe("selector de idioma", () => {
+  it("navega con recarga completa, no con el router cliente", () => {
+    // Los tres idiomas comparten página (middleware rewrite): con `next/link` el
+    // payload cacheado del idioma anterior se reusa y el sitio no se traduce.
+    const source = readFileSync(join(process.cwd(), "src/components/language-switcher.tsx"), "utf8");
+    expect(source).not.toContain('from "next/link"');
+    expect(source).toContain("<a");
+    expect(source).toContain("href={localizePath(path, item)}");
   });
 });
