@@ -32,8 +32,14 @@ describe("listado de viajes especiales", () => {
   });
 
   it("cuenta los viajes por mes en orden cronológico y arma el rango del mes", () => {
-    const meses = mesesConViajes([dia("2026-12-01"), dia("2026-11-14"), dia("2026-11-21"), dia("2027-01-03")]);
+    // Llega agrupado por la base: dos viajes el 14-nov, uno el 21-nov y uno el 1-dic.
+    const meses = mesesConViajes([
+      { serviceDate: dia("2026-12-01"), count: 1 },
+      { serviceDate: dia("2026-11-14"), count: 2 },
+      { serviceDate: dia("2027-01-03"), count: 1 }
+    ]);
     expect(meses.map((m) => [m.clave, m.count])).toEqual([["2026-11", 2], ["2026-12", 1], ["2027-01", 1]]);
+    expect(mesesConViajes([])).toEqual([]);
     expect(rangoMes("2026-11")).toEqual({ gte: dia("2026-11-01"), lt: dia("2026-12-01") });
     expect(rangoMes("2026-12")).toEqual({ gte: dia("2026-12-01"), lt: dia("2027-01-01") });
     expect(rangoMes("2026-13")).toBeNull();
