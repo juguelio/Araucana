@@ -164,10 +164,12 @@ export default async function HomePage() {
             <p className="address">{dict.contact.addressA}<br />{dict.contact.addressB}<br />{dict.contact.addressC}</p>
           </div>
           <div className="contact-card">
-            <small>{dict.contact.cardTitle}</small>
-            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="contact-whatsapp">WhatsApp +54 9 2944 64-9049 ↗</a>
-            <a href="tel:+542****0285">02972 420285</a>
-            <a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a>
+            <div>
+              <small>{dict.contact.cardTitle}</small>
+              <a href={whatsappUrl} target="_blank" rel="noreferrer" className="contact-whatsapp">WhatsApp +54 9 2944 64-9049 ↗</a>
+              <a href="tel:+542972420285">02972 420285</a>
+              <a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a>
+            </div>
             <div className="socials">
               <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">{dict.contact.instagram} ↗</a>
               <a href="https://www.google.com/maps/search/?api=1&query=Mariano+Moreno+829+San+Martin+de+los+Andes" target="_blank" rel="noreferrer">{dict.contact.directions} ↗</a>
