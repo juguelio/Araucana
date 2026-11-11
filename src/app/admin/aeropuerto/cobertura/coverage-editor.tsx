@@ -6,26 +6,31 @@ import type { AirportCoverage, PickupPoint } from "@/lib/airport/pickup-zone";
 import { initialAdminFormState } from "../../form-state";
 import { saveCoverageAction } from "./actions";
 
+type Ring = number | "extra";
+
 export function CoverageEditor({ initialCoverage }: { initialCoverage: AirportCoverage }) {
   const [coverage, setCoverage] = useState(initialCoverage);
-  const [selectedRing, setSelectedRing] = useState(0);
+  const [selectedRing, setSelectedRing] = useState<Ring>(0);
   const [result, save, pending] = useActionState(saveCoverageAction, initialAdminFormState);
-  const ring = selectedRing === 0 ? coverage.boundary : coverage.exclusions[selectedRing - 1];
+  const ring = selectedRing === "extra" ? coverage.extraBoundary ?? [] : selectedRing === 0 ? coverage.boundary : coverage.exclusions[selectedRing - 1];
 
   function editRing(edit: (points: PickupPoint[]) => PickupPoint[]) {
-    setCoverage((current) => selectedRing === 0
-      ? { ...current, boundary: edit(current.boundary) }
-      : { ...current, exclusions: current.exclusions.map((points, i) => i === selectedRing - 1 ? edit(points) : points) });
+    setCoverage((current) => selectedRing === "extra"
+      ? { ...current, extraBoundary: edit(current.extraBoundary ?? []) }
+      : selectedRing === 0
+        ? { ...current, boundary: edit(current.boundary) }
+        : { ...current, exclusions: current.exclusions.map((points, i) => i === selectedRing - 1 ? edit(points) : points) });
   }
 
   return (
     <form action={save}>
       <h2>Zona de servicio</h2>
-      <p className="muted">El verde indica dónde buscamos y dejamos pasajeros en los traslados hacia y desde el aeropuerto. Dibujá un sector excluido a partir de cada corte rojo donde haga falta. Los trazos rojos discontinuos del mapa original sirven de referencia.</p>
+      <p className="muted">El verde indica dónde buscamos y dejamos pasajeros en los traslados hacia y desde el aeropuerto. El naranja es el segundo límite: lo que queda dentro de él pero fuera del verde se atiende con el recargo de zona. Dibujá un sector excluido a partir de cada corte rojo donde haga falta. Los trazos rojos discontinuos del mapa original sirven de referencia.</p>
       <div className="form-actions">
         <label>Contorno a editar
-          <select value={selectedRing} onChange={(event) => setSelectedRing(Number(event.target.value))}>
+          <select value={String(selectedRing)} onChange={(event) => setSelectedRing(event.target.value === "extra" ? "extra" : Number(event.target.value))}>
             <option value={0}>Perímetro de cobertura</option>
+            <option value="extra">Perímetro con recargo</option>
             {coverage.exclusions.map((_, i) => <option key={i} value={i + 1}>Sector excluido {i + 1}</option>)}
           </select>
         </label>
@@ -39,8 +44,10 @@ export function CoverageEditor({ initialCoverage }: { initialCoverage: AirportCo
         onMoveVertex={(index, point) => editRing((points) => points.map((previous, i) => i === index ? point : previous))} />
       <div className="form-actions">
         <button className="ghost-button" type="button" disabled={!ring.length} onClick={() => editRing((points) => points.slice(0, -1))}>Deshacer último punto</button>
-        <button className="ghost-button" type="button" disabled={!ring.length} onClick={() => editRing(() => [])}>Redibujar contorno</button>
-        {selectedRing > 0 ? <button className="ghost-button" type="button" onClick={() => {
+        <button className="ghost-button" type="button" disabled={!ring.length} onClick={() => editRing(() => [])}>
+          {selectedRing === "extra" ? "Borrar zona con recargo" : "Redibujar contorno"}
+        </button>
+        {typeof selectedRing === "number" && selectedRing > 0 ? <button className="ghost-button" type="button" onClick={() => {
           setCoverage((current) => ({ ...current, exclusions: current.exclusions.filter((_, i) => i !== selectedRing - 1) }));
           setSelectedRing(0);
         }}>Quitar sector</button> : null}

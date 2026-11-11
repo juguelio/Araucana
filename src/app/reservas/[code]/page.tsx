@@ -111,6 +111,12 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               {reservation.freeFareCount ? (
                 <div><span>Menores de 4 sin cargo</span><strong>{reservation.freeFareCount}</strong></div>
               ) : null}
+              {airport?.sportsLuggageCount ? (
+                <div><span>Equipaje deportivo</span><strong>{airport.sportsLuggageCount} {airport.sportsLuggageCount === 1 ? "bulto" : "bultos"} · {formatPrice(airport.sportsLuggageCount * (airport.sportsLuggageUnitCents ?? 0), reservation.currency)}</strong></div>
+              ) : null}
+              {airport?.zoneExtraCents ? (
+                <div><span>Recargo por zona</span><strong>{formatPrice(airport.zoneExtraCents, reservation.currency)}</strong></div>
+              ) : null}
               {isChapelco && reservation.chapelcoDetails ? (
                 <div>
                   <span>Busqueda</span>
