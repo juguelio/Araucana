@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
+import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import { OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 
@@ -21,6 +22,7 @@ type PickupAddressFieldsProps = {
 
 export function PickupAddressFields({ pickup, coverage, airport, changed, outside, disabled, onChange }: PickupAddressFieldsProps) {
   const [approximate, setApproximate] = useState(false);
+  const [precision, setPrecision] = useState<PickupPrecision | null>(null);
   const [reference, setReference] = useState<{ point: PickupPoint; approximate: boolean } | null>(null);
   const [useGoogle, setUseGoogle] = useState(googlePickupConfigured);
   const maxLength = airport ? 160 : 180;
@@ -38,6 +40,7 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
     // nomenclador que ningún geocoder ubica) sólo completan el domicilio.
     setReference(google && place.point ? { point: place.point, approximate: place.approximate } : null);
     setApproximate(place.approximate);
+    setPrecision(place.precision);
     onChange({
       address: google ? "" : place.label.slice(0, maxLength),
       point: google ? null : place.point,
@@ -53,7 +56,7 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
         <AirportGooglePickup coverage={coverage} point={point} reference={reference} approximate={approximate}
           disabled={disabled} onPoint={markPoint} onUnavailable={() => setUseGoogle(false)} />
       ) : (
-        <AirportDraggableMap point={point} approximate={approximate} disabled={disabled} onSelect={markPoint}
+        <AirportDraggableMap point={point} approximate={approximate} precision={precision} disabled={disabled} onSelect={markPoint}
           onMove={(nextPoint) => { markPoint(nextPoint); return true; }} />
       )}
       {changed && outside ? <p className="form-alert error" role="status">{OUTSIDE_PICKUP_ZONE}</p> : null}

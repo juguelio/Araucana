@@ -12,6 +12,7 @@ import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admi
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
+import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
@@ -160,6 +161,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [approximateAddress, setApproximateAddress] = useState(false);
+  const [pickupPrecision, setPickupPrecision] = useState<PickupPrecision | null>(null);
   const [googleReference, setGoogleReference] = useState<{ point: PickupPoint; approximate: boolean } | null>(null);
   const locationRequest = useRef(0);
   useEffect(() => () => {
@@ -202,6 +204,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
   function selectPickupPoint(point: PickupPoint | null) {
     setApproximateAddress(false);
+    setPickupPrecision(point ? "exact" : null);
     setPickupPoint(point);
     setOriginalPoint(point);
     setPickupConfirmed(false);
@@ -255,6 +258,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setPickupAddress(google ? "" : place.label.slice(0, 160));
     selectPickupPoint(google ? null : place.point);
     setApproximateAddress(place.approximate);
+    setPickupPrecision(place.precision);
     if (google && place.point) setGoogleReference({ point: place.point, approximate: place.approximate });
   }
 
@@ -690,7 +694,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     onUnavailable={() => setUseGooglePickup(false)}
                   />
                 ) : (
-                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
+                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
                 )}
                 {coverage.enabled && pickupPoint ? (
                   <p className={outsideCoverage ? "field-error" : "muted"} role="status" style={{ gridColumn: "1 / -1" }}>

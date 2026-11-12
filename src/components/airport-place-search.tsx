@@ -6,13 +6,19 @@ import { isInsideAirportPickupZone, type AirportCoverage, type PickupPoint } fro
 import {
   airportSearchBounds, airportSearchLocality, isIntersectionQuery, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
 } from "@/lib/airport/place-search-area";
-import type { AirportPlaceSuggestion } from "@/lib/airport/place-suggestions";
+import type { AirportPlaceSuggestion, PickupPrecision } from "@/lib/airport/place-suggestions";
 import type { StreetOption } from "@/lib/airport/street-address";
 import styles from "./airport-address-map.module.css";
 
 type GoogleSuggestion = { source: "google"; label: string; prediction: google.maps.places.PlacePrediction };
 type Suggestion = AirportPlaceSuggestion | GoogleSuggestion;
-export type AirportSelectedPlace = { label: string; point: PickupPoint | null; approximate: boolean; source: Suggestion["source"] };
+export type AirportSelectedPlace = {
+  label: string;
+  point: PickupPoint | null;
+  approximate: boolean;
+  precision: PickupPrecision;
+  source: Suggestion["source"];
+};
 
 const googleAreaTypes = new Set(["locality", "sublocality", "neighborhood", "route", "administrative_area_level_3"]);
 const googleAddressTypes = new Set(["street_address", "premise", "subpremise"]);
@@ -228,11 +234,13 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       await place.fetchFields({ fields: ["location"] });
       if (version !== selectionVersion.current) return;
       if (!place.location) throw new Error("Missing location");
+      const coarse = suggestion.prediction.types.some((type) => googleAreaTypes.has(type));
       onSelect({
         source: "google",
         label: suggestion.label,
         point: [place.location.lat(), place.location.lng()],
-        approximate: suggestion.prediction.types.some((type) => googleAreaTypes.has(type))
+        approximate: coarse,
+        precision: coarse ? "interpolated" : "exact"
       });
     } catch {
       if (version === selectionVersion.current) {
@@ -263,7 +271,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
 
   return (
     <div className={styles.search}>
-      <label htmlFor={inputId}>Dirección, esquina, barrio o comercio</label>
+      <label htmlFor={inputId}>Hotel, cabaña o dirección</label>
       <input id={inputId} type="text" role="combobox" aria-autocomplete="list" autoComplete="off"
         aria-expanded={open} aria-controls={open ? listId : undefined}
         aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
@@ -295,9 +303,10 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => { if (!disabled) void choose(suggestion); }}>
                 {suggestion.label}
-                {suggestion.source !== "google" && !suggestion.point ? <small>Ubicá el punto en el mapa</small> : null}
-                {suggestion.source !== "google" && suggestion.point && suggestion.approximate ? <small>Referencia aproximada</small> : null}
-                {coverage.enabled && suggestion.source !== "google" && suggestion.point && !suggestion.approximate ? (
+                {suggestion.source !== "google" && suggestion.precision === "none" ? <small>Ubicá el punto en el mapa</small> : null}
+                {suggestion.source !== "google" && suggestion.precision === "street" ? <small>Encontramos la calle, no la altura: ajustá el punto</small> : null}
+                {suggestion.source !== "google" && suggestion.precision === "interpolated" ? <small>Referencia aproximada</small> : null}
+                {coverage.enabled && suggestion.source !== "google" && suggestion.point && suggestion.precision === "exact" ? (
                   <small>{isInsideAirportPickupZone(suggestion.point, coverage) ? "Dentro de la cobertura" : "Fuera de la cobertura"}</small>
                 ) : null}
               </li>
