@@ -5,7 +5,7 @@ import { AirportAddressMap } from "@/components/airport-address-map";
 import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { getReservationByCode } from "@/lib/booking/repository";
+import { getAdminReservationByCode } from "@/lib/booking/repository";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { manageReservationAction } from "../actions";
@@ -41,7 +41,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const user = await getCurrentReservationsUserOrRedirect();
   const { code } = await params;
   const { notice } = await searchParams;
-  const reservation = await getReservationByCode(code.toUpperCase());
+  const reservation = await getAdminReservationByCode(code.toUpperCase());
 
   if (!reservation) {
     notFound();
@@ -113,6 +113,10 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
           <p className="eyebrow">Reserva</p>
           <h2 className="route-title">{reservation.code}</h2>
           <div className="summary-list">
+            <div>
+              <span>Creada por</span>
+              <strong>{reservation.creatorLabel}</strong>
+            </div>
             <div>
               <span>Ruta</span>
               <strong>

@@ -14,6 +14,7 @@ import { fareCounts, reservationTotalCents, seatsFromFares } from "./passenger-f
 import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type AdminReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
+import { reservationCreatorData, reservationCreatorLabel, type ReservationCreationContext } from "./reservation-creator";
 import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
 
@@ -118,6 +119,8 @@ type ReservationRecord = {
   totalCents: number;
   currency: string;
   createdAt: Date;
+  createdByName?: string | null;
+  createdByRole?: string | null;
   schedule?: ScheduleRecord | null;
   route?: RouteRecord | null;
   passenger: PassengerRecord;
@@ -512,12 +515,15 @@ function firstAvailableSeat(
   );
 }
 
-async function getReservationByCodeWithClient(client: BookingTransactionClient, code: string) {
-  const reservation = await client.reservation.findUnique({
+function findReservationByCode(client: BookingTransactionClient, code: string) {
+  return client.reservation.findUnique({
     where: { code },
     include: reservationInclude()
   });
+}
 
+async function getReservationByCodeWithClient(client: BookingTransactionClient, code: string) {
+  const reservation = await findReservationByCode(client, code);
   return reservation ? mapReservation(reservation) : null;
 }
 
@@ -637,7 +643,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       };
     },
 
-    async createWebReservation(input: AdminReservationInput, fromAdmin = false) {
+    async createWebReservation(input: AdminReservationInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
       const parsed: AdminReservationInput = (fromAdmin ? adminReservationSchema : createReservationSchema).parse(input);
 
       for (let attempt = 1; attempt <= MAX_RESERVATION_CODE_ATTEMPTS; attempt += 1) {
@@ -727,6 +733,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             const reservation = await tx.reservation.create({
               data: {
                 code,
+                ...reservationCreatorData(creator),
                 scheduleId: schedule.id,
                 routeId: schedule.routeId,
                 passengerId: passenger.id,
@@ -811,6 +818,11 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
     async getReservationByCode(code: string) {
       return getReservationByCodeWithClient(client, code);
+    },
+
+    async getAdminReservationByCode(code: string) {
+      const reservation = await findReservationByCode(client, code);
+      return reservation ? { ...mapReservation(reservation), creatorLabel: reservationCreatorLabel(reservation) } : null;
     },
 
     async updatePassengerForReservation(code: string, input: PassengerInput) {
@@ -994,6 +1006,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           code: reservation.code,
           passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
           passengerPhone: reservation.passenger.phone,
+          creatorLabel: reservationCreatorLabel(reservation),
           route: reservation.schedule
             ? `${reservation.schedule.route.from} -> ${reservation.dropoffStop ?? reservation.schedule.route.to}`
             : reservation.route
@@ -1035,6 +1048,7 @@ export const getPublicRouteBySlug = defaultRepository.getPublicRouteBySlug;
 export const listSchedulesForRoute = defaultRepository.listSchedulesForRoute;
 export const getSeatMap = defaultRepository.getSeatMap;
 export const createWebReservation = defaultRepository.createWebReservation;
+export const getAdminReservationByCode = defaultRepository.getAdminReservationByCode;
 export const getReservationByCode = defaultRepository.getReservationByCode;
 export const updatePassengerForReservation = defaultRepository.updatePassengerForReservation;
 export const attachManualPaymentReceipt = defaultRepository.attachManualPaymentReceipt;

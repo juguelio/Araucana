@@ -7,7 +7,8 @@ import { adminAirportReservationSchema, airportReservationSchema } from "@/lib/a
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 
-import { requireReservationsUser } from "@/lib/auth/service";
+import type { ReservationCreationContext } from "@/lib/booking/reservation-creator";
+import { getAppUserFromToken, getTokenFromRequest, requireReservationsUser } from "@/lib/auth/service";
 
 const errorResponses: Record<string, { message: string; status: number }> = {
   ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
@@ -30,7 +31,9 @@ export async function POST(request: Request) {
 
   try {
     const fromAdmin = new URL(request.url).searchParams.get("source") === "admin";
-    if (fromAdmin) await requireReservationsUser(request);
+    const context: ReservationCreationContext = fromAdmin
+      ? { fromAdmin: true, creator: await requireReservationsUser(request) }
+      : { creator: await getAppUserFromToken(getTokenFromRequest(request)) };
 
     let payload: unknown;
     try {
@@ -51,7 +54,7 @@ export async function POST(request: Request) {
     if (coverage.enabled && input.pickupPoint && !isInsideAirportPickupZone(input.pickupPoint, coverage)) {
       return jsonError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE, 422);
     }
-    const reservation = await createAirportReservation(input, fromAdmin);
+    const reservation = await createAirportReservation(input, context);
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof BookingError) {

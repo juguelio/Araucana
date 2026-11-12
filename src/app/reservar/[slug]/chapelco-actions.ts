@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getAppUserFromToken } from "@/lib/auth/service";
 import { ChapelcoError, createChapelcoReservation } from "@/lib/chapelco/repository";
 import { chapelcoReservationSchema } from "@/lib/chapelco/validation";
 import type { ChapelcoReservationInput } from "@/lib/chapelco/types";
@@ -61,7 +62,8 @@ export async function createChapelcoReservationAction(
   }
 
   try {
-    const reservation = await createChapelcoReservation(parsed.data);
+    const creator = await getAppUserFromToken();
+    const reservation = await createChapelcoReservation(parsed.data, { creator });
     revalidatePath("/reservar/chapelco");
 
     return {
