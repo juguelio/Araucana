@@ -6,20 +6,10 @@ import { BookingError } from "@/lib/booking/repository";
 import { adminAirportReservationSchema, airportReservationSchema } from "@/lib/airport/validation";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { AIRPORT_ERROR_RESPONSES } from "@/lib/airport/api-shared";
 
 import type { ReservationCreationContext } from "@/lib/booking/reservation-creator";
 import { getAppUserFromToken, getTokenFromRequest, requireReservationsUser } from "@/lib/auth/service";
-
-const errorResponses: Record<string, { message: string; status: number }> = {
-  ROUTE_NOT_FOUND: { message: "La ruta no está disponible para reservar.", status: 404 },
-  FLIGHT_NOT_FOUND: { message: "No encontramos ese vuelo para esa fecha. Revisá el número de vuelo.", status: 404 },
-  FLIGHT_IN_PAST: { message: "El horario del vuelo ya pasó. Revisá la hora e intentá de nuevo.", status: 400 },
-  PRIVATE_FLIGHT_INVALID: { message: "Revisá el vuelo privado: tiene que ser del mismo día de la reserva y con un horario válido.", status: 400 },
-  CAPACITY_FULL: { message: "No quedan lugares en ese vuelo. Probá con otro vuelo del día.", status: 409 },
-  SCHEDULE_CLOSED: { message: "Ese vuelo ya no está disponible para reservar.", status: 409 },
-  BOOKING_BUSY: { message: "Ese vuelo está recibiendo otras reservas. Intentá nuevamente.", status: 409 },
-  CODE_COLLISION: { message: "No pudimos generar la reserva. Intentá nuevamente.", status: 503 }
-};
 
 /** Reserva pública de un traslado al aeropuerto: queda atada al número de vuelo. */
 export async function POST(request: Request) {
@@ -58,7 +48,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof BookingError) {
-      const response = errorResponses[error.code] ?? { message: error.message, status: 400 };
+      const response = AIRPORT_ERROR_RESPONSES[error.code] ?? { message: error.message, status: 400 };
       return jsonError(error.code, response.message, response.status);
     }
     return handleApiError(error);

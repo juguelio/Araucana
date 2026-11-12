@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import type { Prisma } from "@prisma/client";
 import { omitReservationCreator, reservationCreatorData, type ReservationCreationContext } from "@/lib/booking/reservation-creator";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { createReservationCode, createReservationShortCode } from "@/lib/booking/codes";
@@ -7,7 +9,14 @@ import { prisma } from "@/lib/db/prisma";
 import { airportPickupStart } from "./pickup-start";
 import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
-import { adminAirportReservationSchema, airportReservationSchema, type AdminAirportReservationInput } from "./validation";
+import {
+  adminAirportReservationSchema,
+  airportReservationSchema,
+  airportRoundTripSchema,
+  type AdminAirportReservationInput,
+  type AirportRoundTripInput,
+  type PrivateFlightInput
+} from "./validation";
 
 /**
  * Reserva de traslados al aeropuerto: **el pasajero elige un vuelo**, no una salida fija.
@@ -174,166 +183,306 @@ export function elegirVueloExistente<T extends { number: string; scheduledAt: Da
 
 /** Nombre para mostrar cuando el pasajero no cargó el origen/destino del vuelo privado. */
 export const ORIGEN_PRIVADO_DESCONOCIDO = "Vuelo privado";
+type Tx = Prisma.TransactionClient;
+
+/** Un tramo tal como llega del formulario: vuelo de un sentido + su pickup. */
+type TramoSolicitado = {
+  flightNumber: string;
+  direction: FlightDirection;
+  serviceDate: string;
+  privateFlight?: PrivateFlightInput;
+  pickupName?: string | null;
+  pickupAddress?: string | null;
+  pickupPoint?: [number, number];
+  pickupNotes?: string | null;
+};
+
+/** La ruta del slug tiene que existir, estar activa y ser de aeropuerto. */
+async function rutaDelSlug(routeSlug: string) {
+  const route = await prisma.travelRoute.findUnique({ where: { slug: routeSlug } });
+  if (!route || !route.isActive || route.bookingMode !== "AIRPORT") {
+    throw new BookingError("ROUTE_NOT_FOUND", "Route not available for airport bookings");
+  }
+  return route;
+}
+
+/**
+ * Busca (o crea, si es un vuelo privado) el vuelo de un tramo dentro de la transacción y valida
+ * que se pueda reservar: día correcto, horario futuro, no cancelado y con cupo.
+ */
+function validarVueloPrivado(tramo: TramoSolicitado) {
+  // El vuelo privado se valida antes de tocar la base: tiene que caer en el día que se reserva y
+  // no puede estar en el pasado (nadie reserva un traslado para un avión que ya aterrizó).
+  const privado = tramo.privateFlight;
+  if (!privado) return;
+
+  const horario = new Date(privado.scheduledAt);
+  if (!esDelDia(tramo.serviceDate, horario)) {
+    throw new BookingError("PRIVATE_FLIGHT_INVALID", "El vuelo privado tiene que ser del mismo día que estás reservando.");
+  }
+  if (horario <= new Date()) {
+    throw new BookingError("FLIGHT_IN_PAST", "El horario del vuelo ya pasó. Revisá la hora del vuelo privado.");
+  }
+}
+
+async function buscarVueloDelTramo(tx: Tx, tramo: TramoSolicitado) {
+  const { desde, hasta } = rangoDelDia(tramo.serviceDate);
+  const numero = claveDeVuelo(tramo.flightNumber);
+  const privado = tramo.privateFlight;
+  validarVueloPrivado(tramo);
+
+  const incluirCupo = {
+    reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
+    assignments: { include: { vehicle: { include: { seats: true } } } }
+  };
+  const candidatos = await tx.flight.findMany({
+    where: {
+      scheduledAt: { gte: desde, lt: hasta },
+      ...(privado ? { direction: tramo.direction } : {}),
+      OR: [
+        { number: tramo.flightNumber.trim() },
+        { number: tramo.flightNumber.trim().toUpperCase() },
+        ...(jetSmartCanonicalNumber(tramo.flightNumber) ? [{ number: numero }] : [])
+      ]
+    },
+    include: incluirCupo
+  });
+  let vuelo = candidatos.find((v) => claveDeVuelo(v.number) === numero) ?? null;
+
+  // Vuelo privado (charter, avión particular): si otro pasajero del mismo avión ya lo cargó
+  // ese día se reutiliza su vuelo —y su cupo—; si no, se crea marcado como cargado por el
+  // pasajero para que la operación lo revise.
+  if (!vuelo && privado) {
+    const horario = new Date(privado.scheduledAt);
+    const canonico = jetSmartCanonicalNumber(privado.number);
+    const delMismoSentido = await tx.flight.findMany({
+      where: { scheduledAt: { gte: desde, lt: hasta }, direction: tramo.direction },
+      include: incluirCupo
+    });
+    vuelo =
+      elegirVueloExistente(delMismoSentido, privado.number, horario) ??
+      (await tx.flight.create({
+        data: {
+          number: canonico ?? privado.number.trim().toUpperCase(),
+          airline: canonico ? "JA" : privado.airline?.trim() || null,
+          origin: privado.origin?.trim() || ORIGEN_PRIVADO_DESCONOCIDO,
+          direction: tramo.direction,
+          scheduledAt: horario,
+          status: "SCHEDULED",
+          source: "PASAJERO",
+          notes: "Vuelo privado cargado por el pasajero al reservar.",
+          createdBy: "pasajero"
+        },
+        include: incluirCupo
+      }));
+  }
+  if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "Flight not found for that date");
+
+  const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
+  const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
+  const disponible = Math.max(capacidad - ocupados, 0);
+  const motivo = motivoNoReservable(vuelo, disponible);
+  if (motivo) {
+    throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);
+  }
+
+  return { vuelo, desde, disponible };
+}
+
+type CrearTramoParams = {
+  tramo: TramoSolicitado;
+  passengerId: string;
+  passengerCount: number;
+  halfFareCount: number;
+  freeFareCount: number;
+  overrideTotalCents?: number;
+  /** Las dos reservas de un ida y vuelta comparten este id; un tramo suelto va sin él. */
+  roundTripId?: string;
+  creator?: ReservationCreationContext["creator"];
+};
+
+/** Crea UNA reserva atada a su vuelo, con el pago pendiente, dentro de la transacción del llamador. */
+async function crearTramo(tx: Tx, params: CrearTramoParams) {
+  const { tramo, passengerId, passengerCount, halfFareCount, freeFareCount } = params;
+  const { vuelo, desde, disponible } = await buscarVueloDelTramo(tx, tramo);
+
+  if (passengerCount > disponible) {
+    throw new BookingError("CAPACITY_FULL", "No hay suficientes lugares en ese vuelo");
+  }
+
+  // La ruta canónica del sentido real del vuelo manda para todo: `routeId`, tarifa y moneda
+  // tienen que salir de la misma ruta. Antes el ID salía de acá y el precio de la ruta del
+  // slug, así que una reserva podía quedar con la tarifa del otro sentido.
+  const rutaDelSentido = await tx.travelRoute.findFirst({
+    where: { bookingMode: "AIRPORT", specialType: vuelo.direction, isActive: true },
+    orderBy: { createdAt: "asc" }
+  });
+  if (!rutaDelSentido) {
+    throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
+  }
+
+  const fares = fareCounts(passengerCount, halfFareCount, freeFareCount);
+  const reservation = await tx.reservation.create({
+    data: {
+      code: createReservationCode(),
+      shortCode: createReservationShortCode(),
+      roundTripId: params.roundTripId ?? null,
+      ...reservationCreatorData(params.creator),
+      routeId: rutaDelSentido.id,
+      passengerId,
+      passengerCount,
+      bookingMode: "AIRPORT",
+      status: "PENDING_PAYMENT",
+      totalCents: params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)),
+      halfFareCount: fares.half,
+      freeFareCount: fares.free,
+      currency: rutaDelSentido.currency,
+      airportDetails: {
+        create: {
+          halfFareCount,
+          flightNumber: vuelo.number,
+          flightId: vuelo.id,
+          direction: vuelo.direction,
+          serviceDate: desde,
+          pickupName: tramo.pickupName ?? null,
+          pickupAddress: tramo.pickupAddress ?? null,
+          pickupLatitude: tramo.pickupPoint?.[0] ?? null,
+          pickupLongitude: tramo.pickupPoint?.[1] ?? null,
+          pickupNotes: tramo.pickupNotes ?? null
+        }
+      }
+    },
+    omit: omitReservationCreator,
+    include: { route: true, passenger: true, airportDetails: true }
+  });
+
+  // Igual que las reservas comunes: se crea el pago pendiente (transferencia/manual) para que
+  // el pasajero pueda subir el comprobante desde su link y la reserva quede a confirmar.
+  const pago = await manualPaymentProvider.createPendingPayment({
+    reservationCode: reservation.code,
+    amountCents: reservation.totalCents,
+    currency: reservation.currency
+  });
+  await tx.payment.create({
+    data: {
+      reservationId: reservation.id,
+      provider: pago.provider,
+      status: pago.status,
+      amountCents: pago.amountCents,
+      currency: pago.currency,
+      externalRef: pago.externalRef
+    }
+  });
+
+  return reservation;
+}
+
+/** ¿El error es de los que se resuelven reintentando la transacción entera? */
+function esReintentable(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: string }).code : undefined;
+  // P2034: dos reservas compitieron por el mismo cupo. P2002: dos pasajeros del mismo charter
+  // crearon el vuelo privado al mismo tiempo (al reintentar, el segundo lo encuentra creado).
+  return code === "P2034" || code === "P2002";
+}
 
 /** Crea la reserva atada al vuelo, con control de cupo dentro de la misma transacción. */
 export async function createAirportReservation(input: AdminAirportReservationInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
   const parsed: AdminAirportReservationInput = (fromAdmin ? adminAirportReservationSchema : airportReservationSchema).parse(input);
-
-  const route = await prisma.travelRoute.findUnique({ where: { slug: parsed.routeSlug } });
-  if (!route || !route.isActive || route.bookingMode !== "AIRPORT") {
-    throw new BookingError("ROUTE_NOT_FOUND", "Route not available for airport bookings");
-  }
-
-  const { desde, hasta } = rangoDelDia(parsed.serviceDate);
-  const numero = claveDeVuelo(parsed.flightNumber);
-  const privado = parsed.privateFlight;
-
-  // El vuelo privado se valida antes de tocar la base: tiene que caer en el día que se reserva y
-  // no puede estar en el pasado (nadie reserva un traslado para un avión que ya aterrizó).
-  if (privado) {
-    const horario = new Date(privado.scheduledAt);
-    if (!esDelDia(parsed.serviceDate, horario)) {
-      throw new BookingError("PRIVATE_FLIGHT_INVALID", "El vuelo privado tiene que ser del mismo día que estás reservando.");
-    }
-    if (horario <= new Date()) {
-      throw new BookingError("FLIGHT_IN_PAST", "El horario del vuelo ya pasó. Revisá la hora del vuelo privado.");
-    }
-  }
+  await rutaDelSlug(parsed.routeSlug);
+  validarVueloPrivado({
+    flightNumber: parsed.flightNumber,
+    direction: parsed.direction,
+    serviceDate: parsed.serviceDate,
+    privateFlight: parsed.privateFlight
+  });
 
   for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
-        // El vuelo manda: se busca el número en las dos direcciones del día y la reserva toma
-        // la dirección del vuelo elegido (no la de la página desde la que se reservó).
-        const incluirCupo = {
-          reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
-          assignments: { include: { vehicle: { include: { seats: true } } } }
-        };
-        const candidatos = await tx.flight.findMany({
-          where: {
-            scheduledAt: { gte: desde, lt: hasta },
-            ...(privado ? { direction: parsed.direction } : {}),
-            OR: [
-              { number: parsed.flightNumber.trim() },
-              { number: parsed.flightNumber.trim().toUpperCase() },
-              ...(jetSmartCanonicalNumber(parsed.flightNumber) ? [{ number: numero }] : [])
-            ]
-          },
-          include: incluirCupo
-        });
-        let vuelo = candidatos.find((v) => claveDeVuelo(v.number) === numero) ?? null;
-
-        // Vuelo privado (charter, avión particular): si otro pasajero del mismo avión ya lo cargó
-        // ese día se reutiliza su vuelo —y su cupo—; si no, se crea marcado como cargado por el
-        // pasajero para que la operación lo revise.
-        if (!vuelo && privado) {
-          const horario = new Date(privado.scheduledAt);
-          const canonico = jetSmartCanonicalNumber(privado.number);
-          const delMismoSentido = await tx.flight.findMany({
-            where: { scheduledAt: { gte: desde, lt: hasta }, direction: parsed.direction },
-            include: incluirCupo
-          });
-          vuelo =
-            elegirVueloExistente(delMismoSentido, privado.number, horario) ??
-            (await tx.flight.create({
-              data: {
-                number: canonico ?? privado.number.trim().toUpperCase(),
-                airline: canonico ? "JA" : privado.airline?.trim() || null,
-                origin: privado.origin?.trim() || ORIGEN_PRIVADO_DESCONOCIDO,
-                direction: parsed.direction,
-                scheduledAt: horario,
-                status: "SCHEDULED",
-                source: "PASAJERO",
-                notes: "Vuelo privado cargado por el pasajero al reservar.",
-                createdBy: "pasajero"
-              },
-              include: incluirCupo
-            }));
-        }
-        if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "Flight not found for that date");
-
-        const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
-        const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
-        const disponible = Math.max(capacidad - ocupados, 0);
-        const motivo = motivoNoReservable(vuelo, disponible);
-        if (motivo) {
-          throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);
-        }
-        if (parsed.passengerCount > disponible) {
-          throw new BookingError("CAPACITY_FULL", "No hay suficientes lugares en ese vuelo");
-        }
-
-        // La ruta canónica del sentido real del vuelo manda para todo: `routeId`, tarifa y moneda
-        // tienen que salir de la misma ruta. Antes el ID salía de acá y el precio de la ruta del
-        // slug, así que una reserva podía quedar con la tarifa del otro sentido.
-        const rutaDelSentido = await tx.travelRoute.findFirst({
-          where: { bookingMode: "AIRPORT", specialType: vuelo.direction, isActive: true },
-          orderBy: { createdAt: "asc" }
-        });
-        if (!rutaDelSentido) {
-          throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
-        }
-
-        const fares = fareCounts(parsed.passengerCount, parsed.halfFareCount ?? 0, parsed.freeFareCount ?? 0);
         const passenger = await tx.passenger.create({ data: parsed.passenger });
-        const reservation = await tx.reservation.create({
-          data: {
-            code: createReservationCode(),
-            shortCode: createReservationShortCode(),
-            ...reservationCreatorData(creator),
-            routeId: rutaDelSentido.id,
-            passengerId: passenger.id,
-            passengerCount: parsed.passengerCount,
-            bookingMode: "AIRPORT",
-            status: "PENDING_PAYMENT",
-            totalCents: parsed.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(parsed.passengerCount, parsed.halfFareCount ?? 0, parsed.freeFareCount ?? 0)),
-            halfFareCount: fares.half,
-            freeFareCount: fares.free,
-            currency: rutaDelSentido.currency,
-            airportDetails: {
-              create: {
-                halfFareCount: parsed.halfFareCount ?? 0,
-                flightNumber: vuelo.number,
-                flightId: vuelo.id,
-                direction: vuelo.direction,
-                serviceDate: desde,
-                pickupName: parsed.pickupName ?? null,
-                pickupAddress: parsed.pickupAddress ?? null,
-                pickupLatitude: parsed.pickupPoint?.[0] ?? null,
-                pickupLongitude: parsed.pickupPoint?.[1] ?? null,
-                pickupNotes: parsed.pickupNotes ?? null
-              }
-            }
+        return crearTramo(tx, {
+          tramo: {
+            flightNumber: parsed.flightNumber,
+            direction: parsed.direction,
+            serviceDate: parsed.serviceDate,
+            privateFlight: parsed.privateFlight,
+            pickupName: parsed.pickupName ?? null,
+            pickupAddress: parsed.pickupAddress ?? null,
+            pickupPoint: parsed.pickupPoint,
+            pickupNotes: parsed.pickupNotes ?? null
           },
-          omit: omitReservationCreator,
-          include: { route: true, passenger: true, airportDetails: true }
+          passengerId: passenger.id,
+          passengerCount: parsed.passengerCount,
+          halfFareCount: parsed.halfFareCount ?? 0,
+          freeFareCount: parsed.freeFareCount ?? 0,
+          overrideTotalCents: parsed.overrideTotalCents,
+          creator
         });
+      }, { isolationLevel: "Serializable" });
+    } catch (error) {
+      if (esReintentable(error)) {
+        if (intento < MAX_INTENTOS) continue;
+        throw new BookingError("BOOKING_BUSY", "El vuelo está recibiendo otras reservas. Intentalo nuevamente.");
+      }
+      throw error;
+    }
+  }
 
-        // Igual que las reservas comunes: se crea el pago pendiente (transferencia/manual) para que
-        // el pasajero pueda subir el comprobante desde su link y la reserva quede a confirmar.
-        const pago = await manualPaymentProvider.createPendingPayment({
-          reservationCode: reservation.code,
-          amountCents: reservation.totalCents,
-          currency: reservation.currency
+  throw new BookingError("BOOKING_BUSY", "No pudimos crear la reserva. Intenta nuevamente.");
+}
+
+/**
+ * Ida y vuelta (#36): **una sola transacción** crea los dos tramos con los datos del pasajero
+ * cargados una vez (un solo `Passenger`, dos `Reservation` con el mismo `roundTripId`) y un pago
+ * pendiente por tramo. Cada tramo se paga y se cancela por separado.
+ */
+export async function createAirportRoundTripReservation(input: AirportRoundTripInput, { creator }: ReservationCreationContext = {}) {
+  const parsed = airportRoundTripSchema.parse(input);
+  await rutaDelSlug(parsed.routeSlug);
+  validarVueloPrivado({ ...parsed.arrival, direction: "ARRIVAL" });
+  validarVueloPrivado({ ...parsed.departure, direction: "DEPARTURE" });
+  const roundTripId = randomUUID();
+  const passengerCount = parsed.passengerCount;
+  const halfFareCount = parsed.halfFareCount ?? 0;
+  const freeFareCount = parsed.freeFareCount ?? 0;
+
+  for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const passenger = await tx.passenger.create({ data: parsed.passenger });
+        const base = { passengerId: passenger.id, passengerCount, halfFareCount, freeFareCount, roundTripId, creator };
+        // La llegada va primero: si el cupo de la vuelta falla, no queda media reserva creada.
+        const arrival = await crearTramo(tx, {
+          ...base,
+          tramo: {
+            flightNumber: parsed.arrival.flightNumber,
+            direction: "ARRIVAL",
+            serviceDate: parsed.arrival.serviceDate,
+            privateFlight: parsed.arrival.privateFlight,
+            pickupName: parsed.arrival.pickupName ?? null,
+            pickupAddress: parsed.arrival.pickupAddress ?? null,
+            pickupPoint: parsed.arrival.pickupPoint,
+            pickupNotes: parsed.arrival.pickupNotes ?? null
+          }
         });
-        await tx.payment.create({
-          data: {
-            reservationId: reservation.id,
-            provider: pago.provider,
-            status: pago.status,
-            amountCents: pago.amountCents,
-            currency: pago.currency,
-            externalRef: pago.externalRef
+        const departure = await crearTramo(tx, {
+          ...base,
+          tramo: {
+            flightNumber: parsed.departure.flightNumber,
+            direction: "DEPARTURE",
+            serviceDate: parsed.departure.serviceDate,
+            privateFlight: parsed.departure.privateFlight,
+            pickupName: parsed.departure.pickupName ?? null,
+            pickupAddress: parsed.departure.pickupAddress ?? null,
+            pickupPoint: parsed.departure.pickupPoint,
+            pickupNotes: parsed.departure.pickupNotes ?? null
           }
         });
 
-        return reservation;
+        return { roundTripId, arrival, departure };
       }, { isolationLevel: "Serializable" });
     } catch (error) {
-      const code = typeof error === "object" && error !== null && "code" in error ? (error as { code?: string }).code : undefined;
-      // P2034: dos reservas compitieron por el mismo cupo. P2002: dos pasajeros del mismo charter
-      // crearon el vuelo privado al mismo tiempo (al reintentar, el segundo lo encuentra creado).
-      if (code === "P2034" || code === "P2002") {
+      if (esReintentable(error)) {
         if (intento < MAX_INTENTOS) continue;
         throw new BookingError("BOOKING_BUSY", "El vuelo está recibiendo otras reservas. Intentalo nuevamente.");
       }

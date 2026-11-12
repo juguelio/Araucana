@@ -118,6 +118,17 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <span>Código corto</span>
               <strong>{formatShortCode(reservation.shortCode)}</strong>
             </div>
+            {reservation.roundTripPartner ? (
+              <div>
+                <span>Ida y vuelta</span>
+                <strong>
+                  <Link className="table-link" href={`/admin/reservas/${reservation.roundTripPartner.code}`}>
+                    {reservation.roundTripPartner.direction === "ARRIVAL" ? "Llegada" : reservation.roundTripPartner.direction === "DEPARTURE" ? "Vuelta" : "Otro tramo"} ·{" "}
+                    {formatShortCode(reservation.roundTripPartner.shortCode)}
+                  </Link>
+                </strong>
+              </div>
+            ) : null}
             <div>
               <span>Creada por</span>
               <strong>{reservation.creatorLabel}</strong>
