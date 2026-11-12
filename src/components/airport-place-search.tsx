@@ -7,6 +7,7 @@ import {
   airportSearchBounds, airportSearchLocality, isIntersectionQuery, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
 } from "@/lib/airport/place-search-area";
 import type { AirportPlaceSuggestion } from "@/lib/airport/place-suggestions";
+import type { StreetOption } from "@/lib/airport/street-address";
 import styles from "./airport-address-map.module.css";
 
 type GoogleSuggestion = { source: "google"; label: string; prediction: google.maps.places.PlacePrediction };
@@ -15,6 +16,7 @@ export type AirportSelectedPlace = { label: string; point: PickupPoint | null; a
 
 const googleAreaTypes = new Set(["locality", "sublocality", "neighborhood", "route", "administrative_area_level_3"]);
 const googleAddressTypes = new Set(["street_address", "premise", "subpremise"]);
+const heightPattern = /^\d{1,5}[a-z]?$/i;
 
 async function searchLocal(address: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
   const response = await fetch("/api/v1/airport/address", {
@@ -26,6 +28,31 @@ async function searchLocal(address: string, signal: AbortSignal): Promise<Airpor
   const data = await response.json();
   if (!response.ok) throw new Error(data.error?.message);
   return data.matches;
+}
+
+/** Calles del nomenclador municipal: desambigua homónimas (Bertha y Av. Koessler). */
+async function searchStreets(query: string, signal: AbortSignal): Promise<StreetOption[]> {
+  const response = await fetch("/api/v1/airport/address", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "streets", address: query }),
+    signal
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message);
+  return data.streets;
+}
+
+async function searchStreetAddress(street: string, number: string, signal: AbortSignal): Promise<AirportPlaceSuggestion | null> {
+  const response = await fetch("/api/v1/airport/address", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "street-address", address: street, number }),
+    signal
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message);
+  return data.match;
 }
 
 function SearchAttribution({ sources }: { sources: Suggestion["source"][] }) {
@@ -52,6 +79,7 @@ type AirportPlaceSearchProps = {
 export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, onSelect }: AirportPlaceSearchProps) {
   const inputId = useId();
   const listId = `${inputId}-options`;
+  const streetListId = `${inputId}-streets`;
   const token = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const selectionVersion = useRef(0);
   const [query, setQuery] = useState("");
@@ -62,6 +90,13 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
   const [focused, setFocused] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [streetTerm, setStreetTerm] = useState("");
+  const [streets, setStreets] = useState<StreetOption[]>([]);
+  const [street, setStreet] = useState<StreetOption | null>(null);
+  const [height, setHeight] = useState("");
+  const [manualError, setManualError] = useState("");
+  const [resolving, setResolving] = useState(false);
   const open = focused && suggestions.length > 0;
 
   useEffect(() => () => { selectionVersion.current++; }, []);
@@ -113,7 +148,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
         }
         if (signal.aborted) return;
         setSuggestions(results);
-        if (results.length === 0) setError("No encontramos coincidencias. Probá otro nombre o marcá el punto en el mapa.");
+        if (results.length === 0) setError("No encontramos coincidencias. Probá otro nombre, elegí la calle y la altura, o marcá el punto en el mapa.");
       } catch {
         if (!signal.aborted) setError("No pudimos buscar lugares. Podés marcar el punto en el mapa.");
       } finally {
@@ -125,6 +160,51 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       controller.abort();
     };
   }, [searchTerm, useGoogle]);
+
+  useEffect(() => {
+    if (!manualOpen) return;
+    const term = streetTerm.trim();
+    if (term.length < 2) {
+      setStreets([]);
+      return;
+    }
+    const controller = new AbortController();
+    const { signal } = controller;
+    const timer = setTimeout(async () => {
+      try {
+        const options = await searchStreets(term, signal);
+        if (!signal.aborted) setStreets(options);
+      } catch {
+        if (!signal.aborted) setStreets([]);
+      }
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [manualOpen, streetTerm]);
+
+  async function useStreetAddress() {
+    if (!street) return;
+    setResolving(true);
+    setManualError("");
+    try {
+      const match = await searchStreetAddress(street.name, height.trim(), new AbortController().signal);
+      if (!match) {
+        setManualError("No pudimos resolver esa altura. Revisá el número o marcá el punto en el mapa.");
+        return;
+      }
+      setQuery(match.label);
+      setSelectionSource(match.source);
+      setStreets([]);
+      setManualOpen(false);
+      onSelect(match);
+    } catch {
+      setManualError("No pudimos buscar esa dirección. Probá de nuevo o marcá el punto en el mapa.");
+    } finally {
+      setResolving(false);
+    }
+  }
 
   async function choose(suggestion: Suggestion) {
     const version = ++selectionVersion.current;
@@ -227,6 +307,65 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
         </>
       ) : null}
       {selectionSource ? <SearchAttribution sources={[selectionSource]} /> : null}
+
+      <div className={styles.manual}>
+        <button type="button" className={styles.manualToggle} aria-expanded={manualOpen}
+          aria-controls={manualOpen ? streetListId : undefined} disabled={disabled}
+          onClick={() => {
+            setManualOpen((current) => !current);
+            setManualError("");
+          }}>
+          {manualOpen ? "Ocultar el selector de calle y altura" : "¿Hay dos calles parecidas? Elegí la calle y poné la altura"}
+        </button>
+        {manualOpen ? (
+          <>
+            <div className={styles.manualRow}>
+              <input type="text" aria-label="Calle" autoComplete="off" placeholder="Ej. Bertha Koessler" maxLength={80}
+                value={streetTerm} disabled={disabled}
+                onChange={(event) => {
+                  setStreetTerm(event.target.value);
+                  setStreet(null);
+                  setHeight("");
+                  setManualError("");
+                }} />
+              <input type="text" aria-label="Altura" inputMode="numeric" autoComplete="off" placeholder="Altura" maxLength={6}
+                value={height} disabled={disabled || !street}
+                onChange={(event) => {
+                  setHeight(event.target.value.replace(/[^0-9A-Za-z]/g, ""));
+                  setManualError("");
+                }} />
+              <button type="button" className="button"
+                disabled={disabled || !street || !heightPattern.test(height.trim()) || resolving}
+                onClick={() => void useStreetAddress()}>
+                {resolving ? "Buscando…" : "Usar esta dirección"}
+              </button>
+            </div>
+            {streets.length ? (
+              <ul id={streetListId} className={styles.suggestions} aria-label="Calles del nomenclador">
+                {streets.map((option) => (
+                  <li key={option.name} onClick={() => {
+                    setStreet(option);
+                    setStreetTerm(option.name);
+                    setStreets([]);
+                    setManualError("");
+                  }}>
+                    {option.name}
+                    <small>{option.category} · {option.locality}</small>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {street ? (
+              <p className="muted">
+                Calle elegida: <strong>{street.name}</strong> ({street.category}). Escribí la altura y tocá «Usar esta dirección».
+              </p>
+            ) : streetTerm.trim().length >= 2 && !streets.length ? (
+              <p className="muted">Sin calles con ese nombre. Probá con otro texto.</p>
+            ) : null}
+            {manualError ? <p className="muted" role="status">{manualError}</p> : null}
+          </>
+        ) : null}
+      </div>
     </div>
   );
 }
