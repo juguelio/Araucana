@@ -18,7 +18,9 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
   const params = await searchParams;
   // El filtro grueso va en la base (abiertas/documentación, desde hoy): la pantalla no trae meses
   // de historial con todas sus reservas. El cupo se calcula sobre las reservas, así que va acá.
-  const schedules = (await listAdminSchedules({ bookableOnly: true }))
+  // `excludeAirport`: el aeropuerto se carga desde «Crear reserva de aeropuerto», eligiendo el
+  // vuelo. Ofrecerlo por salida horaria creaba reservas sin número de vuelo (issue #79).
+  const schedules = (await listAdminSchedules({ bookableOnly: true, excludeAirport: true }))
     .filter((schedule) => schedule.availableSeats > 0)
     .map((schedule) => ({
       id: schedule.id,

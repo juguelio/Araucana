@@ -50,7 +50,9 @@ export async function createAdminReservationAction(formData: FormData) {
   try {
     reservation = await createWebReservation(parsed.data, { fromAdmin: true, creator });
   } catch (error) {
-    const message = error instanceof BookingError && error.code === "CAPACITY_FULL"
+    const message = error instanceof BookingError && error.code === "AIRPORT_SCHEDULE_NOT_BOOKABLE"
+      ? error.message
+      : error instanceof BookingError && error.code === "CAPACITY_FULL"
       ? "No hay suficientes asientos disponibles para esa salida."
       : error instanceof BookingError && error.code === "BOOKING_BUSY"
         ? "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente."

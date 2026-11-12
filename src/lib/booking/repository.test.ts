@@ -520,6 +520,22 @@ describe("booking repository", () => {
     expect(client.passengers).toHaveLength(0);
   });
 
+  it("no deja reservar el aeropuerto por salida horaria (issue #79)", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    client.route.bookingMode = "AIRPORT";
+
+    // Aunque llegue un `scheduleId` armado a mano, la reserva no se crea y el pasajero tampoco.
+    await expect(repository.createWebReservation(input)).rejects.toMatchObject({
+      code: "AIRPORT_SCHEDULE_NOT_BOOKABLE"
+    });
+    await expect(
+      repository.createWebReservation(input, { fromAdmin: true, creator: { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" } })
+    ).rejects.toMatchObject({ code: "AIRPORT_SCHEDULE_NOT_BOOKABLE" });
+    expect(client.passengers).toHaveLength(0);
+    expect(client.reservations).toHaveLength(0);
+  });
+
   it("retries serialization conflicts in a new serializable transaction", async () => {
     const client = new FakeBookingClient();
     const transaction = client.$transaction.bind(client);
@@ -1041,12 +1057,13 @@ describe("booking repository", () => {
     expect(client.tickets).toHaveLength(1);
   });
 
-  it("rejects the disability exemption for group bookings and for airport schedules", async () => {
+  it("rejects the disability exemption for group bookings, and the airport is not bookable at all", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
     await expect(repository.createWebReservation({ ...input, passengerCount: 2, requestDisabilityFare: true })).rejects.toMatchObject({ code: "DISABILITY_FARE_NOT_AVAILABLE" });
     client.route.bookingMode = "AIRPORT";
-    await expect(repository.createWebReservation({ ...input, requestDisabilityFare: true })).rejects.toMatchObject({ code: "DISABILITY_FARE_NOT_AVAILABLE" });
+    // El aeropuerto ya no se reserva por salida horaria (issue #79): rebota antes de mirar la tarifa.
+    await expect(repository.createWebReservation({ ...input, requestDisabilityFare: true })).rejects.toMatchObject({ code: "AIRPORT_SCHEDULE_NOT_BOOKABLE" });
     expect(client.passengers).toHaveLength(0);
   });
 
