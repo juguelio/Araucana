@@ -5,8 +5,8 @@ import { ServicesGrid } from "@/components/services-grid";
 import { SiteFooter } from "@/components/site-footer";
 import { getI18n } from "@/i18n/server";
 import { localizePath } from "@/i18n/config";
-import { listPublicRoutes } from "@/lib/booking/repository";
-import { prisma } from "@/lib/db/prisma";
+import { airportOptions, routeOptions } from "@/lib/booking/public-search";
+import { listPublicAirportRoutes, listPublicRoutes } from "@/lib/booking/repository";
 import laninSummer from "../../lanin-verano.webp";
 
 export const revalidate = 300;
@@ -21,12 +21,12 @@ export default async function HomePage() {
   const home = (path: string) => localizePath(path, locale);
   const routes = await listPublicRoutes();
   // El traslado al aeropuerto se reserva por vuelo: el home enlaza directo a cada sentido.
-  const rutasAeropuerto = await prisma.travelRoute.findMany({
-    where: { bookingMode: "AIRPORT", isActive: true },
-    select: { slug: true, specialType: true }
-  });
+  const rutasAeropuerto = await listPublicAirportRoutes();
   const rutaAeropuerto = rutasAeropuerto.find((r) => r.specialType !== "DEPARTURE") ?? rutasAeropuerto[0] ?? null;
   const rutaAeropuertoVuelta = rutasAeropuerto.find((r) => r.specialType === "DEPARTURE") ?? null;
+  const airportChoices = airportOptions(rutasAeropuerto);
+  const originChoices = routeOptions(routes.map((route) => route.from));
+  const destinationChoices = routeOptions(routes.map((route) => route.to));
   const finalStyle = { "--final-image": `url(${laninSummer.src})` } as CSSProperties;
   const servicios = dict.services.items.map((item, index) => ({
     number: `0${index + 1}`,
@@ -87,8 +87,30 @@ export default async function HomePage() {
           </div>
           <form className="chapelco-form" action={home("/rutas")} method="get">
             <div className="booking-card-top"><span>{dict.featured.formTitle}</span><span className="status-dot">● {dict.featured.formStatus}</span></div>
-            <label><small>{dict.featured.origin}</small><select name="from" defaultValue=""><option value="">{dict.featured.pickOrigin}</option>{Array.from(new Set(routes.map((route) => route.from))).map((origin) => <option value={origin} key={origin}>{origin}</option>)}</select></label>
-            <label><small>{dict.featured.destination}</small><select name="to" defaultValue=""><option value="">{dict.featured.pickDestination}</option>{Array.from(new Set(routes.map((route) => route.to))).map((destination) => <option value={destination} key={destination}>{destination}</option>)}</select></label>
+            <label>
+              <small>{dict.featured.origin}</small>
+              <select name="from" defaultValue="">
+                <option value="">{dict.featured.pickOrigin}</option>
+                {airportChoices.length ? (
+                  <optgroup label={dict.routes.airportGroup}>
+                    {airportChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                  </optgroup>
+                ) : null}
+                {originChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <label>
+              <small>{dict.featured.destination}</small>
+              <select name="to" defaultValue="">
+                <option value="">{dict.featured.pickDestination}</option>
+                {airportChoices.length ? (
+                  <optgroup label={dict.routes.airportGroup}>
+                    {airportChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                  </optgroup>
+                ) : null}
+                {destinationChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+              </select>
+            </label>
             <label><small>{dict.featured.date}</small><input type="date" name="date" defaultValue={todayDateKey()} /></label>
             <button className="accent-button" type="submit">{dict.featured.submit} ↗</button>
           </form>
