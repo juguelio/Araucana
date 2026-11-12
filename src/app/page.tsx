@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { HistoricalMap } from "@/components/historical-map";
 import { ServicesGrid } from "@/components/services-grid";
 import { SiteFooter } from "@/components/site-footer";
+import { WeatherForecast } from "@/components/weather-forecast";
 import { getI18n } from "@/i18n/server";
 import { localizePath } from "@/i18n/config";
 import { airportOptions, routeOptions } from "@/lib/booking/public-search";
@@ -58,6 +59,7 @@ export default async function HomePage() {
               <Link className="accent-button" href={home("/rutas")} prefetch={true}>{dict.hero.cta} <span>↗</span></Link>
               <a className="hero-whatsapp-link" href={whatsappUrl} target="_blank" rel="noreferrer">{dict.nav.whatsapp} <span>↗</span></a>
             </div>
+            <WeatherForecast />
           </div>
           <div className="new-hero-badge"><span className="hero-note-dot" /> {dict.hero.badge} <strong>{dict.hero.badgeYear}</strong></div>
         </div>
