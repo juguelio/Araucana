@@ -124,10 +124,40 @@ it("ofrece el domicilio del nomenclador aunque ningún geocoder tenga las coorde
       localidad_censal: { nombre: "San Martín de los Andes" },
       ubicacion: { lat: null, lon: null }
     }] }))
+    .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json([]));
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("koessler 1686", new AbortController().signal)).resolves.toEqual([
     { label: "Bertha Koessler 1686, San Martín de los Andes", point: null, source: "georef", approximate: true }
   ]);
+});
+
+it("ancla el pin sobre la calle cuando el geocoder conoce el eje pero no la altura", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "AV RODOLFO KOESSLER" },
+      altura: { valor: 1600 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json([{
+      lat: "-40.1535518",
+      lon: "-71.3321884",
+      display_name: "Avenida Rodolfo Koessler, El Oasis, San Martín de los Andes, Neuquén, Argentina",
+      class: "highway",
+      type: "primary"
+    }]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [suggestion] = await suggestAirportPlaces("av rodolfo koessler 1600", new AbortController().signal);
+  expect(suggestion.label).toBe("Av Rodolfo Koessler 1600, San Martín de los Andes");
+  expect(suggestion.point).toEqual([-40.1535518, -71.3321884]);
+  expect(suggestion.approximate).toBe(true);
+  // la última consulta es la calle sola, sin la altura
+  expect(fetchProvider.mock.calls.at(-1)?.[0].toString()).toContain("q=Av+Rodolfo+Koessler");
 });

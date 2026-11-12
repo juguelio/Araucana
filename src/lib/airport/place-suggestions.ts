@@ -101,6 +101,16 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
   }
 }
 
+/** "Avenida X" y "Av X" son la misma calle; "San Martín" y "Av San Martín" no. */
+const streetAbbreviations: Record<string, string> = { avenida: "av", pasaje: "pje", boulevard: "blvd" };
+
+function streetKey(value: string) {
+  return normalizePlaceText(value)
+    .split(" ")
+    .map((word) => streetAbbreviations[word] ?? word)
+    .join(" ");
+}
+
 function matchesStreetNumber(label: string, street: string, number: string) {
   const [first, second] = label.split(",").map(normalizePlaceText);
   const address = splitStreetAddress(first);
@@ -143,8 +153,17 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
       suggestions.push({ ...reference, label, approximate: true });
       continue;
     }
-    // GeoRef tiene el domicilio (calle + altura) pero sin coordenadas y ningún
-    // geocoder conoce la calle. Se ofrece igual: el punto se marca en el mapa.
+    // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
+    // se ancla el pin sobre el eje para que el operador lo arrastre hasta la altura.
+    const streetCandidates = await lookupNamedPlaces(officialStreet, signal).catch(() => []);
+    const streetMatch = streetCandidates.find((candidate) => candidate.point
+      && streetKey(candidate.label.split(",")[0]) === streetKey(officialStreet));
+    if (streetMatch) {
+      suggestions.push({ label, point: streetMatch.point, source: streetMatch.source, approximate: true });
+      continue;
+    }
+    // Tampoco la calle: GeoRef tiene el domicilio y ningún geocoder la conoce.
+    // Se ofrece igual; el punto se marca en el mapa.
     suggestions.push({ label, point: null, source: "georef", approximate: true });
   }
   if (!suggestions.length && !Array.isArray(named)) throw named;
