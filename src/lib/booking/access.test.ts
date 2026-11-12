@@ -5,7 +5,7 @@ vi.mock("@/lib/auth/service", () => ({
   AuthorizationError: class extends Error {}
 }));
 import { requireReservationAccess } from "./access";
-import { createReservationCode, isPrivateReservationCode } from "./codes";
+import { createReservationCode, createReservationShortCode, isPrivateReservationCode } from "./codes";
 
 describe("guest reservation access", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.user.mockResolvedValue(null); });
@@ -21,6 +21,10 @@ describe("guest reservation access", () => {
       mocks.user.mockResolvedValue(user);
       await expect(requireReservationAccess("ARC-2610-AAAA")).rejects.toThrow();
     }
+  });
+  it("el código corto del panel no abre la reserva: sólo lo resuelve el buscador con sesión", async () => {
+    mocks.user.mockResolvedValue(null);
+    await expect(requireReservationAccess(createReservationShortCode())).rejects.toThrow();
   });
   it("allows active staff to recover legacy bookings, and guests with a private link", async () => {
     for (const role of ["ADMIN", "SECRETARY"]) {

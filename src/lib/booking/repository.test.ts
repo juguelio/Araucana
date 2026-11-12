@@ -52,6 +52,7 @@ type PassengerRecord = CreateReservationInput["passenger"] & {
 type ReservationRecord = {
   id: string;
   code: string;
+  shortCode: string;
   scheduleId: string;
   passengerId: string;
   seatId: string;
@@ -244,6 +245,11 @@ class FakeBookingClient {
         throwUniqueConstraint(["code"]);
       }
 
+      if (this.reservations.some((reservation) => reservation.shortCode === data.shortCode)) {
+        this.activeTransactionAborted = true;
+        throwUniqueConstraint(["shortCode"]);
+      }
+
       if (
         this.reservations.some(
           (reservation) => reservation.scheduleId === data.scheduleId && reservation.seatNumber === data.seatNumber
@@ -370,6 +376,7 @@ class FakeBookingClient {
     const reservation = {
       id: `reservation-${this.reservations.length + 1}`,
       code: `ARC-2611-SEED-${this.reservations.length + 1}`,
+      shortCode: `SEED${String(this.reservations.length + 1).padStart(4, "0")}`,
       scheduleId: this.scheduleRecord.id,
       passengerId: passenger.id,
       seatId: "seat-04",
@@ -741,6 +748,36 @@ describe("booking repository", () => {
       status: "PENDING_PAYMENT"
     });
     expect(client.transactionCallCount).toBe(2);
+  });
+
+  it("cada reserva nueva lleva un código corto propio, distinto del largo, y el panel lo expone", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+
+    const reserva = await repository.createWebReservation(input);
+    const guardada = client.reservations[0];
+
+    expect(guardada.code).toBe("ARC-2611-TEST");
+    expect(guardada.shortCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+    expect(guardada.shortCode).not.toBe(guardada.code);
+    expect(reserva.shortCode).toBe(guardada.shortCode);
+
+    const pagina = await repository.listAdminReservations();
+    expect(pagina.items[0]).toMatchObject({ code: "ARC-2611-TEST", shortCode: guardada.shortCode });
+  });
+
+  it("retries reservation short code collisions with a fresh code instead of failing the booking", async () => {
+    const client = new FakeBookingClient();
+    const shortCodes = ["DUPEDUP2", "DUPEDUP2", "UNICO234"];
+    client.seedReservation({ code: "ARC-2611-OTRA", shortCode: "DUPEDUP2", seatId: "seat-05", seatNumber: "05" });
+    const repository = createBookingRepository(client as unknown as Parameters<typeof createBookingRepository>[0], {
+      createReservationCode: () => "ARC-2611-OK",
+      createReservationShortCode: () => shortCodes.shift() ?? "UNICO234"
+    });
+
+    await expect(repository.createWebReservation(input)).resolves.toMatchObject({ shortCode: "UNICO234" });
+    expect(client.transactionCallCount).toBe(3);
+    expect(client.reservations.map((reservation) => reservation.shortCode)).toEqual(["DUPEDUP2", "UNICO234"]);
   });
 
   it("retries reservation code collisions in separate transactions before creating payment details", async () => {

@@ -6,6 +6,7 @@
  */
 import assert from "node:assert/strict";
 import { randomInt, randomUUID } from "node:crypto";
+import { createReservationShortCode } from "../../src/lib/booking/codes";
 import { setTimeout as delay } from "node:timers/promises";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { prisma } from "../../src/lib/db/prisma";
@@ -35,7 +36,7 @@ async function main() {
   passengerIds.push(passenger.id);
   const createReservation = async (tx: Prisma.TransactionClient, f: { id: string; number: string; scheduledAt: Date }, status = "CONFIRMED") => {
     const r = await tx.reservation.create({ data: {
-      code: `RACE-${randomUUID()}`, passengerId: passenger.id, passengerCount: 1, bookingMode: "AIRPORT", status, totalCents: 1,
+      code: `RACE-${randomUUID()}`, shortCode: createReservationShortCode(), passengerId: passenger.id, passengerCount: 1, bookingMode: "AIRPORT", status, totalCents: 1,
       airportDetails: { create: { flightId: f.id, flightNumber: f.number, direction: "ARRIVAL", serviceDate: f.scheduledAt } }
     } });
     reservationIds.push(r.id);
