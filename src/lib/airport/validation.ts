@@ -52,6 +52,8 @@ const airportReservationFields = z.object({
   halfFareCount: z.number().int().min(0).max(24).optional(),
   /** Menores de 4 años: no pagan, pero ocupan un lugar. */
   freeFareCount: z.number().int().min(0).max(24).optional(),
+  /** Bultos de equipaje deportivo (esquí, snowboard, bici): se cobran por bulto. */
+  sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
   passenger: passengerSchema,
   ...airportPickupFields,
   /** Cuando viene, el vuelo no se busca: se reutiliza el del mismo número o se crea. */
@@ -90,6 +92,7 @@ export const airportRoundTripSchema = z
     passengerCount: z.coerce.number().int().min(1, "Al menos un pasajero.").max(24, "Máximo 24 por reserva.").default(1),
     halfFareCount: z.number().int().min(0).max(24).optional(),
     freeFareCount: z.number().int().min(0).max(24).optional(),
+    sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
     passenger: passengerSchema,
     arrival: airportLegFields,
     departure: airportLegFields

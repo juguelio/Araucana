@@ -49,6 +49,8 @@ type RoundTripCheckoutFormProps = {
   initialDate: string;
   initialFlights: FlightOption[];
   coverage: AirportCoverage;
+  /** Precio por bulto de equipaje deportivo (esquí, snowboard, bici), vigente al reservar. */
+  extras: { sportsLuggageCents: number };
 };
 
 type LugarPickup = {
@@ -101,7 +103,7 @@ function descripcionVuelo(vuelo: FlightOption) {
   return partes.join(" · ");
 }
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage }: RoundTripCheckoutFormProps) {
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras }: RoundTripCheckoutFormProps) {
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [fechaLlegada, setFechaLlegada] = useState(initialDate);
   const [fechaVuelta, setFechaVuelta] = useState(initialDate);
@@ -119,6 +121,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const [fullFareCount, setFullFareCount] = useState(1);
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [freeFareCount, setFreeFareCount] = useState(0);
+  const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<PassengerFieldErrors>({});
 
@@ -147,8 +150,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const precioLlegada = fares.ARRIVAL?.priceCents ?? route.priceCents;
   const precioVuelta = fares.DEPARTURE?.priceCents ?? route.priceCents;
   const moneda = fares.ARRIVAL?.currency ?? route.currency;
-  const totalLlegada = reservationTotalCents(precioLlegada, fareCounts(passengerCount, halfFareCount, freeFareCount));
-  const totalVuelta = reservationTotalCents(precioVuelta, fareCounts(passengerCount, halfFareCount, freeFareCount));
+  // El equipaje deportivo se cobra por tramo: viaja en los dos.
+  const equipajeCents = sportsLuggageCount * extras.sportsLuggageCents;
+  const totalLlegada = reservationTotalCents(precioLlegada, fareCounts(passengerCount, halfFareCount, freeFareCount)) + equipajeCents;
+  const totalVuelta = reservationTotalCents(precioVuelta, fareCounts(passengerCount, halfFareCount, freeFareCount)) + equipajeCents;
 
   async function cargarVuelos(fecha: string, sentido: "ARRIVAL" | "DEPARTURE") {
     const setCargando = sentido === "ARRIVAL" ? setCargandoLlegada : setCargandoVuelta;
@@ -239,6 +244,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           passengerCount,
           halfFareCount,
           freeFareCount,
+          sportsLuggageCount,
           passenger: buildPassengerPayload(passenger),
           arrival: {
             flightNumber: llegada!.number,
@@ -463,6 +469,15 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   Menores de 4 años (sin cargo)
                   <QuantityPicker label="Menores sin cargo" value={freeFareCount} min={0} max={23} onChange={setFreeFareCount} />
                 </label>
+                <label>
+                  Equipaje deportivo (esquí, snowboard, bici)
+                  <QuantityPicker label="Bultos de equipaje deportivo" value={sportsLuggageCount} min={0} max={24} onChange={setSportsLuggageCount} />
+                  <span className="muted">
+                    {extras.sportsLuggageCents > 0
+                      ? `${formatPrice(extras.sportsLuggageCents, moneda)} por bulto, en cada tramo`
+                      : "Sin cargo"}
+                  </span>
+                </label>
               </div>
 
               <PassengerFields passenger={passenger} fieldErrors={fieldErrors} onChange={updatePassenger} />
@@ -476,6 +491,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   <span>Vuelta · {vuelta ? descripcionVuelo(vuelta) : "sin vuelo"}</span>
                   <strong>{formatPrice(totalVuelta, moneda)}</strong>
                 </div>
+                {sportsLuggageCount > 0 ? (
+                  <div>
+                    <span>Equipaje deportivo</span>
+                    <strong>{sportsLuggageCount} bulto(s) · {formatPrice(equipajeCents, moneda)} por tramo</strong>
+                  </div>
+                ) : null}
                 <div>
                   <span>Total de los dos tramos</span>
                   <strong>{formatPrice(totalLlegada + totalVuelta, moneda)}</strong>

@@ -8,6 +8,14 @@ import { airportRoundTripSchema } from "./validation";
  * no deje media reserva creada.
  */
 
+const ajustes = vi.hoisted(() => ({
+  extras: { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 20 },
+  coverage: { enabled: false, boundary: [] as [number, number][], exclusions: [] as [number, number][][] }
+}));
+
+vi.mock("./extras-settings", () => ({ getAirportExtras: async () => ajustes.extras }));
+vi.mock("./pickup-zone-settings", () => ({ getAirportCoverage: async () => ajustes.coverage }));
+
 const mocks = {
   findUniqueRoute: vi.fn(),
   findManyFlights: vi.fn(),
@@ -83,6 +91,8 @@ function crearTx() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  ajustes.extras = { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 20 };
+  ajustes.coverage = { enabled: false, boundary: [], exclusions: [] };
   mocks.findUniqueRoute.mockResolvedValue({ id: "ruta-1", slug: "aeropuerto-chapelco-sma", isActive: true, bookingMode: "AIRPORT" });
   mocks.findManyFlights.mockResolvedValue([vueloLlegada, vueloVuelta]);
   mocks.findFirstRoute.mockImplementation(async ({ where }: { where: { specialType: string } }) => ({ id: `ruta-${where.specialType}`, priceCents: 1500000, currency: "ARS" }));
@@ -147,6 +157,17 @@ describe("ida y vuelta del aeropuerto", () => {
     const parsed = airportRoundTripSchema.safeParse(invalido);
     expect(parsed.success).toBe(false);
     expect(parsed.success ? "" : parsed.error.issues[0].message).toMatch(/antes de la llegada/i);
+  });
+
+  it("el equipaje deportivo se cobra en cada tramo", async () => {
+    ajustes.extras = { zoneExtraCents: 0, sportsLuggageCents: 500000, arrivalCutoffMinutes: 20 };
+    await createAirportRoundTripReservation({ ...pedido, sportsLuggageCount: 1 });
+
+    const totales = mocks.createReservation.mock.calls.map(([args]) => args.data.totalCents);
+    // 1 adulto ($ 15.000) + 1 media tarifa ($ 7.500) + 1 bulto ($ 5.000) en cada tramo.
+    expect(totales).toEqual([2750000, 2750000]);
+    const bultos = mocks.createReservation.mock.calls.map(([args]) => args.data.airportDetails.create.sportsLuggageCount);
+    expect(bultos).toEqual([1, 1]);
   });
 
   it("acepta un ida y vuelta el mismo día", () => {

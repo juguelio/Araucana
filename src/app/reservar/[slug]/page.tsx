@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
 import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
+import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
 import { etiquetasDeSalida } from "@/lib/booking/schedule-days";
@@ -92,8 +93,8 @@ export default async function ReservationPage({ params, searchParams }: Reservat
     // El día puede venir en el link (?date=YYYY-MM-DD); si no, se arranca en hoy.
     const fechaDelLink = typeof query?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : null;
     const fecha = fechaDelLink ?? todayInputValue();
-    const [vuelos, tarifas, coverage] = await Promise.all([
-      loadAirportCheckoutFlights(fecha), getAirportFares(), getAirportCoverage()
+    const [vuelos, tarifas, coverage, extras] = await Promise.all([
+      loadAirportCheckoutFlights(fecha), getAirportFares(), getAirportCoverage(), getAirportExtras()
     ]);
     const iguales = tarifas.ARRIVAL && tarifas.DEPARTURE && tarifas.ARRIVAL.priceCents === tarifas.DEPARTURE.priceCents;
 
@@ -144,6 +145,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
             initialDate={fecha}
             initialFlights={vuelos}
             coverage={coverage}
+            extras={{ zoneExtraCents: extras.zoneExtraCents, sportsLuggageCents: extras.sportsLuggageCents }}
           />
         </main>
         <SiteFooter />
