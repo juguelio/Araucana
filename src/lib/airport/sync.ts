@@ -1,5 +1,6 @@
 import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
-import { DIAS_PROYECTADOS, proyectarVuelos } from "@/lib/airport/projection";
+import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
+import { DIAS_PROYECTADOS, fechaLocal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
@@ -30,6 +31,10 @@ export type SyncSummary = {
   limpiados: number;
   /** Filas proyectadas de un día que ya tiene datos reales: se descartan. */
   proyectadosLimpiados: number;
+  /** Vuelos de JetSMART guardados dos veces (JA y WJ) que se unificaron en una sola fila JA. */
+  jetSmartUnificados: number;
+  /** Vuelos que siguen repetidos porque más de una fila tiene reservas: los resuelve una persona. */
+  repetidosConReservas: string[];
   errores: string[];
 };
 
@@ -77,10 +82,65 @@ async function limpiarProyectadosConDatosReales(dia: string): Promise<number> {
   return borrados;
 }
 
+/**
+ * Unifica los vuelos de JetSMART que quedaron guardados dos veces (JA3184 del tablero y WJ3184 de
+ * la API, y sus proyecciones), de hoy en adelante. Corre antes de sincronizar para que las
+ * búsquedas por número encuentren una sola fila. Nunca borra una fila con reservas o combis.
+ */
+async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
+  const { desde } = rangoDelDia(diasDesdeHoy(1)[0]);
+  const filas = await prisma.flight.findMany({
+    where: { scheduledAt: { gte: desde }, OR: [{ number: { startsWith: "JA" } }, { number: { startsWith: "WJ" } }] },
+    select: {
+      id: true,
+      number: true,
+      direction: true,
+      scheduledAt: true,
+      source: true,
+      updatedAt: true,
+      _count: { select: { reservations: true, assignments: true } }
+    }
+  });
+
+  const plan = planificarUnificacionJetSmart(
+    filas.map((f) => ({
+      id: f.id,
+      number: f.number,
+      direction: f.direction,
+      dia: fechaLocal(f.scheduledAt),
+      source: f.source,
+      updatedAt: f.updatedAt,
+      reservas: f._count.reservations,
+      combis: f._count.assignments
+    }))
+  );
+
+  for (const id of plan.borrar) {
+    // La condición se repite en el borrado: si entre la lectura y acá entró una reserva, no se borra.
+    const { count } = await prisma.flight.deleteMany({
+      where: { id, reservations: { none: {} }, assignments: { none: {} } }
+    });
+    resumen.jetSmartUnificados += count;
+  }
+  for (const { id, number } of plan.renombrar) {
+    try {
+      await prisma.flight.update({ where: { id }, data: { number, airline: "JA" } });
+      resumen.jetSmartUnificados += 1;
+    } catch (error) {
+      resumen.errores.push(`unificar ${number}: ${error instanceof Error ? error.message : "error"}`);
+    }
+  }
+  for (const r of plan.conReservasRepetidas) {
+    resumen.repetidosConReservas.push(`${r.number} ${r.direction} ${r.dia} (${r.ids.length} filas con reservas)`);
+  }
+}
+
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
-  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, errores: [] };
+  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
+
+  await unificarJetSmartRepetidos(resumen);
 
   for (const dia of diasDesdeHoy(opts.days ?? DIAS_A_SINCRONIZAR)) {
     for (const direction of direcciones) {

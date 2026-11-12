@@ -216,8 +216,12 @@ export async function refreshFlightsAction() {
   if (r.errores.length > 0) {
     notice(`No se pudo traer los vuelos (${r.errores[0]}). Se sigue con lo cargado a mano.`);
   }
+  const unificados = r.jetSmartUnificados > 0 ? ` ${r.jetSmartUnificados} vuelo(s) de JetSMART repetidos se unificaron.` : "";
+  const conReservas = r.repetidosConReservas.length > 0
+    ? ` Quedan repetidos con reservas en las dos filas, revisalos a mano: ${r.repetidosConReservas.join("; ")}.`
+    : "";
   notice(
-    `Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados (${r.desdeTablero} desde el tablero del aeropuerto), ${r.eventos} imprevisto(s).`
+    `Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados (${r.desdeTablero} desde el tablero del aeropuerto), ${r.eventos} imprevisto(s).${unificados}${conReservas}`
   );
 }
 

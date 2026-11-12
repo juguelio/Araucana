@@ -1,3 +1,4 @@
+import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
 
 /**
@@ -81,7 +82,8 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
   const porVuelo = new Map<string, ObservableFlight[]>();
   for (const o of base) {
     const direction: FlightDirection = o.direction === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL";
-    const clave = `${direction}|${o.number.trim().toUpperCase()}`;
+    // JA3184 y WJ3184 son el mismo vuelo: se proyectan una sola vez, como JA.
+    const clave = `${direction}|${jetSmartCanonicalNumber(o.number) ?? o.number.trim().toUpperCase()}`;
     const actuales = porVuelo.get(clave);
     if (actuales) actuales.push(o);
     else porVuelo.set(clave, [o]);
@@ -101,16 +103,18 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
 
     const direction: FlightDirection = referencia.direction === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL";
     const hora = horaLocal(referencia.scheduledAt);
+    const canonico = jetSmartCanonicalNumber(referencia.number);
+    const numero = canonico ?? referencia.number;
     const vuelo: ProjectedFlight = {
-      number: referencia.number,
-      airline: referencia.airline,
+      number: numero,
+      airline: canonico ? "JA" : referencia.airline,
       origin: referencia.origin,
       destination: referencia.destination,
       direction,
       scheduledAt: conFechaYHora(fecha, hora),
       estimatedAt: null,
       status: "SCHEDULED",
-      externalId: `EST@${fecha}@${referencia.number}@${direction}`,
+      externalId: `EST@${fecha}@${numero}@${direction}`,
       source: "ESTIMADO"
     };
     salida.set(`${clave}|${hora}`, vuelo);
