@@ -2205,6 +2205,16 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 .flights-group-title { display: flex; align-items: baseline; gap: 9px; margin: 0 0 10px; font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-muted); }
 .flights-group-title span { font-size: 12px; letter-spacing: 0; }
 .flights-list { display: grid; gap: 10px; }
+/* Vuelos que ya pasaron: bajan al pie del día, plegados y en gris. Siguen a un click porque el
+   operador todavía necesita abrirlos para ver pasajeros, combi asignada y la hoja del chofer. */
+.flights-pasados { margin-top: 12px; }
+.flights-pasados > summary { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-muted); cursor: pointer; list-style: none; }
+.flights-pasados > summary::-webkit-details-marker { display: none; }
+.flights-pasados > summary::before { content: "▸"; font-size: 11px; transition: transform .15s ease; }
+.flights-pasados[open] > summary::before { transform: rotate(90deg); }
+.flights-pasados .flights-list { margin-top: 8px; }
+.flight-card[data-pasado="true"] { filter: grayscale(1); opacity: .62; }
+.flight-card[data-pasado="true"]:hover, .flight-card[data-pasado="true"]:focus-within { opacity: 1; filter: none; }
 .flight-card { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid transparent; border-radius: 14px; background: var(--surface); }
 .flight-card[data-alerta="true"] { border-left-color: var(--accent); }
 .flight-main { display: grid; grid-template-columns: 74px minmax(140px, 1fr) auto auto; align-items: center; gap: 12px; }

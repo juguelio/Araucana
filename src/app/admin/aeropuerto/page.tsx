@@ -4,15 +4,26 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
+import { separarVuelosDelTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { airLabsKeyState } from "@/lib/settings/app-settings";
 import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo?: string }> };
+
+/** Lo que necesita la tarjeta del vuelo: eventos, pasajeros y combis asignadas. */
+const INCLUDE_VUELO = {
+  events: { orderBy: { detectedAt: "desc" }, take: 1 },
+  reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
+  assignments: { include: { vehicle: { include: { seats: true } }, driver: { select: { name: true, email: true } } } }
+} satisfies Prisma.FlightInclude;
+
+type VueloDelDia = Prisma.FlightGetPayload<{ include: typeof INCLUDE_VUELO }>;
 
 const TZ_OFFSET_MIN = -180; // America/Argentina/Salta (-03), sin horario de verano
 
@@ -53,15 +64,12 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const fecha = params?.date ?? hoy;
   const soloAlerta = params?.solo === "alerta";
   const { desde, hasta } = rangoDelDia(fecha);
+  const ahora = new Date();
 
   const vuelos = await prisma.flight.findMany({
     where: { scheduledAt: { gte: desde, lt: hasta } },
     orderBy: { scheduledAt: "asc" },
-    include: {
-      events: { orderBy: { detectedAt: "desc" }, take: 1 },
-      reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
-      assignments: { include: { vehicle: { include: { seats: true } }, driver: { select: { name: true, email: true } } } }
-    }
+    include: INCLUDE_VUELO
   });
 
   const naves = await prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
@@ -78,6 +86,96 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const clave = await airLabsKeyState();
   const partidasParaCoordinar = vuelos.filter((vuelo) => airportPickupStart(vuelo));
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
+
+  // La tarjeta se usa dos veces: arriba lo que sigue en juego y abajo, plegado y en gris, lo que
+  // ya pasó. Es la misma tarjeta —con pasajeros, combi y hoja del chofer— porque el operador
+  // todavía tiene que poder abrirla.
+  const tarjeta = (v: VueloDelDia, pasado = false) => {
+    const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt };
+    const alerta = needsAttention(snapshot);
+    const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
+    const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
+    const faltanCombis = ocupados > capacidad;
+    const estima = v.estimatedAt && hhmm(v.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(v.estimatedAt) : null;
+    const extra = origenDelDato(v.source);
+    const pickupStart = airportPickupStart(v);
+
+    return (
+      <article id={`vuelo-${v.id}`} className="flight-card" data-alerta={alerta} data-pasado={pasado ? "true" : undefined} key={v.id}>
+        <div className="flight-main">
+          <div className="flight-time">
+            <strong>{hhmm(v.scheduledAt)}</strong>
+            {estima ? <span className="flight-estima">{estima} estima</span> : null}
+          </div>
+          <div className="flight-id">
+            <AirlineBadge code={v.airline} size={30} />
+            <span>
+              <strong>{v.number}</strong>
+              <small className="muted">
+                {airlineName(v.airline) ?? "Sin aerolínea"}
+                {extra ? ` · ${extra}` : ""}
+              </small>
+            </span>
+          </div>
+          <span className="pill pill-estado" data-tono={tonoDelEstado(snapshot)}>
+            {statusDetail(snapshot)}
+          </span>
+          <span className="flight-pax">
+            <strong>{ocupados}</strong>
+            <span className="muted">/{capacidad} lugares</span>
+            {faltanCombis ? <span className="pill pill-alerta">falta combi</span> : null}
+          </span>
+        </div>
+
+        <div className="flight-foot">
+          <span className="muted">{v.origin}</span>
+          {pickupStart ? <span className="muted">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
+          <span className="muted">
+            {v.assignments.length === 0
+              ? ocupados > 0
+                ? `sin combi · conviene ${combisSugeridas(ocupados)} ${combisSugeridas(ocupados) === 1 ? "combi" : "combis"}`
+                : "sin combi asignada"
+              : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
+          </span>
+          {ocupados > 0 ? (
+            <a
+              className="ghost-button"
+              href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
+              title="Hoja de este vuelo para el chofer (Excel)"
+            >
+              Hoja del chofer
+            </a>
+          ) : null}
+          <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
+          <details className="flight-actions">
+            <summary>Gestionar vuelo</summary>
+            <div className="flight-actions-body">
+              <FleetAssignmentForm action={assignVehicleAction}>
+                <input type="hidden" name="flightId" value={v.id} />
+                <select name="vehicleId" defaultValue="" aria-label={`Combi para ${v.number}`}>
+                  <option value="">Combi…</option>
+                  {naves.map((n) => (
+                    <option key={n.id} value={n.id}>{n.name}</option>
+                  ))}
+                </select>
+                <button className="ghost-button" type="submit">Asignar</button>
+              </FleetAssignmentForm>
+              {v.assignments.map((a) => (
+                <form key={a.id} action={removeAssignmentAction}>
+                  <input type="hidden" name="id" value={a.id} />
+                  <button className="ghost-button" type="submit">Quitar {a.vehicle.name}</button>
+                </form>
+              ))}
+              <form action={deleteFlightAction}>
+                <input type="hidden" name="id" value={v.id} />
+                <button className="ghost-button" type="submit">Borrar vuelo</button>
+              </form>
+            </div>
+          </details>
+        </div>
+      </article>
+    );
+  };
 
   return (
     <AdminShell
@@ -159,99 +257,31 @@ export default async function AirportPage({ searchParams }: PageProps) {
         (["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
+          // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
+          const { enJuego, terminados } = separarVuelosDelTablero(lista, ahora);
+          // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
+          const pasadosConImprevisto = terminados.some((v) =>
+            needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt })
+          );
           return (
             <section className="flights-group" key={dir}>
               <h2 className="flights-group-title">
                 {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{lista.length}</span>
               </h2>
               <div className="flights-list">
-                {lista.map((v) => {
-                  const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt };
-                  const alerta = needsAttention(snapshot);
-                  const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
-                  const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
-                  const faltanCombis = ocupados > capacidad;
-                  const estima = v.estimatedAt && hhmm(v.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(v.estimatedAt) : null;
-                  const extra = origenDelDato(v.source);
-                  const pickupStart = airportPickupStart(v);
-
-                  return (
-                    <article id={`vuelo-${v.id}`} className="flight-card" data-alerta={alerta} key={v.id}>
-                      <div className="flight-main">
-                        <div className="flight-time">
-                          <strong>{hhmm(v.scheduledAt)}</strong>
-                          {estima ? <span className="flight-estima">{estima} estima</span> : null}
-                        </div>
-                        <div className="flight-id">
-                          <AirlineBadge code={v.airline} size={30} />
-                          <span>
-                            <strong>{v.number}</strong>
-                            <small className="muted">
-                              {airlineName(v.airline) ?? "Sin aerolínea"}
-                              {extra ? ` · ${extra}` : ""}
-                            </small>
-                          </span>
-                        </div>
-                        <span className="pill pill-estado" data-tono={tonoDelEstado(snapshot)}>
-                          {statusDetail(snapshot)}
-                        </span>
-                        <span className="flight-pax">
-                          <strong>{ocupados}</strong>
-                          <span className="muted">/{capacidad} lugares</span>
-                          {faltanCombis ? <span className="pill pill-alerta">falta combi</span> : null}
-                        </span>
-                      </div>
-
-                      <div className="flight-foot">
-                        <span className="muted">{v.origin}</span>
-                        {pickupStart ? <span className="muted">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
-                        <span className="muted">
-                          {v.assignments.length === 0
-                            ? ocupados > 0
-                              ? `sin combi · conviene ${combisSugeridas(ocupados)} ${combisSugeridas(ocupados) === 1 ? "combi" : "combis"}`
-                              : "sin combi asignada"
-                            : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
-                        </span>
-                        {ocupados > 0 ? (
-                          <a
-                            className="ghost-button"
-                            href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
-                            title="Hoja de este vuelo para el chofer (Excel)"
-                          >
-                            Hoja del chofer
-                          </a>
-                        ) : null}
-                        <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
-                        <details className="flight-actions">
-                          <summary>Gestionar vuelo</summary>
-                          <div className="flight-actions-body">
-                            <FleetAssignmentForm action={assignVehicleAction}>
-                              <input type="hidden" name="flightId" value={v.id} />
-                              <select name="vehicleId" defaultValue="" aria-label={`Combi para ${v.number}`}>
-                                <option value="">Combi…</option>
-                                {naves.map((n) => (
-                                  <option key={n.id} value={n.id}>{n.name}</option>
-                                ))}
-                              </select>
-                              <button className="ghost-button" type="submit">Asignar</button>
-                            </FleetAssignmentForm>
-                            {v.assignments.map((a) => (
-                              <form key={a.id} action={removeAssignmentAction}>
-                                <input type="hidden" name="id" value={a.id} />
-                                <button className="ghost-button" type="submit">Quitar {a.vehicle.name}</button>
-                              </form>
-                            ))}
-                            <form action={deleteFlightAction}>
-                              <input type="hidden" name="id" value={v.id} />
-                              <button className="ghost-button" type="submit">Borrar vuelo</button>
-                            </form>
-                          </div>
-                        </details>
-                      </div>
-                    </article>
-                  );
-                })}
+                {enJuego.map((v) => tarjeta(v))}
               </div>
+              {terminados.length ? (
+                <details className="flights-pasados" open={pasadosConImprevisto}>
+                  <summary>
+                    {terminados.length === 1 ? "1 vuelo que ya pasó" : `${terminados.length} vuelos que ya pasaron`}
+                    {pasadosConImprevisto ? " · con imprevisto" : ""}
+                  </summary>
+                  <div className="flights-list">
+                    {terminados.map((v) => tarjeta(v, true))}
+                  </div>
+                </details>
+              ) : null}
             </section>
           );
         })
