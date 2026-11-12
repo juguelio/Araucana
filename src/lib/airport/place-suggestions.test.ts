@@ -112,3 +112,22 @@ it("respeta una localidad indicada y conserva la coincidencia exacta de calle y 
   expect(fetchProvider).toHaveBeenCalledOnce();
   expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("San Martín 440, Junín de los Andes");
 });
+
+it("ofrece el domicilio del nomenclador aunque ningún geocoder tenga las coordenadas", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "BERTHA KOESSLER" },
+      altura: { valor: 1686 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  await expect(suggestAirportPlaces("koessler 1686", new AbortController().signal)).resolves.toEqual([
+    { label: "Bertha Koessler 1686, San Martín de los Andes", point: null, source: "georef", approximate: true }
+  ]);
+});

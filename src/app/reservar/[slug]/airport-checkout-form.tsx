@@ -160,7 +160,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [approximateAddress, setApproximateAddress] = useState(false);
-  const [googleReference, setGoogleReference] = useState<AirportSelectedPlace | null>(null);
+  const [googleReference, setGoogleReference] = useState<{ point: PickupPoint; approximate: boolean } | null>(null);
   const locationRequest = useRef(0);
   useEffect(() => () => {
     locationRequest.current++;
@@ -255,7 +255,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setPickupAddress(google ? "" : place.label.slice(0, 160));
     selectPickupPoint(google ? null : place.point);
     setApproximateAddress(place.approximate);
-    if (google) setGoogleReference(place);
+    if (google && place.point) setGoogleReference({ point: place.point, approximate: place.approximate });
   }
 
   function adjustPickupPoint(point: PickupPoint) {
@@ -673,6 +673,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                       selectPickupPoint(null);
                     }} />
                 ) : null}
+                {pickupMode === "address" && pickupAddress && !pickupPoint ? (
+                  <p className="muted" role="status" style={{ gridColumn: "1 / -1" }}>
+                    Dirección cargada: <strong>{pickupAddress}</strong>. Marcá en el mapa dónde está para fijar el punto.
+                  </p>
+                ) : null}
                 {fieldErrors.pickupAddress && !outsideCoverage ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
                 {useGooglePickup ? (
                   <AirportGooglePickup
@@ -705,7 +710,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     }} /> Confirmo que el mapa marca el lugar correcto
                   </label>
                 ) : null}
-                {pickupMode === "address" && pickupPoint ? (
+                {pickupMode === "address" && (pickupPoint || pickupAddress) ? (
                   <label>Dirección o referencia para el chofer (opcional)
                     <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
                       disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />

@@ -10,7 +10,12 @@ import { lookupStreetAddresses } from "./street-address-lookup";
 
 export type AirportPlaceSuggestion = {
   label: string;
-  point: PickupPoint;
+  /**
+   * `null` cuando el nomenclador municipal confirma el domicilio pero ningún
+   * geocoder tiene sus coordenadas: el domicilio se puede cargar igual y el
+   * punto lo marca el operador en el mapa. Nunca se inventan coordenadas.
+   */
+  point: PickupPoint | null;
   source: "georef" | "locationiq" | "photon";
   approximate: boolean;
 };
@@ -134,7 +139,13 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     }
     const reference = candidates.find((candidate) => candidate.approximate
       && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
-    if (reference) suggestions.push({ ...reference, label, approximate: true });
+    if (reference) {
+      suggestions.push({ ...reference, label, approximate: true });
+      continue;
+    }
+    // GeoRef tiene el domicilio (calle + altura) pero sin coordenadas y ningún
+    // geocoder conoce la calle. Se ofrece igual: el punto se marca en el mapa.
+    suggestions.push({ label, point: null, source: "georef", approximate: true });
   }
   if (!suggestions.length && !Array.isArray(named)) throw named;
   return suggestions;
@@ -155,6 +166,8 @@ export async function suggestAirportPlaces(query: string, signal: AbortSignal): 
   const matches = address
     ? await suggestStreetAddress(name, context, address, signal)
     : await lookupNamedPlaces(search, signal);
-  const unique = [...new Map(matches.map((match) => [`${match.label}:${match.point.join(",")}`, match])).values()];
+  const unique = [...new Map(matches.map((match) => [
+    `${match.label}:${match.point ? match.point.join(",") : "sin-punto"}`, match
+  ])).values()];
   return context ? unique : prioritizeLocalPlaces(unique, (place) => place.label);
 }

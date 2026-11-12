@@ -21,7 +21,7 @@ type PickupAddressFieldsProps = {
 
 export function PickupAddressFields({ pickup, coverage, airport, changed, outside, disabled, onChange }: PickupAddressFieldsProps) {
   const [approximate, setApproximate] = useState(false);
-  const [reference, setReference] = useState<AirportSelectedPlace | null>(null);
+  const [reference, setReference] = useState<{ point: PickupPoint; approximate: boolean } | null>(null);
   const [useGoogle, setUseGoogle] = useState(googlePickupConfigured);
   const maxLength = airport ? 160 : 180;
   const { address, point, confirmed } = pickup;
@@ -34,7 +34,9 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
 
   function selectPlace(place: AirportSelectedPlace) {
     const google = place.source === "google";
-    setReference(google ? place : null);
+    // Google siempre resuelve el punto; las sugerencias sin coordenadas (calle del
+    // nomenclador que ningún geocoder ubica) sólo completan el domicilio.
+    setReference(google && place.point ? { point: place.point, approximate: place.approximate } : null);
     setApproximate(place.approximate);
     onChange({
       address: google ? "" : place.label.slice(0, maxLength),
