@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getI18n } from "@/i18n/server";
 import { localizePath } from "@/i18n/config";
-import { listPublicRoutes, listSchedulesForRoute } from "@/lib/booking/repository";
+import { airportOptions, airportSlugFromSelection, routeOptions } from "@/lib/booking/public-search";
+import { listPublicAirportRoutes, listPublicRoutes, listSchedulesForRoute } from "@/lib/booking/repository";
 import { claveDia, claveHoy, diasConSalidas, etiquetaDia, fechaDeClave, horaDia, tiraDeDias } from "./dias";
 
 export const revalidate = 300;
@@ -59,9 +61,18 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
   const from = params?.from?.trim() ?? "";
   const to = params?.to?.trim() ?? "";
   const date = params?.date?.trim() ?? "";
+  // Los tramos de aeropuerto se reservan por vuelo: elegirlos en el buscador lleva al flujo por vuelo.
+  const airportSlug = airportSlugFromSelection(from) ?? airportSlugFromSelection(to);
+  if (airportSlug) {
+    const query = date ? `?date=${encodeURIComponent(date)}` : "";
+    redirect(localizePath(`/reservar/${airportSlug}${query}`, locale));
+  }
+
   const allRoutes = await getRoutesWithSchedules();
-  const origins = Array.from(new Set(allRoutes.map((route) => route.from)));
-  const destinations = Array.from(new Set(allRoutes.map((route) => route.to)));
+  const airportRoutes = await listPublicAirportRoutes();
+  const airportChoices = airportOptions(airportRoutes);
+  const originChoices = routeOptions(allRoutes.map((route) => route.from));
+  const destinationChoices = routeOptions(allRoutes.map((route) => route.to));
 
   const candidatas = allRoutes.filter((route) => (!from || route.from === from) && (!to || route.to === to));
   const dias = diasConSalidas(candidatas.flatMap((route) => route.vigentes.map((schedule) => schedule.departureAt)));
@@ -107,9 +118,18 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
             Origen
             <select name="from" defaultValue={from}>
               <option value="">{t.allOrigins}</option>
-              {origins.map((origin) => (
-                <option value={origin} key={origin}>
-                  {origin}
+              {airportChoices.length ? (
+                <optgroup label={t.airportGroup}>
+                  {airportChoices.map((option) => (
+                    <option value={option.value} key={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {originChoices.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -118,9 +138,18 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
             Destino
             <select name="to" defaultValue={to}>
               <option value="">{t.allDestinations}</option>
-              {destinations.map((destination) => (
-                <option value={destination} key={destination}>
-                  {destination}
+              {airportChoices.length ? (
+                <optgroup label={t.airportGroup}>
+                  {airportChoices.map((option) => (
+                    <option value={option.value} key={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {destinationChoices.map((option) => (
+                <option value={option.value} key={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>

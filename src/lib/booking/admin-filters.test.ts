@@ -31,7 +31,10 @@ describe("reservation search", () => {
   it("combines filters and uses the travel day for all three booking modes", () => {
     const where = adminReservationWhere({ code: " arc-123 ", route: " SMA ", scheduleId: "departure", date: "2026-11-03" });
     expect(where.AND).toEqual([
-      { code: { contains: "arc-123", mode: "insensitive" } },
+      { OR: [
+        { code: { contains: "arc-123", mode: "insensitive" } },
+        { shortCode: { contains: "ARC123", mode: "insensitive" } }
+      ] },
       { scheduleId: "departure" },
       expect.objectContaining({ OR: expect.any(Array) }),
       { OR: [
@@ -104,7 +107,49 @@ describe("paginacion del listado de reservas", () => {
 
   it("el parametro de pagina no ensucia el where de la busqueda", () => {
     expect(adminReservationWhere({ page: 4, code: "ARC" })).toEqual({
-      AND: [{ code: { contains: "ARC", mode: "insensitive" } }]
+      AND: [
+        {
+          OR: [
+            { code: { contains: "ARC", mode: "insensitive" } },
+            { shortCode: { contains: "ARC", mode: "insensitive" } }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("el buscador encuentra la reserva por el código corto, tipeado con o sin guiones", () => {
+    for (const tipeado of ["ABCD-2345", "abcd 2345", "ABCD2345"]) {
+      expect(adminReservationWhere({ code: tipeado })).toEqual({
+        AND: [
+          {
+            OR: [
+              { code: { contains: tipeado, mode: "insensitive" } },
+              { shortCode: { contains: "ABCD2345", mode: "insensitive" } }
+            ]
+          }
+        ]
+      });
+    }
+  });
+
+  it("sigue buscando por el código largo del link privado", () => {
+    const largo = `ARC-2611-${"A".repeat(32)}`;
+    expect(adminReservationWhere({ code: largo })).toEqual({
+      AND: [
+        {
+          OR: [
+            { code: { contains: largo, mode: "insensitive" } },
+            { shortCode: { contains: largo.replace(/-/g, ""), mode: "insensitive" } }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("un texto que no deja nada al normalizar no ensancha la búsqueda", () => {
+    expect(adminReservationWhere({ code: "----" })).toEqual({
+      AND: [{ OR: [{ code: { contains: "----", mode: "insensitive" } }] }]
     });
   });
 });

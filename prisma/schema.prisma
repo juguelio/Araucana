@@ -335,6 +335,9 @@ model RateLimitHit {
 model Reservation {
   id          String     @id @default(cuid())
   code        String     @unique
+  // Código corto para dictar, imprimir y buscar en el panel (issue #75). No es una capability:
+  // la reserva se abre sólo con `code`, y este código lo resuelve el buscador con sesión de staff.
+  shortCode   String     @unique
   scheduleId  String?
   // Restrict a propósito: la base real ya lo tiene así y no queremos que borrar una salida
   // con reservas deje huérfanas a las reservas (el esquema declaraba SetNull por deriva vieja).

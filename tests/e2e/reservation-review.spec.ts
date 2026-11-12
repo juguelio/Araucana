@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { createReservationShortCode } from "../../src/lib/booking/codes";
 import bcrypt from "bcryptjs";
 import { expect, test } from "@playwright/test";
 
@@ -24,7 +25,7 @@ test.beforeAll(async () => {
   scheduleId = schedule.id;
   code = `ARC-2611-${randomUUID().replaceAll("-", "").toUpperCase()}`;
   await prisma.reservation.create({ data: {
-    code, route: { connect: { id: route.id } }, schedule: { connect: { id: scheduleId } }, passengerCount: 1, status: "PENDING_PAYMENT", totalCents: 10000, currency: "ARS",
+    code, shortCode: createReservationShortCode(), route: { connect: { id: route.id } }, schedule: { connect: { id: scheduleId } }, passengerCount: 1, status: "PENDING_PAYMENT", totalCents: 10000, currency: "ARS",
     passenger: { create: { firstName: "Persona", lastName: "Prueba", email: "passenger@example.com", phone: "+5492944000000", documentType: "DNI", documentId: "TEST1234" } },
     payment: { create: { provider: "MANUAL", status: "PENDING", amountCents: 10000, currency: "ARS", receiptBlobPathname: "isolated-test/receipt.pdf", receiptFileName: "prueba.pdf" } }
   } });

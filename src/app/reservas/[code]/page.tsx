@@ -7,6 +7,7 @@ import { getManualBankDetails } from "@/lib/payments/manual-bank-details";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getReservationByCode } from "@/lib/booking/repository";
+import { formatShortCode } from "@/lib/booking/codes";
 import { ManualPaymentPanel } from "./manual-payment-panel";
 
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -54,8 +55,9 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <p className="lead">{statusCopy(reservation.status)}</p>
           </div>
           <div className="ticket-code">
-            <span>Codigo de reserva</span>
-            <strong>{reservation.code}</strong>
+            <span>Código de reserva</span>
+            <strong>{formatShortCode(reservation.shortCode)}</strong>
+            <span className="ticket-code-note">Código del link privado: {reservation.code}</span>
           </div>
         </section>
 

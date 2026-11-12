@@ -99,6 +99,24 @@
   white-space: nowrap;
 }
 
+/* El código corto (#75) es el que se dicta y se busca: va arriba y legible; el largo del link
+   privado queda debajo, en gris, porque sirve para copiar el link, no para leerlo. */
+.reservas-code .reservas-short-code {
+  display: block;
+  font-size: 13px;
+  letter-spacing: .04em;
+}
+
+.reservas-code .reservas-long-code {
+  display: block;
+  max-width: 22ch;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
 /* La última columna queda pegada al borde derecho: con la tabla más ancha que la pantalla, los
    botones de acción siguen a la vista sin tener que scrollear hasta el final. */
 .reservas-table-scroll .data-table th:last-child,

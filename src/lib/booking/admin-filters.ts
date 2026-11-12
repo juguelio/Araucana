@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { normalizeShortCode } from "./codes";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disability-fare";
 
 /**
@@ -34,7 +35,15 @@ export const ADMIN_RESERVATIONS_PAGE_SIZE = 25;
 export function adminReservationWhere(input: AdminReservationFilters): Prisma.ReservationWhereInput {
   const filters = adminReservationFiltersSchema.parse(input);
   const AND: Prisma.ReservationWhereInput[] = [];
-  if (filters.code) AND.push({ code: { contains: filters.code, mode: "insensitive" } });
+  if (filters.code) {
+    // El mismo campo busca las dos formas del código: el largo del link privado y el corto que
+    // se dicta por teléfono (con o sin guiones: "abcd-2345" es "ABCD2345", y también se puede
+    // buscar por un pedazo del corto).
+    const shortCode = normalizeShortCode(filters.code);
+    const matches: Prisma.ReservationWhereInput[] = [{ code: { contains: filters.code, mode: "insensitive" } }];
+    if (shortCode) matches.push({ shortCode: { contains: shortCode, mode: "insensitive" } });
+    AND.push({ OR: matches });
+  }
   if (filters.scheduleId) AND.push({ scheduleId: filters.scheduleId });
   if (filters.route) {
     const route: Prisma.TravelRouteWhereInput = { OR: ["from", "to", "slug"].map((field) => ({

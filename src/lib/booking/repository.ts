@@ -1,6 +1,6 @@
 import { ADMIN_RESERVATIONS_PAGE_SIZE, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
-import { createReservationCode as defaultCreateReservationCode, createTicketCode } from "./codes";
+import { createReservationCode as defaultCreateReservationCode, createReservationShortCode as defaultCreateReservationShortCode, createTicketCode } from "./codes";
 import {
   AdminRouteRowDto,
   AdminReservationsPageDto,
@@ -105,6 +105,7 @@ type TicketRecord = {
 type ReservationRecord = {
   id: string;
   code: string;
+  shortCode: string;
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
@@ -192,6 +193,7 @@ export type BookingClient = BookingTransactionClient & {
 
 type BookingRepositoryDeps = {
   createReservationCode?: () => string;
+  createReservationShortCode?: () => string;
   paymentProvider?: PaymentProvider;
 };
 
@@ -254,12 +256,17 @@ function isSeatUniqueConstraintError(error: unknown) {
   );
 }
 
+/**
+ * `code` es la capability del link privado y `shortCode` el lookup del panel: los dos se
+ * regeneran en el intento siguiente, así que un choque de cualquiera es reintentable.
+ */
 function isReservationCodeUniqueConstraintError(error: unknown) {
   if (!isUniqueConstraintError(error)) {
     return false;
   }
 
-  return uniqueConstraintHasFields(uniqueConstraintTargets(error), ["code"]);
+  const targets = uniqueConstraintTargets(error);
+  return uniqueConstraintHasFields(targets, ["code"]) || uniqueConstraintHasFields(targets, ["shortCode"]);
 }
 
 function mapRoute(route: RouteRecord): PublicRouteDto {
@@ -329,6 +336,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
   return {
     id: reservation.id,
     code: reservation.code,
+    shortCode: reservation.shortCode,
     bookingMode: reservation.bookingMode,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
@@ -535,6 +543,7 @@ async function getReservationByCodeWithClient(client: BookingTransactionClient, 
 
 export function createBookingRepository(client: BookingClient, deps: BookingRepositoryDeps = {}) {
   const createCode = deps.createReservationCode ?? (() => defaultCreateReservationCode());
+  const createShortCode = deps.createReservationShortCode ?? (() => defaultCreateReservationShortCode());
   const paymentProvider = deps.paymentProvider ?? manualPaymentProvider;
 
   async function issueScheduleTicket(tx: BookingTransactionClient, reservationId: string, scheduleId: string, passengerCount: number) {
@@ -599,6 +608,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
         // CHAPELCO y AIRPORT tienen su propio flujo (el aeropuerto se reserva por vuelo, no por horario).
         where: { isActive: true, bookingMode: { notIn: ["CHAPELCO", "AIRPORT"] } },
         orderBy: [{ featured: "desc" }, { from: "asc" }, { to: "asc" }, { slug: "asc" }]
+      });
+
+      return routes.map(mapRoute);
+    },
+
+    /** Tramos de aeropuerto activos: el buscador público los ofrece como acceso directo al flujo por vuelo. */
+    async listPublicAirportRoutes() {
+      const routes = await client.travelRoute.findMany({
+        where: { isActive: true, bookingMode: "AIRPORT" },
+        orderBy: [{ from: "asc" }, { to: "asc" }, { slug: "asc" }]
       });
 
       return routes.map(mapRoute);
@@ -749,6 +768,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             const reservation = await tx.reservation.create({
               data: {
                 code,
+                shortCode: createShortCode(),
                 ...reservationCreatorData(creator),
                 scheduleId: schedule.id,
                 routeId: schedule.routeId,
@@ -1020,6 +1040,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
         items: reservations.map((reservation) => ({
           id: reservation.id,
           code: reservation.code,
+          shortCode: reservation.shortCode,
           passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
           passengerPhone: reservation.passenger.phone,
           creatorLabel: reservationCreatorLabel(reservation),
@@ -1064,6 +1085,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 const defaultRepository = createBookingRepository(prisma as unknown as BookingClient);
 
 export const listPublicRoutes = defaultRepository.listPublicRoutes;
+export const listPublicAirportRoutes = defaultRepository.listPublicAirportRoutes;
 export const getPublicRouteBySlug = defaultRepository.getPublicRouteBySlug;
 export const listSchedulesForRoute = defaultRepository.listSchedulesForRoute;
 export const getSeatMap = defaultRepository.getSeatMap;

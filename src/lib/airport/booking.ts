@@ -1,6 +1,6 @@
 import { omitReservationCreator, reservationCreatorData, type ReservationCreationContext } from "@/lib/booking/reservation-creator";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
-import { createReservationCode } from "@/lib/booking/codes";
+import { createReservationCode, createReservationShortCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
@@ -299,6 +299,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
         const reservation = await tx.reservation.create({
           data: {
             code: createReservationCode(),
+            shortCode: createReservationShortCode(),
             ...reservationCreatorData(creator),
             routeId: rutaDelSentido.id,
             passengerId: passenger.id,
