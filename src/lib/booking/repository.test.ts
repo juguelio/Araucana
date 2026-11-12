@@ -17,6 +17,7 @@ type RouteRecord = {
   featured: boolean;
   isActive: boolean;
   bookingMode: string;
+  specialType?: string | null;
   stops: unknown;
 };
 
@@ -93,6 +94,7 @@ type TicketRecord = {
 class FakeBookingClient {
   route: RouteRecord;
   inactiveRoute: RouteRecord;
+  airportRoute: RouteRecord;
   seats: SeatRecord[];
   vehicle: VehicleRecord;
   scheduleRecord: ScheduleRecord;
@@ -130,6 +132,16 @@ class FakeBookingClient {
       featured: false,
       isActive: false
     };
+    this.airportRoute = {
+      ...this.route,
+      id: "route-airport",
+      slug: "sma-aeropuerto-chapelco",
+      from: "San Martín de los Andes",
+      to: "Aeropuerto Chapelco (CPC)",
+      bookingMode: "AIRPORT",
+      specialType: "ARRIVAL",
+      featured: false
+    };
     this.seats = [
       { id: "seat-04", vehicleId: "vehicle-1", number: "04", row: 1, column: 4 },
       { id: "seat-05", vehicleId: "vehicle-1", number: "05", row: 2, column: 1 }
@@ -152,10 +164,21 @@ class FakeBookingClient {
   }
 
   travelRoute = {
-    findMany: async (args?: { where?: { isActive?: boolean } }) =>
-      [this.route, this.inactiveRoute].filter((route) => {
-        if (typeof args?.where?.isActive === "boolean") {
-          return route.isActive === args.where.isActive;
+    findMany: async (args?: { where?: { isActive?: boolean; bookingMode?: string | { notIn?: string[]; not?: string } } }) =>
+      [this.route, this.inactiveRoute, this.airportRoute].filter((route) => {
+        const where = args?.where;
+
+        if (typeof where?.isActive === "boolean" && route.isActive !== where.isActive) {
+          return false;
+        }
+
+        const mode = where?.bookingMode;
+        if (typeof mode === "string") {
+          return route.bookingMode === mode;
+        }
+
+        if (mode?.notIn?.includes(route.bookingMode) || mode?.not === route.bookingMode) {
+          return false;
         }
 
         return true;
@@ -589,6 +612,16 @@ describe("booking repository", () => {
         slug: "sma-bariloche-7-lagos"
       }
     ]);
+  });
+
+  it("lists only active airport routes for the public search", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+
+    const routes = await repository.listPublicAirportRoutes();
+
+    expect(routes.map((route) => route.slug)).toEqual(["sma-aeropuerto-chapelco"]);
+    expect(routes[0]).toMatchObject({ bookingMode: "AIRPORT", specialType: "ARRIVAL", from: "San Martín de los Andes" });
   });
 
   it("does not return inactive routes by public slug", async () => {

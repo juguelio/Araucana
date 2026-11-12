@@ -607,6 +607,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       return routes.map(mapRoute);
     },
 
+    /** Tramos de aeropuerto activos: el buscador público los ofrece como acceso directo al flujo por vuelo. */
+    async listPublicAirportRoutes() {
+      const routes = await client.travelRoute.findMany({
+        where: { isActive: true, bookingMode: "AIRPORT" },
+        orderBy: [{ from: "asc" }, { to: "asc" }, { slug: "asc" }]
+      });
+
+      return routes.map(mapRoute);
+    },
+
     async getPublicRouteBySlug(slug: string) {
       const route = await client.travelRoute.findFirst({
         where: { slug, isActive: true }
@@ -1069,6 +1079,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 const defaultRepository = createBookingRepository(prisma as unknown as BookingClient);
 
 export const listPublicRoutes = defaultRepository.listPublicRoutes;
+export const listPublicAirportRoutes = defaultRepository.listPublicAirportRoutes;
 export const getPublicRouteBySlug = defaultRepository.getPublicRouteBySlug;
 export const listSchedulesForRoute = defaultRepository.listSchedulesForRoute;
 export const getSeatMap = defaultRepository.getSeatMap;
