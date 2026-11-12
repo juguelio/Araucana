@@ -87,6 +87,13 @@ export default async function AirportPage({ searchParams }: PageProps) {
       action={
         <div className="form-actions">
           {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
+          <a
+            className="ghost-button"
+            href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}`}
+            title="Hoja para el chofer: un bloque por vuelo, con pasajeros, contacto y pago"
+          >
+            Orden de servicio (Excel)
+          </a>
           <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
           <form action={refreshFlightsAction}>
             <button className="ghost-button" type="submit">Actualizar ahora</button>
