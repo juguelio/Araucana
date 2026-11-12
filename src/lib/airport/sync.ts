@@ -1,5 +1,6 @@
 import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
+import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
 import { DIAS_PROYECTADOS, fechaLocal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
@@ -75,8 +76,7 @@ async function limpiarProyectadosConDatosReales(dia: string): Promise<number> {
   let borrados = 0;
   for (const fila of proyectados) {
     if (fila._count.reservations > 0 || fila._count.assignments > 0) continue;
-    await prisma.flight.delete({ where: { id: fila.id } });
-    borrados += 1;
+    borrados += await deleteUnoccupiedFlight(fila.id);
   }
 
   return borrados;
@@ -116,11 +116,7 @@ async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
   );
 
   for (const id of plan.borrar) {
-    // La condición se repite en el borrado: si entre la lectura y acá entró una reserva, no se borra.
-    const { count } = await prisma.flight.deleteMany({
-      where: { id, reservations: { none: {} }, assignments: { none: {} } }
-    });
-    resumen.jetSmartUnificados += count;
+    resumen.jetSmartUnificados += await deleteUnoccupiedFlight(id);
   }
   for (const { id, number } of plan.renombrar) {
     try {
@@ -267,8 +263,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       }, null);
       for (const c of candidatos) {
         if (propio && c.id !== propio.id && c._count.reservations === 0 && c._count.assignments === 0) {
-          await prisma.flight.delete({ where: { id: c.id } });
-          resumen.limpiados += 1;
+          resumen.limpiados += await deleteUnoccupiedFlight(c.id);
         }
       }
       if (propio) {
