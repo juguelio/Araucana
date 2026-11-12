@@ -106,6 +106,7 @@ type ReservationRecord = {
   id: string;
   code: string;
   shortCode: string;
+  roundTripId?: string | null;
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
@@ -337,6 +338,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     id: reservation.id,
     code: reservation.code,
     shortCode: reservation.shortCode,
+    roundTripId: reservation.roundTripId ?? null,
     bookingMode: reservation.bookingMode,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
@@ -858,7 +860,23 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
     async getAdminReservationByCode(code: string) {
       const reservation = await findReservationByCode(client, code);
-      return reservation ? { ...mapReservation(reservation), creatorLabel: reservationCreatorLabel(reservation) } : null;
+      if (!reservation) return null;
+
+      const detalle = { ...mapReservation(reservation), creatorLabel: reservationCreatorLabel(reservation) };
+      if (!reservation.roundTripId) return { ...detalle, roundTripPartner: null };
+
+      // Ida y vuelta (#36): el panel muestra el otro tramo del viaje para saltar de uno al otro.
+      const socio = await client.reservation.findFirst({
+        where: { roundTripId: reservation.roundTripId, id: { not: reservation.id } },
+        select: { code: true, shortCode: true, id: true, airportDetails: { select: { direction: true } } }
+      });
+
+      return {
+        ...detalle,
+        roundTripPartner: socio
+          ? { code: socio.code, shortCode: socio.shortCode, direction: socio.airportDetails?.direction ?? null }
+          : null
+      };
     },
 
     async updatePassengerForReservation(code: string, input: PassengerInput) {

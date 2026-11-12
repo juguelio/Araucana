@@ -96,6 +96,10 @@ export type TicketDto = {
 export type ReservationDetailDto = {
   id: string;
   code: string;
+  /** Ida y vuelta del aeropuerto (#36): id del viaje que comparten los dos tramos. */
+  roundTripId?: string | null;
+  /** El otro tramo del ida y vuelta (sólo en las consultas del panel). */
+  roundTripPartner?: { code: string; shortCode: string; direction: string | null } | null;
   /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
   shortCode: string;
   bookingMode: string;

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
@@ -121,6 +122,18 @@ export default async function ReservationPage({ params, searchParams }: Reservat
               )}
             </div>
           </div>
+          <section className="plain-card admin-section">
+            <h2 className="route-title">¿Vas y volvés?</h2>
+            <p className="muted">
+              Reservá la llegada y la vuelta en una sola operación: cargás los datos del pasajero una
+              vez y cada tramo queda con su propio código y su pago.
+            </p>
+            <div className="form-actions">
+              <Link className="button" href={`/reservar/${route.slug}/ida-y-vuelta?date=${fecha}`}>
+                Reservar ida y vuelta
+              </Link>
+            </div>
+          </section>
           <AirportCheckoutForm
             initialDirection={route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL"}
             fares={tarifas}

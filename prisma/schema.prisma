@@ -359,6 +359,10 @@ model Reservation {
   status      String     @default("PENDING_PAYMENT")
   totalCents  Int
   currency    String     @default("ARS")
+  // Ida y vuelta del aeropuerto (#36): las dos reservas del viaje comparten este id. Cada tramo
+  // se paga y se cancela por separado —el id sólo las enlaza y las muestra juntas en el panel—,
+  // así que no hay FK: es una agrupación, no una dependencia.
+  roundTripId String?
   payment     Payment?
   ticket      Ticket?
   chapelcoDetails ChapelcoReservationDetails?
@@ -376,6 +380,7 @@ model Reservation {
   @@index([code])
   @@index([routeId])
   @@index([bookingMode])
+  @@index([roundTripId])
 }
 
 model Payment {
