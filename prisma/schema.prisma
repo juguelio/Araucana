@@ -609,3 +609,42 @@ model DepartureSheetPassenger {
   @@unique([sheetId, documentType, documentNumber])
   @@index([sheetId, position])
 }
+
+// Catálogo editorial: no crea reservas ni ocupa naves. Consulta por WhatsApp.
+model Excursion {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  duration    String
+  priceCents  Int?
+  currency    String   @default("ARS")
+  isPublished Boolean  @default(false)
+  photos      ExcursionPhoto[]
+  departures  ExcursionDeparture[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished, name])
+}
+
+model ExcursionPhoto {
+  id           String    @id @default(cuid())
+  excursionId  String
+  excursion    Excursion @relation(fields: [excursionId], references: [id], onDelete: Cascade)
+  blobPathname String
+  contentType  String
+  position     Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([excursionId, position])
+}
+
+model ExcursionDeparture {
+  id          String    @id @default(cuid())
+  excursionId String
+  excursion   Excursion @relation(fields: [excursionId], references: [id], onDelete: Cascade)
+  departureAt DateTime
+
+  @@unique([excursionId, departureAt])
+  @@index([departureAt])
+}

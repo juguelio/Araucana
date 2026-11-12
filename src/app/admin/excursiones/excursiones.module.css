@@ -1,0 +1,202 @@
+.form:global(.admin-form-grid) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.form > *,
+.form input,
+.form textarea,
+.form select {
+  min-width: 0;
+}
+
+.help {
+  display: block;
+  margin: 6px 0 0;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+.stack {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.cardList {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  margin: 20px 0 0;
+  list-style: none;
+}
+
+.excursionCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.excursionCard h3 {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+
+.excursionCard p {
+  margin: 6px 0;
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.badge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(31, 91, 79, 0.09);
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.badge[data-published="false"] {
+  background: rgba(160, 84, 56, 0.12);
+}
+
+.departures {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  min-width: 0;
+}
+
+.departures legend {
+  padding: 0 6px;
+  font-weight: 700;
+}
+
+.departureList {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.departureRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.departureRow label {
+  display: grid;
+  gap: 8px;
+}
+
+.publication {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.publication input[type="checkbox"] {
+  flex: 0 0 auto;
+  width: 20px;
+  min-height: 20px;
+}
+
+.photoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr));
+  gap: 18px;
+  margin: 20px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.photoCard {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.photoCard img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  background: var(--surface);
+}
+
+.photoBody {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.photoBody p {
+  margin: 0;
+}
+
+.danger {
+  border: 1px solid rgba(160, 84, 56, 0.3);
+  border-radius: 14px;
+  padding: 18px;
+}
+
+.danger summary {
+  color: var(--accent-deep);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.danger p {
+  overflow-wrap: anywhere;
+}
+
+.danger :global(.button) {
+  background: #9f2d20;
+  color: white;
+}
+
+@media (max-width: 680px) {
+  .excursionCard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form:global(.admin-form-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form > :global(.span-2) {
+    grid-column: 1 / -1;
+  }
+
+  .departureRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .departureRow button {
+    justify-self: start;
+  }
+}
