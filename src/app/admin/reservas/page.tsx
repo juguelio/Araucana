@@ -113,6 +113,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             <tr>
               <th>Código</th>
               <th>Pasajero</th>
+              <th>Creada por</th>
               <th>WhatsApp</th>
               <th>Ruta</th>
               <th>Asiento</th>
@@ -138,6 +139,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       {reservation.passenger}
                     </Link>
                   </td>
+                  <td>{reservation.creatorLabel}</td>
                   <td>
                     {whatsappUrl ? (
                       <a

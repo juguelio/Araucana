@@ -482,6 +482,33 @@ function createTestRepository(
 }
 
 describe("booking repository", () => {
+  it.each([
+    { creator: null, label: "Huésped" },
+    { creator: { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" } as const, label: "Ana · Administrador" },
+    { creator: { id: "user-1", name: null, email: "usuario@example.com", role: "USER" } as const, label: "usuario@example.com · Usuario" }
+  ])("muestra el creador sólo en las consultas del panel ($label)", async ({ creator, label }) => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = await repository.createWebReservation(input, { creator });
+
+    expect(client.reservations[0]).toMatchObject({
+      createdByUserId: creator?.id ?? null,
+      createdByRole: creator?.role ?? "GUEST"
+    });
+    expect(reservation).not.toHaveProperty("createdByName");
+    expect(await repository.getReservationByCode(reservation.code)).not.toHaveProperty("creatorLabel");
+    expect(await repository.getAdminReservationByCode(reservation.code)).toMatchObject({ creatorLabel: label });
+    expect((await repository.listAdminReservations()).items[0]).toMatchObject({ creatorLabel: label });
+  });
+
+  it("identifica las reservas anteriores como sin registro de autor", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const { code } = client.seedReservation();
+
+    expect(await repository.getAdminReservationByCode(code)).toMatchObject({ creatorLabel: "Sin registro" });
+  });
+
   it("rejects expired schedules and inactive routes before creating any passenger", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);

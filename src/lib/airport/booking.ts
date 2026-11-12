@@ -1,3 +1,4 @@
+import { omitReservationCreator, reservationCreatorData, type ReservationCreationContext } from "@/lib/booking/reservation-creator";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { createReservationCode } from "@/lib/booking/codes";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
@@ -175,7 +176,7 @@ export function elegirVueloExistente<T extends { number: string; scheduledAt: Da
 export const ORIGEN_PRIVADO_DESCONOCIDO = "Vuelo privado";
 
 /** Crea la reserva atada al vuelo, con control de cupo dentro de la misma transacción. */
-export async function createAirportReservation(input: AdminAirportReservationInput, fromAdmin = false) {
+export async function createAirportReservation(input: AdminAirportReservationInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
   const parsed: AdminAirportReservationInput = (fromAdmin ? adminAirportReservationSchema : airportReservationSchema).parse(input);
 
   const route = await prisma.travelRoute.findUnique({ where: { slug: parsed.routeSlug } });
@@ -278,6 +279,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
         const reservation = await tx.reservation.create({
           data: {
             code: createReservationCode(),
+            ...reservationCreatorData(creator),
             routeId: rutaDelSentido.id,
             passengerId: passenger.id,
             passengerCount: parsed.passengerCount,
@@ -302,6 +304,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
               }
             }
           },
+          omit: omitReservationCreator,
           include: { route: true, passenger: true, airportDetails: true }
         });
 

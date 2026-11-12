@@ -1,5 +1,8 @@
 import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
-import { DIAS_PROYECTADOS, proyectarVuelos } from "@/lib/airport/projection";
+import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
+import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
+import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
+import { DIAS_PROYECTADOS, fechaLocal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
@@ -30,6 +33,10 @@ export type SyncSummary = {
   limpiados: number;
   /** Filas proyectadas de un día que ya tiene datos reales: se descartan. */
   proyectadosLimpiados: number;
+  /** Vuelos de JetSMART guardados dos veces (JA y WJ) que se unificaron en una sola fila JA. */
+  jetSmartUnificados: number;
+  /** Vuelos que siguen repetidos porque más de una fila tiene reservas: los resuelve una persona. */
+  repetidosConReservas: string[];
   errores: string[];
 };
 
@@ -70,17 +77,86 @@ async function limpiarProyectadosConDatosReales(dia: string): Promise<number> {
   let borrados = 0;
   for (const fila of proyectados) {
     if (fila._count.reservations > 0 || fila._count.assignments > 0) continue;
-    await prisma.flight.delete({ where: { id: fila.id } });
-    borrados += 1;
+    borrados += await deleteUnoccupiedFlight(fila.id);
   }
 
   return borrados;
 }
 
+/**
+ * Unifica los vuelos de JetSMART que quedaron guardados dos veces (JA3184 del tablero y WJ3184 de
+ * la API, y sus proyecciones), de hoy en adelante. Corre antes de sincronizar para que las
+ * búsquedas por número encuentren una sola fila. Nunca borra una fila con reservas o combis.
+ */
+async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
+  const { desde } = rangoDelDia(diasDesdeHoy(1)[0]);
+  const filas = await prisma.flight.findMany({
+    where: { scheduledAt: { gte: desde }, OR: [{ number: { startsWith: "JA" } }, { number: { startsWith: "WJ" } }] },
+    select: {
+      id: true,
+      number: true,
+      direction: true,
+      scheduledAt: true,
+      source: true,
+      updatedAt: true,
+      _count: { select: { reservations: true, assignments: true } }
+    }
+  });
+
+  const entradas = filas.map((f) => ({
+    id: f.id,
+    number: f.number,
+    direction: f.direction,
+    dia: fechaLocal(f.scheduledAt),
+    source: f.source,
+    updatedAt: f.updatedAt,
+    reservas: f._count.reservations,
+    combis: f._count.assignments
+  }));
+  const plan = planificarUnificacionJetSmart(entradas);
+
+  // Se unifica por vuelo y día: borrar la fila repetida sin más perdería lo que esa fila sabía
+  // (estado del tablero, horario nuevo, notas de coordinación, eventos de imprevisto).
+  const aBorrar = new Set(plan.borrar);
+  const grupos = new Map<string, string[]>();
+  for (const fila of entradas) {
+    const canonico = jetSmartCanonicalNumber(fila.number);
+    if (!canonico) continue;
+    const clave = `${canonico}|${fila.direction}|${fila.dia}`;
+    const ids = grupos.get(clave);
+    if (ids) ids.push(fila.id);
+    else grupos.set(clave, [fila.id]);
+  }
+  for (const [clave, ids] of grupos) {
+    const borrar = ids.filter((id) => aBorrar.has(id));
+    if (borrar.length === 0) continue;
+    try {
+      const { borrados } = await unificarFilasDeVuelo(ids, borrar);
+      resumen.jetSmartUnificados += borrados;
+    } catch (error) {
+      const [canonico] = clave.split("|");
+      resumen.errores.push(`unificar ${canonico}: ${error instanceof Error ? error.message : "error"}`);
+    }
+  }
+  for (const { id, number } of plan.renombrar) {
+    try {
+      await prisma.flight.update({ where: { id }, data: { number, airline: "JA" } });
+      resumen.jetSmartUnificados += 1;
+    } catch (error) {
+      resumen.errores.push(`unificar ${number}: ${error instanceof Error ? error.message : "error"}`);
+    }
+  }
+  for (const r of plan.conReservasRepetidas) {
+    resumen.repetidosConReservas.push(`${r.number} ${r.direction} ${r.dia} (${r.ids.length} filas con reservas)`);
+  }
+}
+
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
-  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, errores: [] };
+  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
+
+  await unificarJetSmartRepetidos(resumen);
 
   for (const dia of diasDesdeHoy(opts.days ?? DIAS_A_SINCRONIZAR)) {
     for (const direction of direcciones) {
@@ -207,8 +283,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       }, null);
       for (const c of candidatos) {
         if (propio && c.id !== propio.id && c._count.reservations === 0 && c._count.assignments === 0) {
-          await prisma.flight.delete({ where: { id: c.id } });
-          resumen.limpiados += 1;
+          resumen.limpiados += await deleteUnoccupiedFlight(c.id);
         }
       }
       if (propio) {
