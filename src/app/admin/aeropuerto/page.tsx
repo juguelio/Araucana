@@ -212,6 +212,15 @@ export default async function AirportPage({ searchParams }: PageProps) {
                               : "sin combi asignada"
                             : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
                         </span>
+                        {ocupados > 0 ? (
+                          <a
+                            className="ghost-button"
+                            href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
+                            title="Hoja de este vuelo para el chofer (Excel)"
+                          >
+                            Hoja del chofer
+                          </a>
+                        ) : null}
                         <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
                         <details className="flight-actions">
                           <summary>Gestionar vuelo</summary>

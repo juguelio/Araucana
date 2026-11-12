@@ -18,8 +18,13 @@ function diaDeHoy() {
 }
 
 /**
- * Orden de servicio del día: el .xlsx que se le entrega al chofer, con la forma de la planilla en
- * papel del cliente (foto del 2026-11-12, issue #74). Mismo permiso que el resto de la operación.
+ * Orden de servicio: el .xlsx que se le entrega al chofer, con la forma de la planilla en papel del
+ * cliente (foto del 2026-11-12, issue #74).
+ *
+ * - `?date=YYYY-MM-DD` — el día completo, con un bloque por vuelo (la hoja del turno).
+ * - `?date=…&flight=<id>` — sólo ese vuelo, para entregar una hoja por servicio.
+ *
+ * Mismo permiso que el resto de la operación.
  */
 export async function GET(request: Request) {
   try {
@@ -31,21 +36,24 @@ export async function GET(request: Request) {
     throw error;
   }
 
-  const date = new URL(request.url).searchParams.get("date") ?? diaDeHoy();
+  const params = new URL(request.url).searchParams;
+  const date = params.get("date") ?? diaDeHoy();
+  const flightId = params.get("flight") || null;
 
   if (!DATE_PATTERN.test(date)) {
     return new Response("Fecha inválida: se espera YYYY-MM-DD", { status: 400 });
   }
 
   const generatedAt = new Date();
-  const reservas = await getAirportServiceOrderReservations(date);
+  const reservas = await getAirportServiceOrderReservations(date, flightId);
   const blocks = buildServiceOrderBlocks(reservas);
   const workbook = await buildServiceOrderWorkbook({ date, generatedAt }, blocks);
+  const referencia = flightId ? (blocks[0]?.flightNumber ?? flightId) : null;
 
   return new Response(new Uint8Array(workbook), {
     headers: {
       "Content-Type": XLSX_TYPE,
-      "Content-Disposition": `attachment; filename="${serviceOrderFileName(date)}"`,
+      "Content-Disposition": `attachment; filename="${serviceOrderFileName(date, referencia)}"`,
       "Content-Length": String(workbook.byteLength),
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff"

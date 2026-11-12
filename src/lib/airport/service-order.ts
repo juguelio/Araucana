@@ -20,6 +20,7 @@
  */
 import ExcelJS from "exceljs";
 import { airportPickupStart } from "./pickup-start";
+import { ORDER_LOGO_PNG_BASE64 } from "./service-order-logo";
 
 export type ServiceOrderDirection = "ARRIVAL" | "DEPARTURE";
 
@@ -282,8 +283,17 @@ export const SERVICE_ORDER_COLUMNS = [
   "Contacto"
 ] as const;
 
-export function serviceOrderFileName(date: string) {
-  return `orden-de-servicio-${date}.xlsx`;
+export function serviceOrderFileName(date: string, flightReference?: string | null) {
+  const sufijo = flightReference
+    ? `-${flightReference
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")
+        .toLowerCase()}`
+    : "";
+
+  return `orden-de-servicio-${date}${sufijo}.xlsx`;
 }
 
 export type ServiceOrderMeta = {
@@ -291,15 +301,28 @@ export type ServiceOrderMeta = {
   generatedAt: Date;
 };
 
-const HEADER_FILL = "FFE7DFCB";
-const BAND_FILL = "FFD8D2C3";
-const TEXT_COLOR = "FF233024";
-const MUTED = "FF6B6455";
-const BORDER: Partial<ExcelJS.Borders> = {
-  top: { style: "thin", color: { argb: "FF9A9483" } },
-  left: { style: "thin", color: { argb: "FF9A9483" } },
-  bottom: { style: "thin", color: { argb: "FF9A9483" } },
-  right: { style: "thin", color: { argb: "FF9A9483" } }
+/**
+ * Paleta del sitio (`globals.css`): el encabezado de la hoja usa el verde profundo de la marca, con
+ * el logo blanco arriba (el logo es blanco con fondo transparente, así que sobre papel blanco sería
+ * invisible: siempre va sobre la banda oscura).
+ */
+const VERDE = "FF1F5B4F";
+const VERDE_HONDO = "FF0E3D34";
+const VERDE_SUAVE = "FFD5E1DC";
+const ZEBRA = "FFF7F4EC";
+const BORDE = "FFC9C3B2";
+const TINTA = "FF233024";
+const GRIS = "FF6B6455";
+const COBRAR = "FFA32A1F";
+const PAGADO = "FF1F5B4F";
+
+const FILA_ENCABEZADO = 5;
+
+const BORDE_FINO: Partial<ExcelJS.Borders> = {
+  top: { style: "thin", color: { argb: BORDE } },
+  left: { style: "thin", color: { argb: BORDE } },
+  bottom: { style: "thin", color: { argb: BORDE } },
+  right: { style: "thin", color: { argb: BORDE } }
 };
 
 const emitidaEl = (value: Date) =>
@@ -313,10 +336,20 @@ const emitidaEl = (value: Date) =>
     timeZone: "America/Argentina/Salta"
   }).format(value);
 
+type Rango = { fila: number; desde: number; hasta: number };
+
+/** Pinta un tramo de la fila: en Excel el relleno de una celda combinada no se propaga al resto. */
+function pintarFila(sheet: ExcelJS.Worksheet, rango: Rango, color: string) {
+  const fila = sheet.getRow(rango.fila);
+  for (let columna = rango.desde; columna <= rango.hasta; columna += 1) {
+    fila.getCell(columna).fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+  }
+}
+
 /**
- * Genera el .xlsx con la forma de la orden de servicio en papel: encabezado con la fecha, una
- * banda por vuelo, los pasajeros y los totales. Un día sin pasajeros se avisa en la hoja en vez
- * de devolver un archivo vacío o un error.
+ * Genera el .xlsx de la orden de servicio: encabezado con el logo y la fecha, una banda por vuelo,
+ * una fila por reserva y los totales. Un día sin pasajeros se avisa en la hoja en vez de devolver
+ * un archivo vacío o un error.
  */
 export async function buildServiceOrderWorkbook(
   meta: ServiceOrderMeta,
@@ -328,12 +361,14 @@ export async function buildServiceOrderWorkbook(
   workbook.modified = meta.generatedAt;
 
   const sheet = workbook.addWorksheet("Orden de servicio", {
+    views: [{ state: "frozen", ySplit: FILA_ENCABEZADO }],
     pageSetup: {
       orientation: "landscape",
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
-      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 }
+      printTitlesRow: `${FILA_ENCABEZADO}:${FILA_ENCABEZADO}`,
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.55, header: 0.25, footer: 0.25 }
     }
   });
 
@@ -348,136 +383,222 @@ export async function buildServiceOrderWorkbook(
     { width: 15 }
   ];
 
-  let fila = 1;
+  // --- Encabezado: banda verde con logo, título y fecha -------------------------------------
+  for (let fila = 1; fila <= 3; fila += 1) {
+    pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE_HONDO);
+  }
+  sheet.getRow(1).height = 26;
+  sheet.getRow(2).height = 20;
+  sheet.getRow(3).height = 15;
 
-  const marca = sheet.getRow(fila++);
-  marca.getCell(1).value = "La Araucana viajes SRL";
-  marca.getCell(1).font = { italic: true, size: 9, color: { argb: MUTED } };
-  sheet.mergeCells(`C${fila - 1}:F${fila - 1}`);
-  const titulo = sheet.getCell(`C${fila - 1}`);
+  // El cast es sólo de tipos: con @types/node nuevo, `Buffer.from` y el `buffer` que declara
+  // ExcelJS son dos genéricos de Buffer distintos. En runtime es el mismo Buffer.
+  const logoPng = Buffer.from(ORDER_LOGO_PNG_BASE64, "base64");
+  const logoId = workbook.addImage({
+    buffer: logoPng as unknown as NonNullable<Parameters<ExcelJS.Workbook["addImage"]>[0]["buffer"]>,
+    extension: "png"
+  });
+  sheet.addImage(logoId, {
+    tl: { col: 0.12, row: 0.1 },
+    ext: { width: 122, height: 62 }
+  });
+
+  sheet.mergeCells("C1:E1");
+  const titulo = sheet.getCell("C1");
   titulo.value = "ORDEN DE SERVICIO";
-  titulo.font = { bold: true, size: 15, color: { argb: TEXT_COLOR } };
+  titulo.font = { bold: true, size: 17, color: { argb: "FFFFFFFF" } };
   titulo.alignment = { horizontal: "center", vertical: "middle" };
-  const etiquetaFecha = sheet.getCell(`G${fila - 1}`);
+
+  sheet.mergeCells("C2:E2");
+  const subtitulo = sheet.getCell("C2");
+  subtitulo.value = "Traslados AEROPUERTO CHAPELCO";
+  subtitulo.font = { size: 10.5, color: { argb: "FFD5E1DC" } };
+  subtitulo.alignment = { horizontal: "center", vertical: "middle" };
+
+  sheet.mergeCells("C3:E3");
+  const emitida = sheet.getCell("C3");
+  emitida.value = `Emitida el ${emitidaEl(meta.generatedAt)}`;
+  emitida.font = { size: 8, color: { argb: "FF9BB8AF" } };
+  emitida.alignment = { horizontal: "center", vertical: "middle" };
+
+  const etiquetaFecha = sheet.getCell("F1");
   etiquetaFecha.value = "FECHA";
-  etiquetaFecha.font = { bold: true, size: 9 };
-  etiquetaFecha.alignment = { horizontal: "center" };
-  etiquetaFecha.border = BORDER;
+  etiquetaFecha.font = { bold: true, size: 8, color: { argb: "FF9BB8AF" } };
+  etiquetaFecha.alignment = { horizontal: "right", vertical: "bottom" };
 
-  const subtitulo = sheet.getRow(fila++);
-  subtitulo.getCell(1).value = "Traslados AEROPUERTO CHAPELCO";
-  subtitulo.getCell(1).font = { bold: true, size: 12, color: { argb: TEXT_COLOR } };
-  const fecha = sheet.getCell(`G${fila - 1}`);
+  sheet.mergeCells("F2:G2");
+  const fecha = sheet.getCell("F2");
   fecha.value = fechaDeLaOrden(meta.date);
-  fecha.font = { bold: true, size: 11 };
-  fecha.alignment = { horizontal: "center" };
-  fecha.border = BORDER;
+  fecha.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
+  fecha.alignment = { horizontal: "right", vertical: "middle" };
 
-  const pie = sheet.getRow(fila++);
-  pie.getCell(1).value = `Emitida el ${emitidaEl(meta.generatedAt)}`;
-  pie.getCell(1).font = { size: 9, color: { argb: MUTED } };
+  const pasajerosDelDia = blocks.reduce(
+    (total, block) => total + block.passengers.reduce((suma, pasajero) => suma + pasajero.seats, 0),
+    0
+  );
+  sheet.mergeCells("F3:G3");
+  const resumen = sheet.getCell("F3");
+  resumen.value = `${blocks.length} ${blocks.length === 1 ? "vuelo" : "vuelos"} · ${pasajerosDelDia} pasajeros`;
+  resumen.font = { size: 8, color: { argb: "FF9BB8AF" } };
+  resumen.alignment = { horizontal: "right", vertical: "top" };
 
-  fila += 1;
+  sheet.getRow(4).height = 7;
 
-  const encabezado = sheet.getRow(fila++);
+  // --- Encabezado de la tabla ----------------------------------------------------------------
+  const encabezado = sheet.getRow(FILA_ENCABEZADO);
   SERVICE_ORDER_COLUMNS.forEach((columna, indice) => {
     const celda = encabezado.getCell(indice + 1);
     celda.value = columna;
-    celda.font = { bold: true, color: { argb: TEXT_COLOR } };
-    celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+    celda.font = { bold: true, size: 10, color: { argb: TINTA } };
     celda.alignment = { vertical: "middle", horizontal: indice === 1 ? "center" : "left" };
-    celda.border = BORDER;
+    celda.border = BORDE_FINO;
   });
-  encabezado.height = 20;
-  sheet.views = [{ state: "frozen", ySplit: fila - 1 }];
+  pintarFila(sheet, { fila: FILA_ENCABEZADO, desde: 1, hasta: 7 }, VERDE_SUAVE);
+  encabezado.height = 22;
+
+  let fila = FILA_ENCABEZADO + 1;
 
   if (blocks.length === 0) {
     const vacio = sheet.getRow(fila++);
     sheet.mergeCells(`A${fila - 1}:G${fila - 1}`);
     vacio.getCell(1).value = `Sin pasajeros cargados para ${fechaDeLaOrden(meta.date)}.`;
-    vacio.getCell(1).font = { italic: true, color: { argb: MUTED } };
+    vacio.getCell(1).font = { italic: true, size: 10, color: { argb: GRIS } };
+    vacio.height = 22;
   }
 
   for (const block of blocks) {
-    const banda = sheet.getRow(fila++);
-    sheet.mergeCells(`A${fila - 1}:G${fila - 1}`);
+    // Banda del vuelo: a la izquierda el rótulo de la operación, a la derecha cuántos van y cuánto.
+    const banda = sheet.getRow(fila);
+    sheet.mergeCells(`A${fila}:E${fila}`);
+    sheet.mergeCells(`F${fila}:G${fila}`);
     const celdaBanda = banda.getCell(1);
     celdaBanda.value = blockTimeLabel(block);
-    celdaBanda.font = { bold: true, size: 11, color: { argb: TEXT_COLOR } };
-    celdaBanda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BAND_FILL } };
+    celdaBanda.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
     celdaBanda.alignment = { vertical: "middle" };
-    celdaBanda.border = BORDER;
-    banda.height = 18;
+    const lugaresDelBloque = block.passengers.reduce((total, pasajero) => total + pasajero.seats, 0);
+    const celdaBandaMonto = banda.getCell(6);
+    celdaBandaMonto.value = `${lugaresDelBloque} ${lugaresDelBloque === 1 ? "pasajero" : "pasajeros"} · ${plata(
+      block.totalCents,
+      block.passengers[0]?.currency ?? "ARS"
+    )}`;
+    celdaBandaMonto.font = { bold: true, size: 10, color: { argb: "FFD5E1DC" } };
+    celdaBandaMonto.alignment = { vertical: "middle", horizontal: "right" };
+    pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE);
+    banda.height = 20;
+    fila += 1;
 
-    for (const pasajero of block.passengers) {
-      const renglon = sheet.getRow(fila++);
-      const valores: (string | number | null)[] = [
-        pasajero.name,
-        pasajero.seats,
-        pasajero.document,
-        pasajero.lodgingDetail ? `${pasajero.lodging}\n${pasajero.lodgingDetail}` : pasajero.lodging,
-        pasajero.referredBy,
-        pasajero.payment,
-        pasajero.contact
-      ];
+    block.passengers.forEach((pasajero, indice) => {
+      const renglon = sheet.getRow(fila);
+      const celdaPasajero = renglon.getCell(1);
+      celdaPasajero.value = pasajero.name;
+      celdaPasajero.font = { bold: true, size: 10, color: { argb: TINTA } };
 
-      valores.forEach((valor, indice) => {
-        const celda = renglon.getCell(indice + 1);
-        celda.value = valor;
-        celda.border = BORDER;
-        celda.alignment = {
-          vertical: "top",
-          horizontal: indice === 1 ? "center" : indice === 5 ? "right" : "left",
-          wrapText: indice === 3
-        };
-        if (indice === 1) celda.numFmt = "0";
-        if (indice === 2 || indice === 6) celda.numFmt = "@";
-      });
-    }
+      const celdaCant = renglon.getCell(2);
+      celdaCant.value = pasajero.seats;
+      celdaCant.numFmt = "0";
+      celdaCant.font = { bold: true, size: 10, color: { argb: TINTA } };
+      celdaCant.alignment = { horizontal: "center" };
 
-    const subtotal = sheet.getRow(fila++);
-    sheet.mergeCells(`A${fila - 1}:E${fila - 1}`);
+      const celdaDni = renglon.getCell(3);
+      celdaDni.value = pasajero.document;
+      celdaDni.numFmt = "@";
+      celdaDni.font = { size: 9.5, color: { argb: TINTA } };
+      celdaDni.alignment = { horizontal: "center" };
+
+      // Alojamiento en dos tonos: el lugar en negrita y la dirección abajo, más chica.
+      const celdaAlojamiento = renglon.getCell(4);
+      celdaAlojamiento.value = pasajero.lodgingDetail
+        ? {
+            richText: [
+              { font: { bold: true, size: 9.5, color: { argb: TINTA } }, text: pasajero.lodging },
+              { font: { size: 8.5, color: { argb: GRIS } }, text: `\n${pasajero.lodgingDetail}` }
+            ]
+          }
+        : { richText: [{ font: { bold: true, size: 9.5, color: { argb: TINTA } }, text: pasajero.lodging }] };
+
+      const celdaDerivado = renglon.getCell(5);
+      celdaDerivado.value = pasajero.referredBy;
+      celdaDerivado.font = { size: 9.5, color: { argb: GRIS } };
+
+      const celdaPago = renglon.getCell(6);
+      celdaPago.value = pasajero.payment;
+      celdaPago.font = {
+        bold: true,
+        size: 9.5,
+        color: { argb: pasajero.payment.startsWith("Pagado") ? PAGADO : COBRAR }
+      };
+      celdaPago.alignment = { horizontal: "right" };
+
+      const celdaContacto = renglon.getCell(7);
+      celdaContacto.value = pasajero.contact;
+      celdaContacto.numFmt = "@";
+      celdaContacto.font = { size: 9.5, color: { argb: TINTA } };
+
+      for (let columna = 1; columna <= 7; columna += 1) {
+        const celda = renglon.getCell(columna);
+        celda.border = BORDE_FINO;
+        celda.alignment = { ...celda.alignment, vertical: "middle", wrapText: columna === 4 };
+      }
+      if (indice % 2 === 1) pintarFila(sheet, { fila, desde: 1, hasta: 7 }, ZEBRA);
+      renglon.height = pasajero.lodgingDetail ? 26 : 18;
+      fila += 1;
+    });
+
+    const subtotal = sheet.getRow(fila);
+    sheet.mergeCells(`A${fila}:E${fila}`);
     const etiquetaSubtotal = subtotal.getCell(1);
-    const lugares = block.passengers.reduce((total, pasajero) => total + pasajero.seats, 0);
-    etiquetaSubtotal.value = `Total ${block.heading} ${block.flightNumber} · ${lugares} ${lugares === 1 ? "pasajero" : "pasajeros"}`;
-    etiquetaSubtotal.font = { bold: true };
-    etiquetaSubtotal.alignment = { horizontal: "right" };
-    etiquetaSubtotal.border = BORDER;
+    etiquetaSubtotal.value = `Total ${block.heading} ${block.flightNumber}`;
+    etiquetaSubtotal.font = { bold: true, size: 9.5, color: { argb: GRIS } };
+    etiquetaSubtotal.alignment = { horizontal: "right", vertical: "middle" };
     const montoSubtotal = subtotal.getCell(6);
     // Texto, no número: el importe se arma con el mismo formateador que la columna Pago, así se
     // lee igual en Excel, en Numbers y en la vista previa del sistema (cada uno formatea distinto
     // un número con moneda, y la hoja terminaba mezclando «$ 10.400» con «ARS 10,400»).
     montoSubtotal.value = plata(block.totalCents, block.passengers[0]?.currency ?? "ARS");
-    montoSubtotal.font = { bold: true };
-    montoSubtotal.alignment = { horizontal: "right" };
-    montoSubtotal.border = BORDER;
-    subtotal.getCell(7).border = BORDER;
+    montoSubtotal.font = { bold: true, size: 10, color: { argb: TINTA } };
+    montoSubtotal.alignment = { horizontal: "right", vertical: "middle" };
+    for (let columna = 1; columna <= 7; columna += 1) {
+      subtotal.getCell(columna).border = {
+        bottom: { style: "thin", color: { argb: BORDE } }
+      };
+    }
+    subtotal.height = 17;
 
-    fila += 1;
+    const separacion = sheet.getRow(fila + 1);
+    separacion.height = 7;
+    fila += 2;
   }
 
   if (blocks.length > 0) {
-    const total = sheet.getRow(fila++);
-    sheet.mergeCells(`A${fila - 1}:E${fila - 1}`);
+    const total = sheet.getRow(fila);
+    sheet.mergeCells(`A${fila}:E${fila}`);
     const etiquetaTotal = total.getCell(1);
     etiquetaTotal.value = "TOTAL DEL DÍA";
-    etiquetaTotal.font = { bold: true, size: 12 };
-    etiquetaTotal.alignment = { horizontal: "right" };
+    etiquetaTotal.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+    etiquetaTotal.alignment = { horizontal: "right", vertical: "middle" };
     const montoTotal = total.getCell(6);
     montoTotal.value = plata(
       blocks.reduce((suma, block) => suma + block.totalCents, 0),
       blocks[0].passengers[0]?.currency ?? "ARS"
     );
-    montoTotal.font = { bold: true, size: 12 };
-    montoTotal.alignment = { horizontal: "right" };
-    montoTotal.border = { top: { style: "double" }, bottom: { style: "double" } };
+    montoTotal.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+    montoTotal.alignment = { horizontal: "right", vertical: "middle" };
+    pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE_HONDO);
+    total.height = 24;
 
-    const nota = sheet.getRow(fila + 1);
+    const nota = sheet.getRow(fila + 2);
+    sheet.mergeCells(`A${fila + 2}:G${fila + 2}`);
     nota.getCell(1).value =
-      "«Derivado por» y el detalle del pago (voucher, quién cobra) se completan a mano: el sistema todavía no los registra.";
-    nota.getCell(1).font = { size: 9, italic: true, color: { argb: MUTED } };
-    sheet.mergeCells(`A${fila + 1}:G${fila + 1}`);
+      "Derivado por y el detalle del pago (voucher, quién cobra) se completan a mano: el sistema todavía no los registra. " +
+      "Cobrar / Pagado es el estado del pago de la reserva.";
+    nota.getCell(1).font = { size: 8, italic: true, color: { argb: GRIS } };
+    nota.getCell(1).alignment = { wrapText: true };
+    nota.height = 20;
   }
+
+  sheet.headerFooter = {
+    oddFooter: "&L&\"Calibri,Italic\"&8La Araucana Viajes S.R.L. · orden de servicio&R&8Página &P de &N"
+  };
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer as ArrayBuffer);

@@ -11,7 +11,8 @@ import type { ServiceOrderReservationInput } from "./service-order";
  * pago pendiente sí entran: el chofer cobra contra esa hoja.
  */
 export async function getAirportServiceOrderReservations(
-  date: string
+  date: string,
+  flightId?: string | null
 ): Promise<ServiceOrderReservationInput[]> {
   const { desde, hasta } = rangoDelDia(date);
 
@@ -19,7 +20,9 @@ export async function getAirportServiceOrderReservations(
     where: {
       bookingMode: "AIRPORT",
       status: { not: "CANCELLED" },
-      airportDetails: { is: { serviceDate: { gte: desde, lt: hasta } } }
+      airportDetails: {
+        is: { serviceDate: { gte: desde, lt: hasta }, ...(flightId ? { flightId } : {}) }
+      }
     },
     orderBy: [{ createdAt: "asc" }],
     include: {
