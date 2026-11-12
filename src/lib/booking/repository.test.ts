@@ -53,6 +53,7 @@ type PassengerRecord = CreateReservationInput["passenger"] & {
 type ReservationRecord = {
   id: string;
   code: string;
+  shortCode: string;
   scheduleId: string;
   passengerId: string;
   seatId: string;
@@ -267,6 +268,11 @@ class FakeBookingClient {
         throwUniqueConstraint(["code"]);
       }
 
+      if (this.reservations.some((reservation) => reservation.shortCode === data.shortCode)) {
+        this.activeTransactionAborted = true;
+        throwUniqueConstraint(["shortCode"]);
+      }
+
       if (
         this.reservations.some(
           (reservation) => reservation.scheduleId === data.scheduleId && reservation.seatNumber === data.seatNumber
@@ -393,6 +399,7 @@ class FakeBookingClient {
     const reservation = {
       id: `reservation-${this.reservations.length + 1}`,
       code: `ARC-2611-SEED-${this.reservations.length + 1}`,
+      shortCode: `SEED${String(this.reservations.length + 1).padStart(4, "0")}`,
       scheduleId: this.scheduleRecord.id,
       passengerId: passenger.id,
       seatId: "seat-04",
@@ -505,6 +512,33 @@ function createTestRepository(
 }
 
 describe("booking repository", () => {
+  it.each([
+    { creator: null, label: "Huésped" },
+    { creator: { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" } as const, label: "Ana · Administrador" },
+    { creator: { id: "user-1", name: null, email: "usuario@example.com", role: "USER" } as const, label: "usuario@example.com · Usuario" }
+  ])("muestra el creador sólo en las consultas del panel ($label)", async ({ creator, label }) => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = await repository.createWebReservation(input, { creator });
+
+    expect(client.reservations[0]).toMatchObject({
+      createdByUserId: creator?.id ?? null,
+      createdByRole: creator?.role ?? "GUEST"
+    });
+    expect(reservation).not.toHaveProperty("createdByName");
+    expect(await repository.getReservationByCode(reservation.code)).not.toHaveProperty("creatorLabel");
+    expect(await repository.getAdminReservationByCode(reservation.code)).toMatchObject({ creatorLabel: label });
+    expect((await repository.listAdminReservations()).items[0]).toMatchObject({ creatorLabel: label });
+  });
+
+  it("identifica las reservas anteriores como sin registro de autor", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const { code } = client.seedReservation();
+
+    expect(await repository.getAdminReservationByCode(code)).toMatchObject({ creatorLabel: "Sin registro" });
+  });
+
   it("rejects expired schedules and inactive routes before creating any passenger", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
@@ -514,6 +548,22 @@ describe("booking repository", () => {
     client.route.isActive = false;
     await expect(repository.createWebReservation(input)).rejects.toMatchObject({ code: "SCHEDULE_CLOSED" });
     expect(client.passengers).toHaveLength(0);
+  });
+
+  it("no deja reservar el aeropuerto por salida horaria (issue #79)", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    client.route.bookingMode = "AIRPORT";
+
+    // Aunque llegue un `scheduleId` armado a mano, la reserva no se crea y el pasajero tampoco.
+    await expect(repository.createWebReservation(input)).rejects.toMatchObject({
+      code: "AIRPORT_SCHEDULE_NOT_BOOKABLE"
+    });
+    await expect(
+      repository.createWebReservation(input, { fromAdmin: true, creator: { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" } })
+    ).rejects.toMatchObject({ code: "AIRPORT_SCHEDULE_NOT_BOOKABLE" });
+    expect(client.passengers).toHaveLength(0);
+    expect(client.reservations).toHaveLength(0);
   });
 
   it("retries serialization conflicts in a new serializable transaction", async () => {
@@ -747,6 +797,36 @@ describe("booking repository", () => {
       status: "PENDING_PAYMENT"
     });
     expect(client.transactionCallCount).toBe(2);
+  });
+
+  it("cada reserva nueva lleva un código corto propio, distinto del largo, y el panel lo expone", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+
+    const reserva = await repository.createWebReservation(input);
+    const guardada = client.reservations[0];
+
+    expect(guardada.code).toBe("ARC-2611-TEST");
+    expect(guardada.shortCode).toMatch(/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/);
+    expect(guardada.shortCode).not.toBe(guardada.code);
+    expect(reserva.shortCode).toBe(guardada.shortCode);
+
+    const pagina = await repository.listAdminReservations();
+    expect(pagina.items[0]).toMatchObject({ code: "ARC-2611-TEST", shortCode: guardada.shortCode });
+  });
+
+  it("retries reservation short code collisions with a fresh code instead of failing the booking", async () => {
+    const client = new FakeBookingClient();
+    const shortCodes = ["DUPEDUP2", "DUPEDUP2", "UNICO234"];
+    client.seedReservation({ code: "ARC-2611-OTRA", shortCode: "DUPEDUP2", seatId: "seat-05", seatNumber: "05" });
+    const repository = createBookingRepository(client as unknown as Parameters<typeof createBookingRepository>[0], {
+      createReservationCode: () => "ARC-2611-OK",
+      createReservationShortCode: () => shortCodes.shift() ?? "UNICO234"
+    });
+
+    await expect(repository.createWebReservation(input)).resolves.toMatchObject({ shortCode: "UNICO234" });
+    expect(client.transactionCallCount).toBe(3);
+    expect(client.reservations.map((reservation) => reservation.shortCode)).toEqual(["DUPEDUP2", "UNICO234"]);
   });
 
   it("retries reservation code collisions in separate transactions before creating payment details", async () => {
@@ -1047,12 +1127,13 @@ describe("booking repository", () => {
     expect(client.tickets).toHaveLength(1);
   });
 
-  it("rejects the disability exemption for group bookings and for airport schedules", async () => {
+  it("rejects the disability exemption for group bookings, and the airport is not bookable at all", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
     await expect(repository.createWebReservation({ ...input, passengerCount: 2, requestDisabilityFare: true })).rejects.toMatchObject({ code: "DISABILITY_FARE_NOT_AVAILABLE" });
     client.route.bookingMode = "AIRPORT";
-    await expect(repository.createWebReservation({ ...input, requestDisabilityFare: true })).rejects.toMatchObject({ code: "DISABILITY_FARE_NOT_AVAILABLE" });
+    // El aeropuerto ya no se reserva por salida horaria (issue #79): rebota antes de mirar la tarifa.
+    await expect(repository.createWebReservation({ ...input, requestDisabilityFare: true })).rejects.toMatchObject({ code: "AIRPORT_SCHEDULE_NOT_BOOKABLE" });
     expect(client.passengers).toHaveLength(0);
   });
 

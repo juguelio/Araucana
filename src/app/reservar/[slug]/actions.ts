@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getAppUserFromToken } from "@/lib/auth/service";
 import { BookingError, createWebReservation } from "@/lib/booking/repository";
 import { createReservationSchema, type CreateReservationInput } from "@/lib/booking/validation";
 
@@ -26,6 +27,7 @@ const bookingMessages: Record<string, string> = {
   DISABILITY_FARE_NOT_AVAILABLE: "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.",
   STOP_NOT_AVAILABLE: "La parada seleccionada ya no está disponible. Actualizá la página y volvé a elegir.",
   SCHEDULE_CLOSED: "La salida seleccionada ya no acepta reservas.",
+  AIRPORT_SCHEDULE_NOT_BOOKABLE: "El aeropuerto se reserva eligiendo el vuelo, no por horario.",
   CAPACITY_FULL: "No hay suficientes asientos disponibles para esa cantidad.",
   BOOKING_BUSY: "La salida está recibiendo otras reservas. Intentalo nuevamente.",
   CODE_COLLISION: "No pudimos generar el codigo de reserva. Intentalo nuevamente."
@@ -53,7 +55,8 @@ export async function createReservationAction(input: CreateReservationInput): Pr
   }
 
   try {
-    const reservation = await createWebReservation(parsed.data);
+    const creator = await getAppUserFromToken();
+    const reservation = await createWebReservation(parsed.data, { creator });
     revalidatePath(`/reservar/${reservation.route.slug}`);
 
     return {

@@ -9,9 +9,16 @@
 export type FlightStatus = "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "CANCELLED" | "DIVERTED" | "LANDED";
 export type FlightDirection = "ARRIVAL" | "DEPARTURE";
 
-/** Equivalencias confirmadas para los servicios de JetSMART en Chapelco. */
+/**
+ * JetSMART publica cada vuelo de Chapelco con dos códigos: JA (el del tablero del aeropuerto) y WJ
+ * (el de JetSMART Argentina, que es el que suele traer AirLabs). Es el mismo avión, así que se
+ * guarda siempre como JA.
+ *
+ * Antes la equivalencia estaba fijada a 3182 y 3183; cuando JetSMART sumó el 3181 y el 3184, cada
+ * uno entró dos veces (JA3184 del tablero y WJ3184 de la API, mismo horario: issue #76).
+ */
 export function jetSmartCanonicalNumber(number: string): string | null {
-  const match = /^(?:JA|WJ)\s*(318[23])$/i.exec(number.trim());
+  const match = /^(?:JA|WJ)\s*(\d{1,4})$/i.exec(number.trim());
   return match ? `JA${match[1]}` : null;
 }
 

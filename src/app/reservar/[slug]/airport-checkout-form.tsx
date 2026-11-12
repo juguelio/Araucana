@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { statusLabel } from "@/lib/airport/flights";
+import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
+import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
@@ -160,7 +162,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [approximateAddress, setApproximateAddress] = useState(false);
-  const [googleReference, setGoogleReference] = useState<AirportSelectedPlace | null>(null);
+  const [pickupPrecision, setPickupPrecision] = useState<PickupPrecision | null>(null);
+  const [googleReference, setGoogleReference] = useState<{ point: PickupPoint; approximate: boolean } | null>(null);
   const locationRequest = useRef(0);
   useEffect(() => () => {
     locationRequest.current++;
@@ -180,7 +183,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [privadoHora, setPrivadoHora] = useState("");
 
   // La lista se filtra por el sentido elegido en el paso 1; el vuelo elegido manda en la reserva.
-  const visibles = useMemo(() => flights.filter((f) => f.direction === sentido), [flights, sentido]);
+  // Los que ya no se pueden reservar van aparte (plegados, con su motivo) para no mezclarlos.
+  const { reservables, noReservables } = useMemo(
+    () => separarVuelosDelSelector(flights, sentido),
+    [flights, sentido]
+  );
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
@@ -202,6 +209,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
   function selectPickupPoint(point: PickupPoint | null) {
     setApproximateAddress(false);
+    setPickupPrecision(point ? "exact" : null);
     setPickupPoint(point);
     setOriginalPoint(point);
     setPickupConfirmed(false);
@@ -255,7 +263,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setPickupAddress(google ? "" : place.label.slice(0, 160));
     selectPickupPoint(google ? null : place.point);
     setApproximateAddress(place.approximate);
-    if (google) setGoogleReference(place);
+    setPickupPrecision(place.precision);
+    if (google && place.point) setGoogleReference({ point: place.point, approximate: place.approximate });
   }
 
   function adjustPickupPoint(point: PickupPoint) {
@@ -317,6 +326,47 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
       setSelectedId("");
       setError(`No encontramos el vuelo ${valor.toUpperCase()} para el ${date} en ese sentido.`);
     }
+  }
+
+  function listaDeVuelos(lista: FlightOption[]) {
+    return (
+      <div className="flight-options">
+        {lista.map((f) => {
+          const tramo = tramoDeVuelo({ direction: f.direction, origin: f.origin });
+          return (
+            <label
+              key={f.id}
+              className="flight-option"
+              data-selected={selectedId === f.id}
+              data-disabled={!f.bookable}
+            >
+              <input
+                type="radio"
+                name="flight"
+                value={f.id}
+                checked={selectedId === f.id}
+                disabled={!f.bookable}
+                onChange={() => { setSelectedId(f.id); setError(""); }}
+              />
+              <AirlineBadge code={f.airline} />
+              <span className="flight-when">
+                <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
+                <span className="muted">
+                  {f.number}
+                  {f.airline ? ` · ${airlineName(f.airline)}` : ""}
+                  {f.source === "PASAJERO" ? " · privado" : ""}
+                </span>
+                {tramo ? <span className="flight-route">{tramo}</span> : null}
+              </span>
+              <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
+                {estadoDe(f)}
+              </span>
+              <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
+            </label>
+          );
+        })}
+      </div>
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -473,49 +523,28 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
               {cargandoVuelos ? <p className="muted">Buscando vuelos…</p> : null}
 
-              {visibles.length === 0 && !cargandoVuelos ? (
+              {reservables.length === 0 && !cargandoVuelos ? (
                 <p className="muted">
-                  No hay vuelos {sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para ese día.
+                  {noReservables.length > 0
+                    ? `No quedan vuelos ${sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para reservar ese día.`
+                    : `No hay vuelos ${sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para ese día.`}{" "}
                   Probá otra fecha o cargá tu vuelo privado acá abajo.
                 </p>
-              ) : (
-                <div className="flight-options">
-                  {visibles.map((f) => {
-                    const tramo = tramoDeVuelo({ direction: f.direction, origin: f.origin });
-                    return (
-                      <label
-                        key={f.id}
-                        className="flight-option"
-                        data-selected={selectedId === f.id}
-                        data-disabled={!f.bookable}
-                      >
-                        <input
-                          type="radio"
-                          name="flight"
-                          value={f.id}
-                          checked={selectedId === f.id}
-                          disabled={!f.bookable}
-                          onChange={() => { setSelectedId(f.id); setError(""); }}
-                        />
-                        <AirlineBadge code={f.airline} />
-                        <span className="flight-when">
-                          <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
-                          <span className="muted">
-                            {f.number}
-                            {f.airline ? ` · ${airlineName(f.airline)}` : ""}
-                            {f.source === "PASAJERO" ? " · privado" : ""}
-                          </span>
-                          {tramo ? <span className="flight-route">{tramo}</span> : null}
-                        </span>
-                        <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
-                          {estadoDe(f)}
-                        </span>
-                        <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
+              ) : null}
+              {reservables.length > 0 ? listaDeVuelos(reservables) : null}
+              {noReservables.length > 0 ? (
+                // Plegados: siguen a mano (con su motivo) para quien busca un vuelo puntual, pero no
+                // se mezclan con los que se pueden reservar. Se abren solos si se eligió uno de estos
+                // escribiendo el número.
+                <details className="flight-unavailable" open={Boolean(selected && !selected.bookable)}>
+                  <summary>
+                    {noReservables.length === 1
+                      ? "1 vuelo de ese día ya no se puede reservar"
+                      : `${noReservables.length} vuelos de ese día ya no se pueden reservar`}
+                  </summary>
+                  {listaDeVuelos(noReservables)}
+                </details>
+              ) : null}
               {fieldErrors.flight ? <p className="field-error">{fieldErrors.flight}</p> : null}
 
               <div className="private-flight" data-open={esPrivado}>
@@ -673,6 +702,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                       selectPickupPoint(null);
                     }} />
                 ) : null}
+                {pickupMode === "address" && pickupAddress && !pickupPoint ? (
+                  <p className="muted" role="status" style={{ gridColumn: "1 / -1" }}>
+                    Dirección cargada: <strong>{pickupAddress}</strong>. Marcá en el mapa dónde está para fijar el punto.
+                  </p>
+                ) : null}
                 {fieldErrors.pickupAddress && !outsideCoverage ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
                 {useGooglePickup ? (
                   <AirportGooglePickup
@@ -685,7 +719,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     onUnavailable={() => setUseGooglePickup(false)}
                   />
                 ) : (
-                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
+                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
                 )}
                 {coverage.enabled && pickupPoint ? (
                   <p className={outsideCoverage ? "field-error" : "muted"} role="status" style={{ gridColumn: "1 / -1" }}>
@@ -705,7 +739,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     }} /> Confirmo que el mapa marca el lugar correcto
                   </label>
                 ) : null}
-                {pickupMode === "address" && pickupPoint ? (
+                {pickupMode === "address" && (pickupPoint || pickupAddress) ? (
                   <label>Dirección o referencia para el chofer (opcional)
                     <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
                       disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />

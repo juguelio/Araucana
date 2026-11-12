@@ -87,6 +87,13 @@ export default async function AirportPage({ searchParams }: PageProps) {
       action={
         <div className="form-actions">
           {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
+          <a
+            className="ghost-button"
+            href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}`}
+            title="Hoja para el chofer: un bloque por vuelo, con pasajeros, contacto y pago"
+          >
+            Orden de servicio (Excel)
+          </a>
           <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
           <form action={refreshFlightsAction}>
             <button className="ghost-button" type="submit">Actualizar ahora</button>
@@ -205,6 +212,15 @@ export default async function AirportPage({ searchParams }: PageProps) {
                               : "sin combi asignada"
                             : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
                         </span>
+                        {ocupados > 0 ? (
+                          <a
+                            className="ghost-button"
+                            href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
+                            title="Hoja de este vuelo para el chofer (Excel)"
+                          >
+                            Hoja del chofer
+                          </a>
+                        ) : null}
                         <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
                         <details className="flight-actions">
                           <summary>Gestionar vuelo</summary>

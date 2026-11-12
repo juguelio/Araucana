@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { normalizeShortCode } from "./codes";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disability-fare";
 
 /**
@@ -34,7 +35,15 @@ export const ADMIN_RESERVATIONS_PAGE_SIZE = 25;
 export function adminReservationWhere(input: AdminReservationFilters): Prisma.ReservationWhereInput {
   const filters = adminReservationFiltersSchema.parse(input);
   const AND: Prisma.ReservationWhereInput[] = [];
-  if (filters.code) AND.push({ code: { contains: filters.code, mode: "insensitive" } });
+  if (filters.code) {
+    // El mismo campo busca las dos formas del código: el largo del link privado y el corto que
+    // se dicta por teléfono (con o sin guiones: "abcd-2345" es "ABCD2345", y también se puede
+    // buscar por un pedazo del corto).
+    const shortCode = normalizeShortCode(filters.code);
+    const matches: Prisma.ReservationWhereInput[] = [{ code: { contains: filters.code, mode: "insensitive" } }];
+    if (shortCode) matches.push({ shortCode: { contains: shortCode, mode: "insensitive" } });
+    AND.push({ OR: matches });
+  }
   if (filters.scheduleId) AND.push({ scheduleId: filters.scheduleId });
   if (filters.route) {
     const route: Prisma.TravelRouteWhereInput = { OR: ["from", "to", "slug"].map((field) => ({
@@ -77,6 +86,24 @@ export function argentinaDateKey(now = new Date()): string {
   }).format(now);
 }
 
+// Chapelco guarda la fecha del servicio como día calendario a medianoche UTC; el resto son instantes.
+// Se normaliza a 'YYYY-MM-DD' antes de mostrarlo para no correrlo un día.
+export function travelDayKey(calendar: Date | null | undefined, instant: Date | null | undefined): string | null {
+  if (calendar) return calendar.toISOString().slice(0, 10);
+  return instant ? argentinaDateKey(instant) : null;
+}
+
+const travelMonthFormatter = new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", month: "short" });
+
+// Se arma a mano: según el ICU, `es-AR` con día/mes/año mete "de" entre las partes.
+export function formatTravelDay(day: string | null): string {
+  if (!day) return "-";
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "-";
+  const month = travelMonthFormatter.format(date).replace(".", "");
+  return `${String(date.getUTCDate()).padStart(2, "0")} ${month} ${date.getUTCFullYear()}`;
+}
+
 export function argentinaDayStart(date: string): Date {
   return new Date(`${date}T00:00:00-03:00`);
 }
@@ -90,7 +117,9 @@ export const adminScheduleFiltersSchema = z.object({
   from: z.string().trim().max(120).optional(),
   to: z.string().trim().max(120).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
-  bookableOnly: z.boolean().optional()
+  bookableOnly: z.boolean().optional(),
+  // El alta manual no ofrece el aeropuerto: ese servicio se reserva eligiendo el vuelo (issue #79).
+  excludeAirport: z.boolean().optional()
 });
 export type AdminScheduleFilters = z.infer<typeof adminScheduleFiltersSchema>;
 
@@ -104,6 +133,12 @@ export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new D
   if (filters.date) {
     const gte = argentinaDayStart(filters.date);
     AND.push({ departureAt: { gte, lt: new Date(gte.getTime() + 86400000) } });
+  }
+  if (filters.excludeAirport) {
+    // Sin esta exclusión el tramo San Martín ↔ Aeropuerto Chapelco se ofrecía con sus salidas
+    // horarias (09:00, 13:00, 17:00, 21:00) y la reserva quedaba sin número de vuelo: sin horario
+    // de vuelo no se puede calcular la recorrida ni saber qué combi lleva a cada pasajero.
+    AND.push({ route: { is: { bookingMode: { not: "AIRPORT" } } } });
   }
   if (filters.bookableOnly) {
     AND.push({ status: { in: [...BOOKABLE_SCHEDULE_STATUSES] } });

@@ -1,6 +1,7 @@
+import { omitReservationCreator, reservationCreatorData, type ReservationCreationContext } from "@/lib/booking/reservation-creator";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
-import { createReservationCode, createTicketCode } from "@/lib/booking/codes";
+import { createReservationCode, createReservationShortCode, createTicketCode } from "@/lib/booking/codes";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import {
@@ -176,7 +177,7 @@ export async function getChapelcoAvailability(routeId: string, serviceDate: stri
   };
 }
 
-export async function createChapelcoReservation(input: ChapelcoReservationInput) {
+export async function createChapelcoReservation(input: ChapelcoReservationInput, { creator }: ReservationCreationContext = {}) {
   const parsed = chapelcoReservationSchema.parse(input);
   const fares = fareCounts(parsed.passengerCount, parsed.halfFareCount, parsed.freeFareCount);
   const date = serviceDateFromKey(parsed.serviceDate);
@@ -238,6 +239,8 @@ export async function createChapelcoReservation(input: ChapelcoReservationInput)
     const reservation = await tx.reservation.create({
       data: {
         code,
+        shortCode: createReservationShortCode(),
+        ...reservationCreatorData(creator),
         routeId: route.id,
         passengerId: passenger.id,
         passengerCount: parsed.passengerCount,
@@ -247,7 +250,8 @@ export async function createChapelcoReservation(input: ChapelcoReservationInput)
         halfFareCount: fares.half,
         freeFareCount: fares.free,
         currency: route.currency
-      }
+      },
+      omit: omitReservationCreator
     });
 
     await tx.chapelcoReservationDetails.create({

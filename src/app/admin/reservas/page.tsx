@@ -3,7 +3,8 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
 import { listAdminReservations } from "@/lib/booking/repository";
-import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
+import { formatShortCode } from "@/lib/booking/codes";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import "./pagination.css";
@@ -86,7 +87,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
       </div>
       <section className="reservas-filters">
         <form action="/admin/reservas" method="get" className="reservas-filter-grid">
-          <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} /></label>
+          <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} placeholder="Largo del link o corto" /></label>
           <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
           <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
           <label>ID de salida<input name="scheduleId" defaultValue={params?.scheduleId} maxLength={100} /></label>
@@ -113,8 +114,10 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             <tr>
               <th>Código</th>
               <th>Pasajero</th>
+              <th>Creada por</th>
               <th>WhatsApp</th>
               <th>Ruta</th>
+              <th>Fecha del viaje</th>
               <th>Asiento</th>
               <th>Estado</th>
               <th>Pago</th>
@@ -132,12 +135,16 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
 
               return (
                 <tr key={reservation.code}>
-                  <td className="reservas-code">{reservation.code}</td>
+                  <td className="reservas-code">
+                    <span className="reservas-short-code">{formatShortCode(reservation.shortCode)}</span>
+                    <span className="reservas-long-code">{reservation.code}</span>
+                  </td>
                   <td>
                     <Link className="table-link" href={detailPath}>
                       {reservation.passenger}
                     </Link>
                   </td>
+                  <td>{reservation.creatorLabel}</td>
                   <td>
                     {whatsappUrl ? (
                       <a
@@ -158,6 +165,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     {reservation.route}
                     {reservation.flightNumber ? <div className="muted">Vuelo {reservation.flightNumber}</div> : null}
                   </td>
+                  <td className="reservas-date">{formatTravelDay(reservation.travelDay)}</td>
                   <td>
                     {reservation.bookingMode === "CHAPELCO"
                       ? `${reservation.passengerCount} personas${reservation.chapelcoAscentSlot ? ` · ${reservation.chapelcoAscentSlot}` : ""}`

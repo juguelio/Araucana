@@ -2,13 +2,15 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { Map as LeafletMap, Marker } from "leaflet";
+import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import "leaflet/dist/leaflet.css";
 import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import styles from "./airport-address-map.module.css";
 
-export function AirportDraggableMap({ point, approximate, disabled, onMove, onSelect }: {
+export function AirportDraggableMap({ point, approximate, precision, disabled, onMove, onSelect }: {
   point: PickupPoint | null;
   approximate: boolean;
+  precision?: PickupPrecision | null;
   disabled: boolean;
   onMove: (point: PickupPoint) => boolean;
   onSelect: (point: PickupPoint) => void;
@@ -75,7 +77,13 @@ export function AirportDraggableMap({ point, approximate, disabled, onMove, onSe
       <div className={styles.zoneMap}>
         <div ref={container} className={styles.zoneCanvas} role="region" aria-label="Mapa del punto del traslado" />
       </div>
-      {ready && point ? <p className="muted">{approximate ? "Este lugar es una referencia. Arrastrá el marcador hasta el punto exacto y confirmalo." : "Arrastrá el marcador hasta el punto correcto y confirmalo."}</p> : null}
+      {ready && point ? (
+        <p className="muted">{precision === "street"
+          ? "Encontramos la calle, pero no la altura exacta. Arrastrá el marcador hasta la entrada y confirmalo."
+          : approximate
+            ? "Este lugar es una referencia. Arrastrá el marcador hasta el punto exacto y confirmalo."
+            : "Arrastrá el marcador hasta el punto correcto y confirmalo."}</p>
+      ) : null}
       {ready && !point ? <p className="muted">Tocá el mapa para marcar el punto exacto.</p> : null}
       {failed ? <p className="field-error" role="alert">No pudimos cargar el mapa.</p> : null}
     </div>

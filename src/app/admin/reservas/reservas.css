@@ -87,11 +87,34 @@
 .reservas-table-scroll .data-table td { padding: 11px 12px; }
 .reservas-table-scroll .data-table th { white-space: nowrap; }
 
+.reservas-date {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .reservas-code {
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* El código corto (#75) es el que se dicta y se busca: va arriba y legible; el largo del link
+   privado queda debajo, en gris, porque sirve para copiar el link, no para leerlo. */
+.reservas-code .reservas-short-code {
+  display: block;
+  font-size: 13px;
+  letter-spacing: .04em;
+}
+
+.reservas-code .reservas-long-code {
+  display: block;
+  max-width: 22ch;
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
 }
 
 /* La última columna queda pegada al borde derecho: con la tabla más ancha que la pantalla, los

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { cuposDeReserva, limitarPedido } from "@/lib/api/rate-limit";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { BookingError, createWebReservation } from "@/lib/booking/repository";
+import { getAppUserFromToken, getTokenFromRequest } from "@/lib/auth/service";
 import { createReservationSchema } from "@/lib/booking/validation";
 
 const bookingErrorResponses: Record<string, { message: string; status: number }> = {
@@ -37,7 +38,8 @@ export async function POST(request: Request) {
       return jsonError("VALIDATION_ERROR", motivo, 400);
     }
 
-    const reservation = await createWebReservation(body.data);
+    const creator = await getAppUserFromToken(getTokenFromRequest(request));
+    const reservation = await createWebReservation(body.data, { creator });
     revalidatePath(`/reservar/${reservation.route.slug}`);
 
     return NextResponse.json({ reservation }, { status: 201, headers: { "Cache-Control": "private, no-store" } });

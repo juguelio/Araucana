@@ -1,6 +1,6 @@
-import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
-import { createReservationCode as defaultCreateReservationCode, createTicketCode } from "./codes";
+import { createReservationCode as defaultCreateReservationCode, createReservationShortCode as defaultCreateReservationShortCode, createTicketCode } from "./codes";
 import {
   AdminRouteRowDto,
   AdminReservationsPageDto,
@@ -14,6 +14,7 @@ import { fareCounts, reservationTotalCents, seatsFromFares } from "./passenger-f
 import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type AdminReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
+import { reservationCreatorData, reservationCreatorLabel, type ReservationCreationContext } from "./reservation-creator";
 import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
 
@@ -104,6 +105,7 @@ type TicketRecord = {
 type ReservationRecord = {
   id: string;
   code: string;
+  shortCode: string;
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
@@ -118,6 +120,8 @@ type ReservationRecord = {
   totalCents: number;
   currency: string;
   createdAt: Date;
+  createdByName?: string | null;
+  createdByRole?: string | null;
   schedule?: ScheduleRecord | null;
   route?: RouteRecord | null;
   passenger: PassengerRecord;
@@ -186,6 +190,7 @@ export type BookingClient = BookingTransactionClient & {
 
 type BookingRepositoryDeps = {
   createReservationCode?: () => string;
+  createReservationShortCode?: () => string;
   paymentProvider?: PaymentProvider;
 };
 
@@ -248,12 +253,17 @@ function isSeatUniqueConstraintError(error: unknown) {
   );
 }
 
+/**
+ * `code` es la capability del link privado y `shortCode` el lookup del panel: los dos se
+ * regeneran en el intento siguiente, así que un choque de cualquiera es reintentable.
+ */
 function isReservationCodeUniqueConstraintError(error: unknown) {
   if (!isUniqueConstraintError(error)) {
     return false;
   }
 
-  return uniqueConstraintHasFields(uniqueConstraintTargets(error), ["code"]);
+  const targets = uniqueConstraintTargets(error);
+  return uniqueConstraintHasFields(targets, ["code"]) || uniqueConstraintHasFields(targets, ["shortCode"]);
 }
 
 function mapRoute(route: RouteRecord): PublicRouteDto {
@@ -323,6 +333,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
   return {
     id: reservation.id,
     code: reservation.code,
+    shortCode: reservation.shortCode,
     bookingMode: reservation.bookingMode,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
@@ -512,17 +523,21 @@ function firstAvailableSeat(
   );
 }
 
-async function getReservationByCodeWithClient(client: BookingTransactionClient, code: string) {
-  const reservation = await client.reservation.findUnique({
+function findReservationByCode(client: BookingTransactionClient, code: string) {
+  return client.reservation.findUnique({
     where: { code },
     include: reservationInclude()
   });
+}
 
+async function getReservationByCodeWithClient(client: BookingTransactionClient, code: string) {
+  const reservation = await findReservationByCode(client, code);
   return reservation ? mapReservation(reservation) : null;
 }
 
 export function createBookingRepository(client: BookingClient, deps: BookingRepositoryDeps = {}) {
   const createCode = deps.createReservationCode ?? (() => defaultCreateReservationCode());
+  const createShortCode = deps.createReservationShortCode ?? (() => defaultCreateReservationShortCode());
   const paymentProvider = deps.paymentProvider ?? manualPaymentProvider;
 
   async function issueScheduleTicket(tx: BookingTransactionClient, reservationId: string, scheduleId: string, passengerCount: number) {
@@ -647,7 +662,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       };
     },
 
-    async createWebReservation(input: AdminReservationInput, fromAdmin = false) {
+    async createWebReservation(input: AdminReservationInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
       const parsed: AdminReservationInput = (fromAdmin ? adminReservationSchema : createReservationSchema).parse(input);
 
       for (let attempt = 1; attempt <= MAX_RESERVATION_CODE_ATTEMPTS; attempt += 1) {
@@ -664,6 +679,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
             if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || schedule.vehicle.isActive === false) {
               throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
+            }
+
+            // El aeropuerto no se reserva por salida horaria (issue #79): sin número de vuelo la
+            // reserva no tiene recorrida (2 h 30 antes del despegue) ni combi. Va acá y no sólo en
+            // el formulario porque un `scheduleId` armado a mano tiene que rebotar igual.
+            if (schedule.route.bookingMode === "AIRPORT") {
+              throw new BookingError(
+                "AIRPORT_SCHEDULE_NOT_BOOKABLE",
+                "Las reservas de aeropuerto se cargan desde «Crear reserva de aeropuerto», eligiendo el vuelo."
+              );
             }
 
             const occupiedSeats = (schedule.reservations ?? [])
@@ -737,6 +762,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             const reservation = await tx.reservation.create({
               data: {
                 code,
+                shortCode: createShortCode(),
+                ...reservationCreatorData(creator),
                 scheduleId: schedule.id,
                 routeId: schedule.routeId,
                 passengerId: passenger.id,
@@ -821,6 +848,11 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
     async getReservationByCode(code: string) {
       return getReservationByCodeWithClient(client, code);
+    },
+
+    async getAdminReservationByCode(code: string) {
+      const reservation = await findReservationByCode(client, code);
+      return reservation ? { ...mapReservation(reservation), creatorLabel: reservationCreatorLabel(reservation) } : null;
     },
 
     async updatePassengerForReservation(code: string, input: PassengerInput) {
@@ -1002,14 +1034,20 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
         items: reservations.map((reservation) => ({
           id: reservation.id,
           code: reservation.code,
+          shortCode: reservation.shortCode,
           passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
           passengerPhone: reservation.passenger.phone,
+          creatorLabel: reservationCreatorLabel(reservation),
           route: reservation.schedule
             ? `${reservation.schedule.route.from} -> ${reservation.dropoffStop ?? reservation.schedule.route.to}`
             : reservation.route
               ? `${reservation.route.from} -> ${reservation.route.to}`
               : "Ruta sin datos",
           departureAt: reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt,
+          travelDay: travelDayKey(
+            reservation.chapelcoDetails?.serviceDate,
+            reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate
+          ),
           seatNumber: reservation.seatNumber,
           bookingMode: reservation.bookingMode,
           passengerCount: reservation.passengerCount,
@@ -1046,6 +1084,7 @@ export const getPublicRouteBySlug = defaultRepository.getPublicRouteBySlug;
 export const listSchedulesForRoute = defaultRepository.listSchedulesForRoute;
 export const getSeatMap = defaultRepository.getSeatMap;
 export const createWebReservation = defaultRepository.createWebReservation;
+export const getAdminReservationByCode = defaultRepository.getAdminReservationByCode;
 export const getReservationByCode = defaultRepository.getReservationByCode;
 export const updatePassengerForReservation = defaultRepository.updatePassengerForReservation;
 export const attachManualPaymentReceipt = defaultRepository.attachManualPaymentReceipt;

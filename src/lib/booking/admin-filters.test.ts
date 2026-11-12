@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminScheduleFiltersSchema, adminScheduleWhere } from "./admin-filters";
+import { adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminScheduleFiltersSchema, adminScheduleWhere, formatTravelDay, travelDayKey } from "./admin-filters";
+
+describe("fecha del viaje", () => {
+  it("usa el día calendario de Chapelco sin correrlo de día", () => {
+    // Chapelco guarda 2026-11-13 como medianoche UTC.
+    expect(travelDayKey(new Date("2026-11-13T00:00:00Z"), null)).toBe("2026-11-13");
+  });
+
+  it("pasa un instante real al día argentino", () => {
+    // 03:00 UTC del 13 es 00:00 en Salta; 02:30 UTC del 13 sigue siendo el 12.
+    expect(travelDayKey(null, new Date("2026-11-13T03:00:00Z"))).toBe("2026-11-13");
+    expect(travelDayKey(null, new Date("2026-11-13T02:30:00Z"))).toBe("2026-11-12");
+  });
+
+  it("no inventa fecha cuando la reserva no tiene salida", () => {
+    expect(travelDayKey(null, null)).toBeNull();
+    expect(formatTravelDay(null)).toBe("-");
+  });
+
+  it("formatea el día para la tabla", () => {
+    expect(formatTravelDay("2026-11-13")).toBe("13 nov 2026");
+  });
+});
 
 describe("reservation search", () => {
   it("rejects invalid calendar days instead of silently searching all reservations", () => {
@@ -9,7 +31,10 @@ describe("reservation search", () => {
   it("combines filters and uses the travel day for all three booking modes", () => {
     const where = adminReservationWhere({ code: " arc-123 ", route: " SMA ", scheduleId: "departure", date: "2026-11-03" });
     expect(where.AND).toEqual([
-      { code: { contains: "arc-123", mode: "insensitive" } },
+      { OR: [
+        { code: { contains: "arc-123", mode: "insensitive" } },
+        { shortCode: { contains: "ARC123", mode: "insensitive" } }
+      ] },
       { scheduleId: "departure" },
       expect.objectContaining({ OR: expect.any(Array) }),
       { OR: [
@@ -45,6 +70,23 @@ describe("busqueda de salidas (alta manual)", () => {
     });
   });
 
+  it("el alta manual no ofrece el aeropuerto por salida horaria", () => {
+    // Issue #79: el tramo San Martín ↔ Aeropuerto Chapelco se ofrecía con salidas 09:00/13:00/17:00
+    // y la reserva quedaba sin número de vuelo. Se excluye por `bookingMode` de la ruta.
+    expect(adminScheduleWhere({ excludeAirport: true })).toEqual({
+      AND: [{ route: { is: { bookingMode: { not: "AIRPORT" } } } }]
+    });
+    expect(adminScheduleWhere({ bookableOnly: true, excludeAirport: true }, new Date("2026-11-05T15:00:00Z"))).toEqual({
+      AND: [
+        { route: { is: { bookingMode: { not: "AIRPORT" } } } },
+        { status: { in: ["OPEN", "DOCUMENTATION"] } },
+        { departureAt: { gte: new Date("2026-11-05T15:00:00Z") } },
+        { route: { is: { isActive: true } } },
+        { vehicle: { is: { isActive: true } } }
+      ]
+    });
+  });
+
   it("sin filtros no filtra nada", () => {
     expect(adminScheduleWhere({})).toEqual({});
   });
@@ -65,7 +107,49 @@ describe("paginacion del listado de reservas", () => {
 
   it("el parametro de pagina no ensucia el where de la busqueda", () => {
     expect(adminReservationWhere({ page: 4, code: "ARC" })).toEqual({
-      AND: [{ code: { contains: "ARC", mode: "insensitive" } }]
+      AND: [
+        {
+          OR: [
+            { code: { contains: "ARC", mode: "insensitive" } },
+            { shortCode: { contains: "ARC", mode: "insensitive" } }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("el buscador encuentra la reserva por el código corto, tipeado con o sin guiones", () => {
+    for (const tipeado of ["ABCD-2345", "abcd 2345", "ABCD2345"]) {
+      expect(adminReservationWhere({ code: tipeado })).toEqual({
+        AND: [
+          {
+            OR: [
+              { code: { contains: tipeado, mode: "insensitive" } },
+              { shortCode: { contains: "ABCD2345", mode: "insensitive" } }
+            ]
+          }
+        ]
+      });
+    }
+  });
+
+  it("sigue buscando por el código largo del link privado", () => {
+    const largo = `ARC-2611-${"A".repeat(32)}`;
+    expect(adminReservationWhere({ code: largo })).toEqual({
+      AND: [
+        {
+          OR: [
+            { code: { contains: largo, mode: "insensitive" } },
+            { shortCode: { contains: largo.replace(/-/g, ""), mode: "insensitive" } }
+          ]
+        }
+      ]
+    });
+  });
+
+  it("un texto que no deja nada al normalizar no ensancha la búsqueda", () => {
+    expect(adminReservationWhere({ code: "----" })).toEqual({
+      AND: [{ OR: [{ code: { contains: "----", mode: "insensitive" } }] }]
     });
   });
 });

@@ -45,7 +45,10 @@ const reserva = (extra: Record<string, unknown> = {}, fromAdmin = false) =>
     passengerCount: 2,
     passenger: pasajero,
     ...extra
-  } as Parameters<typeof createAirportReservation>[0], fromAdmin);
+  } as Parameters<typeof createAirportReservation>[0], fromAdmin ? {
+    fromAdmin: true,
+    creator: { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" }
+  } : {});
 
 beforeEach(() => {
   vi.clearAllMocks();

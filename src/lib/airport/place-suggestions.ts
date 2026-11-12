@@ -8,9 +8,22 @@ import {
 import type { PickupPoint } from "./pickup-zone";
 import { lookupStreetAddresses } from "./street-address-lookup";
 
+/**
+ * Cuánto se sabe del punto. `approximate` solo no distingue "la fuente ubicó la
+ * altura de forma gruesa" de "sólo conocemos la calle", y el operador necesita
+ * saber qué está confirmando.
+ */
+export type PickupPrecision = "exact" | "interpolated" | "street" | "none";
+
 export type AirportPlaceSuggestion = {
   label: string;
-  point: PickupPoint;
+  precision: PickupPrecision;
+  /**
+   * `null` cuando el nomenclador municipal confirma el domicilio pero ningún
+   * geocoder tiene sus coordenadas: el domicilio se puede cargar igual y el
+   * punto lo marca el operador en el mapa. Nunca se inventan coordenadas.
+   */
+  point: PickupPoint | null;
   source: "georef" | "locationiq" | "photon";
   approximate: boolean;
 };
@@ -37,6 +50,21 @@ const locationIqResponse = z.array(z.object({
   type: z.string().optional(),
   class: z.string().optional()
 }));
+
+const nominatimStreetResponse = z.array(z.object({
+  lat: z.coerce.number().pipe(latitude),
+  lon: z.coerce.number().pipe(longitude)
+}));
+
+/** Punto del eje de la calle cuando ninguna fuente tiene la altura exacta. */
+const streetPointCache = new Map<string, { point: PickupPoint | null; at: number; ttl: number }>();
+const streetPointHitTtl = 6 * 60 * 60 * 1000;
+const streetPointMissTtl = 30 * 60 * 1000;
+
+/** Sólo para tests: el cache vive mientras viva el proceso. */
+export function resetStreetPointCache() {
+  streetPointCache.clear();
+}
 
 const { south, west, north, east } = airportSearchBounds;
 const viewbox = [west, south, east, north].join(",");
@@ -76,10 +104,13 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
     const payload = await response.json();
 
     if (locationIqUrl) {
-      return locationIqResponse.parse(payload).map((place) => ({
-        label: place.display_name, point: [place.lat, place.lon], source: "locationiq",
-        approximate: areaTypes.has(place.type ?? "") || ["place", "boundary", "highway"].includes(place.class ?? "")
-      }));
+      return locationIqResponse.parse(payload).map((place) => {
+        const coarse = areaTypes.has(place.type ?? "") || ["place", "boundary", "highway"].includes(place.class ?? "");
+        return {
+          label: place.display_name, point: [place.lat, place.lon] as PickupPoint, source: "locationiq" as const,
+          approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const
+        };
+      });
     }
 
     return photonResponse.parse(payload).features.flatMap(({ properties, geometry }) => {
@@ -89,11 +120,72 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
       const label = [...new Set([primary, address, district, city].filter(Boolean))].join(", ");
       if (!label) return [];
       const [lon, lat] = geometry.coordinates;
-      return [{ label, point: [lat, lon], source: "photon", approximate: areaTypes.has(type ?? "") }];
+      const coarse = areaTypes.has(type ?? "");
+      return [{ label, point: [lat, lon] as PickupPoint, source: "photon" as const, approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const }];
     });
   } catch {
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar lugares. Podés marcar el punto en el mapa.", 503);
   }
+}
+
+/** "Avenida X" y "Av X" son la misma calle; "San Martín" y "Av San Martín" no. */
+const streetAbbreviations: Record<string, string> = { avenida: "av", pasaje: "pje", boulevard: "blvd" };
+
+function streetKey(value: string) {
+  return normalizePlaceText(value)
+    .split(" ")
+    .map((word) => streetAbbreviations[word] ?? word)
+    .join(" ");
+}
+
+async function nominatimStreetPoint(street: string, requestSignal: AbortSignal): Promise<{ point: PickupPoint | null; answered: boolean }> {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.search = new URLSearchParams({
+    q: `${street}, ${airportSearchLocality}`,
+    format: "jsonv2",
+    limit: "1",
+    countrycodes: "ar"
+  }).toString();
+  const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(4000)]);
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal,
+    headers: {
+      "User-Agent": "AraucanaViajes/1.0 (contacto@araucana.com.ar)",
+      "Accept-Language": "es"
+    }
+  });
+  if (!response.ok) return { point: null, answered: false };
+  const [place] = nominatimStreetResponse.parse(await response.json());
+  return { point: place ? [place.lat, place.lon] : null, answered: true };
+}
+
+/**
+ * Busca dónde cae la calle para anclar el pin cuando nadie tiene esa altura.
+ * Primero el geocoder comercial de la app y, si no la conoce o está limitado,
+ * OpenStreetMap. Se cachea para no repetir la consulta por cada búsqueda.
+ */
+async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Promise<PickupPoint | null> {
+  const key = streetKey(street);
+  const cached = streetPointCache.get(key);
+  if (cached && Date.now() - cached.at < cached.ttl) return cached.point;
+
+  const named = await lookupNamedPlaces(street, requestSignal).catch(() => []);
+  const match = named.find((candidate) => candidate.point
+    && streetKey(candidate.label.split(",")[0]) === key);
+  let point = match?.point ?? null;
+  let answered = Boolean(match);
+  if (!point) {
+    const nominatim = await nominatimStreetPoint(street, requestSignal)
+      .catch(() => ({ point: null, answered: false }));
+    point = nominatim.point;
+    answered ||= nominatim.answered;
+  }
+  // Un timeout o un 429 no se cachea: el próximo intento puede resolverlo.
+  if (!requestSignal.aborted && (point || answered)) {
+    streetPointCache.set(key, { point, at: Date.now(), ttl: point ? streetPointHitTtl : streetPointMissTtl });
+  }
+  return point;
 }
 
 function matchesStreetNumber(label: string, street: string, number: string) {
@@ -121,7 +213,7 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     const label = `${officialStreet} ${address.number}, ${city}`;
     const { lat, lon } = match.ubicacion;
     if (lat !== null && lon !== null) {
-      suggestions.push({ label, point: [lat, lon], source: "georef", approximate: true });
+      suggestions.push({ label, point: [lat, lon], source: "georef", approximate: true, precision: "interpolated" });
       continue;
     }
 
@@ -134,7 +226,20 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     }
     const reference = candidates.find((candidate) => candidate.approximate
       && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
-    if (reference) suggestions.push({ ...reference, label, approximate: true });
+    if (reference) {
+      suggestions.push({ ...reference, label, approximate: true });
+      continue;
+    }
+    // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
+    // se ancla el pin sobre el eje para que el operador lo arrastre hasta la altura.
+    const streetPoint = await lookupStreetPoint(officialStreet, signal);
+    if (streetPoint) {
+      suggestions.push({ label, point: streetPoint, source: "georef", approximate: true, precision: "street" });
+      continue;
+    }
+    // Tampoco la calle: GeoRef tiene el domicilio y ningún geocoder la conoce.
+    // Se ofrece igual; el punto se marca en el mapa.
+    suggestions.push({ label, point: null, source: "georef", approximate: true, precision: "none" });
   }
   if (!suggestions.length && !Array.isArray(named)) throw named;
   return suggestions;
@@ -144,7 +249,7 @@ export async function suggestAirportPlaces(query: string, signal: AbortSignal): 
   if (isIntersectionQuery(query)) {
     const corners = await lookupAirportIntersection(query, signal).catch(() => []);
     if (corners.length > 0) {
-      return corners.map((corner) => ({ ...corner, source: "georef", approximate: false }));
+      return corners.map((corner) => ({ ...corner, source: "georef" as const, approximate: false, precision: "exact" as const }));
     }
   }
 
@@ -155,6 +260,8 @@ export async function suggestAirportPlaces(query: string, signal: AbortSignal): 
   const matches = address
     ? await suggestStreetAddress(name, context, address, signal)
     : await lookupNamedPlaces(search, signal);
-  const unique = [...new Map(matches.map((match) => [`${match.label}:${match.point.join(",")}`, match])).values()];
+  const unique = [...new Map(matches.map((match) => [
+    `${match.label}:${match.point ? match.point.join(",") : "sin-punto"}`, match
+  ])).values()];
   return context ? unique : prioritizeLocalPlaces(unique, (place) => place.label);
 }

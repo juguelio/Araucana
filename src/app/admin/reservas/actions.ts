@@ -20,7 +20,7 @@ function value(formData: FormData, key: string) {
 }
 
 export async function createAdminReservationAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const creator = await getCurrentReservationsUserOrRedirect();
 
   const customPrice = value(formData, "customPrice");
   const overrideTotalCents = customPrice ? parseReservationPrice(customPrice) : undefined;
@@ -48,9 +48,11 @@ export async function createAdminReservationAction(formData: FormData) {
 
   let reservation: Awaited<ReturnType<typeof createWebReservation>>;
   try {
-    reservation = await createWebReservation(parsed.data, true);
+    reservation = await createWebReservation(parsed.data, { fromAdmin: true, creator });
   } catch (error) {
-    const message = error instanceof BookingError && error.code === "CAPACITY_FULL"
+    const message = error instanceof BookingError && error.code === "AIRPORT_SCHEDULE_NOT_BOOKABLE"
+      ? error.message
+      : error instanceof BookingError && error.code === "CAPACITY_FULL"
       ? "No hay suficientes asientos disponibles para esa salida."
       : error instanceof BookingError && error.code === "BOOKING_BUSY"
         ? "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente."
