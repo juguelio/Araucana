@@ -170,7 +170,12 @@ const es = {
       lluvia: "Lluvia",
       nieve: "Nieve",
       tormenta: "Tormenta"
-    }
+    },
+    forecastLabel: "Pronóstico de los próximos 7 días",
+    forecastTitle: "Próximos 7 días en San Martín de los Andes",
+    forecastToday: "Hoy",
+    forecastMax: "máx",
+    forecastMin: "mín"
   },
   lang: {
     label: "Idioma",
@@ -346,7 +351,12 @@ const en: Dictionary = {
       lluvia: "Rain",
       nieve: "Snow",
       tormenta: "Storm"
-    }
+    },
+    forecastLabel: "7-day forecast",
+    forecastTitle: "Next 7 days in San Martín de los Andes",
+    forecastToday: "Today",
+    forecastMax: "high",
+    forecastMin: "low"
   },
   lang: {
     label: "Language",
@@ -520,7 +530,12 @@ const pt: Dictionary = {
       lluvia: "Chuva",
       nieve: "Neve",
       tormenta: "Tempestade"
-    }
+    },
+    forecastLabel: "Previsão dos próximos 7 dias",
+    forecastTitle: "Próximos 7 dias em San Martín de los Andes",
+    forecastToday: "Hoje",
+    forecastMax: "máx",
+    forecastMin: "mín"
   },
   lang: {
     label: "Idioma",
