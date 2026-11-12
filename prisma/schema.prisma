@@ -356,6 +356,10 @@ model Reservation {
   chapelcoDetails ChapelcoReservationDetails?
   airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
+  // Identidad al momento del alta, conservada aunque cambie o se elimine la cuenta.
+  createdByUserId String?
+  createdByName   String?
+  createdByRole   String?
   createdAt     DateTime  @default(now())
   updatedAt   DateTime   @updatedAt
 

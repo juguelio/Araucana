@@ -158,6 +158,7 @@ export type AdminReservationRowDto = {
   code: string;
   passenger: string;
   passengerPhone: string;
+  creatorLabel: string;
   route: string;
   departureAt: Date;
   seatNumber: string | null;
