@@ -43,6 +43,20 @@ const locationIqResponse = z.array(z.object({
   class: z.string().optional()
 }));
 
+const nominatimStreetResponse = z.array(z.object({
+  lat: z.coerce.number().pipe(latitude),
+  lon: z.coerce.number().pipe(longitude)
+}));
+
+/** Punto del eje de la calle cuando ninguna fuente tiene la altura exacta. */
+const streetPointCache = new Map<string, { point: PickupPoint | null; at: number }>();
+const streetPointTtl = 6 * 60 * 60 * 1000;
+
+/** Sólo para tests: el cache vive mientras viva el proceso. */
+export function resetStreetPointCache() {
+  streetPointCache.clear();
+}
+
 const { south, west, north, east } = airportSearchBounds;
 const viewbox = [west, south, east, north].join(",");
 const areaTypes = new Set(["city", "locality", "district", "suburb", "neighbourhood", "quarter", "village", "street", "road"]);
@@ -111,6 +125,47 @@ function streetKey(value: string) {
     .join(" ");
 }
 
+async function nominatimStreetPoint(street: string, requestSignal: AbortSignal): Promise<PickupPoint | null> {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.search = new URLSearchParams({
+    q: `${street}, ${airportSearchLocality}`,
+    format: "jsonv2",
+    limit: "1",
+    countrycodes: "ar"
+  }).toString();
+  const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(4000)]);
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal,
+    headers: {
+      "User-Agent": "AraucanaViajes/1.0 (contacto@araucana.com.ar)",
+      "Accept-Language": "es"
+    }
+  });
+  if (!response.ok) return null;
+  const [place] = nominatimStreetResponse.parse(await response.json());
+  return place ? [place.lat, place.lon] : null;
+}
+
+/**
+ * Busca dónde cae la calle para anclar el pin cuando nadie tiene esa altura.
+ * Primero el geocoder comercial de la app y, si no la conoce o está limitado,
+ * OpenStreetMap. Se cachea para no repetir la consulta por cada búsqueda.
+ */
+async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Promise<PickupPoint | null> {
+  const key = streetKey(street);
+  const cached = streetPointCache.get(key);
+  if (cached && Date.now() - cached.at < streetPointTtl) return cached.point;
+
+  const named = await lookupNamedPlaces(street, requestSignal).catch(() => []);
+  const match = named.find((candidate) => candidate.point
+    && streetKey(candidate.label.split(",")[0]) === key);
+  const point = match?.point ?? await nominatimStreetPoint(street, requestSignal).catch(() => null);
+  // Un fallo puede ser transitorio: los "sin punto" se recuerdan poco.
+  if (!requestSignal.aborted) streetPointCache.set(key, { point, at: point ? Date.now() : Date.now() - streetPointTtl + 5 * 60 * 1000 });
+  return point;
+}
+
 function matchesStreetNumber(label: string, street: string, number: string) {
   const [first, second] = label.split(",").map(normalizePlaceText);
   const address = splitStreetAddress(first);
@@ -155,11 +210,9 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     }
     // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
     // se ancla el pin sobre el eje para que el operador lo arrastre hasta la altura.
-    const streetCandidates = await lookupNamedPlaces(officialStreet, signal).catch(() => []);
-    const streetMatch = streetCandidates.find((candidate) => candidate.point
-      && streetKey(candidate.label.split(",")[0]) === streetKey(officialStreet));
-    if (streetMatch) {
-      suggestions.push({ label, point: streetMatch.point, source: streetMatch.source, approximate: true });
+    const streetPoint = await lookupStreetPoint(officialStreet, signal);
+    if (streetPoint) {
+      suggestions.push({ label, point: streetPoint, source: "georef", approximate: true });
       continue;
     }
     // Tampoco la calle: GeoRef tiene el domicilio y ningún geocoder la conoce.

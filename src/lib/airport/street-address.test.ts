@@ -81,3 +81,16 @@ it("no acepta una altura que no es un número", async () => {
   await expect(resolveStreetAddress("Bertha Koessler", "", new AbortController().signal)).resolves.toBeNull();
   expect(fetchProvider).not.toHaveBeenCalled();
 });
+
+it("reintenta con la última palabra cuando el nomenclador no encuentra el texto completo", async () => {
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json({ calles: [] }))
+    .mockResolvedValueOnce(Response.json({ calles: [avenida] }));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  await expect(lookupStreetOptions("rodolfo koessler", new AbortController().signal)).resolves.toEqual([
+    { name: "Av Rodolfo Koessler", category: "Avenida", locality: "San Martín de los Andes" }
+  ]);
+  const segunda = fetchProvider.mock.calls[1][0] as URL;
+  expect(segunda.searchParams.get("nombre")).toBe("koessler");
+});

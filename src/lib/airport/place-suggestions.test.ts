@@ -1,9 +1,13 @@
-import { afterEach, expect, it, vi } from "vitest";
-import { suggestAirportPlaces } from "./place-suggestions";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { resetStreetPointCache, suggestAirportPlaces } from "./place-suggestions";
 
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
+});
+
+beforeEach(() => {
+  resetStreetPointCache();
 });
 
 it("devuelve las esquinas de GeoRef en la misma lista de sugerencias", async () => {
@@ -125,6 +129,7 @@ it("ofrece el domicilio del nomenclador aunque ningún geocoder tenga las coorde
       ubicacion: { lat: null, lon: null }
     }] }))
     .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json([]));
   vi.stubGlobal("fetch", fetchProvider);
 
@@ -160,4 +165,30 @@ it("ancla el pin sobre la calle cuando el geocoder conoce el eje pero no la altu
   expect(suggestion.approximate).toBe(true);
   // la última consulta es la calle sola, sin la altura
   expect(fetchProvider.mock.calls.at(-1)?.[0].toString()).toContain("q=Av+Rodolfo+Koessler");
+});
+
+it("usa OpenStreetMap cuando el geocoder comercial no devuelve la calle", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "AV RODOLFO KOESSLER" },
+      altura: { valor: 1600 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json([{ lat: "-40.1541652", lon: "-71.3417013" }]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [suggestion] = await suggestAirportPlaces("av rodolfo koessler 1600", new AbortController().signal);
+  expect(suggestion.point).toEqual([-40.1541652, -71.3417013]);
+  expect(suggestion.label).toBe("Av Rodolfo Koessler 1600, San Martín de los Andes");
+  const url = fetchProvider.mock.calls.at(-1)?.[0] as URL;
+  expect(url.hostname).toBe("nominatim.openstreetmap.org");
+  expect((fetchProvider.mock.calls.at(-1)?.[1] as RequestInit).headers).toMatchObject({
+    "User-Agent": expect.stringContaining("AraucanaViajes")
+  });
 });
