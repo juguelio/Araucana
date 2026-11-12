@@ -89,6 +89,7 @@ export async function resolveStreetAddress(
     label: `${streetLabel(name)} ${height}, ${airportSearchLocality}`,
     point: null,
     source: "georef",
-    approximate: true
+    approximate: true,
+    precision: "none"
   };
 }

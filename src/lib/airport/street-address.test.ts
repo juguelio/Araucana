@@ -68,7 +68,8 @@ it("arma el domicilio con la calle elegida y la altura tipeada", async () => {
     label: "Bertha Koessler 1686, San Martín de los Andes",
     point: null,
     source: "georef",
-    approximate: true
+    approximate: true,
+    precision: "none"
   });
 });
 

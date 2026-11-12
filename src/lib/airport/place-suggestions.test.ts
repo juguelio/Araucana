@@ -20,7 +20,7 @@ it("devuelve las esquinas de GeoRef en la misma lista de sugerencias", async () 
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("San Martín y Belgrano", new AbortController().signal)).resolves.toEqual([
-    { label: "Av. San Martín y Belgrano", point: [-40.1565, -71.3497], source: "georef", approximate: false }
+    { label: "Av. San Martín y Belgrano", point: [-40.1565, -71.3497], source: "georef", approximate: false, precision: "exact" }
   ]);
   expect(fetchProvider).toHaveBeenCalledOnce();
 });
@@ -37,7 +37,7 @@ it("busca barrios en Photon y devuelve latitud antes que longitud", async () => 
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("Barrio El Arenal", new AbortController().signal)).resolves.toEqual([
-    { label: "El Arenal, San Martín de los Andes", point: [-40.14, -71.33], source: "photon", approximate: true }
+    { label: "El Arenal, San Martín de los Andes", point: [-40.14, -71.33], source: "photon", approximate: true, precision: "interpolated" }
   ]);
   expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("El Arenal");
 });
@@ -52,7 +52,7 @@ it("usa el autocompletado de LocationIQ si está configurado", async () => {
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("Patagonia Plaza", new AbortController().signal)).resolves.toEqual([
-    { label: "Patagonia Plaza Hotel, San Martín de los Andes", point: [-40.1578774, -71.3547721], source: "locationiq", approximate: false }
+    { label: "Patagonia Plaza Hotel, San Martín de los Andes", point: [-40.1578774, -71.3547721], source: "locationiq", approximate: false, precision: "exact" }
   ]);
   const [url] = fetchProvider.mock.calls[0];
   expect(url.hostname + url.pathname).toBe("api.locationiq.com/v1/autocomplete");
@@ -93,7 +93,7 @@ it("busca Curruhinca 440 en San Martín y ofrece la calle oficial como referenci
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("Curruhinca 440", new AbortController().signal)).resolves.toEqual([
-    { label: "Cacique Curruhuinca 440, San Martín de los Andes", point: [-40.1539068, -71.3434156], source: "locationiq", approximate: true }
+    { label: "Cacique Curruhuinca 440, San Martín de los Andes", point: [-40.1539068, -71.3434156], source: "locationiq", approximate: true, precision: "interpolated" }
   ]);
   expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("Curruhinca 440, San Martín de los Andes");
   expect(fetchProvider.mock.calls[1][0].searchParams.get("localidad_censal")).toBe("San Martín de los Andes");
@@ -111,7 +111,7 @@ it("respeta una localidad indicada y conserva la coincidencia exacta de calle y 
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("San Martín 440, Junín de los Andes", new AbortController().signal)).resolves.toEqual([
-    { label, point: [-40.08, -71.09], source: "locationiq", approximate: false }
+    { label, point: [-40.08, -71.09], source: "locationiq", approximate: false, precision: "exact" }
   ]);
   expect(fetchProvider).toHaveBeenCalledOnce();
   expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("San Martín 440, Junín de los Andes");
@@ -134,7 +134,7 @@ it("ofrece el domicilio del nomenclador aunque ningún geocoder tenga las coorde
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("koessler 1686", new AbortController().signal)).resolves.toEqual([
-    { label: "Bertha Koessler 1686, San Martín de los Andes", point: null, source: "georef", approximate: true }
+    { label: "Bertha Koessler 1686, San Martín de los Andes", point: null, source: "georef", approximate: true, precision: "none" }
   ]);
 });
 
