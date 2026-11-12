@@ -1,4 +1,4 @@
-import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createTicketCode } from "./codes";
 import {
@@ -1013,6 +1013,10 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               ? `${reservation.route.from} -> ${reservation.route.to}`
               : "Ruta sin datos",
           departureAt: reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate ?? reservation.chapelcoDetails?.serviceDate ?? reservation.createdAt,
+          travelDay: travelDayKey(
+            reservation.chapelcoDetails?.serviceDate,
+            reservation.schedule?.departureAt ?? reservation.airportDetails?.flight?.scheduledAt ?? reservation.airportDetails?.serviceDate
+          ),
           seatNumber: reservation.seatNumber,
           bookingMode: reservation.bookingMode,
           passengerCount: reservation.passengerCount,

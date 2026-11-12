@@ -77,6 +77,24 @@ export function argentinaDateKey(now = new Date()): string {
   }).format(now);
 }
 
+// Chapelco guarda la fecha del servicio como día calendario a medianoche UTC; el resto son instantes.
+// Se normaliza a 'YYYY-MM-DD' antes de mostrarlo para no correrlo un día.
+export function travelDayKey(calendar: Date | null | undefined, instant: Date | null | undefined): string | null {
+  if (calendar) return calendar.toISOString().slice(0, 10);
+  return instant ? argentinaDateKey(instant) : null;
+}
+
+const travelMonthFormatter = new Intl.DateTimeFormat("es-AR", { timeZone: "UTC", month: "short" });
+
+// Se arma a mano: según el ICU, `es-AR` con día/mes/año mete "de" entre las partes.
+export function formatTravelDay(day: string | null): string {
+  if (!day) return "-";
+  const date = new Date(`${day}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "-";
+  const month = travelMonthFormatter.format(date).replace(".", "");
+  return `${String(date.getUTCDate()).padStart(2, "0")} ${month} ${date.getUTCFullYear()}`;
+}
+
 export function argentinaDayStart(date: string): Date {
   return new Date(`${date}T00:00:00-03:00`);
 }

@@ -1,5 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminScheduleFiltersSchema, adminScheduleWhere } from "./admin-filters";
+import { adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminScheduleFiltersSchema, adminScheduleWhere, formatTravelDay, travelDayKey } from "./admin-filters";
+
+describe("fecha del viaje", () => {
+  it("usa el día calendario de Chapelco sin correrlo de día", () => {
+    // Chapelco guarda 2026-11-13 como medianoche UTC.
+    expect(travelDayKey(new Date("2026-11-13T00:00:00Z"), null)).toBe("2026-11-13");
+  });
+
+  it("pasa un instante real al día argentino", () => {
+    // 03:00 UTC del 13 es 00:00 en Salta; 02:30 UTC del 13 sigue siendo el 12.
+    expect(travelDayKey(null, new Date("2026-11-13T03:00:00Z"))).toBe("2026-11-13");
+    expect(travelDayKey(null, new Date("2026-11-13T02:30:00Z"))).toBe("2026-11-12");
+  });
+
+  it("no inventa fecha cuando la reserva no tiene salida", () => {
+    expect(travelDayKey(null, null)).toBeNull();
+    expect(formatTravelDay(null)).toBe("-");
+  });
+
+  it("formatea el día para la tabla", () => {
+    expect(formatTravelDay("2026-11-13")).toBe("13 nov 2026");
+  });
+});
 
 describe("reservation search", () => {
   it("rejects invalid calendar days instead of silently searching all reservations", () => {

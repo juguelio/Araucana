@@ -3,7 +3,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
 import { listAdminReservations } from "@/lib/booking/repository";
-import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema } from "@/lib/booking/admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import "./pagination.css";
@@ -116,6 +116,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
               <th>Creada por</th>
               <th>WhatsApp</th>
               <th>Ruta</th>
+              <th>Fecha del viaje</th>
               <th>Asiento</th>
               <th>Estado</th>
               <th>Pago</th>
@@ -160,6 +161,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     {reservation.route}
                     {reservation.flightNumber ? <div className="muted">Vuelo {reservation.flightNumber}</div> : null}
                   </td>
+                  <td className="reservas-date">{formatTravelDay(reservation.travelDay)}</td>
                   <td>
                     {reservation.bookingMode === "CHAPELCO"
                       ? `${reservation.passengerCount} personas${reservation.chapelcoAscentSlot ? ` · ${reservation.chapelcoAscentSlot}` : ""}`
