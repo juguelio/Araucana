@@ -2164,6 +2164,10 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 .flight-state[data-status="DELAYED"], .flight-state[data-status="CANCELLED"], .flight-state[data-status="DIVERTED"] { color: var(--accent); }
 .flight-state[data-estimado="true"] { color: var(--ink-muted); }
 .flight-seats { font-size: 11px; color: var(--ink-muted); text-align: right; min-width: 82px; }
+/* Vuelos que ya no se pueden reservar: aparte y plegados, para no mezclarlos con los disponibles. */
+.flight-unavailable { margin-top: 4px; }
+.flight-unavailable summary { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--ink-muted); padding: 4px 0; }
+.flight-unavailable .flight-options { margin-top: 8px; }
 @media (max-width: 560px) {
   .flight-option { grid-template-columns: auto auto 1fr; grid-template-areas: "radio logo when" ". . state" ". . seats"; }
   .flight-option input[type="radio"] { grid-area: radio; }
