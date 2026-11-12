@@ -31,12 +31,10 @@ export function streetCategory(category: string) {
   return "Calle";
 }
 
-export async function lookupStreetOptions(query: string, requestSignal: AbortSignal): Promise<StreetOption[]> {
-  const search = query.trim();
-  if (search.length < 2) return [];
+async function fetchStreets(name: string, requestSignal: AbortSignal) {
   const url = new URL("https://apis.datos.gob.ar/georef/api/v2.0/calles");
   url.search = new URLSearchParams({
-    nombre: search,
+    nombre: name,
     provincia: "58",
     localidad_censal: airportSearchLocality,
     max: "8"
@@ -45,7 +43,18 @@ export async function lookupStreetOptions(query: string, requestSignal: AbortSig
   const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(4000)]);
   const response = await fetch(url, { cache: "no-store", signal });
   if (!response.ok) throw new Error("GeoRef streets unavailable");
-  const { calles } = geoRefStreets.parse(await response.json());
+  return geoRefStreets.parse(await response.json()).calles;
+}
+
+export async function lookupStreetOptions(query: string, requestSignal: AbortSignal): Promise<StreetOption[]> {
+  const search = query.trim();
+  if (search.length < 2) return [];
+  let calles = await fetchStreets(search, requestSignal);
+  // El nomenclador busca por prefijo: "rodolfo koessler" no matchea
+  // "AV RODOLFO KOESSLER", así que se reintenta con la última palabra.
+  if (!calles.length && search.includes(" ")) {
+    calles = await fetchStreets(search.split(/\s+/).at(-1) ?? search, requestSignal);
+  }
   const seen = new Set<string>();
   return calles.flatMap((street) => {
     const name = streetLabel(street.nombre);
