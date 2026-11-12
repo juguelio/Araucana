@@ -3,7 +3,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { getCountryOptions } from "@/lib/booking/nationality-countries";
 import { parseTripLegs } from "@/lib/departure-sheets/applicability";
 import { getDepartureSheetByToken } from "@/lib/departure-sheets/repository";
-import { departureSheetCopy, isDepartureSheetKind, type DepartureSheetKind } from "@/lib/departure-sheets/types";
+import { departureSheetCopy, formatServiceDay, isDepartureSheetKind, type DepartureSheetKind } from "@/lib/departure-sheets/types";
 import { PlanillaForm } from "./form";
 import "./planilla.css";
 
@@ -14,11 +14,6 @@ export const metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-function formatDay(value: Date | null | undefined) {
-  if (!value) return null;
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" }).format(value);
-}
 
 export default async function DepartureSheetPublicPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -31,7 +26,7 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
   const kind: DepartureSheetKind = isDepartureSheetKind(sheet.kind) ? sheet.kind : "DUT";
   const copy = departureSheetCopy[kind];
   const trip = sheet.specialTrip;
-  const day = formatDay(trip.serviceDate);
+  const day = formatServiceDay(trip.serviceDate);
   const legs = parseTripLegs(trip.legs);
   const destino =
     legs.map((leg) => leg.destination || leg.description).filter(Boolean).join(" · ") ||

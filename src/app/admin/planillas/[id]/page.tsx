@@ -7,6 +7,7 @@ import { getDepartureSheetById } from "@/lib/departure-sheets/repository";
 import {
   departureSheetCopy,
   formatBirthDate,
+  formatServiceDay,
   isDepartureSheetKind,
   passengerFullName,
   sexLabels,
@@ -16,11 +17,6 @@ import {
 import { removeDepartureSheetPassengerAction, setDepartureSheetOpenAction } from "../actions";
 import { PlanillaLinkBox } from "./link-box";
 import "../planillas.css";
-
-function formatDay(value: Date | null | undefined) {
-  if (!value) return null;
-  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "America/Argentina/Salta" }).format(value);
-}
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +32,7 @@ export default async function DepartureSheetDetailPage({ params }: { params: Pro
   const kind: DepartureSheetKind = isDepartureSheetKind(sheet.kind) ? sheet.kind : "DUT";
   const copy = departureSheetCopy[kind];
   const trip = sheet.specialTrip;
-  const day = formatDay(trip.serviceDate);
+  const day = formatServiceDay(trip.serviceDate);
   const legs = parseTripLegs(trip.legs);
   const destino =
     legs.map((leg) => leg.destination || leg.description).filter(Boolean).join(" · ") ||

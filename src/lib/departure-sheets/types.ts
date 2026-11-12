@@ -145,6 +145,15 @@ export function formatBirthDateIso(value: Date) {
   return isoDay(value);
 }
 
+/**
+ * Fecha del viaje en castellano largo («1 de febrero de 2027»). `SpecialTrip.serviceDate` es un DATE
+ * guardado a las 00:00Z: se formatea en UTC porque con la zona argentina (UTC−3) cae el día anterior.
+ */
+export function formatServiceDay(value: Date | null | undefined) {
+  if (!value) return null;
+  return new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" }).format(value);
+}
+
 export function passengerFullName(passenger: { firstName: string; lastName: string }) {
   return `${passenger.lastName}, ${passenger.firstName}`.replace(/^, /, "");
 }
