@@ -96,6 +96,8 @@ export type TicketDto = {
 export type ReservationDetailDto = {
   id: string;
   code: string;
+  /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
+  shortCode: string;
   bookingMode: string;
   dropoffStop?: string | null;
   passengerCount: number;
@@ -156,6 +158,7 @@ export type AdminScheduleRowDto = {
 export type AdminReservationRowDto = {
   id: string;
   code: string;
+  shortCode: string;
   passenger: string;
   passengerPhone: string;
   creatorLabel: string;

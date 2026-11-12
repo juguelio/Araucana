@@ -2177,8 +2177,8 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
   .flight-seats { grid-area: seats; text-align: left; min-width: 0; }
 }
 
-/* El codigo de reserva es largo (ARC-YYMM + 32 hex): a 30px no entra en la caja y se salia de
-   la pantalla. Que corte en varias lineas en vez de desbordar. */
+/* El código corto (#75) va como número grande de la caja; el del link privado, que sigue siendo
+   largo (ARC-YYMM + 32 hex), abajo y en chico. Que corte en varias líneas en vez de desbordar. */
 .ticket-code strong {
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -2186,6 +2186,15 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 }
 .ticket-code {
   min-width: 0;
+}
+.ticket-code .ticket-code-note {
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1.5;
+  text-transform: none;
+  overflow-wrap: anywhere;
 }
 
 /* === Reporte de vuelos del panel (Aeropuerto) ===

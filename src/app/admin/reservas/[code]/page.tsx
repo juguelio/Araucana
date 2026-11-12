@@ -6,6 +6,7 @@ import type { PickupPoint } from "@/lib/airport/pickup-zone";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getAdminReservationByCode } from "@/lib/booking/repository";
+import { formatShortCode } from "@/lib/booking/codes";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { manageReservationAction } from "../actions";
@@ -113,6 +114,10 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
           <p className="eyebrow">Reserva</p>
           <h2 className="route-title">{reservation.code}</h2>
           <div className="summary-list">
+            <div>
+              <span>Código corto</span>
+              <strong>{formatShortCode(reservation.shortCode)}</strong>
+            </div>
             <div>
               <span>Creada por</span>
               <strong>{reservation.creatorLabel}</strong>
