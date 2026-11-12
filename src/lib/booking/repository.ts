@@ -671,6 +671,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
             }
 
+            // El aeropuerto no se reserva por salida horaria (issue #79): sin número de vuelo la
+            // reserva no tiene recorrida (2 h 30 antes del despegue) ni combi. Va acá y no sólo en
+            // el formulario porque un `scheduleId` armado a mano tiene que rebotar igual.
+            if (schedule.route.bookingMode === "AIRPORT") {
+              throw new BookingError(
+                "AIRPORT_SCHEDULE_NOT_BOOKABLE",
+                "Las reservas de aeropuerto se cargan desde «Crear reserva de aeropuerto», eligiendo el vuelo."
+              );
+            }
+
             const occupiedSeats = (schedule.reservations ?? [])
               .filter((reservation) => reservation.status !== "CANCELLED")
               .reduce((total, reservation) => total + reservation.passengerCount, 0);

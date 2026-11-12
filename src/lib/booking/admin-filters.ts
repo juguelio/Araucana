@@ -117,7 +117,9 @@ export const adminScheduleFiltersSchema = z.object({
   from: z.string().trim().max(120).optional(),
   to: z.string().trim().max(120).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
-  bookableOnly: z.boolean().optional()
+  bookableOnly: z.boolean().optional(),
+  // El alta manual no ofrece el aeropuerto: ese servicio se reserva eligiendo el vuelo (issue #79).
+  excludeAirport: z.boolean().optional()
 });
 export type AdminScheduleFilters = z.infer<typeof adminScheduleFiltersSchema>;
 
@@ -131,6 +133,12 @@ export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new D
   if (filters.date) {
     const gte = argentinaDayStart(filters.date);
     AND.push({ departureAt: { gte, lt: new Date(gte.getTime() + 86400000) } });
+  }
+  if (filters.excludeAirport) {
+    // Sin esta exclusión el tramo San Martín ↔ Aeropuerto Chapelco se ofrecía con sus salidas
+    // horarias (09:00, 13:00, 17:00, 21:00) y la reserva quedaba sin número de vuelo: sin horario
+    // de vuelo no se puede calcular la recorrida ni saber qué combi lleva a cada pasajero.
+    AND.push({ route: { is: { bookingMode: { not: "AIRPORT" } } } });
   }
   if (filters.bookableOnly) {
     AND.push({ status: { in: [...BOOKABLE_SCHEDULE_STATUSES] } });

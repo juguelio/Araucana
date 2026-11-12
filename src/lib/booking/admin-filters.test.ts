@@ -70,6 +70,23 @@ describe("busqueda de salidas (alta manual)", () => {
     });
   });
 
+  it("el alta manual no ofrece el aeropuerto por salida horaria", () => {
+    // Issue #79: el tramo San Martín ↔ Aeropuerto Chapelco se ofrecía con salidas 09:00/13:00/17:00
+    // y la reserva quedaba sin número de vuelo. Se excluye por `bookingMode` de la ruta.
+    expect(adminScheduleWhere({ excludeAirport: true })).toEqual({
+      AND: [{ route: { is: { bookingMode: { not: "AIRPORT" } } } }]
+    });
+    expect(adminScheduleWhere({ bookableOnly: true, excludeAirport: true }, new Date("2026-11-05T15:00:00Z"))).toEqual({
+      AND: [
+        { route: { is: { bookingMode: { not: "AIRPORT" } } } },
+        { status: { in: ["OPEN", "DOCUMENTATION"] } },
+        { departureAt: { gte: new Date("2026-11-05T15:00:00Z") } },
+        { route: { is: { isActive: true } } },
+        { vehicle: { is: { isActive: true } } }
+      ]
+    });
+  });
+
   it("sin filtros no filtra nada", () => {
     expect(adminScheduleWhere({})).toEqual({});
   });
