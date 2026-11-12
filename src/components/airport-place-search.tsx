@@ -11,7 +11,7 @@ import styles from "./airport-address-map.module.css";
 
 type GoogleSuggestion = { source: "google"; label: string; prediction: google.maps.places.PlacePrediction };
 type Suggestion = AirportPlaceSuggestion | GoogleSuggestion;
-export type AirportSelectedPlace = { label: string; point: PickupPoint; approximate: boolean; source: Suggestion["source"] };
+export type AirportSelectedPlace = { label: string; point: PickupPoint | null; approximate: boolean; source: Suggestion["source"] };
 
 const googleAreaTypes = new Set(["locality", "sublocality", "neighborhood", "route", "administrative_area_level_3"]);
 const googleAddressTypes = new Set(["street_address", "premise", "subpremise"]);
@@ -210,13 +210,14 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
         <>
           <ul id={listId} role="listbox" aria-label="Sugerencias de lugares" className={styles.suggestions}>
             {suggestions.map((suggestion, index) => (
-              <li key={suggestion.source === "google" ? suggestion.prediction.placeId : `${suggestion.label}:${suggestion.point}`}
+              <li key={suggestion.source === "google" ? suggestion.prediction.placeId : `${suggestion.label}:${suggestion.point ?? "sin-punto"}`}
                 id={`${listId}-${index}`} role="option" aria-selected={index === activeIndex}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => { if (!disabled) void choose(suggestion); }}>
                 {suggestion.label}
-                {suggestion.source !== "google" && suggestion.approximate ? <small>Referencia aproximada</small> : null}
-                {coverage.enabled && suggestion.source !== "google" && !suggestion.approximate ? (
+                {suggestion.source !== "google" && !suggestion.point ? <small>Ubicá el punto en el mapa</small> : null}
+                {suggestion.source !== "google" && suggestion.point && suggestion.approximate ? <small>Referencia aproximada</small> : null}
+                {coverage.enabled && suggestion.source !== "google" && suggestion.point && !suggestion.approximate ? (
                   <small>{isInsideAirportPickupZone(suggestion.point, coverage) ? "Dentro de la cobertura" : "Fuera de la cobertura"}</small>
                 ) : null}
               </li>
