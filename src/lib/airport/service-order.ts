@@ -318,6 +318,39 @@ const PAGADO = "FF1F5B4F";
 
 const FILA_ENCABEZADO = 5;
 
+/**
+ * Anchos de columna en «caracteres» de Excel, en A4 horizontal: la hoja se imprime sin escalar.
+ * Ojo: el alto de cada renglón se calcula contra estos anchos (`lineasDeTexto`), así que si cambia
+ * uno hay que cambiar el otro — si no, el texto se corta.
+ */
+const ANCHOS = [26, 5, 14, 30, 13, 15, 15] as const;
+
+/**
+ * Cuántos renglones ocupa un texto en una columna de `ancho` caracteres, con fuente de `pt`.
+ * Sirve para fijar el alto de la fila: con un alto fijo, una dirección larga se corta y el chofer
+ * termina leyendo media dirección (pasó con las direcciones de Google, que traen 70 caracteres).
+ */
+export function lineasDeTexto(texto: string, ancho: number, pt = 10) {
+  // El ancho de columna de Excel está en «caracteres» del font por defecto (11 pt). Bajar el cuerpo
+  // no aumenta los caracteres de forma lineal: se compensa con la raíz. Y se deja aire (0.95)
+  // porque una dirección se corta antes de lo que dice la cuenta teórica.
+  const capacidad = Math.max(4, Math.floor(ancho * 0.95 * Math.sqrt(11 / pt)));
+  let lineas = 1;
+  let usado = 0;
+
+  for (const palabra of texto.split(/\s+/).filter(Boolean)) {
+    const suma = usado === 0 ? palabra.length : usado + 1 + palabra.length;
+    if (suma > capacidad && usado > 0) {
+      lineas += 1;
+      usado = palabra.length;
+    } else {
+      usado = suma;
+    }
+  }
+
+  return lineas;
+}
+
 const BORDE_FINO: Partial<ExcelJS.Borders> = {
   top: { style: "thin", color: { argb: BORDE } },
   left: { style: "thin", color: { argb: BORDE } },
@@ -372,16 +405,7 @@ export async function buildServiceOrderWorkbook(
     }
   });
 
-  // Anchos pensados para A4 horizontal: la hoja se imprime sin escalar y sin cortar columnas.
-  sheet.columns = [
-    { width: 26 },
-    { width: 5 },
-    { width: 14 },
-    { width: 30 },
-    { width: 13 },
-    { width: 15 },
-    { width: 15 }
-  ];
+  sheet.columns = ANCHOS.map((width) => ({ width }));
 
   // --- Encabezado: banda verde con logo, título y fecha -------------------------------------
   for (let fila = 1; fila <= 3; fila += 1) {
@@ -537,10 +561,18 @@ export async function buildServiceOrderWorkbook(
       for (let columna = 1; columna <= 7; columna += 1) {
         const celda = renglon.getCell(columna);
         celda.border = BORDE_FINO;
-        celda.alignment = { ...celda.alignment, vertical: "middle", wrapText: columna === 4 };
+        celda.alignment = { ...celda.alignment, vertical: "middle", wrapText: columna === 1 || columna === 4 };
       }
       if (indice % 2 === 1) pintarFila(sheet, { fila, desde: 1, hasta: 7 }, ZEBRA);
-      renglon.height = pasajero.lodgingDetail ? 26 : 18;
+
+      // El alto sale del texto: con un alto fijo la dirección se corta y no se lee a dónde ir.
+      const lineasAlojamiento = lineasDeTexto(
+        [pasajero.lodging, pasajero.lodgingDetail].filter(Boolean).join(" "),
+        ANCHOS[3],
+        9.5
+      );
+      const lineasPasajero = lineasDeTexto(pasajero.name, ANCHOS[0], 10);
+      renglon.height = Math.max(18, Math.max(lineasAlojamiento, lineasPasajero) * 12 + 6);
       fila += 1;
     });
 
@@ -593,7 +625,8 @@ export async function buildServiceOrderWorkbook(
       "Cobrar / Pagado es el estado del pago de la reserva.";
     nota.getCell(1).font = { size: 8, italic: true, color: { argb: GRIS } };
     nota.getCell(1).alignment = { wrapText: true };
-    nota.height = 20;
+    const anchoTotal = ANCHOS.reduce((total, ancho) => total + ancho, 0);
+    nota.height = Math.max(14, lineasDeTexto(String(nota.getCell(1).value), anchoTotal, 8) * 11 + 4);
   }
 
   sheet.headerFooter = {

@@ -4,6 +4,7 @@ import {
   blockTimeLabel,
   buildServiceOrderBlocks,
   buildServiceOrderWorkbook,
+  lineasDeTexto,
   serviceOrderFileName,
   documentoDelPasajero,
   fechaDeLaOrden,
@@ -187,6 +188,48 @@ describe("orden de servicio del aeropuerto", () => {
     // Un .xlsx es un zip: la imagen del encabezado viaja como un archivo más del paquete.
     expect(workbook.includes(Buffer.from("xl/media/image1.png"))).toBe(true);
     expect(workbook.byteLength).toBeGreaterThan(10000);
+  });
+
+  it("calcula cuántos renglones ocupa una dirección larga", () => {
+    expect(lineasDeTexto("Los Saucos 351", 30, 9.5)).toBe(1);
+    // Caso real que salió cortado: 36 caracteres en la columna de 30 → dos renglones, no uno.
+    expect(lineasDeTexto("Avenida Rodolfo Koessler, El Oasis", 30, 9.5)).toBe(2);
+    expect(
+      lineasDeTexto("Hotel el Viejo Esquiador, 1242, Avenida San Martín, Cantera, Centro", 30, 9.5)
+    ).toBe(3);
+    expect(lineasDeTexto("", 30, 9.5)).toBe(1);
+  });
+
+  it("la fila crece para que la dirección no se corte", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = await buildServiceOrderWorkbook(
+      { date: "2026-11-12", generatedAt: new Date("2026-11-12T16:45:00Z") },
+      buildServiceOrderBlocks([
+        reserva({
+          pickupName: "Hotel el Viejo Esquiador, 1242, Avenida San Martín, Cantera, Centro",
+          pickupAddress: null
+        })
+      ])
+    );
+
+    const libro = new ExcelJS.Workbook();
+    // Cast de tipos: @types/node y ExcelJS declaran genéricos distintos de Buffer (mismo runtime).
+    await libro.xlsx.load(workbook as unknown as Parameters<typeof libro.xlsx.load>[0]);
+    const hoja = libro.getWorksheet("Orden de servicio")!;
+
+    let fila: { height: number; alojamiento: string } | null = null;
+    hoja.eachRow((renglon) => {
+      if (String(renglon.getCell(1).value ?? "").includes("Faur")) {
+        const celda = renglon.getCell(4).value as { richText?: { text: string }[] } | string;
+        const texto = typeof celda === "string" ? celda : (celda.richText ?? []).map((parte) => parte.text).join("");
+        fila = { height: Number(renglon.height ?? 0), alojamiento: texto };
+      }
+    });
+
+    expect(fila).not.toBeNull();
+    // Tres renglones de texto: 3 × 12 + 6. Con el alto fijo de antes (18) se veía sólo la primera línea.
+    expect(fila!.height).toBeGreaterThanOrEqual(42);
+    expect(fila!.alojamiento).toContain("Avenida San Martín, Cantera, Centro");
   });
 
   it("la fecha del encabezado es el día del servicio, sin corrimiento de zona", () => {
