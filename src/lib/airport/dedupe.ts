@@ -37,8 +37,40 @@ export type PlanDeUnificacion = {
 };
 
 const RANGO_FUENTE: Record<string, number> = { FIDS: 0, API: 1, MANUAL: 2, PASAJERO: 3, ESTIMADO: 4 };
-const rango = (source: string) => RANGO_FUENTE[source] ?? 5;
+
+/** Menor es más confiable: el tablero manda, la proyección es la última opción. */
+export const rangoDeFuente = (source: string) => RANGO_FUENTE[source] ?? 5;
+const rango = rangoDeFuente;
 const ocupada = (f: FilaDeVuelo) => f.reservas > 0 || f.combis > 0;
+
+/**
+ * La fila que se conserva: primero la que ya tiene reservas o combis (moverlas es decisión humana),
+ * después la de fuente más confiable y, a igualdad, la actualizada más recientemente.
+ */
+export function elegirSuperviviente(filas: readonly FilaDeVuelo[]): FilaDeVuelo | null {
+  return ordenarPorPrioridad(filas, (a, b) =>
+    Number(ocupada(b)) - Number(ocupada(a)) ||
+    rango(a.source) - rango(b.source) ||
+    b.updatedAt.getTime() - a.updatedAt.getTime()
+  )[0] ?? null;
+}
+
+/**
+ * La fila que describe mejor lo que pasa con el vuelo: la fuente más confiable (el tablero antes que
+ * la proyección) y, a igualdad, la más reciente. Se usa para no perder estado, horario ni notas
+ * cuando la fila que se conserva tiene datos más viejos que la que se descarta.
+ */
+export function elegirAutoritativa(filas: readonly FilaDeVuelo[]): FilaDeVuelo | null {
+  return ordenarPorPrioridad(filas, (a, b) =>
+    rango(a.source) - rango(b.source) ||
+    Number(ocupada(b)) - Number(ocupada(a)) ||
+    b.updatedAt.getTime() - a.updatedAt.getTime()
+  )[0] ?? null;
+}
+
+function ordenarPorPrioridad(filas: readonly FilaDeVuelo[], comparar: (a: FilaDeVuelo, b: FilaDeVuelo) => number) {
+  return [...filas].sort(comparar);
+}
 
 export function planificarUnificacionJetSmart(filas: readonly FilaDeVuelo[]): PlanDeUnificacion {
   const plan: PlanDeUnificacion = { borrar: [], renombrar: [], conReservasRepetidas: [] };
@@ -54,13 +86,9 @@ export function planificarUnificacionJetSmart(filas: readonly FilaDeVuelo[]): Pl
 
   for (const [clave, grupo] of grupos) {
     const [canonico, direction, dia] = clave.split("|");
-    const ordenadas = [...grupo].sort(
-      (a, b) =>
-        Number(ocupada(b)) - Number(ocupada(a)) ||
-        rango(a.source) - rango(b.source) ||
-        b.updatedAt.getTime() - a.updatedAt.getTime()
-    );
-    const [queda, ...resto] = ordenadas;
+    const queda = elegirSuperviviente(grupo);
+    if (!queda) continue;
+    const resto = grupo.filter((f) => f.id !== queda.id);
 
     const otrasOcupadas = resto.filter(ocupada);
     if (otrasOcupadas.length > 0) {

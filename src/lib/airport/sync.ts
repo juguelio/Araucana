@@ -1,6 +1,7 @@
 import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
 import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
+import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
 import { DIAS_PROYECTADOS, fechaLocal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
@@ -102,21 +103,40 @@ async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
     }
   });
 
-  const plan = planificarUnificacionJetSmart(
-    filas.map((f) => ({
-      id: f.id,
-      number: f.number,
-      direction: f.direction,
-      dia: fechaLocal(f.scheduledAt),
-      source: f.source,
-      updatedAt: f.updatedAt,
-      reservas: f._count.reservations,
-      combis: f._count.assignments
-    }))
-  );
+  const entradas = filas.map((f) => ({
+    id: f.id,
+    number: f.number,
+    direction: f.direction,
+    dia: fechaLocal(f.scheduledAt),
+    source: f.source,
+    updatedAt: f.updatedAt,
+    reservas: f._count.reservations,
+    combis: f._count.assignments
+  }));
+  const plan = planificarUnificacionJetSmart(entradas);
 
-  for (const id of plan.borrar) {
-    resumen.jetSmartUnificados += await deleteUnoccupiedFlight(id);
+  // Se unifica por vuelo y día: borrar la fila repetida sin más perdería lo que esa fila sabía
+  // (estado del tablero, horario nuevo, notas de coordinación, eventos de imprevisto).
+  const aBorrar = new Set(plan.borrar);
+  const grupos = new Map<string, string[]>();
+  for (const fila of entradas) {
+    const canonico = jetSmartCanonicalNumber(fila.number);
+    if (!canonico) continue;
+    const clave = `${canonico}|${fila.direction}|${fila.dia}`;
+    const ids = grupos.get(clave);
+    if (ids) ids.push(fila.id);
+    else grupos.set(clave, [fila.id]);
+  }
+  for (const [clave, ids] of grupos) {
+    const borrar = ids.filter((id) => aBorrar.has(id));
+    if (borrar.length === 0) continue;
+    try {
+      const { borrados } = await unificarFilasDeVuelo(ids, borrar);
+      resumen.jetSmartUnificados += borrados;
+    } catch (error) {
+      const [canonico] = clave.split("|");
+      resumen.errores.push(`unificar ${canonico}: ${error instanceof Error ? error.message : "error"}`);
+    }
   }
   for (const { id, number } of plan.renombrar) {
     try {

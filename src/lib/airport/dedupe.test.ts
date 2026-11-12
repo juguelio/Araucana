@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planificarUnificacionJetSmart, type FilaDeVuelo } from "./dedupe";
+import { elegirAutoritativa, elegirSuperviviente, planificarUnificacionJetSmart, type FilaDeVuelo } from "./dedupe";
 import { jetSmartCanonicalNumber } from "./flights";
 
 const fila = (p: Partial<FilaDeVuelo> & Pick<FilaDeVuelo, "id" | "number">): FilaDeVuelo => ({
@@ -26,6 +26,35 @@ describe("jetSmartCanonicalNumber", () => {
 });
 
 describe("planificarUnificacionJetSmart", () => {
+  it("conserva la fila con reservas aunque la otra tenga mejor fuente (la reserva no se mueve)", () => {
+    const filas = [
+      fila({ id: "ja", number: "JA3184", source: "FIDS" }),
+      fila({ id: "wj", number: "WJ3184", source: "ESTIMADO", reservas: 2 })
+    ];
+    expect(elegirSuperviviente(filas)?.id).toBe("wj");
+    // Pero los datos operativos los aporta el tablero: se copian antes de borrar esa fila.
+    expect(elegirAutoritativa(filas)?.id).toBe("ja");
+  });
+
+  it("sin reservas ni combis manda la fuente y después la más reciente", () => {
+    const filas = [
+      fila({ id: "vieja", number: "JA3181", source: "API", updatedAt: new Date("2026-11-01T00:00:00Z") }),
+      fila({ id: "nueva", number: "WJ3181", source: "API", updatedAt: new Date("2026-11-12T00:00:00Z") }),
+      fila({ id: "tablero", number: "JA3181", source: "FIDS", updatedAt: new Date("2026-10-01T00:00:00Z") })
+    ];
+    expect(elegirSuperviviente(filas)?.id).toBe("tablero");
+    expect(elegirAutoritativa(filas)?.id).toBe("tablero");
+  });
+
+  it("una combi asignada también protege la fila", () => {
+    const filas = [
+      fila({ id: "con-combi", number: "WJ3184", source: "ESTIMADO", combis: 1 }),
+      fila({ id: "tablero", number: "JA3184", source: "FIDS" })
+    ];
+    expect(elegirSuperviviente(filas)?.id).toBe("con-combi");
+    expect(elegirAutoritativa(filas)?.id).toBe("tablero");
+  });
+
   it("caso del 12-nov: JA3184 del tablero y WJ3184 de la API → queda JA3184 (con sus 3 reservas)", () => {
     const plan = planificarUnificacionJetSmart([
       fila({ id: "ja", number: "JA3184", source: "FIDS", reservas: 3 }),

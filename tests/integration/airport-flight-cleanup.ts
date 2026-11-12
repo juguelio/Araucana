@@ -10,6 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { prisma } from "../../src/lib/db/prisma";
 import { deleteUnoccupiedFlight } from "../../src/lib/airport/flight-cleanup";
+import { unificarFilasDeVuelo } from "../../src/lib/airport/flight-merge";
 
 async function main() {
   const url = new URL(process.env.DATABASE_URL ?? "");
@@ -89,6 +90,58 @@ async function main() {
     await createReservation(prisma, cancelled, "CANCELLED");
     assert.equal(await deleteUnoccupiedFlight(cancelled.id), 0);
     checks.push("también protege reservas canceladas vinculadas");
+
+    // La fila repetida que se descarta puede saber más que la que sobrevive: el tablero tiene el
+    // vuelo cancelado, el horario nuevo y una nota, mientras la reservada quedó en la proyección.
+    const numero = randomInt(100000, 999999);
+    const reservada = await prisma.flight.create({ data: {
+      number: `WJ${numero}`, origin: "AEP", direction: "ARRIVAL", source: "ESTIMADO", status: "SCHEDULED",
+      scheduledAt: new Date("2030-11-13T11:00:00-03:00")
+    } });
+    flightIds.push(reservada.id);
+    const tablero = await prisma.flight.create({ data: {
+      number: `JA${numero}`, origin: "AEP", direction: "ARRIVAL", source: "FIDS", status: "CANCELLED",
+      scheduledAt: new Date("2030-11-13T13:25:00-03:00"), notes: "Cancelado por el tablero",
+      pickupStartOverrideAt: new Date("2030-11-13T12:00:00-03:00")
+    } });
+    flightIds.push(tablero.id);
+    await prisma.flightEvent.create({ data: {
+      flightId: tablero.id, kind: "CANCELLED", fromValue: "SCHEDULED", toValue: "CANCELLED"
+    } });
+    const reservaConVuelo = await createReservation(prisma, reservada);
+    const resultado = await unificarFilasDeVuelo([reservada.id, tablero.id], [tablero.id]);
+    assert.deepEqual(resultado, { borrados: 1, eventos: 1 });
+    assert.equal(await prisma.flight.findUnique({ where: { id: tablero.id } }), null);
+    const conservada = await prisma.flight.findUniqueOrThrow({ where: { id: reservada.id } });
+    assert.equal(conservada.status, "CANCELLED");
+    assert.equal(conservada.source, "FIDS");
+    assert.equal(conservada.scheduledAt.toISOString(), new Date("2030-11-13T13:25:00-03:00").toISOString());
+    assert.equal(conservada.notes, "Cancelado por el tablero");
+    assert.ok(conservada.pickupStartOverrideAt);
+    const eventosConservados = await prisma.flightEvent.findMany({ where: { flightId: reservada.id } });
+    assert.equal(eventosConservados.length, 1);
+    assert.equal(eventosConservados[0].kind, "CANCELLED");
+    assert.equal(eventosConservados[0].toValue, "CANCELLED");
+    assert.equal((await prisma.airportReservationDetails.findUniqueOrThrow({ where: { reservationId: reservaConVuelo.id } })).flightId, reservada.id);
+    checks.push("unificar conserva estado, horario, notas y eventos de la fila descartada");
+
+    // Y al revés: los datos escritos a mano en la fila que queda no se pisan con una proyección.
+    const manual = await prisma.flight.create({ data: {
+      number: `WJ${numero + 1}`, origin: "AEP", direction: "ARRIVAL", source: "MANUAL", status: "SCHEDULED",
+      scheduledAt: new Date("2030-11-14T09:00:00-03:00"), notes: "Nota cargada por la oficina"
+    } });
+    flightIds.push(manual.id);
+    const proyectada = await prisma.flight.create({ data: {
+      number: `JA${numero + 1}`, origin: "AEP", direction: "ARRIVAL", source: "ESTIMADO", status: "SCHEDULED",
+      scheduledAt: new Date("2030-11-14T09:00:00-03:00"), notes: "Patrón proyectado"
+    } });
+    flightIds.push(proyectada.id);
+    // La MANUAL gana tanto como superviviente como por autoridad: sólo se borra la proyección.
+    assert.deepEqual(await unificarFilasDeVuelo([manual.id, proyectada.id], [proyectada.id]), { borrados: 1, eventos: 0 });
+    const manualFinal = await prisma.flight.findUniqueOrThrow({ where: { id: manual.id } });
+    assert.equal(manualFinal.notes, "Nota cargada por la oficina");
+    assert.equal(manualFinal.source, "MANUAL");
+    checks.push("una nota cargada a mano no se pierde al unificar");
     console.log(JSON.stringify({ success: true, checks, total: checks.length }, null, 2));
   } finally {
     await prisma.reservation.deleteMany({ where: { id: { in: reservationIds } } });

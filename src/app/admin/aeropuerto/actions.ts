@@ -6,6 +6,7 @@ import { z } from "zod";
 import { detectFlightChange, FLIGHT_STATUSES, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { fechaLocal } from "@/lib/airport/projection";
 import { syncAirportFlights } from "@/lib/airport/sync";
+import { mensajeDeRefresco } from "@/lib/airport/sync-summary";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
@@ -213,16 +214,8 @@ export async function refreshFlightsAction() {
   await getCurrentReservationsUserOrRedirect();
   const r = await syncAirportFlights();
   revalidatePath("/admin/aeropuerto");
-  if (r.errores.length > 0) {
-    notice(`No se pudo traer los vuelos (${r.errores[0]}). Se sigue con lo cargado a mano.`);
-  }
-  const unificados = r.jetSmartUnificados > 0 ? ` ${r.jetSmartUnificados} vuelo(s) de JetSMART repetidos se unificaron.` : "";
-  const conReservas = r.repetidosConReservas.length > 0
-    ? ` Quedan repetidos con reservas en las dos filas, revisalos a mano: ${r.repetidosConReservas.join("; ")}.`
-    : "";
-  notice(
-    `Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados (${r.desdeTablero} desde el tablero del aeropuerto), ${r.eventos} imprevisto(s).${unificados}${conReservas}`
-  );
+  // Un solo aviso con todo: el modo degradado no puede esconder la intervención manual pendiente.
+  notice(mensajeDeRefresco(r));
 }
 
 /**
