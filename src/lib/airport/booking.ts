@@ -4,7 +4,11 @@ import { createReservationCode, createReservationShortCode } from "@/lib/booking
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
+import { airportExtrasBreakdown } from "./extras";
+import { getAirportExtras } from "./extras-settings";
 import { airportPickupStart } from "./pickup-start";
+import { chargesZoneExtra } from "./pickup-zone";
+import { getAirportCoverage } from "./pickup-zone-settings";
 import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
 import { adminAirportReservationSchema, airportReservationSchema, type AdminAirportReservationInput } from "./validation";
@@ -62,11 +66,17 @@ export function pasajerosOcupados(reservas: Array<{ passengerCount: number; stat
   return reservas.filter((r) => r.status !== "CANCELLED").reduce((total, r) => total + r.passengerCount, 0);
 }
 
-/** ¿Se puede reservar este vuelo? Devuelve el motivo cuando no. */
+/**
+ * ¿Se puede reservar este vuelo? Devuelve el motivo cuando no.
+ *
+ * `corteArriboMinutos`: un arribo deja de aceptar reservas ese tiempo antes de aterrizar (según el
+ * horario estimado si está demorado), para que la operación llegue a organizar la combi.
+ */
 export function motivoNoReservable(
   vuelo: { status: string; scheduledAt: Date; estimatedAt?: Date | null; source?: string; direction?: string },
   disponible: number,
-  ahora: Date = new Date()
+  ahora: Date = new Date(),
+  corteArriboMinutos = 0
 ): string | null {
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
@@ -78,6 +88,9 @@ export function motivoNoReservable(
     if (vuelo.source === "ESTIMADO") return "Horario estimado ya pasado.";
     // En un arribo el avión ya llegó: decir "ya salió" sería hablar de otro momento del viaje.
     return vuelo.direction === "ARRIVAL" ? "El vuelo ya llegó." : "El vuelo ya salió.";
+  }
+  if (vuelo.direction === "ARRIVAL" && corteArriboMinutos > 0 && referencia.getTime() - corteArriboMinutos * 60_000 <= ahora.getTime()) {
+    return `Las reservas cierran ${corteArriboMinutos} min antes del arribo.`;
   }
   if (disponible <= 0) return "Sin lugares disponibles para ese vuelo.";
   return null;
@@ -95,6 +108,7 @@ export function rangoDelDia(fecha: string) {
 export async function listAirportFlights(input: { date: string; direction?: FlightDirection }): Promise<AirportFlightOption[]> {
   const { desde, hasta } = rangoDelDia(input.date);
   const ahora = new Date();
+  const { arrivalCutoffMinutes } = await getAirportExtras();
 
   const vuelos = await prisma.flight.findMany({
     where: { ...(input.direction ? { direction: input.direction } : {}), scheduledAt: { gte: desde, lt: hasta } },
@@ -109,7 +123,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
     const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
     const disponible = Math.max(capacidad - ocupados, 0);
-    const motivo = motivoNoReservable(v, disponible, ahora);
+    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes);
     return {
       id: v.id,
       number: v.number,
@@ -185,6 +199,12 @@ export async function createAirportReservation(input: AdminAirportReservationInp
   }
 
   const { desde, hasta } = rangoDelDia(parsed.serviceDate);
+  const [coverage, extras] = await Promise.all([getAirportCoverage(), getAirportExtras()]);
+  // El recargo de zona lo decide el servidor con el punto marcado: no se toma del cliente.
+  const adicionales = airportExtrasBreakdown(
+    { zoneExtra: chargesZoneExtra(parsed.pickupPoint, coverage), sportsLuggageCount: parsed.sportsLuggageCount },
+    extras
+  );
   const numero = claveDeVuelo(parsed.flightNumber);
   const privado = parsed.privateFlight;
 
@@ -255,7 +275,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
         const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
         const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
         const disponible = Math.max(capacidad - ocupados, 0);
-        const motivo = motivoNoReservable(vuelo, disponible);
+        const motivo = motivoNoReservable(vuelo, disponible, new Date(), extras.arrivalCutoffMinutes);
         if (motivo) {
           throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);
         }
@@ -286,7 +306,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
             passengerCount: parsed.passengerCount,
             bookingMode: "AIRPORT",
             status: "PENDING_PAYMENT",
-            totalCents: parsed.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(parsed.passengerCount, parsed.halfFareCount ?? 0, parsed.freeFareCount ?? 0)),
+            totalCents: parsed.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fares) + adicionales.totalCents,
             halfFareCount: fares.half,
             freeFareCount: fares.free,
             currency: rutaDelSentido.currency,
@@ -301,7 +321,10 @@ export async function createAirportReservation(input: AdminAirportReservationInp
                 pickupAddress: parsed.pickupAddress ?? null,
                 pickupLatitude: parsed.pickupPoint?.[0] ?? null,
                 pickupLongitude: parsed.pickupPoint?.[1] ?? null,
-                pickupNotes: parsed.pickupNotes ?? null
+                pickupNotes: parsed.pickupNotes ?? null,
+                sportsLuggageCount: adicionales.sportsLuggageCount,
+                sportsLuggageUnitCents: adicionales.sportsLuggageUnitCents,
+                zoneExtraCents: adicionales.zoneExtraCents
               }
             }
           },

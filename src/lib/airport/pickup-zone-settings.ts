@@ -16,7 +16,9 @@ const polygon = z.array(point).min(3).max(250).refine((ring) => {
 export const airportCoverageSchema = z.object({
   enabled: z.boolean(),
   boundary: polygon,
-  exclusions: z.array(polygon).max(25)
+  exclusions: z.array(polygon).max(25),
+  /** Segundo límite (zona con recargo). Vacío = sin zona con recargo. */
+  extraBoundary: z.union([z.array(point).length(0), polygon]).optional()
 });
 
 export async function getAirportCoverage(db?: Parameters<typeof getSetting>[1]): Promise<AirportCoverage> {
