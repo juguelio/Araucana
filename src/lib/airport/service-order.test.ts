@@ -3,6 +3,8 @@ import {
   alojamientoDelPasajero,
   blockTimeLabel,
   buildServiceOrderBlocks,
+  buildServiceOrderWorkbook,
+  serviceOrderFileName,
   documentoDelPasajero,
   fechaDeLaOrden,
   paymentLabel,
@@ -169,6 +171,22 @@ describe("orden de servicio del aeropuerto", () => {
     ).toBe("AV DAMIAN ELORRIAGA (ESQUINA LOS SAUCOS), San Martín de los Andes");
     expect(recortarDireccion("Rudecindo Roca 1066")).toBe("Rudecindo Roca 1066");
     expect(recortarDireccion("Municipio de San Martín de los Andes")).toBe("Municipio de San Martín de los Andes");
+  });
+
+  it("el nombre del archivo lleva el vuelo cuando es una hoja por servicio", () => {
+    expect(serviceOrderFileName("2026-11-12")).toBe("orden-de-servicio-2026-11-12.xlsx");
+    expect(serviceOrderFileName("2026-11-12", "AR 1653")).toBe("orden-de-servicio-2026-11-12-ar-1653.xlsx");
+  });
+
+  it("genera el .xlsx con el logo embebido", async () => {
+    const workbook = await buildServiceOrderWorkbook(
+      { date: "2026-11-12", generatedAt: new Date("2026-11-12T16:45:00Z") },
+      buildServiceOrderBlocks([reserva()])
+    );
+
+    // Un .xlsx es un zip: la imagen del encabezado viaja como un archivo más del paquete.
+    expect(workbook.includes(Buffer.from("xl/media/image1.png"))).toBe(true);
+    expect(workbook.byteLength).toBeGreaterThan(10000);
   });
 
   it("la fecha del encabezado es el día del servicio, sin corrimiento de zona", () => {
