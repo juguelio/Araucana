@@ -5,9 +5,12 @@ import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE } from "@/lib/airport/pi
 import { airportPickupPointSchema } from "@/lib/airport/validation";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment, reservationPriceCents } from "./admin-price";
-import { BookingError } from "./repository";
+import { BookingError, firstAvailableSeat } from "./repository";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
+import { capacidadDeVuelo, pasajerosOcupados } from "@/lib/airport/booking";
+import { chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
+import { esFranjaDeChapelco, hayLugar, lugaresLibres, personasQueBloqueanLaFranja, restoredStatus, servicioYaPaso, vueloYaPaso } from "./restore";
 
 const paymentFields = {
   method: z.string().trim().max(60).optional(),
@@ -31,6 +34,11 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
   }),
   z.object({ operation: z.literal("delete") }),
   z.object({ operation: z.literal("confirm") }),
+  z.object({
+    operation: z.literal("restore"),
+    // Quién restituyó, armado por el server action desde la sesión (no viaja por el formulario).
+    restoredBy: z.string().trim().max(120).optional()
+  }),
   z.object({ operation: z.literal("payment"), ...paymentFields }),
   z.object({ operation: z.literal("correctPayment"), ...paymentFields, totalCents: reservationPriceCents }),
   z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
@@ -84,6 +92,134 @@ export async function manageReservation(code: string, command: ReservationOperat
           });
           await tx.chapelcoManifestStop.deleteMany({ where: { reservationId: id, status: "PENDING" } });
           break;
+        case "restore": {
+          // Restitución (#117): volver atrás sin borrar la reserva. Se exigen las mismas condiciones
+          // que un alta —servicio futuro y cupo— para no dejar una reserva imposible en la base.
+          if (status !== "CANCELLED") {
+            throw new BookingError("RESERVATION_NOT_CANCELLED", "La reserva no está cancelada.");
+          }
+          const ahora = new Date();
+          let seatId: string | null = null;
+          let seatNumber: string | null = null;
+
+          if (reservation.bookingMode === "SEATED") {
+            const schedule = reservation.scheduleId
+              ? await tx.schedule.findUnique({
+                  where: { id: reservation.scheduleId },
+                  include: {
+                    route: { select: { isActive: true } },
+                    vehicle: { select: { isActive: true, seats: true } },
+                    reservations: { select: { id: true, status: true, passengerCount: true, seatId: true, seatNumber: true } }
+                  }
+                })
+              : null;
+            if (!schedule) {
+              throw new BookingError("SCHEDULE_NOT_FOUND", "La salida de esta reserva ya no existe.");
+            }
+            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= ahora || !schedule.route.isActive || schedule.vehicle.isActive === false) {
+              throw new BookingError("SERVICE_ALREADY_STARTED", "La salida ya arrancó o se cerró: no se puede restituir la reserva.");
+            }
+            const vivas = schedule.reservations.filter((item) => item.id !== id && item.status !== "CANCELLED");
+            const ocupados = vivas.reduce((total, item) => total + item.passengerCount, 0);
+            const capacidad = schedule.vehicle.seats.length;
+            if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
+              throw new BookingError(
+                "CAPACITY_FULL",
+                `No hay lugar en esa salida: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
+              );
+            }
+            const seat = firstAvailableSeat(
+              schedule.vehicle.seats,
+              new Set(vivas.map((item) => item.seatId)),
+              new Set(vivas.map((item) => item.seatNumber))
+            );
+            seatId = seat?.id ?? null;
+            seatNumber = seat?.number ?? null;
+          } else if (reservation.bookingMode === "AIRPORT") {
+            const details = await tx.airportReservationDetails.findUnique({
+              where: { reservationId: id },
+              include: {
+                flight: {
+                  include: {
+                    reservations: { select: { reservation: { select: { passengerCount: true, status: true } } } },
+                    assignments: { select: { vehicle: { select: { seats: { select: { id: true } } } } } }
+                  }
+                }
+              }
+            });
+            if (!details) {
+              throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del vuelo.");
+            }
+            const vuelo = details.flight;
+            if (vuelo) {
+              if (vuelo.status === "CANCELLED" || vuelo.status === "DIVERTED") {
+                throw new BookingError("FLIGHT_NOT_BOOKABLE", "El vuelo está cancelado o desviado: no se puede restituir la reserva.");
+              }
+              if (vueloYaPaso(vuelo, ahora)) {
+                throw new BookingError(
+                  "SERVICE_ALREADY_STARTED",
+                  details.direction === "ARRIVAL" ? "El vuelo ya llegó: no se puede restituir la reserva." : "El vuelo ya salió: no se puede restituir la reserva."
+                );
+              }
+              const ocupados = pasajerosOcupados(vuelo.reservations.map((item) => item.reservation));
+              const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
+              if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
+                throw new BookingError(
+                  "CAPACITY_FULL",
+                  `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
+                );
+              }
+            } else if (servicioYaPaso(details.serviceDate, ahora)) {
+              throw new BookingError("SERVICE_ALREADY_STARTED", "El servicio ya pasó: no se puede restituir la reserva.");
+            }
+          } else if (reservation.bookingMode === "CHAPELCO") {
+            const details = await tx.chapelcoReservationDetails.findUnique({ where: { reservationId: id } });
+            if (!details) {
+              throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del servicio.");
+            }
+            if (servicioYaPaso(details.serviceDate, ahora)) {
+              throw new BookingError("SERVICE_ALREADY_STARTED", "El servicio ya pasó: no se puede restituir la reserva.");
+            }
+            if (esFranjaDeChapelco(details.ascentSlot) && reservation.routeId) {
+              const [flota, vivas] = await Promise.all([
+                tx.vehicle.findMany({ where: { isActive: true }, select: { _count: { select: { seats: true } } } }),
+                tx.reservation.findMany({
+                  where: {
+                    routeId: reservation.routeId,
+                    bookingMode: "CHAPELCO",
+                    id: { not: id },
+                    status: { in: [...chapelcoActiveReservationStatuses] },
+                    chapelcoDetails: { serviceDate: details.serviceDate }
+                  },
+                  select: { passengerCount: true, chapelcoDetails: { select: { ascentSlot: true } } }
+                })
+              ]);
+              const capacidad = flota.reduce((total, vehicle) => total + vehicle._count.seats, 0);
+              const ocupados = personasQueBloqueanLaFranja(
+                vivas.map((item) => ({ passengerCount: item.passengerCount, ascentSlot: item.chapelcoDetails?.ascentSlot ?? null })),
+                details.ascentSlot
+              );
+              if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
+                throw new BookingError(
+                  "CAPACITY_FULL",
+                  `No hay lugar en esa franja: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
+                );
+              }
+            }
+          }
+
+          await tx.reservation.update({
+            where: { id },
+            data: {
+              status: restoredStatus({ payment, disabilityProvider: DISABILITY_DOCUMENT_PROVIDER }),
+              seatId,
+              seatNumber,
+              restoredAt: ahora,
+              restoredByName: command.restoredBy ?? null
+            }
+          });
+          break;
+        }
         case "delete":
           if (paid) throw new BookingError("PAYMENT_LOCKED", "La reserva tiene un pago registrado. Podés cancelarla para conservar el registro contable.");
           await tx.reservation.delete({ where: { id } });

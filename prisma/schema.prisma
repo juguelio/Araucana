@@ -363,6 +363,11 @@ model Reservation {
   cancellationReason String?
   cancelledAt        DateTime?
   cancelledByName    String?
+  // Restitución de una reserva cancelada (#117): volver atrás sin borrarla y recargarla con otro
+  // código. No se pisa la cancelación —motivo, fecha y quién canceló siguen visibles—; estos dos
+  // campos agregan quién y cuándo la restituyó.
+  restoredAt         DateTime?
+  restoredByName     String?
   totalCents  Int
   currency    String     @default("ARS")
   // Ida y vuelta del aeropuerto (#36): las dos reservas del viaje comparten este id. Cada tramo

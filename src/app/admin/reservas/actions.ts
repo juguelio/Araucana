@@ -215,7 +215,9 @@ export async function manageReservationAction(formData: FormData) {
       code,
       command.data.operation === "cancel"
         ? { ...command.data, cancelledBy: user.name?.trim() || user.email }
-        : command.data
+        : command.data.operation === "restore"
+          ? { ...command.data, restoredBy: user.name?.trim() || user.email }
+          : command.data
     );
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos actualizar la reserva. Intentalo de nuevo.";
@@ -232,6 +234,7 @@ export async function manageReservationAction(formData: FormData) {
 
   const notices = {
     cancel: "Reserva cancelada.",
+    restore: "Reserva restituida.",
     delete: receiptCleanupFailed ? "Reserva borrada. No pudimos eliminar el archivo del comprobante." : "Reserva borrada.",
     confirm: "Reserva confirmada.",
     payment: "Pago registrado.",
