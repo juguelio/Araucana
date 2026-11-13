@@ -221,3 +221,149 @@
     border-bottom: 2px solid #000;
   }
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Link del chofer: el operador copia la URL firmada desde el panel (#118).
+   --------------------------------------------------------------------------------------------- */
+.orden-link-chofer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  max-width: 1100px;
+  margin: 0 0 18px;
+  padding: 12px 16px;
+  border: 1px dashed var(--orden-borde, #c9c3b2);
+  border-radius: 12px;
+  background: #fbfaf5;
+}
+
+.orden-link-chofer > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.orden-link-rotulo {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6b6455;
+}
+
+.orden-link-url {
+  font-size: 12px;
+  color: #1f5b4f;
+  overflow-wrap: anywhere;
+}
+
+.orden-link-ayuda {
+  font-size: 11px;
+  color: #6b6455;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Celular: la tabla se lee sin zoom horizontal. Cada fila pasa a ser una ficha con el nombre de la
+   columna delante, usando el data-columna que ya trae cada celda.
+   --------------------------------------------------------------------------------------------- */
+@media screen and (max-width: 700px) {
+  .orden {
+    padding: 16px 14px 14px;
+    border-radius: 10px;
+  }
+
+  .orden-cabecera {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .orden-fecha {
+    text-align: left;
+  }
+
+  .orden-titulo {
+    font-size: 19px;
+  }
+
+  .orden-tabla thead {
+    display: none;
+  }
+
+  .orden-tabla,
+  .orden-tabla tbody,
+  .orden-tabla tfoot,
+  .orden-tabla tr,
+  .orden-tabla td {
+    display: block;
+    width: auto;
+  }
+
+  .orden-tabla tbody tr {
+    border: 1px solid var(--orden-borde);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 6px 2px;
+    background: #fff;
+  }
+
+  .orden-tabla tbody td {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 8px;
+    border-bottom: 1px dotted #e4dfd2;
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .orden-tabla tbody td:last-child {
+    border-bottom: none;
+  }
+
+  .orden-tabla tbody td::before {
+    content: attr(data-columna);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--orden-gris);
+  }
+
+  .orden-tabla tfoot td {
+    display: block;
+    padding: 6px 10px;
+  }
+
+  .orden-total {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .orden-link-chofer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Página pública del chofer: la hoja sola, con aire y sin el panel. */
+.orden-publica {
+  padding-top: 24px;
+  padding-bottom: 40px;
+}
+
+.orden-publica-acciones {
+  display: flex;
+  justify-content: flex-end;
+  max-width: 1100px;
+  margin: 0 auto 12px;
+}
+
+.orden-publica .orden {
+  margin: 0 auto;
+}
+
+.orden-publica-pie {
+  max-width: 1100px;
+  margin: 14px auto 0;
+  text-align: center;
+}
