@@ -208,7 +208,7 @@ describe("ida y vuelta del aeropuerto", () => {
     expect(parsed.success ? parsed.data.firstLeg : "").toBe("ARRIVAL");
   });
 
-  it("el alta del panel acepta los dos órdenes y la identidad del pasajero vacía", () => {
+  it("el alta del panel exige el documento igual que el flujo público (issue #122)", () => {
     const sinDocumento = {
       ...pedido,
       firstLeg: "DEPARTURE" as const,
@@ -216,8 +216,14 @@ describe("ida y vuelta del aeropuerto", () => {
       departure: { ...pedido.departure, serviceDate: "2030-01-01" },
       arrival: { ...pedido.arrival, serviceDate: "2030-01-08" }
     };
-    expect(adminAirportRoundTripSchema.safeParse(sinDocumento).success).toBe(true);
-    // El mismo cuerpo por el flujo público sí exige documento.
+    expect(adminAirportRoundTripSchema.safeParse(sinDocumento).success).toBe(false);
     expect(airportRoundTripSchema.safeParse(sinDocumento).success).toBe(false);
+    // Con el documento cargado, el alta del panel acepta los dos órdenes.
+    expect(
+      adminAirportRoundTripSchema.safeParse({
+        ...sinDocumento,
+        passenger: { ...pasajero, documentId: "30111222" }
+      }).success
+    ).toBe(true);
   });
 });

@@ -96,7 +96,9 @@ export function validateCheckoutPassenger(passenger: PassengerForm, optionalIden
     errors.documentType = "Selecciona el tipo de documento.";
   }
 
-  const documentError = passengerDocumentError(passenger.documentType, passenger.documentId, optionalIdentity);
+  // El documento es obligatorio siempre, también cuando la reserva la carga el panel (#122): sin esto
+  // la orden de servicio del chofer salía con «—» en la mayoría de las ventas cargadas a mano.
+  const documentError = passengerDocumentError(passenger.documentType, passenger.documentId);
   if (documentError) errors.documentId = documentError;
 
   return errors;
@@ -286,7 +288,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
         ) : null}
       </label>
       <label>
-        Documento{optionalIdentity ? " (opcional)" : ""}
+        Documento
         <input
           name="documentId"
           inputMode={passenger.documentType === "DNI" ? "numeric" : "text"}
@@ -296,7 +298,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
           disabled={disabled}
           aria-invalid={Boolean(fieldErrors.documentId)}
           aria-describedby={fieldErrors.documentId ? "documentId-error" : undefined}
-          required={!optionalIdentity}
+          required
         />
         {fieldErrors.documentId ? (
           <span className="field-error" id="documentId-error">

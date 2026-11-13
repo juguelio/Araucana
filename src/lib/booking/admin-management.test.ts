@@ -147,6 +147,7 @@ describe("edición de datos de la reserva", () => {
 
   it("guarda precio, pasajero, dirección y notas con una sola operación", async () => {
     tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT" });
+    tx.passenger.findUniqueOrThrow.mockResolvedValue({ documentType: "DNI", documentId: "30111222" });
     const changes = reservationManagementSchema.parse({
       ...command, passenger: { lastName: "Pérez" }, notes: "Tocar timbre",
       financial: { operation: "price", totalCents: 1150000 }
@@ -159,7 +160,6 @@ describe("edición de datos de la reserva", () => {
     expect(tx.airportReservationDetails.update).toHaveBeenCalledOnce();
     expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where, data: { ...data, pickupNotes: "Tocar timbre" } });
     expect(tx.passenger.update).toHaveBeenCalledWith({ where: { id: pending.passengerId }, data: { lastName: "Pérez" } });
-    expect(tx.passenger.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it("impide guardar un precio pendiente si se registró el pago antes de guardar", async () => {
@@ -197,6 +197,7 @@ describe("edición de datos de la reserva", () => {
   });
 
   it("una edición que no manda el origen no lo pisa", async () => {
+    tx.passenger.findUniqueOrThrow.mockResolvedValue({ documentType: "DNI", documentId: "30111222" });
     await manageReservation(code, { operation: "edit", passenger: { lastName: "Pérez" } });
     expect(tx.reservation.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: { referredBy: null } }));
   });
@@ -218,6 +219,17 @@ describe("edición de datos de la reserva", () => {
     expect(tx.passenger.update).toHaveBeenCalledWith({
       where: { id: pending.passengerId }, data: { documentId: "32123456" }
     });
+  });
+
+  // Issue #122: el documento pasó a ser obligatorio. Una reserva vieja sin DNI ya no se puede guardar
+  // dejándolo vacío: la planilla del chofer tiene que salir completa.
+  it("no deja guardar el pasajero con el documento vacío", async () => {
+    tx.passenger.findUniqueOrThrow.mockResolvedValue({ documentType: "DNI", documentId: "" });
+
+    await expect(
+      manageReservation(code, { operation: "edit", passenger: { documentId: "" } })
+    ).rejects.toThrow("Ingresá un DNI de 7 u 8 dígitos.");
+    expect(tx.passenger.update).not.toHaveBeenCalled();
   });
 
   it("rechaza un punto excluido y una reserva cancelada", async () => {
