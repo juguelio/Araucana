@@ -284,6 +284,27 @@ export const SERVICE_ORDER_COLUMNS = [
   "Contacto"
 ] as const;
 
+/**
+ * Las celdas de un pasajero, en el mismo orden que `SERVICE_ORDER_COLUMNS`.
+ *
+ * La usan la vista en pantalla y cualquier consumidor de texto; el .xlsx arma sus celdas con estilos
+ * pero con este mismo contenido. Si alguien agrega o mueve una columna, el test de contrato obliga a
+ * tocar esta función: la pantalla y el papel no pueden desincronizarse.
+ */
+export function serviceOrderRow(pasajero: ServiceOrderPassenger): string[] {
+  const alojamiento = pasajero.lodgingDetail ? `${pasajero.lodging} · ${pasajero.lodgingDetail}` : pasajero.lodging;
+
+  return [
+    pasajero.name,
+    String(pasajero.seats),
+    pasajero.document,
+    alojamiento,
+    pasajero.referredBy ?? "",
+    pasajero.payment,
+    pasajero.contact
+  ];
+}
+
 export function serviceOrderFileName(date: string, flightReference?: string | null) {
   const sufijo = flightReference
     ? `-${flightReference
