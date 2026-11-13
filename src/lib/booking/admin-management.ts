@@ -322,15 +322,16 @@ export async function manageReservation(code: string, command: ReservationOperat
           if (Object.keys(passenger).length > 0) {
             const where = { id: reservation.passengerId };
             const data = { ...passenger };
-            if (data.documentType !== undefined || data.documentId !== undefined) {
-              const saved = await tx.passenger.findUniqueOrThrow({ where, select: { documentType: true, documentId: true } });
-              const documentType = data.documentType ?? saved.documentType;
-              const documentId = data.documentId ?? saved.documentId;
-              const error = passengerDocumentError(documentType, documentId, true);
-              if (error) throw new BookingError("INVALID_PASSENGER_DOCUMENT", error);
-              const normalizedId = normalizePassengerDocument(documentType, documentId);
-              if (data.documentId !== undefined || normalizedId !== saved.documentId) data.documentId = normalizedId;
-            }
+            // El documento es obligatorio (#122): se valida siempre el valor que va a quedar guardado,
+            // aunque el operador esté tocando otro dato. Si la reserva vieja no tenía DNI, el guardado
+            // lo pide en vez de arrastrar el hueco a la planilla del chofer.
+            const saved = await tx.passenger.findUniqueOrThrow({ where, select: { documentType: true, documentId: true } });
+            const documentType = data.documentType ?? saved.documentType;
+            const documentId = data.documentId ?? saved.documentId;
+            const error = passengerDocumentError(documentType, documentId);
+            if (error) throw new BookingError("INVALID_PASSENGER_DOCUMENT", error);
+            const normalizedId = normalizePassengerDocument(documentType, documentId);
+            if (data.documentId !== undefined || normalizedId !== saved.documentId) data.documentId = normalizedId;
             await tx.passenger.update({ where, data });
           }
           break;

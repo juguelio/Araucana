@@ -76,8 +76,8 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <select name="documentType" defaultValue="DNI" required><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
                 </label>
                 <label>
-                  Documento (opcional)
-                  <input name="documentId" />
+                  Documento
+                  <input name="documentId" required placeholder="7 u 8 dígitos si es DNI" />
                 </label>
                 <label className="span-2">
                   Nacionalidad

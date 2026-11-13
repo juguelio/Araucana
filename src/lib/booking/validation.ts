@@ -38,7 +38,9 @@ export const adminPassengerPatchSchema = adminPassengerFields.partial();
 export const adminPassengerSchema = adminPassengerFields.extend({
   email: adminPassengerFields.shape.email.default(""),
   documentId: adminPassengerFields.shape.documentId.default("")
-}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
+  // El documento es obligatorio también desde el panel (#122): la orden de servicio del chofer
+  // imprimía «—» en la mayoría de las reservas cargadas a mano. Antes acá iba `optional = true`.
+}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx));
 
 const fareCounter = z.coerce.number().int().min(0, "La cantidad no puede ser negativa.").max(24).default(0);
 
