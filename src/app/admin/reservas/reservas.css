@@ -168,3 +168,21 @@
   width: auto;
   min-height: 0;
 }
+
+/* --- Reserva cancelada (#108) -------------------------------------------------------------
+   El cliente pidió seguir viéndola en el listado, pero apagada para distinguirla de un vistazo.
+   El fondo se repite en la última celda porque es sticky y tiene fondo propio (si no, queda un
+   parche blanco en la columna de acciones). */
+.reservas-row-cancelled td {
+  background: #efece5;
+  color: var(--ink-muted);
+}
+
+.reservas-row-cancelled td:last-child {
+  background: #efece5;
+}
+
+.reservas-row-cancelled .reservas-short-code,
+.reservas-row-cancelled .table-link {
+  color: var(--ink-muted);
+}

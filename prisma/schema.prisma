@@ -357,6 +357,12 @@ model Reservation {
   freeFareCount Int      @default(0)
   bookingMode String     @default("SEATED")
   status      String     @default("PENDING_PAYMENT")
+  // Cancelación con motivo (#108): el cliente pidió que al cancelar se pida una descripción del
+  // porqué y que la reserva cancelada se siga viendo en gris en el listado. Nullable porque las
+  // cancelaciones que ya existen en la base no tienen motivo y la cancelación desde la web no lo pide.
+  cancellationReason String?
+  cancelledAt        DateTime?
+  cancelledByName    String?
   totalCents  Int
   currency    String     @default("ARS")
   // Ida y vuelta del aeropuerto (#36): las dos reservas del viaje comparten este id. Cada tramo

@@ -134,6 +134,21 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <span>Creada por</span>
               <strong>{reservation.creatorLabel}</strong>
             </div>
+            {cancelled ? (
+              <div>
+                <span>Motivo de la cancelación</span>
+                <strong>{reservation.cancellationReason ?? "Sin motivo registrado"}</strong>
+              </div>
+            ) : null}
+            {cancelled && reservation.cancelledAt ? (
+              <div>
+                <span>Cancelada</span>
+                <strong>
+                  {formatDateTime(reservation.cancelledAt)}
+                  {reservation.cancelledByName ? ` · ${reservation.cancelledByName}` : ""}
+                </strong>
+              </div>
+            ) : null}
             <div>
               <span>Ruta</span>
               <strong>

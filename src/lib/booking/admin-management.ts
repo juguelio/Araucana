@@ -14,8 +14,21 @@ const paymentFields = {
   reference: z.string().trim().max(120)
 };
 
+// Motivo de la cancelación (#108): el cliente pidió que cancelar pida una descripción del porqué.
+// Se exige en el servidor (no sólo en el botón) para que la cancelación nunca quede sin motivo.
+const cancellationReason = z
+  .string()
+  .trim()
+  .min(3, "Escribí el motivo de la cancelación (al menos 3 caracteres).")
+  .max(300, "El motivo de la cancelación puede tener hasta 300 caracteres.");
+
 export const reservationManagementSchema = z.discriminatedUnion("operation", [
-  z.object({ operation: z.literal("cancel") }),
+  z.object({
+    operation: z.literal("cancel"),
+    reason: cancellationReason,
+    // Quién canceló, armado por el server action desde la sesión (no viaja por el formulario).
+    cancelledBy: z.string().trim().max(120).optional()
+  }),
   z.object({ operation: z.literal("delete") }),
   z.object({ operation: z.literal("confirm") }),
   z.object({ operation: z.literal("payment"), ...paymentFields }),
@@ -58,7 +71,17 @@ export async function manageReservation(code: string, command: ReservationOperat
       switch (command.operation) {
         case "cancel":
           if (status === "CANCELLED") break;
-          await tx.reservation.update({ where: { id }, data: { status: "CANCELLED", seatId: null, seatNumber: null } });
+          await tx.reservation.update({
+            where: { id },
+            data: {
+              status: "CANCELLED",
+              seatId: null,
+              seatNumber: null,
+              cancellationReason: command.reason,
+              cancelledAt: new Date(),
+              cancelledByName: command.cancelledBy ?? null
+            }
+          });
           await tx.chapelcoManifestStop.deleteMany({ where: { reservationId: id, status: "PENDING" } });
           break;
         case "delete":
