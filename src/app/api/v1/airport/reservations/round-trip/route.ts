@@ -3,12 +3,12 @@ import { cuposDeReserva, limitarPedido } from "@/lib/api/rate-limit";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 import { createAirportRoundTripReservation } from "@/lib/airport/booking";
 import { BookingError } from "@/lib/booking/repository";
-import { airportRoundTripSchema } from "@/lib/airport/validation";
+import { adminAirportRoundTripSchema, airportRoundTripSchema } from "@/lib/airport/validation";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { AIRPORT_ERROR_RESPONSES, pickupCoverageError } from "@/lib/airport/api-shared";
 
 import type { ReservationCreationContext } from "@/lib/booking/reservation-creator";
-import { getAppUserFromToken, getTokenFromRequest } from "@/lib/auth/service";
+import { getAppUserFromToken, getTokenFromRequest, requireReservationsUser } from "@/lib/auth/service";
 
 /** Lo que necesita el pasajero para pagar y abrir cada tramo. */
 function resumenTramo(reservation: {
@@ -34,11 +34,17 @@ function resumenTramo(reservation: {
  * datos del pasajero una sola vez. Cada tramo queda con su pago pendiente.
  */
 export async function POST(request: Request) {
-  const rafaga = await limitarPedido(request, cuposDeReserva);
-  if (rafaga) return rafaga;
+  // El alta desde el panel es de un usuario logueado: el freno por IP es para el formulario público.
+  const fromAdmin = new URL(request.url).searchParams.get("source") === "admin";
+  if (!fromAdmin) {
+    const rafaga = await limitarPedido(request, cuposDeReserva);
+    if (rafaga) return rafaga;
+  }
 
   try {
-    const context: ReservationCreationContext = { creator: await getAppUserFromToken(getTokenFromRequest(request)) };
+    const context: ReservationCreationContext = fromAdmin
+      ? { fromAdmin: true, creator: await requireReservationsUser(request) }
+      : { creator: await getAppUserFromToken(getTokenFromRequest(request)) };
 
     let payload: unknown;
     try {
@@ -47,7 +53,7 @@ export async function POST(request: Request) {
       return jsonError("INVALID_JSON", "Revisá los datos de la reserva.", 400);
     }
 
-    const parsed = airportRoundTripSchema.safeParse(payload);
+    const parsed = (fromAdmin ? adminAirportRoundTripSchema : airportRoundTripSchema).safeParse(payload);
     if (!parsed.success) {
       return jsonError("VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.", 400);
     }
