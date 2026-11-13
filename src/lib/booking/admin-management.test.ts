@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const tx = vi.hoisted(() => ({
-  reservation: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  reservation: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn(), findMany: vi.fn() },
   payment: { upsert: vi.fn(), update: vi.fn() },
   passenger: { findUniqueOrThrow: vi.fn(), update: vi.fn() },
-  airportReservationDetails: { update: vi.fn() },
-  chapelcoReservationDetails: { update: vi.fn() },
-  chapelcoManifestStop: { deleteMany: vi.fn(), updateMany: vi.fn() }
+  airportReservationDetails: { update: vi.fn(), findUnique: vi.fn() },
+  chapelcoReservationDetails: { update: vi.fn(), findUnique: vi.fn() },
+  chapelcoManifestStop: { deleteMany: vi.fn(), updateMany: vi.fn() },
+  schedule: { findUnique: vi.fn() },
+  vehicle: { findMany: vi.fn() }
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -239,5 +241,144 @@ describe("edición de datos de la reserva", () => {
     expect(tx.chapelcoReservationDetails.update).toHaveBeenCalledWith({ where, data });
     expect(tx.chapelcoManifestStop.updateMany).toHaveBeenCalledWith({ where: { ...where, status: "PENDING" }, data });
     expect(getAirportCoverage).not.toHaveBeenCalled();
+  });
+});
+
+describe("restitución de una reserva cancelada (#117)", () => {
+  const cancelled = {
+    ...pending,
+    bookingMode: "SEATED",
+    scheduleId: "schedule",
+    routeId: "route",
+    passengerCount: 2,
+    status: "CANCELLED",
+    seatId: null,
+    seatNumber: null,
+    cancelledAt: new Date("2026-11-13T10:00:00.000Z"),
+    cancellationReason: "El pasajero avisó que no viaja",
+    cancelledByName: "Vale"
+  };
+  const seats = [
+    { id: "seat-1", vehicleId: "vehicle", number: "1", row: 1, column: 1 },
+    { id: "seat-2", vehicleId: "vehicle", number: "2", row: 1, column: 2 },
+    { id: "seat-3", vehicleId: "vehicle", number: "3", row: 2, column: 1 },
+    { id: "seat-4", vehicleId: "vehicle", number: "4", row: 2, column: 2 }
+  ];
+  const schedule = (over: Record<string, unknown> = {}) => ({
+    id: "schedule",
+    status: "OPEN",
+    departureAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+    route: { isActive: true },
+    vehicle: { isActive: true, seats },
+    reservations: [{ id: "otra", status: "CONFIRMED", passengerCount: 1, seatId: "seat-1", seatNumber: "1" }],
+    ...over
+  });
+
+  it("le da un asiento libre y la deja confirmada si estaba pagada", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...cancelled, payment: { status: "APPROVED", provider: "MANUAL" } });
+    tx.schedule.findUnique.mockResolvedValue(schedule());
+
+    await manageReservation(code, { operation: "restore", restoredBy: "Vale" });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({
+      where: { id: pending.id },
+      data: { status: "CONFIRMED", seatId: "seat-2", seatNumber: "2", restoredAt: expect.any(Date), restoredByName: "Vale" }
+    });
+    // El historial de la cancelación no se pisa: sólo se agrega quién y cuándo restituyó.
+    expect(tx.reservation.update.mock.calls[0][0].data).not.toHaveProperty("cancellationReason");
+    expect(tx.reservation.update.mock.calls[0][0].data).not.toHaveProperty("cancelledAt");
+    expect(tx.reservation.update.mock.calls[0][0].data).not.toHaveProperty("cancelledByName");
+  });
+
+  it("vuelve a pago pendiente cuando no había pago registrado", async () => {
+    tx.reservation.findUnique.mockResolvedValue(cancelled);
+    tx.schedule.findUnique.mockResolvedValue(schedule());
+
+    await manageReservation(code, { operation: "restore" });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "PENDING_PAYMENT", restoredByName: null })
+    }));
+  });
+
+  it("rechaza restituir si la salida ya arrancó y no cambia nada", async () => {
+    tx.reservation.findUnique.mockResolvedValue(cancelled);
+    tx.schedule.findUnique.mockResolvedValue(schedule({ departureAt: new Date(Date.now() - 60_000) }));
+
+    await expect(manageReservation(code, { operation: "restore" })).rejects.toMatchObject({ code: "SERVICE_ALREADY_STARTED" });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("rechaza restituir sin cupo en vez de sobrevender", async () => {
+    tx.reservation.findUnique.mockResolvedValue(cancelled);
+    tx.schedule.findUnique.mockResolvedValue(schedule({
+      reservations: [
+        { id: "otra", status: "CONFIRMED", passengerCount: 1, seatId: "seat-1", seatNumber: "1" },
+        { id: "otra-2", status: "PENDING_PAYMENT", passengerCount: 1, seatId: "seat-2", seatNumber: "2" },
+        { id: "otra-3", status: "CONFIRMED", passengerCount: 1, seatId: "seat-3", seatNumber: "3" }
+      ]
+    }));
+
+    await expect(manageReservation(code, { operation: "restore" })).rejects.toMatchObject({ code: "CAPACITY_FULL" });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("no restituye una reserva que no está cancelada", async () => {
+    await expect(manageReservation(code, { operation: "restore" })).rejects.toMatchObject({ code: "RESERVATION_NOT_CANCELLED" });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("rechaza un vuelo que ya salió", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...cancelled, bookingMode: "AIRPORT", scheduleId: null });
+    tx.airportReservationDetails.findUnique.mockResolvedValue({
+      direction: "DEPARTURE",
+      serviceDate: new Date("2026-11-13T00:00:00.000Z"),
+      flight: {
+        status: "SCHEDULED",
+        scheduledAt: new Date(Date.now() - 60_000),
+        estimatedAt: null,
+        reservations: [],
+        assignments: []
+      }
+    });
+
+    await expect(manageReservation(code, { operation: "restore" })).rejects.toMatchObject({ code: "SERVICE_ALREADY_STARTED" });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("restituye un vuelo futuro con cupo", async () => {
+    tx.reservation.findUnique.mockResolvedValue({
+      ...cancelled, bookingMode: "AIRPORT", scheduleId: null, payment: { status: "APPROVED", provider: "MANUAL" }
+    });
+    tx.airportReservationDetails.findUnique.mockResolvedValue({
+      direction: "DEPARTURE",
+      serviceDate: new Date(Date.now() + 86_400_000),
+      flight: {
+        status: "SCHEDULED",
+        scheduledAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+        estimatedAt: null,
+        reservations: [{ reservation: { passengerCount: 1, status: "CONFIRMED" } }],
+        assignments: []
+      }
+    });
+
+    await manageReservation(code, { operation: "restore" });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: "CONFIRMED", seatId: null, seatNumber: null })
+    }));
+  });
+
+  it("rechaza un servicio de Chapelco que ya pasó", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...cancelled, bookingMode: "CHAPELCO", scheduleId: null });
+    tx.chapelcoReservationDetails.findUnique.mockResolvedValue({ serviceDate: new Date("2026-01-05T00:00:00.000Z"), ascentSlot: "08:30" });
+
+    await expect(manageReservation(code, { operation: "restore" })).rejects.toMatchObject({ code: "SERVICE_ALREADY_STARTED" });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("acepta la operación en el schema con quién la restituyó", () => {
+    expect(reservationManagementSchema.parse({ operation: "restore", restoredBy: "Vale" }))
+      .toMatchObject({ operation: "restore", restoredBy: "Vale" });
   });
 });

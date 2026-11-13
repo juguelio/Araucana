@@ -114,6 +114,9 @@ export type ReservationDetailDto = {
   cancellationReason?: string | null;
   cancelledAt?: Date | null;
   cancelledByName?: string | null;
+  /** Restitución (#117): quién y cuándo volvió atrás, sin borrar la cancelación. */
+  restoredAt?: Date | null;
+  restoredByName?: string | null;
   seatNumber: string | null;
   totalCents: number;
   total: number;
