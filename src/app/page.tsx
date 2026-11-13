@@ -89,6 +89,17 @@ export default async function HomePage() {
           </div>
           <form className="chapelco-form" action={home("/rutas")} method="get">
             <div className="booking-card-top"><span>{dict.featured.formTitle}</span><span className="status-dot">● {dict.featured.formStatus}</span></div>
+            <fieldset className="trip-toggle">
+              <legend>{dict.featured.tripType}</legend>
+              <label>
+                <input type="radio" name="tramos" value="solo-ida" defaultChecked />
+                <span>{dict.featured.oneWay}</span>
+              </label>
+              <label>
+                <input type="radio" name="tramos" value="ida-y-vuelta" />
+                <span>{dict.featured.roundTrip}</span>
+              </label>
+            </fieldset>
             <label>
               <small>{dict.featured.origin}</small>
               <select name="from" defaultValue="">

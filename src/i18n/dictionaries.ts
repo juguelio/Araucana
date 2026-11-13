@@ -68,6 +68,10 @@ const es = {
     date: "Fecha",
     pickOrigin: "Elegí un origen",
     pickDestination: "Elegí un destino",
+    tripType: "Tipo de viaje",
+    oneWay: "Un tramo",
+    roundTrip: "Ida y vuelta",
+    roundTripOnlyAirport: "Ida y vuelta está disponible para el traslado al aeropuerto.",
     submit: "Ver horarios"
   },
   destinations: {
@@ -249,6 +253,10 @@ const en: Dictionary = {
     date: "Date",
     pickOrigin: "Choose a pickup point",
     pickDestination: "Choose a destination",
+    tripType: "Trip type",
+    oneWay: "One leg",
+    roundTrip: "Round trip",
+    roundTripOnlyAirport: "Round trip is available for the airport transfer.",
     submit: "See schedules"
   },
   destinations: {
@@ -428,6 +436,10 @@ const pt: Dictionary = {
     date: "Data",
     pickOrigin: "Escolha uma origem",
     pickDestination: "Escolha um destino",
+    tripType: "Tipo de viagem",
+    oneWay: "Um trecho",
+    roundTrip: "Ida e volta",
+    roundTripOnlyAirport: "Ida e volta está disponível para o transfer do aeroporto.",
     submit: "Ver horários"
   },
   destinations: {

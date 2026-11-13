@@ -51,7 +51,7 @@ async function getRoutesWithSchedules() {
 }
 
 type RoutesPageProps = {
-  searchParams?: Promise<{ from?: string; to?: string; date?: string }>;
+  searchParams?: Promise<{ from?: string; to?: string; date?: string; tramos?: string }>;
 };
 
 export default async function RoutesPage({ searchParams }: RoutesPageProps) {
@@ -61,11 +61,14 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
   const from = params?.from?.trim() ?? "";
   const to = params?.to?.trim() ?? "";
   const date = params?.date?.trim() ?? "";
+  const idaYVuelta = params?.tramos?.trim() === "ida-y-vuelta";
   // Los tramos de aeropuerto se reservan por vuelo: elegirlos en el buscador lleva al flujo por vuelo.
+  // Con «ida y vuelta» el buscador de la portada lleva al flujo que arma los dos tramos juntos.
   const airportSlug = airportSlugFromSelection(from) ?? airportSlugFromSelection(to);
   if (airportSlug) {
     const query = date ? `?date=${encodeURIComponent(date)}` : "";
-    redirect(localizePath(`/reservar/${airportSlug}${query}`, locale));
+    const destino = idaYVuelta ? `/reservar/${airportSlug}/ida-y-vuelta${query}` : `/reservar/${airportSlug}${query}`;
+    redirect(localizePath(destino, locale));
   }
 
   const allRoutes = await getRoutesWithSchedules();
@@ -182,6 +185,12 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
               ))}
             </div>
           </div>
+          ) : null}
+
+          {idaYVuelta ? (
+            <p className="dia-aviso">
+              <strong>{dict.featured.roundTrip}.</strong> {dict.featured.roundTripOnlyAirport}
+            </p>
           ) : null}
 
           {fechaSinSalidas ? (
