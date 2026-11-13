@@ -419,8 +419,18 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           <ol className="wizard-steps">
             {PASOS.map((titulo, i) => (
               <li key={titulo} data-active={paso === i + 1} data-done={paso > i + 1}>
-                <span>{i + 1}</span>
-                {titulo}
+                {/* Un paso ya hecho se puede volver a abrir desde acá, igual que con «← Volver». */}
+                {paso > i + 1 ? (
+                  <button type="button" onClick={() => setPaso((i + 1) as 1 | 2)}>
+                    <span>{i + 1}</span>
+                    {titulo}
+                  </button>
+                ) : (
+                  <>
+                    <span>{i + 1}</span>
+                    {titulo}
+                  </>
+                )}
               </li>
             ))}
           </ol>
@@ -470,10 +480,19 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 {orden === "ARRIVAL" ? "Primero llego y después me voy" : "Primero me voy y después vuelvo"}
               </p>
 
-              {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }) => (
-                <div key={sentido} className="plain-card admin-section">
-                  <h3 className="section-title">{etapa} · {titulo}</h3>
-                  <p className="muted">{ayuda}</p>
+              {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }, i) => {
+                const vueloElegido = opciones.find((opcion) => opcion.id === elegido) ?? null;
+                return (
+                <section key={sentido} className="leg-card" data-done={Boolean(vueloElegido)}>
+                  <header className="leg-head">
+                    <span className="leg-badge" aria-hidden="true">{i + 1}</span>
+                    <div className="leg-head-text">
+                      <span className="leg-kicker">{etapa}</span>
+                      <h3 className="leg-title">{titulo}</h3>
+                      <p className="muted leg-help">{vueloElegido ? `${descripcionVuelo(vueloElegido)} · ${fechaCorta(fecha)}` : ayuda}</p>
+                    </div>
+                    {vueloElegido ? <span className="leg-check" aria-label="Vuelo elegido">✓</span> : null}
+                  </header>
                   <div className="checkout-fields">
                     <label>
                       Día
@@ -510,8 +529,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                       .
                     </p>
                   ) : null}
-                </div>
-              ))}
+                </section>
+                );
+              })}
 
               <div className="form-actions">
                 <button className="button" type="button" onClick={avanzar}>
@@ -537,9 +557,17 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 Usar el mismo lugar para la vuelta
               </label>
 
-              {bloquesDePickup.map(({ sentido, titulo, lugar, deshabilitado }) => (
-                <div key={sentido} className="plain-card admin-section">
-                  <h3 className="section-title">{titulo}</h3>
+              {bloquesDePickup.map(({ sentido, titulo, lugar, deshabilitado }, i) => (
+                <section key={sentido} className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={deshabilitado}>
+                  <header className="leg-head">
+                    <span className="leg-badge" aria-hidden="true">{i + 1}</span>
+                    <div className="leg-head-text">
+                      <span className="leg-kicker">{i === 0 ? "1º tramo" : "2º tramo"}</span>
+                      <h3 className="leg-title">{titulo}</h3>
+                      {deshabilitado ? <p className="muted leg-help">Usa el mismo lugar que el primer tramo.</p> : null}
+                    </div>
+                    {lugar.elegido && lugar.point ? <span className="leg-check" aria-label="Lugar confirmado">✓</span> : null}
+                  </header>
                   {officePickup ? (
                     <div className="form-actions">
                       <button className="ghost-button" type="button" disabled={deshabilitado} onClick={() => usarSucursal(sentido)}>
@@ -582,7 +610,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   {lugar.point ? (
                     <p className="muted">Arrastrá el pin si el punto no es el exacto.</p>
                   ) : null}
-                </div>
+                </section>
               ))}
 
               <div className="form-actions">
@@ -672,6 +700,62 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           ) : null}
         </section>
       </div>
+
+      <aside className="checkout-summary plain-card">
+        <p className="eyebrow">Resumen</p>
+        <h2 className="route-title">Ida y vuelta</h2>
+        <div className="summary-list">
+          {bloquesDelViaje.map(({ sentido, etapa, fecha, opciones, elegido }) => {
+            const vueloElegido = opciones.find((opcion) => opcion.id === elegido) ?? null;
+            const pata = sentido === "ARRIVAL" ? PATA_LLEGADA : PATA_SALIDA;
+            return (
+              <div key={sentido}>
+                <span>{etapa} · {pata.etiqueta} {pata.ruta}</span>
+                <strong>{fechaCorta(fecha)}{vueloElegido ? ` · ${descripcionVuelo(vueloElegido)}` : " · sin vuelo"}</strong>
+              </div>
+            );
+          })}
+          <div>
+            <span>Pickup</span>
+            <strong>
+              {(() => {
+                const primero = orden === "ARRIVAL" ? pickupLlegada : pickupVuelta;
+                const segundo = orden === "ARRIVAL" ? pickupVuelta : pickupLlegada;
+                if (!primero.elegido && !segundo.elegido) return paso === 1 ? "Se elige en el paso 2" : "Sin confirmar todavía";
+                const nombre = (lugar: LugarPickup) => (lugar.elegido ? lugar.label || "punto elegido en el mapa" : "sin confirmar");
+                return mismoLugar ? `${nombre(primero)} (mismo lugar en los dos tramos)` : `${nombre(primero)} · vuelta: ${nombre(segundo)}`;
+              })()}
+            </strong>
+          </div>
+          <div>
+            <span>Pasajeros</span>
+            <strong>
+              {passengerCount}
+              {halfFareCount > 0 ? ` · ${halfFareCount} con media tarifa` : ""}
+              {freeFareCount > 0 ? ` · ${freeFareCount} sin cargo` : ""}
+              {sportsLuggageCount > 0 ? ` · ${sportsLuggageCount} bulto(s) deportivo(s)` : ""}
+            </strong>
+          </div>
+          <div>
+            <span>Tarifa</span>
+            <strong>{formatPrice(precioLlegada, moneda)} la llegada · {formatPrice(precioVuelta, moneda)} la vuelta, por persona</strong>
+          </div>
+        </div>
+        <strong className="price">{formatPrice(totalLlegada + totalVuelta, moneda)}</strong>
+        {paso < 3 ? (
+          <button className="button checkout-submit" type="button" onClick={avanzar}>
+            {paso === 1 ? "Continuar con los pickups →" : "Continuar con tus datos →"}
+          </button>
+        ) : (
+          <button className="primary-button checkout-submit" type="submit" disabled={isSubmitting || fueraDeZona}>
+            {isSubmitting ? "Reservando…" : "Reservar ida y vuelta"}
+          </button>
+        )}
+        <p className="muted legal-consent">
+          Al confirmar, aceptás los <Link href="/terminos">términos y condiciones</Link> y la{" "}
+          <Link href="/privacidad">política de privacidad</Link>.
+        </p>
+      </aside>
     </form>
   );
 }
