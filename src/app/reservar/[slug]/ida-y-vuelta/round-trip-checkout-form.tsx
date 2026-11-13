@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
@@ -54,6 +55,8 @@ type RoundTripCheckoutFormProps = {
   extras: { sportsLuggageCents: number };
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
+  /** Alta desde el panel: identidad opcional, sin freno por IP y vuelve a la reserva del panel. */
+  fromAdmin?: boolean;
 };
 
 type LugarPickup = {
@@ -77,6 +80,25 @@ type TramoCreado = {
 };
 
 const PASOS = ["Ida y vuelta", "Los pickups", "Tus datos"];
+
+/**
+ * Los dos órdenes posibles del ida y vuelta. Los sentidos no cambian (la llegada siempre es
+ * CPC → SMA); lo que cambia es cuál va primero en el calendario.
+ */
+const ORDENES_DEL_VIAJE = [
+  {
+    code: "ARRIVAL" as const,
+    titulo: "Primero llego y después me voy",
+    ruta: "CPC → SMA · SMA → CPC",
+    ayuda: "Me esperan cuando aterrizo y la vuelta me llevan al aeropuerto."
+  },
+  {
+    code: "DEPARTURE" as const,
+    titulo: "Primero me voy y después vuelvo",
+    ruta: "SMA → CPC · CPC → SMA",
+    ayuda: "Me llevan al aeropuerto y a la vuelta me esperan cuando aterrizo."
+  }
+];
 
 function hhmm(iso: string) {
   return new Date(new Date(iso).getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
@@ -106,8 +128,15 @@ function descripcionVuelo(vuelo: FlightOption) {
   return partes.join(" · ");
 }
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null }: RoundTripCheckoutFormProps) {
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false }: RoundTripCheckoutFormProps) {
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
+  /**
+   * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
+   * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
+   */
+  const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">("ARRIVAL");
+  const [redirecting, setRedirecting] = useState(false);
+  const router = useRouter();
   const [fechaLlegada, setFechaLlegada] = useState(initialDate);
   const [fechaVuelta, setFechaVuelta] = useState(initialDate);
   const [vuelosLlegada, setVuelosLlegada] = useState<FlightOption[]>(initialFlights);
@@ -136,12 +165,63 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const vuelta = useMemo(() => vuelosVuelta.find((v) => v.id === vueltaId) ?? null, [vuelosVuelta, vueltaId]);
   const opcionesLlegada = reservablesDe(vuelosLlegada, "ARRIVAL");
   const opcionesVuelta = reservablesDe(vuelosVuelta, "DEPARTURE");
+  /**
+   * Los dos tramos en el orden que eligió el pasajero. El segundo lleva `minimo` con la fecha del
+   * primero: el que va después no puede ser anterior en el calendario.
+   */
+  const bloqueLlegada = {
+    sentido: "ARRIVAL" as const,
+    titulo: "Llegada a Chapelco",
+    ayuda: "El vuelo en el que aterrizás.",
+    fecha: fechaLlegada,
+    opciones: opcionesLlegada,
+    elegido: llegadaId,
+    setElegido: setLlegadaId,
+    cargando: cargandoLlegada
+  };
+  const bloqueSalida = {
+    sentido: "DEPARTURE" as const,
+    titulo: "Salida desde San Martín",
+    ayuda: "El vuelo con el que te vas.",
+    fecha: fechaVuelta,
+    opciones: opcionesVuelta,
+    elegido: vueltaId,
+    setElegido: setVueltaId,
+    cargando: cargandoVuelta
+  };
+  const bloquesDelViaje = orden === "ARRIVAL"
+    ? [
+        { ...bloqueLlegada, etapa: "1º tramo (ida)", minimo: "" },
+        { ...bloqueSalida, etapa: "2º tramo (vuelta)", minimo: fechaLlegada }
+      ]
+    : [
+        { ...bloqueSalida, etapa: "1º tramo (ida)", minimo: "" },
+        { ...bloqueLlegada, etapa: "2º tramo (vuelta)", minimo: fechaVuelta }
+      ];
+
+  /** Los pickups siguen el mismo orden que los vuelos. */
+  const bloquesDePickup = orden === "ARRIVAL"
+    ? [
+        { sentido: "ARRIVAL" as const, titulo: "Lugar de la llegada", lugar: pickupLlegada, deshabilitado: false },
+        { sentido: "DEPARTURE" as const, titulo: "Lugar de la vuelta", lugar: pickupVuelta, deshabilitado: mismoLugar }
+      ]
+    : [
+        { sentido: "DEPARTURE" as const, titulo: "Lugar de la salida", lugar: pickupVuelta, deshabilitado: false },
+        { sentido: "ARRIVAL" as const, titulo: "Lugar de la vuelta", lugar: pickupLlegada, deshabilitado: mismoLugar }
+      ];
   const passengerCount = fullFareCount + halfFareCount + freeFareCount;
 
-  // La vuelta usa el mismo lugar que la llegada cuando el pasajero lo pide (es el caso normal).
+  /**
+   * El primer tramo del viaje manda el lugar; el segundo lo copia cuando el pasajero lo pide (caso
+   * normal). Con «primero me voy» el ancla es la salida, no la llegada: si no, el bloque habilitado
+   * escribía en el tramo que no correspondía.
+   */
+  const tramoAncla = orden;
   useEffect(() => {
-    if (mismoLugar) setPickupVuelta(pickupLlegada);
-  }, [mismoLugar, pickupLlegada]);
+    if (!mismoLugar) return;
+    if (tramoAncla === "ARRIVAL") setPickupVuelta(pickupLlegada);
+    else setPickupLlegada(pickupVuelta);
+  }, [mismoLugar, tramoAncla, pickupLlegada, pickupVuelta]);
 
   const pickupLlegadaListo = Boolean(pickupLlegada.elegido) && Boolean(pickupLlegada.point);
   const pickupVueltaListo = Boolean(pickupVuelta.elegido) && Boolean(pickupVuelta.point);
@@ -183,8 +263,11 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       approximate: place.approximate,
       elegido: true
     };
-    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
-    else if (!mismoLugar) setPickupVuelta(lugar);
+    // Con «mismo lugar» sólo escribe el primer tramo; el otro se copia solo.
+    if (!mismoLugar || sentido === tramoAncla) {
+      if (sentido === "ARRIVAL") setPickupLlegada(lugar);
+      else setPickupVuelta(lugar);
+    }
   }
 
   /** Atajo de la sucursal: deja la dirección y el punto de la oficina en ese tramo. */
@@ -197,8 +280,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       approximate: false,
       elegido: true
     };
-    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
-    else if (!mismoLugar) setPickupVuelta(lugar);
+    if (!mismoLugar || sentido === tramoAncla) {
+      if (sentido === "ARRIVAL") setPickupLlegada(lugar);
+      else setPickupVuelta(lugar);
+    }
   }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
@@ -213,8 +298,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
   function validarPaso1() {
     if (!llegada || !llegada.bookable) return "Elegí tu vuelo de llegada a Chapelco.";
-    if (!vuelta || !vuelta.bookable) return "Elegí tu vuelo de salida desde Chapelco.";
-    if (fechaVuelta < fechaLlegada) return "La vuelta no puede ser antes de la llegada.";
+    if (!vuelta || !vuelta.bookable) return "Elegí tu vuelo de salida desde San Martín.";
+    // El segundo tramo sigue al primero, se arranque llegando o saliendo.
+    if (orden === "ARRIVAL" && fechaVuelta < fechaLlegada) return "La vuelta no puede ser antes de la llegada.";
+    if (orden === "DEPARTURE" && fechaLlegada < fechaVuelta) return "La vuelta no puede ser antes de la salida.";
     return "";
   }
 
@@ -243,7 +330,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       setPaso(2);
       return;
     }
-    const erroresPasajero = validateCheckoutPassenger(passenger);
+    const erroresPasajero = validateCheckoutPassenger(passenger, fromAdmin);
     if (Object.keys(erroresPasajero).length > 0) {
       setFieldErrors(erroresPasajero);
       setError("Revisá los datos del pasajero.");
@@ -253,11 +340,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     setIsSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/v1/airport/reservations/round-trip", {
+      const res = await fetch(`/api/v1/airport/reservations/round-trip${fromAdmin ? "?source=admin" : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           routeSlug: route.slug,
+          firstLeg: orden,
           passengerCount,
           halfFareCount,
           freeFareCount,
@@ -280,6 +368,13 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       const data = await res.json();
       if (!res.ok) {
         setError(data?.error?.message ?? "No pudimos crear la reserva. Probá de nuevo.");
+        return;
+      }
+      // En el panel no hay comprobante que pagar: se vuelve a la reserva para seguir operando.
+      if (fromAdmin) {
+        const primero = orden === "ARRIVAL" ? data.roundTrip.arrival : data.roundTrip.departure;
+        setRedirecting(true);
+        router.push(`/admin/reservas/${primero.code}`);
         return;
       }
       setResultado(data.roundTrip);
@@ -338,16 +433,35 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 <p className="eyebrow">Paso 1 de 3</p>
                 <h2 className="route-title">Tus dos vuelos</h2>
                 <p className="muted">
-                  Elegí el vuelo de llegada a Chapelco y el de salida. Podés volver otro día.
+                  Primero elegí el orden del viaje: empezar llegando o empezar saliendo. Después, los
+                  dos vuelos. Podés volver otro día.
                 </p>
               </div>
 
-              {[
-                { sentido: "ARRIVAL" as const, titulo: "Llegada a Chapelco", ayuda: "El vuelo en el que aterrizás.", fecha: fechaLlegada, opciones: opcionesLlegada, elegido: llegadaId, setElegido: setLlegadaId, cargando: cargandoLlegada },
-                { sentido: "DEPARTURE" as const, titulo: "Salida desde San Martín", ayuda: "El vuelo con el que te vas.", fecha: fechaVuelta, opciones: opcionesVuelta, elegido: vueltaId, setElegido: setVueltaId, cargando: cargandoVuelta }
-              ].map(({ sentido, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando }) => (
+              <div className="wizard-options">
+                {ORDENES_DEL_VIAJE.map((opcion) => (
+                  <button
+                    key={opcion.code}
+                    type="button"
+                    className="wizard-option"
+                    data-selected={orden === opcion.code}
+                    onClick={() => {
+                      setOrden(opcion.code);
+                      setLlegadaId("");
+                      setVueltaId("");
+                      setError("");
+                    }}
+                  >
+                    <b>{opcion.titulo}</b>
+                    <span className="wizard-option-route">{opcion.ruta}</span>
+                    <span className="muted">{opcion.ayuda}</span>
+                  </button>
+                ))}
+              </div>
+
+              {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }) => (
                 <div key={sentido} className="plain-card admin-section">
-                  <h3 className="section-title">{titulo}</h3>
+                  <h3 className="section-title">{etapa} · {titulo}</h3>
                   <p className="muted">{ayuda}</p>
                   <div className="checkout-fields">
                     <label>
@@ -355,7 +469,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                       <input
                         type="date"
                         value={fecha}
-                        min={sentido === "DEPARTURE" ? fechaLlegada : undefined}
+                        min={minimo || undefined}
                         onChange={(e) => {
                           if (sentido === "ARRIVAL") setFechaLlegada(e.target.value);
                           else setFechaVuelta(e.target.value);
@@ -412,8 +526,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 Usar el mismo lugar para la vuelta
               </label>
 
-              {[{ sentido: "ARRIVAL" as const, titulo: "Lugar de la llegada", lugar: pickupLlegada, deshabilitado: false },
-                { sentido: "DEPARTURE" as const, titulo: "Lugar de la vuelta", lugar: pickupVuelta, deshabilitado: mismoLugar }].map(({ sentido, titulo, lugar, deshabilitado }) => (
+              {bloquesDePickup.map(({ sentido, titulo, lugar, deshabilitado }) => (
                 <div key={sentido} className="plain-card admin-section">
                   <h3 className="section-title">{titulo}</h3>
                   {officePickup ? (
@@ -504,7 +617,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 </label>
               </div>
 
-              <PassengerFields passenger={passenger} fieldErrors={fieldErrors} onChange={updatePassenger} />
+              <PassengerFields
+                passenger={passenger}
+                fieldErrors={fieldErrors}
+                onChange={updatePassenger}
+                optionalIdentity={fromAdmin}
+              />
 
               <div className="summary-list plain-card">
                 <div>

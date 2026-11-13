@@ -15,6 +15,7 @@ import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
 import {
   adminAirportReservationSchema,
+  adminAirportRoundTripSchema,
   airportReservationSchema,
   airportRoundTripSchema,
   type AdminAirportReservationInput,
@@ -512,8 +513,9 @@ export async function createAirportReservation(input: AdminAirportReservationInp
  * Los extras (equipaje deportivo y recargo de zona) se cobran **por tramo**: el recargo depende del
  * punto de pickup de ese tramo y el equipaje viaja en los dos.
  */
-export async function createAirportRoundTripReservation(input: AirportRoundTripInput, { creator }: ReservationCreationContext = {}) {
-  const parsed = airportRoundTripSchema.parse(input);
+export async function createAirportRoundTripReservation(input: AirportRoundTripInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
+  // El alta del panel acepta la identidad del pasajero como opcional; el público la exige.
+  const parsed = (fromAdmin ? adminAirportRoundTripSchema : airportRoundTripSchema).parse(input);
   await rutaDelSlug(parsed.routeSlug);
   validarVueloPrivado({ ...parsed.arrival, direction: "ARRIVAL" });
   validarVueloPrivado({ ...parsed.departure, direction: "DEPARTURE" });
