@@ -190,6 +190,44 @@ describe("orden de servicio del aeropuerto", () => {
     expect(workbook.byteLength).toBeGreaterThan(10000);
   });
 
+  it("lleva al chofer quién derivó la venta y deja vacío el que se vendió directo", async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    // Nombres distintos: la hoja ordena por pasajero y el test lee la celda por el nombre.
+    const conNombre = (firstName: string, lastName: string, documentId: string) => ({
+      ...reserva().passenger, firstName, lastName, documentId
+    });
+    const derivada = reserva({ code: "ARA-2", referredBy: "Agencia Los Andes", passenger: conNombre("Matías", "Faur", "30111222") });
+    const directa = reserva({ code: "ARA-3", referredBy: null, passenger: conNombre("Lucía", "Sosa", "27888999") });
+    const soloEspacios = reserva({ code: "ARA-4", referredBy: "   ", passenger: conNombre("Ana", "Gómez", "33444555") });
+
+    const blocks = buildServiceOrderBlocks([derivada, directa, soloEspacios]);
+    const porCodigo = new Map(blocks[0].passengers.map((pasajero) => [pasajero.code, pasajero.referredBy]));
+    expect(porCodigo.get("ARA-2")).toBe("Agencia Los Andes");
+    expect(porCodigo.get("ARA-3")).toBeNull();
+    // Espacios en blanco no son un origen: la celda tiene que quedar vacía, no con basura.
+    expect(porCodigo.get("ARA-4")).toBeNull();
+
+    const workbook = await buildServiceOrderWorkbook(
+      { date: "2026-11-12", generatedAt: new Date("2026-11-12T16:45:00Z") },
+      blocks
+    );
+    const libro = new ExcelJS.Workbook();
+    await libro.xlsx.load(workbook as unknown as Parameters<typeof libro.xlsx.load>[0]);
+    const hoja = libro.getWorksheet("Orden de servicio")!;
+
+    const derivadoPor = new Map<string, string>();
+    hoja.eachRow((renglon) => {
+      const nombre = String(renglon.getCell(1).value ?? "");
+      for (const apellido of ["Faur", "Sosa", "Gómez"]) {
+        if (nombre.includes(apellido)) derivadoPor.set(apellido, String(renglon.getCell(5).value ?? ""));
+      }
+    });
+
+    expect(derivadoPor.get("Faur")).toBe("Agencia Los Andes");
+    expect(derivadoPor.get("Sosa")).toBe("");
+    expect(derivadoPor.get("Gómez")).toBe("");
+  });
+
   it("calcula cuántos renglones ocupa una dirección larga", () => {
     expect(lineasDeTexto("Los Saucos 351", 30, 9.5)).toBe(1);
     // Caso real que salió cortado: 36 caracteres en la columna de 30 → dos renglones, no uno.

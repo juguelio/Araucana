@@ -107,6 +107,7 @@ type ReservationRecord = {
   code: string;
   shortCode: string;
   roundTripId?: string | null;
+  referredBy?: string | null;
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
@@ -342,6 +343,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     code: reservation.code,
     shortCode: reservation.shortCode,
     roundTripId: reservation.roundTripId ?? null,
+    referredBy: reservation.referredBy ?? null,
     bookingMode: reservation.bookingMode,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
@@ -783,6 +785,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 passengerId: passenger.id,
                 seatId: seatIdForReservation,
                 seatNumber: seat?.number ?? null,
+                // Derivación de otra agencia (#109): sólo llega por el alta del panel; el
+                // formulario público no declara quién vendió.
+                referredBy: parsed.referredBy || null,
                 passengerCount: requestedSeats,
                 halfFareCount: fares.half,
                 freeFareCount: fares.free,

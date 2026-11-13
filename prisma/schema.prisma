@@ -369,6 +369,10 @@ model Reservation {
   // se paga y se cancela por separado —el id sólo las enlaza y las muestra juntas en el panel—,
   // así que no hay FK: es una agrupación, no una dependencia.
   roundTripId String?
+  // Derivación de otra agencia (#109): quién vendió la reserva. Texto libre y opcional porque las
+  // agencias no tienen usuario ni rol en la app: lo carga a mano el equipo desde el panel, y sale
+  // en la columna «Derivado por» de la orden de servicio del chofer.
+  referredBy  String?
   payment     Payment?
   ticket      Ticket?
   chapelcoDetails ChapelcoReservationDetails?

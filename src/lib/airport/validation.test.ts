@@ -28,6 +28,21 @@ describe("contrato de la reserva de aeropuerto", () => {
     expect(parsed.success && "overrideTotalCents" in parsed.data).toBe(false);
   });
 
+  it("el origen de la venta lo carga sólo el panel, no el formulario público (#109)", () => {
+    const publica = airportReservationSchema.safeParse({ ...reserva, referredBy: "Agencia Los Andes" });
+    expect(publica.success).toBe(true);
+    expect(publica.success && "referredBy" in publica.data).toBe(false);
+
+    const panel = adminAirportReservationSchema.safeParse({ ...reserva, referredBy: "  Agencia Los Andes  " });
+    expect(panel.success).toBe(true);
+    expect(panel.success && panel.data.referredBy).toBe("Agencia Los Andes");
+    // Sin el dato la reserva se vendió directo: no se inventa un origen ni se rompe el alta.
+    const sinOrigen = adminAirportReservationSchema.safeParse(reserva);
+    expect(sinOrigen.success).toBe(true);
+    expect(sinOrigen.success && sinOrigen.data.referredBy).toBeUndefined();
+    expect(adminAirportReservationSchema.safeParse({ ...reserva, referredBy: "x".repeat(121) }).success).toBe(false);
+  });
+
   it("sólo el alta desde el panel acepta un precio a medida", () => {
     const parsed = adminAirportReservationSchema.safeParse({ ...reserva, overrideTotalCents: 450_000 });
     expect(parsed.success).toBe(true);

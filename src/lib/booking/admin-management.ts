@@ -6,7 +6,7 @@ import { airportPickupPointSchema } from "@/lib/airport/validation";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment, reservationPriceCents } from "./admin-price";
 import { BookingError } from "./repository";
-import { adminPassengerPatchSchema } from "./validation";
+import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
 
 const paymentFields = {
@@ -39,6 +39,8 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
     passenger: adminPassengerPatchSchema,
     pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema }).optional(),
     notes: z.string().trim().max(300).optional(),
+    /** Quién derivó la venta (#109). Vacío borra el dato: la columna del Excel vuelve a salir vacía. */
+    referredBy: referredBySchema,
     financial: z.discriminatedUnion("operation", [
       z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
       z.object({
@@ -139,7 +141,12 @@ export async function manageReservation(code: string, command: ReservationOperat
           }
 
           if (command.operation !== "edit") break;
-          const { pickup, notes, passenger } = command;
+          const { pickup, notes, passenger, referredBy } = command;
+          // El origen de la venta no es logística: se puede corregir incluso con la reserva
+          // cancelada, y vacío borra el dato (#109).
+          if (referredBy !== undefined) {
+            await tx.reservation.update({ where: { id }, data: { referredBy: referredBy || null } });
+          }
           if (pickup || notes !== undefined) {
             if (status === "CANCELLED") throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
             const where = { reservationId: id };

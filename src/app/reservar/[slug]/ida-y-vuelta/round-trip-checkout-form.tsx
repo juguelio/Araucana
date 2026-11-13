@@ -142,6 +142,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [freeFareCount, setFreeFareCount] = useState(0);
   const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
+  // Derivación de otra agencia (#109): sólo existe en el alta del panel y vale para los dos tramos.
+  const [referredBy, setReferredBy] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<PassengerFieldErrors>({});
 
@@ -350,6 +352,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           halfFareCount,
           freeFareCount,
           sportsLuggageCount,
+          referredBy: fromAdmin ? referredBy.trim() || undefined : undefined,
           passenger: buildPassengerPayload(passenger),
           arrival: {
             flightNumber: llegada!.number,
@@ -634,6 +637,17 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 onChange={updatePassenger}
                 optionalIdentity={fromAdmin}
               />
+
+              {fromAdmin ? (
+                <div className="checkout-fields">
+                  <label>
+                    Derivado por (opcional)
+                    <input maxLength={120} value={referredBy} onChange={(event) => setReferredBy(event.target.value)}
+                      placeholder="Ej. una agencia de viajes" disabled={isSubmitting} />
+                    <small>Quién vendió la reserva. Vale para los dos tramos y sale en la orden de servicio del chofer.</small>
+                  </label>
+                </div>
+              ) : null}
 
               <div className="summary-list plain-card">
                 <div>

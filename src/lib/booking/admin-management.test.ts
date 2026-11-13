@@ -182,6 +182,23 @@ describe("edición de datos de la reserva", () => {
     expect(tx.reservation.update).not.toHaveBeenCalled();
   });
 
+  it("guarda y borra el origen de la venta sin tocar el resto de la reserva (#109)", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT", status: "CONFIRMED" });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, referredBy: "Agencia Los Andes" });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { referredBy: "Agencia Los Andes" } });
+    expect(tx.airportReservationDetails.update).not.toHaveBeenCalled();
+
+    // Vacío borra el dato: la columna del Excel vuelve a salir vacía en vez de quedar con el viejo.
+    await manageReservation(code, { operation: "edit", passenger: {}, referredBy: "" });
+    expect(tx.reservation.update).toHaveBeenLastCalledWith({ where: { id: pending.id }, data: { referredBy: null } });
+  });
+
+  it("una edición que no manda el origen no lo pisa", async () => {
+    await manageReservation(code, { operation: "edit", passenger: { lastName: "Pérez" } });
+    expect(tx.reservation.update).not.toHaveBeenCalledWith(expect.objectContaining({ data: { referredBy: null } }));
+  });
+
   it("guarda notas de una reserva anterior sin exigir dirección ni tocar el pasajero", async () => {
     tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT" });
 
