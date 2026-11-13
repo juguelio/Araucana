@@ -1,18 +1,14 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { ServiceOrderSheet } from "@/components/service-order-sheet";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
-import {
-  blockTimeLabel,
-  buildServiceOrderBlocks,
-  fechaDeLaOrden,
-  plata,
-  SERVICE_ORDER_COLUMNS,
-  serviceOrderRow
-} from "@/lib/airport/service-order";
+import { buildServiceOrderBlocks } from "@/lib/airport/service-order";
+import { linkDeLaOrden } from "@/lib/airport/service-order-link";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { ImprimirButton } from "./imprimir-button";
-import "./orden-de-servicio.css";
+import { CopiarLink } from "./copiar-link";
+import { ImprimirButton } from "@/components/imprimir-button";
 
 export const dynamic = "force-dynamic";
 
@@ -36,11 +32,8 @@ function diaDeHoy() {
  * La orden de servicio en pantalla: la misma hoja que se baja en .xlsx, con las mismas columnas y los
  * mismos bloques por vuelo (issue #118).
  *
- * Sirve para tres cosas que el archivo no resolvía:
- *  - verla sin descargar nada, en una pestaña aparte;
- *  - imprimirla desde el navegador, con el formato del papel;
- *  - corregir un dato (DNI, alojamiento, contacto, «derivado por», pago) desde la fila: el link lleva a
- *    la ficha de la reserva, que es la única fuente de estos datos. Al volver, la hoja ya sale corregida.
+ * Sirve para verla sin descargar, imprimirla desde el navegador y corregir un dato de cada reserva. Y
+ * desde acá se saca el link firmado para el chofer, que la abre sin usuario.
  */
 export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenPageProps) {
   await getCurrentReservationsUserOrRedirect();
@@ -53,9 +46,11 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   }
 
   const blocks = buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId));
-  const totalDelDia = blocks.reduce((suma, bloque) => suma + bloque.totalCents, 0);
-  const totalPasajeros = blocks.reduce((suma, bloque) => suma + bloque.passengers.reduce((n, p) => n + p.seats, 0), 0);
-  const currency = blocks[0]?.passengers[0]?.currency ?? "ARS";
+  const cabeceras = await headers();
+  const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
+  const protocolo =
+    cabeceras.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+  const linkChofer = linkDeLaOrden(`${protocolo}://${host}`, date, flightId);
   const excelHref = `/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(date)}${flightId ? `&flight=${encodeURIComponent(flightId)}` : ""}`;
 
   return (
@@ -70,75 +65,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
         </div>
       }
     >
-      <article className="orden">
-        <header className="orden-cabecera">
-          <div>
-            <p className="orden-marca">La Araucana viajes S.R.L.</p>
-            <h1 className="orden-titulo">ORDEN DE SERVICIO</h1>
-            <p className="orden-subtitulo">Traslados Aeropuerto Chapelco</p>
-          </div>
-          <div className="orden-fecha">
-            <span>Fecha</span>
-            <strong>{fechaDeLaOrden(date)}</strong>
-            <span>{flightId ? "Un vuelo" : "Día completo"}</span>
-          </div>
-        </header>
-
-        {blocks.length === 0 ? (
-          <p className="orden-vacia">
-            No hay reservas de aeropuerto para ese día. Probá con otra fecha desde el panel de aeropuerto.
-          </p>
-        ) : (
-          blocks.map((block) => (
-            <section className="orden-bloque" key={block.key}>
-              <h2 className="orden-bloque-titulo">{blockTimeLabel(block)}</h2>
-              <table className="orden-tabla">
-                <thead>
-                  <tr>
-                    {SERVICE_ORDER_COLUMNS.map((columna) => (
-                      <th key={columna}>{columna}</th>
-                    ))}
-                    <th className="orden-acciones no-print">Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {block.passengers.map((pasajero) => (
-                    <tr key={pasajero.code}>
-                      {serviceOrderRow(pasajero).map((celda, indice) => (
-                        <td key={`${pasajero.code}-${indice}`} data-columna={SERVICE_ORDER_COLUMNS[indice]}>
-                          {celda || <span className="orden-vacio">—</span>}
-                        </td>
-                      ))}
-                      <td className="orden-acciones no-print">
-                        <Link href={`/admin/reservas/${pasajero.code}/editar`}>Editar</Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={SERVICE_ORDER_COLUMNS.length - 1}>Total {block.heading} {block.flightNumber}</td>
-                    <td>{plata(block.totalCents, currency)}</td>
-                    <td className="no-print" />
-                  </tr>
-                </tfoot>
-              </table>
-            </section>
-          ))
-        )}
-
-        {blocks.length > 0 ? (
-          <footer className="orden-total">
-            <span>{totalPasajeros} pasajero(s) · {blocks.length} bloque(s)</span>
-            <strong>TOTAL DEL DÍA {plata(totalDelDia, currency)}</strong>
-          </footer>
-        ) : null}
-
-        <p className="orden-pie">
-          «Derivado por» es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío.
-          El detalle del pago se completa con la reserva. Cobrar / Pagado es el estado del pago.
-        </p>
-      </article>
+      <CopiarLink url={linkChofer} />
+      <ServiceOrderSheet date={date} blocks={blocks} variante="panel" />
     </AdminShell>
   );
 }
