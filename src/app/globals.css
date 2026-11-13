@@ -207,6 +207,14 @@ svg {
   color: inherit;
 }
 
+/* Atajo ya elegido (ej. «Salir desde la sucursal»): sin esto el botón se ve igual que apagado
+   y el pasajero no sabe de dónde sale el punto marcado. */
+.ghost-button[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--surface);
+}
+
 .danger-button {
   background: rgba(160, 84, 56, 0.12);
   color: var(--accent-deep);

@@ -166,6 +166,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
   const [pickupMode, setPickupMode] = useState<"address" | "location">("address");
   const [pickupConfirmed, setPickupConfirmed] = useState(false);
+  /** El punto salió del atajo de la sucursal: se guarda con el nombre de la oficina. */
+  const [usandoSucursal, setUsandoSucursal] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [approximateAddress, setApproximateAddress] = useState(false);
@@ -220,6 +222,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const outsideCoverage = Boolean(coverage.enabled && pickupPoint && !isInsideAirportPickupZone(pickupPoint, coverage));
 
   function selectPickupPoint(point: PickupPoint | null) {
+    setUsandoSucursal(false);
     setApproximateAddress(false);
     setPickupPrecision(point ? "exact" : null);
     setPickupPoint(point);
@@ -271,6 +274,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setApproximateAddress(false);
     setPickupPrecision("exact");
     setPickupConfirmed(true);
+    setUsandoSucursal(true);
   }
 
   function markPickupPoint(point: PickupPoint) {
@@ -278,6 +282,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setLocating(false);
     setLocationError("");
     setGoogleReference(null);
+    setUsandoSucursal(false);
     if (!adjustPickupPoint(point)) selectPickupPoint(point);
   }
 
@@ -295,6 +300,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
   function adjustPickupPoint(point: PickupPoint) {
     if (!originalPoint) return false;
+    setUsandoSucursal(false);
     setPickupPoint(point);
     setPickupConfirmed(false);
     setError((current) => current === OUTSIDE_PICKUP_ZONE ? "" : current);
@@ -440,6 +446,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           overrideTotalCents,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
+          pickupName: usandoSucursal && officePickup ? officePickup.label : undefined,
           pickupPoint: pickupPoint ?? undefined,
           pickupNotes: pickupNotes.trim() || undefined,
           ...(esPrivado
@@ -734,7 +741,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                       {locating ? "Buscando ubicación…" : "Usar mi ubicación actual"}
                     </button>
                     {officePickup ? (
-                      <button className="ghost-button" type="button" disabled={isSubmitting} onClick={useOfficePickup}>
+                      <button className="ghost-button" type="button" disabled={isSubmitting} onClick={useOfficePickup}
+                        aria-pressed={usandoSucursal}>
                         {sentidoDelVuelo === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}
                       </button>
                     ) : null}
