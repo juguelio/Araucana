@@ -8,7 +8,8 @@ const cents = z.number().int().min(0).max(2_147_483_647);
 export const airportExtrasSchema = z.object({
   zoneExtraCents: cents,
   sportsLuggageCents: cents,
-  arrivalCutoffMinutes: z.number().int().min(0).max(180)
+  arrivalCutoffMinutes: z.number().int().min(0).max(180),
+  departureCutoffMinutes: z.number().int().min(0).max(180)
 });
 
 export async function getAirportExtras(db?: Parameters<typeof getSetting>[1]): Promise<AirportExtras> {

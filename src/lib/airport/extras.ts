@@ -13,9 +13,15 @@ export type AirportExtras = {
   sportsLuggageCents: number;
   /** Minutos antes del arribo en que se cierran las reservas de un vuelo que llega. */
   arrivalCutoffMinutes: number;
+  /**
+   * Minutos de gracia antes de que arranque la recorrida de una salida (#55). **0** = se cierra
+   * justo cuando arranca: el cliente pidió que, una vez que la combi inició el recorrido, no se
+   * pueda reservar más.
+   */
+  departureCutoffMinutes: number;
 };
 
-export const defaultAirportExtras: AirportExtras = { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 20 };
+export const defaultAirportExtras: AirportExtras = { zoneExtraCents: 0, sportsLuggageCents: 0, arrivalCutoffMinutes: 20, departureCutoffMinutes: 0 };
 
 export const MAX_SPORTS_LUGGAGE = 24;
 

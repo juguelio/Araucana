@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { capacidadDeVuelo, combisSugeridas, motivoNoReservable, pasajerosOcupados, rangoDelDia } from "./booking";
+import { defaultAirportExtras } from "./extras";
 
 const vuelo = (status: string, iso = "2030-01-01T12:00:00Z") => ({ status, scheduledAt: new Date(iso) });
 const ahora = new Date("2029-12-31T00:00:00Z");
@@ -63,8 +64,9 @@ describe("reserva de aeropuerto", () => {
     // Con demora, el corte corre con el horario estimado.
     const demorado = { ...arribo, status: "DELAYED", estimatedAt: new Date("2030-01-01T13:00:00Z") };
     expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T12:30:00Z"), 20)).toBeNull();
-    // Las salidas no usan el corte de arribos.
-    expect(motivoNoReservable({ ...arribo, direction: "DEPARTURE" as const }, 10, new Date("2030-01-01T11:50:00Z"), 20)).toBeNull();
+    // Las salidas no usan el corte de arribos: 09:00 es antes de que arranque su recorrida
+    // (09:30Z), así que la salida sigue abierta aunque el corte de arribos sea 20.
+    expect(motivoNoReservable({ ...arribo, direction: "DEPARTURE" as const }, 10, new Date("2030-01-01T09:00:00Z"), 20)).toBeNull();
   });
 
   it("el cupo sale de las combis asignadas (y asume una si no hay)", () => {
@@ -84,5 +86,65 @@ describe("reserva de aeropuerto", () => {
     const { desde, hasta } = rangoDelDia("2026-10-20");
     expect(desde.toISOString()).toBe("2026-10-20T03:00:00.000Z");
     expect(hasta.getTime() - desde.getTime()).toBe(24 * 3600 * 1000);
+  });
+});
+
+/**
+ * Corte de salidas (#55): la combi arranca la recorrida 2 h 30 antes del vuelo (o la hora
+ * coordinada a mano) y desde ese momento el pasajero ya no tiene cómo subirse. Antes de este
+ * cambio una salida seguía aceptando reservas hasta el horario del vuelo.
+ */
+describe("corte de reservas de salidas", () => {
+  const salida = (iso = "2030-01-01T12:00:00Z", extra: Record<string, unknown> = {}) => ({
+    status: "SCHEDULED",
+    scheduledAt: new Date(iso),
+    direction: "DEPARTURE" as const,
+    ...extra
+  });
+
+  it("cierra cuando arranca la recorrida, no a la hora del vuelo", () => {
+    // Vuelo 12:00Z → recorrida 09:30Z (2 h 30 antes).
+    expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T09:00:00Z"))).toBeNull();
+    expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T09:30:00Z"))).toMatch(/recorrida ya arrancó/i);
+    // Antes se podía reservar hasta las 12:00; ahora no.
+    expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T11:00:00Z"))).toMatch(/recorrida ya arrancó/i);
+  });
+
+  it("respeta la hora coordinada a mano del vuelo", () => {
+    const coordinada = salida("2030-01-01T12:00:00Z", { pickupStartOverrideAt: new Date("2030-01-01T11:00:00Z") });
+    expect(motivoNoReservable(coordinada, 10, new Date("2030-01-01T10:30:00Z"))).toBeNull();
+    expect(motivoNoReservable(coordinada, 10, new Date("2030-01-01T11:00:00Z"))).toMatch(/recorrida ya arrancó/i);
+  });
+
+  it("con minutos de gracia configurados cierra antes del arranque", () => {
+    // 15 minutos antes de las 09:30 → 09:15.
+    expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T09:10:00Z"), 0, 15)).toBeNull();
+    expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T09:20:00Z"), 0, 15)).toMatch(/cierran 15 min antes/i);
+  });
+
+  it("con demora la recorrida se corre con el horario estimado", () => {
+    const demorado = salida("2030-01-01T12:00:00Z", {
+      status: "DELAYED",
+      estimatedAt: new Date("2030-01-01T15:00:00Z"),
+      source: "API"
+    });
+    // Recorrida real 12:30Z: a las 10:00 todavía se puede reservar, aunque con el programado ya habría arrancado.
+    expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T10:00:00Z"))).toBeNull();
+    expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T12:45:00Z"))).toMatch(/recorrida ya arrancó/i);
+  });
+
+  it("un vuelo que ya salió sigue avisando eso, no la recorrida", () => {
+    expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T13:00:00Z"))).toMatch(/ya salió/i);
+  });
+
+  it("no toca los arribos: un arribo no tiene recorrida previa", () => {
+    const arribo = { status: "SCHEDULED", scheduledAt: new Date("2030-01-01T12:00:00Z"), direction: "ARRIVAL" as const };
+    // 2 h 30 antes del aterrizaje: con corte de arribos en 0 sigue reservable.
+    expect(motivoNoReservable(arribo, 10, new Date("2030-01-01T09:30:00Z"))).toBeNull();
+  });
+
+  it("el corte de salida viene apagado por defecto en la configuración", () => {
+    // 0 = cierre exacto al arranque de la recorrida (no se puede desactivar desde el panel).
+    expect(defaultAirportExtras.departureCutoffMinutes).toBe(0);
   });
 });

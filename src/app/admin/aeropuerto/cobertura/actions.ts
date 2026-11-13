@@ -41,16 +41,19 @@ export async function saveExtrasAction(_previous: AdminFormState, formData: Form
   const sportsLuggageCents = parseReservationPrice(text("sportsLuggage"));
   const cutoff = text("arrivalCutoff");
   const arrivalCutoffMinutes = /^\d{1,3}$/.test(cutoff) && Number(cutoff) <= 180 ? Number(cutoff) : null;
+  const cutoffSalida = text("departureCutoff");
+  const departureCutoffMinutes = /^\d{1,3}$/.test(cutoffSalida) && Number(cutoffSalida) <= 180 ? Number(cutoffSalida) : null;
 
   const fieldErrors: Record<string, string> = {};
   if (zoneExtraCents === null) fieldErrors.zoneExtra = reservationPriceError;
   if (sportsLuggageCents === null) fieldErrors.sportsLuggage = reservationPriceError;
   if (arrivalCutoffMinutes === null) fieldErrors.arrivalCutoff = "Ingresá minutos enteros entre 0 y 180.";
-  if (zoneExtraCents === null || sportsLuggageCents === null || arrivalCutoffMinutes === null) {
+  if (departureCutoffMinutes === null) fieldErrors.departureCutoff = "Ingresá minutos enteros entre 0 y 180.";
+  if (zoneExtraCents === null || sportsLuggageCents === null || arrivalCutoffMinutes === null || departureCutoffMinutes === null) {
     return errorState("Revisá los campos marcados.", fieldErrors);
   }
 
-  await saveAirportExtras({ zoneExtraCents, sportsLuggageCents, arrivalCutoffMinutes }, user.id);
+  await saveAirportExtras({ zoneExtraCents, sportsLuggageCents, arrivalCutoffMinutes, departureCutoffMinutes }, user.id);
   revalidateAirport();
   return successState("Extras guardados.");
 }

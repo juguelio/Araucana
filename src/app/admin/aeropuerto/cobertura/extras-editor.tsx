@@ -26,6 +26,11 @@ export function ExtrasEditor({ initialExtras }: { initialExtras: AirportExtras }
           <small className="muted">Esquí, snowboard, bicicleta, tabla. En 0 no se ofrece en el checkout.</small>
           {errors.sportsLuggage ? <span className="field-error" role="alert">{errors.sportsLuggage}</span> : null}
         </label>
+        <label>Cierre de reservas de salidas (minutos antes de que arranque la recorrida)
+          <input name="departureCutoff" type="number" min={0} max={180} step={1} defaultValue={initialExtras.departureCutoffMinutes} aria-invalid={Boolean(errors.departureCutoff)} />
+          <small className="muted">La recorrida arranca 2 h 30 antes del vuelo (o la hora coordinada del vuelo). En 0 se cierra justo cuando arranca.</small>
+          {errors.departureCutoff ? <span className="field-error" role="alert">{errors.departureCutoff}</span> : null}
+        </label>
         <label>Cierre de reservas de arribos (minutos antes de aterrizar)
           <input name="arrivalCutoff" type="number" min={0} max={180} step={1} defaultValue={initialExtras.arrivalCutoffMinutes} aria-invalid={Boolean(errors.arrivalCutoff)} />
           <small className="muted">Si el vuelo está demorado se cuenta desde el horario estimado.</small>
