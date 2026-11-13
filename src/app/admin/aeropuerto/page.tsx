@@ -138,13 +138,24 @@ export default async function AirportPage({ searchParams }: PageProps) {
               : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
           </span>
           {ocupados > 0 ? (
-            <a
-              className="ghost-button"
-              href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
-              title="Hoja de este vuelo para el chofer (Excel)"
-            >
-              Hoja del chofer
-            </a>
+            <>
+              <Link
+                className="ghost-button"
+                href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
+                target="_blank"
+                rel="noreferrer"
+                title="Ver la hoja de este vuelo en pantalla (para imprimir o corregir un dato)"
+              >
+                Ver hoja
+              </Link>
+              <a
+                className="ghost-button"
+                href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
+                title="Hoja de este vuelo para el chofer (Excel)"
+              >
+                Hoja del chofer
+              </a>
+            </>
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
           <details className="flight-actions">
@@ -185,6 +196,15 @@ export default async function AirportPage({ searchParams }: PageProps) {
       action={
         <div className="form-actions">
           {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
+          <Link
+            className="ghost-button"
+            href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Ver la orden de servicio en pantalla: se puede imprimir y corregir un dato de cada reserva"
+          >
+            Ver orden de servicio
+          </Link>
           <a
             className="ghost-button"
             href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}`}
