@@ -357,12 +357,27 @@ model Reservation {
   freeFareCount Int      @default(0)
   bookingMode String     @default("SEATED")
   status      String     @default("PENDING_PAYMENT")
+  // Cancelación con motivo (#108): el cliente pidió que al cancelar se pida una descripción del
+  // porqué y que la reserva cancelada se siga viendo en gris en el listado. Nullable porque las
+  // cancelaciones que ya existen en la base no tienen motivo y la cancelación desde la web no lo pide.
+  cancellationReason String?
+  cancelledAt        DateTime?
+  cancelledByName    String?
+  // Restitución de una reserva cancelada (#117): volver atrás sin borrarla y recargarla con otro
+  // código. No se pisa la cancelación —motivo, fecha y quién canceló siguen visibles—; estos dos
+  // campos agregan quién y cuándo la restituyó.
+  restoredAt         DateTime?
+  restoredByName     String?
   totalCents  Int
   currency    String     @default("ARS")
   // Ida y vuelta del aeropuerto (#36): las dos reservas del viaje comparten este id. Cada tramo
   // se paga y se cancela por separado —el id sólo las enlaza y las muestra juntas en el panel—,
   // así que no hay FK: es una agrupación, no una dependencia.
   roundTripId String?
+  // Derivación de otra agencia (#109): quién vendió la reserva. Texto libre y opcional porque las
+  // agencias no tienen usuario ni rol en la app: lo carga a mano el equipo desde el panel, y sale
+  // en la columna «Derivado por» de la orden de servicio del chofer.
+  referredBy  String?
   payment     Payment?
   ticket      Ticket?
   chapelcoDetails ChapelcoReservationDetails?

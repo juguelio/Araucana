@@ -107,6 +107,7 @@ type ReservationRecord = {
   code: string;
   shortCode: string;
   roundTripId?: string | null;
+  referredBy?: string | null;
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
@@ -118,6 +119,12 @@ type ReservationRecord = {
   freeFareCount?: number;
   bookingMode: string;
   status: string;
+  cancellationReason?: string | null;
+  cancelledAt?: Date | null;
+  cancelledByName?: string | null;
+  /** Restitución (#117): quién y cuándo volvió atrás. La cancelación no se borra. */
+  restoredAt?: Date | null;
+  restoredByName?: string | null;
   totalCents: number;
   currency: string;
   createdAt: Date;
@@ -339,12 +346,18 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     code: reservation.code,
     shortCode: reservation.shortCode,
     roundTripId: reservation.roundTripId ?? null,
+    referredBy: reservation.referredBy ?? null,
     bookingMode: reservation.bookingMode,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
     halfFareCount: reservation.halfFareCount ?? 0,
     freeFareCount: reservation.freeFareCount ?? 0,
     status: reservation.status,
+    cancellationReason: reservation.cancellationReason ?? null,
+    cancelledAt: reservation.cancelledAt ?? null,
+    cancelledByName: reservation.cancelledByName ?? null,
+    restoredAt: reservation.restoredAt ?? null,
+    restoredByName: reservation.restoredByName ?? null,
     seatNumber: reservation.seatNumber,
     totalCents: reservation.totalCents,
     total: centsToPrice(reservation.totalCents),
@@ -520,8 +533,11 @@ function orderedSeats(seats: SeatRecord[]) {
  * El negocio carga la nave por orden de llegada y decide qué vehículo manda, así que el lugar
  * asignado sólo sirve para no sobrevender ni duplicar el mismo lugar en la misma salida.
  * Devuelve el primer lugar libre en el mismo orden en que se muestra el mapa de asientos.
+ *
+ * Lo usa también la restitución de una reserva cancelada (#117): el asiento se libera al cancelar,
+ * así que al volver hay que darle uno libre de la misma salida.
  */
-function firstAvailableSeat(
+export function firstAvailableSeat(
   seats: SeatRecord[],
   occupiedSeatIds: Set<string | null>,
   occupiedSeatNumbers: Set<string | null>
@@ -777,6 +793,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 passengerId: passenger.id,
                 seatId: seatIdForReservation,
                 seatNumber: seat?.number ?? null,
+                // Derivación de otra agencia (#109): sólo llega por el alta del panel; el
+                // formulario público no declara quién vendió.
+                referredBy: parsed.referredBy || null,
                 passengerCount: requestedSeats,
                 halfFareCount: fares.half,
                 freeFareCount: fares.free,

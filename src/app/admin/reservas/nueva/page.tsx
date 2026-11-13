@@ -76,8 +76,8 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <select name="documentType" defaultValue="DNI" required><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
                 </label>
                 <label>
-                  Documento (opcional)
-                  <input name="documentId" />
+                  Documento
+                  <input name="documentId" required placeholder="7 u 8 dígitos si es DNI" />
                 </label>
                 <label className="span-2">
                   Nacionalidad
@@ -89,6 +89,11 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   Precio total de la reserva (opcional)
                   <input name="customPrice" inputMode="decimal" placeholder="Usar tarifa automática" />
                   <small>Ingresá el importe para todos los lugares en la moneda de la salida.</small>
+                </label>
+                <label>
+                  Derivado por (opcional)
+                  <input name="referredBy" maxLength={120} placeholder="Ej. una agencia de viajes" />
+                  <small>Quién vendió la reserva, si la venta vino de otra agencia o por un voucher.</small>
                 </label>
               </div>
               <div className="form-actions">

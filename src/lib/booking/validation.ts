@@ -38,9 +38,22 @@ export const adminPassengerPatchSchema = adminPassengerFields.partial();
 export const adminPassengerSchema = adminPassengerFields.extend({
   email: adminPassengerFields.shape.email.default(""),
   documentId: adminPassengerFields.shape.documentId.default("")
-}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
+  // El documento es obligatorio también desde el panel (#122): la orden de servicio del chofer
+  // imprimía «—» en la mayoría de las reservas cargadas a mano. Antes acá iba `optional = true`.
+}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx));
 
 const fareCounter = z.coerce.number().int().min(0, "La cantidad no puede ser negativa.").max(24).default(0);
+
+/**
+ * Quién derivó la venta (una agencia, un voucher): texto libre y opcional (#109). Va **sólo** en
+ * los contratos del panel — las agencias no tienen usuario en la app y el formulario público no
+ * tiene por qué declarar quién vendió.
+ */
+export const referredBySchema = z
+  .string()
+  .trim()
+  .max(120, "El origen de la venta puede tener hasta 120 caracteres.")
+  .optional();
 
 const reservationFields = z.object({
     scheduleId: z.string().min(1, "Selecciona una salida."),
@@ -74,7 +87,8 @@ export const createReservationSchema = reservationFields
 export const adminReservationSchema = reservationFields
   .extend({
     passenger: adminPassengerSchema,
-    overrideTotalCents: reservationPriceCents.optional()
+    overrideTotalCents: reservationPriceCents.optional(),
+    referredBy: referredBySchema
   })
   .refine(faresFitPassengers, faresNotFitError)
   .refine(faresHaveFull, noFullFareError);

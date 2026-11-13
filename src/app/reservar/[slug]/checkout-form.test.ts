@@ -107,9 +107,13 @@ describe("checkout passenger validation", () => {
     expect(validateCheckoutPassenger({ ...validPassenger, phone: "9 2944 000000 ext" }).phone).toBeDefined();
   });
 
-  it("accepts a formatted DNI and lets staff omit it", () => {
+  it("acepta un DNI con puntos y exige el documento también al personal", () => {
     expect(validateCheckoutPassenger({ ...validPassenger, documentId: "30.111.222" })).toEqual({});
-    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "", email: "" }, true)).toEqual({});
+    // Issue #122: el documento pasó a ser obligatorio también desde el panel; el email sigue siendo
+    // opcional para el personal (`optionalIdentity`).
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "", email: "" }, true)).toEqual({
+      documentId: "Ingresá un DNI de 7 u 8 dígitos."
+    });
   });
 
   it("combines the mandatory country code with the local phone number", () => {

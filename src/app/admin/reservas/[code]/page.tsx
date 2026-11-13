@@ -100,6 +100,13 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <ConfirmReservationButton operation="cancel" />
             </form>
           ) : null}
+          {cancelled ? (
+            <form action={manageReservationAction}>
+              <input type="hidden" name="code" value={reservation.code} />
+              <input type="hidden" name="operation" value="restore" />
+              <button className="primary-button" type="submit">Restituir reserva</button>
+            </form>
+          ) : null}
           {user.role === "ADMIN" && !paid ? (
             <form action={manageReservationAction}>
               <input type="hidden" name="code" value={reservation.code} />
@@ -134,6 +141,30 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <span>Creada por</span>
               <strong>{reservation.creatorLabel}</strong>
             </div>
+            {reservation.cancellationReason || reservation.cancelledAt ? (
+              <div>
+                <span>Motivo de la cancelación</span>
+                <strong>{reservation.cancellationReason ?? "Sin motivo registrado"}</strong>
+              </div>
+            ) : null}
+            {reservation.cancelledAt ? (
+              <div>
+                <span>Cancelada</span>
+                <strong>
+                  {formatDateTime(reservation.cancelledAt)}
+                  {reservation.cancelledByName ? ` · ${reservation.cancelledByName}` : ""}
+                </strong>
+              </div>
+            ) : null}
+            {reservation.restoredAt ? (
+              <div>
+                <span>Restituida</span>
+                <strong>
+                  {formatDateTime(reservation.restoredAt)}
+                  {reservation.restoredByName ? ` · ${reservation.restoredByName}` : ""}
+                </strong>
+              </div>
+            ) : null}
             <div>
               <span>Ruta</span>
               <strong>

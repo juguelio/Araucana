@@ -1,7 +1,7 @@
 import { reservationPriceCents } from "@/lib/booking/admin-price";
 import { z } from "zod";
 import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
-import { adminPassengerSchema, passengerSchema } from "@/lib/booking/validation";
+import { adminPassengerSchema, passengerSchema, referredBySchema } from "@/lib/booking/validation";
 
 /**
  * Vuelo privado: el pasajero lo carga porque no figura en la lista del día (charter, avión
@@ -74,7 +74,11 @@ const noFullFareError = { path: ["freeFareCount"], message: sinAdultoMensaje };
 export const airportReservationSchema = airportReservationFields
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError);
-export const adminAirportReservationSchema = airportReservationFields.extend({ passenger: adminPassengerSchema, overrideTotalCents: reservationPriceCents.optional() })
+export const adminAirportReservationSchema = airportReservationFields.extend({
+  passenger: adminPassengerSchema,
+  overrideTotalCents: reservationPriceCents.optional(),
+  referredBy: referredBySchema
+})
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError);
 
@@ -131,7 +135,7 @@ export const airportRoundTripSchema = airportRoundTripFields
 
 /** Alta desde el panel: los datos de identidad del pasajero son opcionales. */
 export const adminAirportRoundTripSchema = airportRoundTripFields
-  .extend({ passenger: adminPassengerSchema })
+  .extend({ passenger: adminPassengerSchema, referredBy: referredBySchema })
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError)
   .superRefine(roundTripChronology);
@@ -139,4 +143,6 @@ export const adminAirportRoundTripSchema = airportRoundTripFields
 /** Lo que manda el cliente: `firstLeg` es opcional (por defecto el viaje arranca con la llegada). */
 export type AirportRoundTripInput = z.input<typeof airportRoundTripSchema>;
 export type AdminAirportRoundTripInput = z.input<typeof adminAirportRoundTripSchema>;
+/** Lo ya validado por el alta del panel: incluye los campos que el público no tiene (`referredBy`). */
+export type AdminAirportRoundTripOutput = z.output<typeof adminAirportRoundTripSchema>;
 

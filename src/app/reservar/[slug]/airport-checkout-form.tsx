@@ -157,6 +157,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [selectedId, setSelectedId] = useState<string>("");
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
+  // Derivación de otra agencia (#109): sólo existe en el alta del panel.
+  const [referredBy, setReferredBy] = useState("");
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [freeFareCount, setFreeFareCount] = useState(0);
   const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
@@ -444,6 +446,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           freeFareCount,
           sportsLuggageCount: adicionales.sportsLuggageCount,
           overrideTotalCents,
+          referredBy: fromAdmin ? referredBy.trim() || undefined : undefined,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
           pickupName: usandoSucursal && officePickup ? officePickup.label : undefined,
@@ -754,6 +757,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     <input inputMode="decimal" value={customPrice} onChange={(event) => setCustomPrice(event.target.value)}
                       placeholder="Usar tarifa automática" disabled={isSubmitting} aria-invalid={Boolean(fieldErrors.customPrice)} />
                     {fieldErrors.customPrice ? <span className="field-error" role="alert">{fieldErrors.customPrice}</span> : null}
+                  </label>
+                  <label>
+                    Derivado por (opcional)
+                    <input maxLength={120} value={referredBy} onChange={(event) => setReferredBy(event.target.value)}
+                      placeholder="Ej. una agencia de viajes" disabled={isSubmitting} />
+                    <small>Quién vendió la reserva. Sale en la columna «Derivado por» de la orden de servicio del chofer.</small>
                   </label>
                 </div>
               ) : null}
