@@ -523,6 +523,24 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     <span className="muted">{fares[s.code] ? `${s.ayuda} · ${formatPrice(fares[s.code]!.priceCents, fares[s.code]!.currency)} por persona` : "Sin tarifa activa para este sentido."}</span>
                   </button>
                 ))}
+                {/* Tercera opción (#34/#36): los dos tramos en una sola reserva enlazada. Va como link
+                    y no como botón porque el flujo de ida y vuelta tiene su propia pantalla. */}
+                {!fromAdmin && fares.ARRIVAL && fares.DEPARTURE ? (
+                  <Link
+                    className="wizard-option wizard-option-round-trip"
+                    href={`/reservar/${route.slug}/ida-y-vuelta?date=${date}`}
+                  >
+                    <b>
+                      Ida y vuelta <span className="wizard-option-badge">2 tramos</span>
+                    </b>
+                    <span className="wizard-option-route">San Martín de los Andes ⇄ Aeropuerto Chapelco (CPC)</span>
+                    <span className="muted">
+                      Elegís el vuelo de llegada y el de salida, con los datos cargados una sola vez
+                      {" · "}
+                      {formatPrice(fares.ARRIVAL.priceCents + fares.DEPARTURE.priceCents, fares.ARRIVAL.currency)} por persona
+                    </span>
+                  </Link>
+                ) : null}
               </div>
             </>
           ) : null}

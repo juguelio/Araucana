@@ -2142,6 +2142,17 @@ body:has(.new-hero) .site-header { position:absolute; top:0; right:0; left:0; ba
 .wizard-option:hover, .wizard-option[data-selected="true"] { border-color: var(--accent); }
 .wizard-option b { font-size: 17px; }
 .wizard-option-route { font-size: 13px; font-weight: 700; color: var(--accent); }
+/* Tercera opción del paso 1: ida y vuelta. Es un <a> (tiene su propia pantalla), así que pide
+   el reset de link para no quedar subrayada al lado de los dos botones. */
+a.wizard-option { text-decoration: none; }
+.wizard-option:hover { border-color: var(--accent); }
+/* Punteado neutro: la tarjeta elegida ya usa el acento sólido, así que si ésta también fuera
+   del color de marca parecería la opción activa. El acento lo pone la etiqueta «2 tramos». */
+.wizard-option-round-trip { border-style: dashed; border-color: var(--line-strong); }
+.wizard-option-round-trip:hover { border-style: solid; border-color: var(--accent); }
+.wizard-option-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
+  background: var(--accent); color: var(--surface); font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  text-transform: uppercase; vertical-align: 2px; }
 .wizard-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 18px; }
 
 /* Vuelo privado: el pasajero carga el suyo cuando no figura en la lista del día. */
