@@ -10,6 +10,8 @@ import {
   fechaDeLaOrden,
   paymentLabel,
   recortarDireccion,
+  SERVICE_ORDER_COLUMNS,
+  serviceOrderRow,
   type ServiceOrderReservationInput
 } from "./service-order";
 
@@ -273,5 +275,33 @@ describe("orden de servicio del aeropuerto", () => {
   it("la fecha del encabezado es el día del servicio, sin corrimiento de zona", () => {
     expect(fechaDeLaOrden("2026-02-10")).toBe("Martes 10-feb");
     expect(fechaDeLaOrden("2026-08-01")).toBe("Sábado 01-ago");
+  });
+
+  describe("vista en pantalla (issue #118)", () => {
+    it("arma las celdas en el mismo orden que la hoja y el Excel", () => {
+      const derivada = reserva({ code: "ARA-9", referredBy: "Agencia Los Andes" });
+      const [block] = buildServiceOrderBlocks([derivada]);
+      const fila = serviceOrderRow(block.passengers[0]);
+
+      // Si alguien agrega una columna y no toca `serviceOrderRow`, la pantalla y el papel se separan.
+      expect(fila).toHaveLength(SERVICE_ORDER_COLUMNS.length);
+      const porColumna = Object.fromEntries(SERVICE_ORDER_COLUMNS.map((columna, indice) => [columna, fila[indice]]));
+      expect(porColumna["Pasajero"]).toContain("Faur");
+      expect(porColumna["Cant"]).toBe("5");
+      expect(porColumna["DNI"]).toBe("30111222");
+      expect(porColumna["Alojamiento"]).toContain(block.passengers[0].lodging);
+      expect(porColumna["Derivado por"]).toBe("Agencia Los Andes");
+      expect(porColumna["Pago"]).toMatch(/Cobrar|Pagado/);
+      expect(porColumna["Contacto"]).toBeTruthy();
+    });
+
+    it("deja «Derivado por» vacío cuando la venta fue directa", () => {
+      const directa = reserva({ code: "ARA-10", referredBy: null });
+      const [block] = buildServiceOrderBlocks([directa]);
+      const fila = serviceOrderRow(block.passengers[0]);
+      const indice = SERVICE_ORDER_COLUMNS.indexOf("Derivado por" as (typeof SERVICE_ORDER_COLUMNS)[number]);
+
+      expect(fila[indice]).toBe("");
+    });
   });
 });
