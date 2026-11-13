@@ -5,6 +5,7 @@ import Link from "next/link";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
+import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
@@ -51,6 +52,8 @@ type RoundTripCheckoutFormProps = {
   coverage: AirportCoverage;
   /** Precio por bulto de equipaje deportivo (esquí, snowboard, bici), vigente al reservar. */
   extras: { sportsLuggageCents: number };
+  /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
+  officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
 };
 
 type LugarPickup = {
@@ -103,7 +106,7 @@ function descripcionVuelo(vuelo: FlightOption) {
   return partes.join(" · ");
 }
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras }: RoundTripCheckoutFormProps) {
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null }: RoundTripCheckoutFormProps) {
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [fechaLlegada, setFechaLlegada] = useState(initialDate);
   const [fechaVuelta, setFechaVuelta] = useState(initialDate);
@@ -178,6 +181,20 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       point: place.point,
       precision: place.precision,
       approximate: place.approximate,
+      elegido: true
+    };
+    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
+    else if (!mismoLugar) setPickupVuelta(lugar);
+  }
+
+  /** Atajo de la sucursal: deja la dirección y el punto de la oficina en ese tramo. */
+  function usarSucursal(sentido: "ARRIVAL" | "DEPARTURE") {
+    if (!officePickup) return;
+    const lugar: LugarPickup = {
+      label: officePickup.address,
+      point: officePickup.point,
+      precision: "exact",
+      approximate: false,
       elegido: true
     };
     if (sentido === "ARRIVAL") setPickupLlegada(lugar);
@@ -399,6 +416,13 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 { sentido: "DEPARTURE" as const, titulo: "Lugar de la vuelta", lugar: pickupVuelta, deshabilitado: mismoLugar }].map(({ sentido, titulo, lugar, deshabilitado }) => (
                 <div key={sentido} className="plain-card admin-section">
                   <h3 className="section-title">{titulo}</h3>
+                  {officePickup ? (
+                    <div className="form-actions">
+                      <button className="ghost-button" type="button" disabled={deshabilitado} onClick={() => usarSucursal(sentido)}>
+                        {sentido === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}
+                      </button>
+                    </div>
+                  ) : null}
                   <AirportPlaceSearch
                     coverage={coverage}
                     useGoogle={googlePickupConfigured}

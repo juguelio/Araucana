@@ -18,6 +18,7 @@ import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airp
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import { chargesZoneExtra, isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
+import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import { airportExtrasBreakdown, MAX_SPORTS_LUGGAGE, type AirportExtras } from "@/lib/airport/extras";
 import {
   buildPassengerPayload,
@@ -81,6 +82,8 @@ type AirportCheckoutFormProps = {
   coverage: AirportCoverage;
   /** Recargo de zona y equipaje deportivo vigentes (el servidor recalcula al reservar). */
   extras: Pick<AirportExtras, "zoneExtraCents" | "sportsLuggageCents">;
+  /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
+  officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   fromAdmin?: boolean;
 };
 
@@ -141,7 +144,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, fromAdmin = false }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [paso, setPaso] = useState<1 | 2 | 3>(1);
   const [date, setDate] = useState(initialDate);
@@ -254,6 +257,20 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     selectPickupPoint(null);
     setLocating(false);
     setLocationError("");
+  }
+
+  /** Atajo de la sucursal: deja el punto y la dirección de la oficina en un toque, ya confirmado. */
+  function useOfficePickup() {
+    if (!officePickup) return;
+    locationRequest.current++;
+    setPickupMode("address");
+    setLocating(false);
+    setLocationError("");
+    setPickupAddress(officePickup.address);
+    selectPickupPoint(officePickup.point);
+    setApproximateAddress(false);
+    setPickupPrecision("exact");
+    setPickupConfirmed(true);
   }
 
   function markPickupPoint(point: PickupPoint) {
@@ -716,6 +733,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     <button className="ghost-button" type="button" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
                       {locating ? "Buscando ubicación…" : "Usar mi ubicación actual"}
                     </button>
+                    {officePickup ? (
+                      <button className="ghost-button" type="button" disabled={isSubmitting} onClick={useOfficePickup}>
+                        {sentidoDelVuelo === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}
+                      </button>
+                    ) : null}
                     {pickupMode === "location" ? <button className="ghost-button" type="button" onClick={useAddress}>Buscar por dirección</button> : null}
                   </div>
                   {locationError ? <p role="alert" className="field-error">{locationError}</p> : null}

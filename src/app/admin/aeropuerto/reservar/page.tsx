@@ -5,6 +5,7 @@ import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
 import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { getAirportOfficePickup, officePickupReady } from "@/lib/airport/office-pickup";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 
@@ -16,8 +17,8 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
   const fares = await getAirportFares();
   const route = fares.ARRIVAL ?? fares.DEPARTURE;
   const checkout = route ? await Promise.all([
-    loadAirportCheckoutFlights(initialDate), getAirportCoverage(), getAirportExtras()
-  ]).then(([flights, coverage, extras]) => ({ flights, coverage, extras })) : null;
+    loadAirportCheckoutFlights(initialDate), getAirportCoverage(), getAirportExtras(), getAirportOfficePickup()
+  ]).then(([flights, coverage, extras, officePickup]) => ({ flights, coverage, extras, officePickup })) : null;
 
   return (
     <AdminShell
@@ -36,6 +37,7 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
           initialFlights={checkout.flights}
           coverage={checkout.coverage}
           extras={checkout.extras}
+          officePickup={officePickupReady(checkout.officePickup) ? checkout.officePickup : null}
         />
       ) : <p className="muted">No hay rutas de aeropuerto activas para reservar.</p>}
     </AdminShell>
