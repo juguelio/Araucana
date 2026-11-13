@@ -294,7 +294,15 @@ function mapRoute(route: RouteRecord): PublicRouteDto {
 
 /** Lo mínimo para calcular el cupo de una salida en un listado (ver scheduleSummaryInclude). */
 type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations"> & {
-  vehicle: { id: string; isActive?: boolean; seats?: SeatRecord[]; _count?: { seats: number } };
+  vehicle: {
+    id: string;
+    isActive?: boolean;
+    name: string;
+    licensePlate?: string | null;
+    internalNumber?: string | null;
+    seats?: SeatRecord[];
+    _count?: { seats: number };
+  };
   reservations?: Array<{ status: string; passengerCount: number }>;
 };
 
@@ -502,7 +510,9 @@ function scheduleInclude() {
 function scheduleSummaryInclude() {
   return {
     route: true,
-    vehicle: { select: { id: true, isActive: true, _count: { select: { seats: true } } } },
+    vehicle: {
+      select: { id: true, isActive: true, name: true, licensePlate: true, internalNumber: true, _count: { select: { seats: true } } }
+    },
     reservations: { select: { status: true, passengerCount: true } }
   };
 }
@@ -992,6 +1002,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           id: schedule.id,
           routeId: schedule.routeId,
           vehicleId: schedule.vehicleId,
+          vehicleName: schedule.vehicle.name,
+          vehiclePlate: schedule.vehicle.licensePlate ?? null,
+          vehicleInternalNumber: schedule.vehicle.internalNumber ?? null,
           route: `${schedule.route.from} -> ${schedule.route.to}`,
           bookingMode: schedule.route.bookingMode,
           stopFares: schedule.route.bookingMode === "SEATED" ? getStopFares(schedule.route) : [],

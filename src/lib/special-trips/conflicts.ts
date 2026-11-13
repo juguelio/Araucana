@@ -29,7 +29,16 @@ export async function specialConflicts(tx: Prisma.TransactionClient, interval: I
   }));
 }
 
-export async function fleetConflicts(tx: Prisma.TransactionClient, interval: Interval, excludeTrip?: string) {
+/**
+ * `excludeSchedule` deja afuera la salida que se está guardando: al reasignar la nave desde el
+ * calendario (issue #81) la propia salida no puede contarse como choque consigo misma.
+ */
+export async function fleetConflicts(
+  tx: Prisma.TransactionClient,
+  interval: Interval,
+  excludeTrip?: string,
+  excludeSchedule?: string
+) {
   const { vehicleId, startsAt, endsAt } = interval;
   const first = localInput(startsAt).slice(0, 10);
   const last = localInput(new Date(+endsAt - 1)).slice(0, 10);
@@ -38,7 +47,13 @@ export async function fleetConflicts(tx: Prisma.TransactionClient, interval: Int
   const [special, schedules, chapelco, airport] = await Promise.all([
     specialConflicts(tx, interval, excludeTrip),
     tx.schedule.findMany({
-      where: { vehicleId, departureAt: { lt: endsAt }, arrivalAt: { gt: startsAt }, status: { notIn: ["CANCELLED", "CANCELED", "CLOSED"] } },
+      where: {
+        vehicleId,
+        departureAt: { lt: endsAt },
+        arrivalAt: { gt: startsAt },
+        ...(excludeSchedule ? { id: { not: excludeSchedule } } : {}),
+        status: { notIn: ["CANCELLED", "CANCELED", "CLOSED"] }
+      },
       include: { route: { select: { from: true, to: true } } }
     }),
     tx.chapelcoVehicleDuty.findMany({
