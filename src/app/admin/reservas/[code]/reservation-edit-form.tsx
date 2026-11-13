@@ -13,10 +13,12 @@ type ReservationEditFormProps = {
   code: string;
   passenger: PassengerDto;
   financial?: { operation: "price" | "correctPayment"; currency: string; total: string; method: string; reference: string };
+  /** Quién derivó la venta (#109); vacío cuando la reserva se vendió directo. */
+  referredBy: string;
   transfer?: { address: string; point: PickupPoint | null; notes: string; airport: boolean; direction?: string; coverage: AirportCoverage };
 };
 
-export function ReservationEditForm({ action, code, passenger, transfer, financial }: ReservationEditFormProps) {
+export function ReservationEditForm({ action, code, passenger, transfer, financial, referredBy: initialReferredBy }: ReservationEditFormProps) {
   const [draft, setDraft] = useState<PassengerDraft>({ ...passenger, nationality: passenger.nationality ?? "" });
   const [pickup, setPickup] = useState<PickupAddressDraft>({
     address: transfer?.address ?? "", point: transfer?.point ?? null, confirmed: false
@@ -25,6 +27,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const [total, setTotal] = useState(financial?.total ?? "");
   const [method, setMethod] = useState(financial?.method ?? "");
   const [reference, setReference] = useState(financial?.reference ?? "");
+  const [referredBy, setReferredBy] = useState(initialReferredBy);
   const priceChanged = Boolean(financial && total.trim() !== financial.total);
   const methodChanged = financial?.operation === "correctPayment" && method.trim() !== financial.method;
   const referenceChanged = financial?.operation === "correctPayment" && reference.trim() !== financial.reference;
@@ -33,8 +36,10 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const addressChanged = pickup.address.trim() !== (transfer?.address ?? "").trim()
     || pickup.point?.[0] !== transfer?.point?.[0] || pickup.point?.[1] !== transfer?.point?.[1];
   const notesChanged = notes.trim() !== (transfer?.notes ?? "").trim();
+  const referredByChanged = referredBy.trim() !== initialReferredBy.trim();
   const outside = Boolean(transfer?.coverage.enabled && pickup.point && !isInsideAirportPickupZone(pickup.point, transfer.coverage));
-  const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || priceChanged || methodChanged || referenceChanged;
+  const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || referredByChanged
+    || priceChanged || methodChanged || referenceChanged;
   const canSave = hasChanges && (!addressChanged || Boolean(pickup.point && pickup.confirmed && !outside));
 
   const [state, formAction, pending] = useActionState(async (previous: AdminFormState, _formData: FormData) => {
@@ -43,6 +48,8 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     changes.set("code", code);
     for (const field of changedPassenger) changes.set(field, draft[field]);
     if (notesChanged) changes.set("notes", notes);
+    // Se manda siempre que cambió, incluso vacío: así el panel puede borrar el origen cargado.
+    if (referredByChanged) changes.set("referredBy", referredBy.trim());
     if (addressChanged && pickup.point && pickup.confirmed) {
       changes.set("address", pickup.address);
       changes.set("latitude", String(pickup.point[0]));
@@ -75,6 +82,13 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
           </label>
         </>
       ) : null}
+      <h3 className="reservation-edit-wide">Origen de la venta</h3>
+      <label className="span-2">
+        Derivado por (opcional)
+        <input name="referredBy" maxLength={120} value={referredBy} disabled={pending} placeholder="Ej. una agencia de viajes"
+          onChange={(event) => setReferredBy(event.target.value)} />
+        <small>Quién vendió la reserva. En las reservas de aeropuerto sale en la columna «Derivado por» de la orden de servicio.</small>
+      </label>
       {financial ? (
         <>
           <h3 className="reservation-edit-wide">{financial.operation === "correctPayment" ? "Pago registrado" : "Precio"}</h3>
