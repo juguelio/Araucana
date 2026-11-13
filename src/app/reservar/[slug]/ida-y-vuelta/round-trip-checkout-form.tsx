@@ -82,23 +82,11 @@ type TramoCreado = {
 const PASOS = ["Ida y vuelta", "Los pickups", "Tus datos"];
 
 /**
- * Los dos órdenes posibles del ida y vuelta. Los sentidos no cambian (la llegada siempre es
- * CPC → SMA); lo que cambia es cuál va primero en el calendario.
+ * Las dos patas del viaje. Los sentidos son fijos (la llegada siempre es CPC → SMA, la salida
+ * siempre SMA → CPC); el orden elegido decide cuál va primero en el calendario.
  */
-const ORDENES_DEL_VIAJE = [
-  {
-    code: "ARRIVAL" as const,
-    titulo: "Primero llego y después me voy",
-    ruta: "CPC → SMA · SMA → CPC",
-    ayuda: "Me esperan cuando aterrizo y la vuelta me llevan al aeropuerto."
-  },
-  {
-    code: "DEPARTURE" as const,
-    titulo: "Primero me voy y después vuelvo",
-    ruta: "SMA → CPC · CPC → SMA",
-    ayuda: "Me llevan al aeropuerto y a la vuelta me esperan cuando aterrizo."
-  }
-];
+const PATA_LLEGADA = { etiqueta: "Llegada", ruta: "CPC → SMA" };
+const PATA_SALIDA = { etiqueta: "Salida", ruta: "SMA → CPC" };
 
 function hhmm(iso: string) {
   return new Date(new Date(iso).getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
@@ -169,6 +157,18 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
    * Los dos tramos en el orden que eligió el pasajero. El segundo lleva `minimo` con la fecha del
    * primero: el que va después no puede ser anterior en el calendario.
    */
+  /** La barra muestra las dos patas en el orden elegido: el 1º tramo a la izquierda. */
+  const primerTramo = orden === "ARRIVAL" ? PATA_LLEGADA : PATA_SALIDA;
+  const segundoTramo = orden === "ARRIVAL" ? PATA_SALIDA : PATA_LLEGADA;
+
+  /** La flecha del medio: invierte el orden y limpia los vuelos ya elegidos. */
+  function cambiarOrden() {
+    setOrden(orden === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL");
+    setLlegadaId("");
+    setVueltaId("");
+    setError("");
+  }
+
   const bloqueLlegada = {
     sentido: "ARRIVAL" as const,
     titulo: "Llegada a Chapelco",
@@ -433,31 +433,42 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 <p className="eyebrow">Paso 1 de 3</p>
                 <h2 className="route-title">Tus dos vuelos</h2>
                 <p className="muted">
-                  Primero elegí el orden del viaje: empezar llegando o empezar saliendo. Después, los
-                  dos vuelos. Podés volver otro día.
+                  Si el viaje arranca cuando aterrizás o cuando te vas, se cambia con la flecha del
+                  medio. Podés volver otro día.
                 </p>
               </div>
 
-              <div className="wizard-options">
-                {ORDENES_DEL_VIAJE.map((opcion) => (
-                  <button
-                    key={opcion.code}
-                    type="button"
-                    className="wizard-option"
-                    data-selected={orden === opcion.code}
-                    onClick={() => {
-                      setOrden(opcion.code);
-                      setLlegadaId("");
-                      setVueltaId("");
-                      setError("");
-                    }}
-                  >
-                    <b>{opcion.titulo}</b>
-                    <span className="wizard-option-route">{opcion.ruta}</span>
-                    <span className="muted">{opcion.ayuda}</span>
-                  </button>
-                ))}
+              {/* Una sola barra con el orden del viaje (estilo Kiwi): el primer tramo a la
+                  izquierda, el segundo a la derecha y la flecha del medio los da vuelta. */}
+              <div className="trip-order">
+                <div className="trip-order-half">
+                  <span className="trip-order-paso">1º tramo</span>
+                  <span className="trip-order-etiqueta">{primerTramo.etiqueta}</span>
+                  <b className="trip-order-ruta">{primerTramo.ruta}</b>
+                </div>
+                <button
+                  type="button"
+                  className="trip-order-swap"
+                  onClick={cambiarOrden}
+                  aria-label="Dar vuelta el orden del viaje"
+                  title="Dar vuelta el orden del viaje"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 8h11" />
+                    <path d="m14 5 3 3-3 3" />
+                    <path d="M18 16H7" />
+                    <path d="m10 13-3 3 3 3" />
+                  </svg>
+                </button>
+                <div className="trip-order-half trip-order-half-end">
+                  <span className="trip-order-paso">2º tramo</span>
+                  <span className="trip-order-etiqueta">{segundoTramo.etiqueta}</span>
+                  <b className="trip-order-ruta">{segundoTramo.ruta}</b>
+                </div>
               </div>
+              <p className="trip-order-hint">
+                {orden === "ARRIVAL" ? "Primero llego y después me voy" : "Primero me voy y después vuelvo"}
+              </p>
 
               {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }) => (
                 <div key={sentido} className="plain-card admin-section">
