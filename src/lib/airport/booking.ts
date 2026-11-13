@@ -82,10 +82,18 @@ export function pasajerosOcupados(reservas: Array<{ passengerCount: number; stat
  * horario estimado si está demorado), para que la operación llegue a organizar la combi.
  */
 export function motivoNoReservable(
-  vuelo: { status: string; scheduledAt: Date; estimatedAt?: Date | null; source?: string; direction?: string },
+  vuelo: {
+    status: string;
+    scheduledAt: Date;
+    estimatedAt?: Date | null;
+    source?: string;
+    direction?: string;
+    pickupStartOverrideAt?: Date | null;
+  },
   disponible: number,
   ahora: Date = new Date(),
-  corteArriboMinutos = 0
+  corteArriboMinutos = 0,
+  corteSalidaMinutos = 0
 ): string | null {
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
@@ -100,6 +108,22 @@ export function motivoNoReservable(
   }
   if (vuelo.direction === "ARRIVAL" && corteArriboMinutos > 0 && referencia.getTime() - corteArriboMinutos * 60_000 <= ahora.getTime()) {
     return `Las reservas cierran ${corteArriboMinutos} min antes del arribo.`;
+  }
+  // Salidas (#55): la combi arranca la recorrida 2 h 30 antes del vuelo (o la hora coordinada a
+  // mano). Desde ese momento ya no se puede reservar: el pasajero no tendría cómo subirse.
+  if (vuelo.direction === "DEPARTURE") {
+    const arranqueRecorrida = airportPickupStart({
+      direction: "DEPARTURE",
+      // Con demora la recorrida se corre con el horario vigente, no con el programado.
+      scheduledAt: referencia,
+      pickupStartOverrideAt: vuelo.pickupStartOverrideAt ?? null,
+      status: vuelo.status
+    });
+    if (arranqueRecorrida && arranqueRecorrida.getTime() - corteSalidaMinutos * 60_000 <= ahora.getTime()) {
+      return corteSalidaMinutos > 0
+        ? `Las reservas cierran ${corteSalidaMinutos} min antes de que arranque la recorrida.`
+        : "La recorrida ya arrancó.";
+    }
   }
   if (disponible <= 0) return "Sin lugares disponibles para ese vuelo.";
   return null;
@@ -117,7 +141,7 @@ export function rangoDelDia(fecha: string) {
 export async function listAirportFlights(input: { date: string; direction?: FlightDirection }): Promise<AirportFlightOption[]> {
   const { desde, hasta } = rangoDelDia(input.date);
   const ahora = new Date();
-  const { arrivalCutoffMinutes } = await getAirportExtras();
+  const { arrivalCutoffMinutes, departureCutoffMinutes } = await getAirportExtras();
 
   const vuelos = await prisma.flight.findMany({
     where: { ...(input.direction ? { direction: input.direction } : {}), scheduledAt: { gte: desde, lt: hasta } },
@@ -132,7 +156,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
     const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
     const disponible = Math.max(capacidad - ocupados, 0);
-    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes);
+    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes);
     return {
       id: v.id,
       number: v.number,
@@ -239,7 +263,12 @@ function validarVueloPrivado(tramo: TramoSolicitado) {
   }
 }
 
-async function buscarVueloDelTramo(tx: Tx, tramo: TramoSolicitado, corteArriboMinutos = 0) {
+async function buscarVueloDelTramo(
+  tx: Tx,
+  tramo: TramoSolicitado,
+  corteArriboMinutos = 0,
+  corteSalidaMinutos = 0
+) {
   const { desde, hasta } = rangoDelDia(tramo.serviceDate);
   const numero = claveDeVuelo(tramo.flightNumber);
   const privado = tramo.privateFlight;
@@ -295,7 +324,7 @@ async function buscarVueloDelTramo(tx: Tx, tramo: TramoSolicitado, corteArriboMi
   const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
   const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
   const disponible = Math.max(capacidad - ocupados, 0);
-  const motivo = motivoNoReservable(vuelo, disponible, new Date(), corteArriboMinutos);
+  const motivo = motivoNoReservable(vuelo, disponible, new Date(), corteArriboMinutos, corteSalidaMinutos);
   if (motivo) {
     throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);
   }
@@ -327,7 +356,12 @@ type CrearTramoParams = {
 /** Crea UNA reserva atada a su vuelo, con el pago pendiente, dentro de la transacción del llamador. */
 async function crearTramo(tx: Tx, params: CrearTramoParams) {
   const { tramo, passengerId, passengerCount, halfFareCount, freeFareCount } = params;
-  const { vuelo, desde, disponible } = await buscarVueloDelTramo(tx, tramo, params.reglas.extras.arrivalCutoffMinutes);
+  const { vuelo, desde, disponible } = await buscarVueloDelTramo(
+    tx,
+    tramo,
+    params.reglas.extras.arrivalCutoffMinutes,
+    params.reglas.extras.departureCutoffMinutes
+  );
   // El recargo de zona lo decide el servidor con el punto marcado: no se toma del cliente.
   const adicionales = airportExtrasBreakdown(
     { zoneExtra: chargesZoneExtra(tramo.pickupPoint ?? null, params.reglas.coverage), sportsLuggageCount: params.reglas.sportsLuggageCount },
