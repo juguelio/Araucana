@@ -83,16 +83,36 @@ describe("administración de reservas", () => {
     expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { status: "CONFIRMED" } });
   });
 
-  it("cancela una reserva pagada, libera el asiento y conserva el pago", async () => {
+  it("cancela una reserva pagada, libera el asiento, guarda el motivo y conserva el pago", async () => {
     tx.reservation.findUnique.mockResolvedValue({ ...pending, payment: { ...pending.payment, status: "APPROVED" } });
     await expect(manageReservation(code, { operation: "delete" })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
-    await manageReservation(code, { operation: "cancel" });
+    await manageReservation(code, { operation: "cancel", reason: "El pasajero avisó que no viaja" });
     expect(tx.reservation.delete).not.toHaveBeenCalled();
     expect(tx.payment.upsert).not.toHaveBeenCalled();
     expect(tx.reservation.update).toHaveBeenCalledWith({
       where: { id: pending.id },
-      data: { status: "CANCELLED", seatId: null, seatNumber: null }
+      data: {
+        status: "CANCELLED",
+        seatId: null,
+        seatNumber: null,
+        cancellationReason: "El pasajero avisó que no viaja",
+        cancelledAt: expect.any(Date),
+        cancelledByName: null
+      }
     });
+  });
+
+  it("exige el motivo de la cancelación y registra quién la canceló (#108)", async () => {
+    expect(reservationManagementSchema.safeParse({ operation: "cancel", reason: "  " }).success).toBe(false);
+    expect(reservationManagementSchema.safeParse({ operation: "cancel" }).success).toBe(false);
+    expect(reservationManagementSchema.parse({ operation: "cancel", reason: "  Se reprogramó  ", cancelledBy: "Vale" }))
+      .toMatchObject({ operation: "cancel", reason: "Se reprogramó", cancelledBy: "Vale" });
+
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, status: "CONFIRMED" });
+    await manageReservation(code, { operation: "cancel", reason: "Se reprogramó", cancelledBy: "Vale" });
+    expect(tx.reservation.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ cancellationReason: "Se reprogramó", cancelledByName: "Vale" })
+    }));
   });
 
   it("mantiene la revisión de documentación separada del cobro manual", async () => {

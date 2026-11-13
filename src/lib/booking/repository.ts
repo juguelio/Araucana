@@ -118,6 +118,9 @@ type ReservationRecord = {
   freeFareCount?: number;
   bookingMode: string;
   status: string;
+  cancellationReason?: string | null;
+  cancelledAt?: Date | null;
+  cancelledByName?: string | null;
   totalCents: number;
   currency: string;
   createdAt: Date;
@@ -345,6 +348,9 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     halfFareCount: reservation.halfFareCount ?? 0,
     freeFareCount: reservation.freeFareCount ?? 0,
     status: reservation.status,
+    cancellationReason: reservation.cancellationReason ?? null,
+    cancelledAt: reservation.cancelledAt ?? null,
+    cancelledByName: reservation.cancelledByName ?? null,
     seatNumber: reservation.seatNumber,
     totalCents: reservation.totalCents,
     total: centsToPrice(reservation.totalCents),

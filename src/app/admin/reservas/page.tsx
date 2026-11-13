@@ -7,6 +7,7 @@ import { formatShortCode } from "@/lib/booking/codes";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
+import { reservationRowClassName } from "./row-style";
 import "./pagination.css";
 import "./reservas.css";
 
@@ -134,7 +135,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
               const canDelete = user.role === "ADMIN" && (reservation.paymentStatus !== "APPROVED" || disabilityFare);
 
               return (
-                <tr key={reservation.code}>
+                <tr key={reservation.code} className={reservationRowClassName(reservation.status)}>
                   <td className="reservas-code">
                     <span className="reservas-short-code">{formatShortCode(reservation.shortCode)}</span>
                     <span className="reservas-long-code">{reservation.code}</span>

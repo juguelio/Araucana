@@ -108,6 +108,10 @@ export type ReservationDetailDto = {
   halfFareCount?: number;
   freeFareCount?: number;
   status: ReservationStatus | string;
+  /** Cancelación con motivo (#108): lo que escribió quien canceló, cuándo y quién fue. */
+  cancellationReason?: string | null;
+  cancelledAt?: Date | null;
+  cancelledByName?: string | null;
   seatNumber: string | null;
   totalCents: number;
   total: number;
