@@ -30,6 +30,7 @@ export async function createAdminReservationAction(formData: FormData) {
     scheduleId: value(formData, "scheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
     dropoffStop: value(formData, "dropoffStop") || undefined,
+    referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
     passenger: {
       firstName: value(formData, "firstName"),
@@ -135,6 +136,8 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
       return [key, key === "email" ? text.toLowerCase() : key === "nationality" ? text || null : text];
     }));
   const notes = formData.has("notes") ? value(formData, "notes") : undefined;
+  // Sólo viaja si el formulario lo mandó: así una edición que no toca el origen no lo borra.
+  const referredBy = formData.has("referredBy") ? value(formData, "referredBy") : undefined;
   let pickup;
   if (formData.has("address")) {
     const latitude = value(formData, "latitude");
@@ -154,11 +157,11 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     method: formData.has("method") ? value(formData, "method") : undefined,
     reference: formData.has("reference") ? value(formData, "reference") : undefined
   } : undefined;
-  if (!pickup && notes === undefined && !financial && Object.keys(passenger).length === 0) {
+  if (!pickup && notes === undefined && referredBy === undefined && !financial && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
-  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, financial });
+  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, referredBy, financial });
   if (!command.success) {
     return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
   }

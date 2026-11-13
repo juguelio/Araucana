@@ -53,6 +53,8 @@ export async function getAirportServiceOrderReservations(
     return [
       {
         code: reserva.code,
+        // Quién derivó la venta (#109): lo carga el panel y el chofer lo lee en su hoja.
+        referredBy: reserva.referredBy,
         totalCents: reserva.totalCents,
         currency: reserva.currency,
         passengerCount: reserva.passengerCount,

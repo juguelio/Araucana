@@ -90,6 +90,11 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <input name="customPrice" inputMode="decimal" placeholder="Usar tarifa automática" />
                   <small>Ingresá el importe para todos los lugares en la moneda de la salida.</small>
                 </label>
+                <label>
+                  Derivado por (opcional)
+                  <input name="referredBy" maxLength={120} placeholder="Ej. una agencia de viajes" />
+                  <small>Quién vendió la reserva, si la venta vino de otra agencia o por un voucher.</small>
+                </label>
               </div>
               <div className="form-actions">
                 <button className="button" type="submit">Crear reserva</button>

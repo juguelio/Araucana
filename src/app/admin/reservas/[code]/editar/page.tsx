@@ -30,6 +30,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
       action={<Link className="ghost-button" href={detailPath}>Volver al detalle</Link>}>
       <section className="plain-card admin-section">
         <ReservationEditForm action={updateReservationAction} code={reservation.code} passenger={reservation.passenger}
+          referredBy={reservation.referredBy ?? ""}
           transfer={pickup ? {
             address: pickup.pickupAddress ?? "", point, notes: pickup.pickupNotes ?? "",
             airport: Boolean(airport), direction: airport?.direction, coverage

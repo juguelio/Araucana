@@ -12,9 +12,8 @@
  * - **El dato del chofer es la dirección, no el nombre del hotel.** Se usa `pickupName` (el lugar
  *   que eligió el pasajero) y `pickupAddress` (la referencia que escribió para el chofer): en las
  *   partidas es de dónde se lo busca, en los arribos es a dónde se lo lleva.
- * - **«Derivado por» se imprime vacío a propósito.** Quién derivó la reserva (una agencia, «El
- *   Claro», un voucher) no existe en el modelo todavía; inventarlo o deducirlo del pago sería
- *   afirmar algo que el sistema no sabe. La columna queda para completar a mano, igual que hoy.
+ * - **«Derivado por» sale del dato que carga el panel** (`Reservation.referredBy`, issue #109). Si
+ *   la reserva se vendió directo la celda va vacía: no se deduce del pago ni se inventa.
  * - **Pago** se arma con el importe y el estado del pago de la reserva (`Cobrar` / `Pagado`), no
  *   con una etiqueta suelta: el chofer cobra contra ese monto.
  */
@@ -27,6 +26,8 @@ export type ServiceOrderDirection = "ARRIVAL" | "DEPARTURE";
 /** Lo mínimo que necesita la hoja; no depende de Prisma para poder testearse sin base. */
 export type ServiceOrderReservationInput = {
   code: string;
+  /** Quién derivó la venta (agencia, voucher). `null` cuando se vendió directo. */
+  referredBy?: string | null;
   totalCents: number;
   currency: string;
   passengerCount: number;
@@ -61,7 +62,7 @@ export type ServiceOrderPassenger = {
   document: string;
   lodging: string;
   lodgingDetail: string | null;
-  /** Hoy siempre `null`: el sistema no guarda quién derivó la reserva. */
+  /** Quién derivó la venta; `null` cuando la reserva se vendió directo. */
   referredBy: string | null;
   payment: string;
   amountCents: number;
@@ -222,7 +223,7 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
       document: documentoDelPasajero(reserva.passenger.documentType, reserva.passenger.documentId),
       lodging,
       lodgingDetail,
-      referredBy: null,
+      referredBy: reserva.referredBy?.trim() || null,
       payment: paymentLabel(reserva.paymentStatus, reserva.totalCents, reserva.currency),
       amountCents: reserva.totalCents,
       currency: reserva.currency,
@@ -621,8 +622,8 @@ export async function buildServiceOrderWorkbook(
     const nota = sheet.getRow(fila + 2);
     sheet.mergeCells(`A${fila + 2}:G${fila + 2}`);
     nota.getCell(1).value =
-      "Derivado por y el detalle del pago (voucher, quién cobra) se completan a mano: el sistema todavía no los registra. " +
-      "Cobrar / Pagado es el estado del pago de la reserva.";
+      "Derivado por es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío. " +
+      "El detalle del pago (voucher, quién cobra) se completa a mano. Cobrar / Pagado es el estado del pago de la reserva.";
     nota.getCell(1).font = { size: 8, italic: true, color: { argb: GRIS } };
     nota.getCell(1).alignment = { wrapText: true };
     const anchoTotal = ANCHOS.reduce((total, ancho) => total + ancho, 0);
