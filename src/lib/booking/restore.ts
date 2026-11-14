@@ -21,8 +21,8 @@ export function restoredStatus(input: {
   disabilityProvider: string;
 }): "CONFIRMED" | "PENDING_PAYMENT" | "DOCUMENTATION_PENDING" {
   const { payment, disabilityProvider } = input;
-  if (payment?.provider === disabilityProvider) return "DOCUMENTATION_PENDING";
-  return payment?.status === "APPROVED" ? "CONFIRMED" : "PENDING_PAYMENT";
+  if (payment?.status === "APPROVED") return "CONFIRMED";
+  return payment?.provider === disabilityProvider ? "DOCUMENTATION_PENDING" : "PENDING_PAYMENT";
 }
 
 /** ¿Queda lugar? Se cuentan pasajeros, no filas: una reserva puede ocupar varios asientos. */

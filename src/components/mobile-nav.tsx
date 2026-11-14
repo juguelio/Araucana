@@ -19,7 +19,7 @@ export function MobileNav({ items, labels }: { items: { label: string; href: str
       {open && (
         <div className="mobile-navigation" id="mobile-navigation">
           <nav aria-label={labels.menu}>
-            {items.map((item) => <Link href={item.href} key={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
+            {items.map((item) => <Link href={item.href} key={`${item.href}:${item.label}`} onClick={() => setOpen(false)}>{item.label}</Link>)}
             <a className="mobile-whatsapp" href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">{labels.whatsapp} ↗</a>
             <LanguageSwitcher label={labels.language} switchTo={labels.switchTo} />
           </nav>
