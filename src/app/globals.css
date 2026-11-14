@@ -1407,6 +1407,12 @@ svg {
 .calendar-schedule-line { display:flex; justify-content:space-between; gap:6px; color:var(--primary); font-size:12px; }
 .calendar-schedule-line span { color:var(--ink-muted); font-size:10px; }
 .calendar-schedule small { color:var(--ink-muted); font-size:9px; }
+.calendar-schedule-vehicle { display:grid; gap:1px; margin:0; line-height:1.2; }
+.calendar-schedule-vehicle strong { color:var(--primary); font-size:10px; font-weight:800; }
+.calendar-schedule-vehicle span { color:var(--ink-muted); font-size:9px; }
+.calendar-schedule-vehicle-change { display:flex; align-items:center; gap:4px; margin-top:2px; }
+.calendar-schedule-vehicle-change select { min-width:0; flex:1; padding:2px 4px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); font:inherit; font-size:9px; }
+.calendar-schedule-vehicle-change button { padding:0; border:0; background:transparent; color:var(--accent); font:inherit; font-size:9px; font-weight:800; cursor:pointer; white-space:nowrap; }
 .calendar-schedule-actions { display:flex; align-items:center; gap:7px; margin-top:2px; }
 .calendar-schedule-actions a,.calendar-schedule-actions button { padding:0; border:0; background:transparent; color:var(--accent); font:inherit; font-size:10px; font-weight:800; cursor:pointer; }
 .calendar-schedule-actions button:last-child { margin-left:auto; color:#b24b3c; font-size:16px; line-height:1; }
