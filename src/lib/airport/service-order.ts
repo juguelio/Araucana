@@ -19,6 +19,7 @@
  */
 import ExcelJS from "exceljs";
 import { airportPickupStart } from "./pickup-start";
+import { horaEfectivaDelVuelo } from "./effective-time";
 import { ordenarPorRecorrido, whatsappLink } from "./route-order";
 import { ORDER_LOGO_PNG_BASE64 } from "./service-order-logo";
 
@@ -211,14 +212,17 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
     const key = reserva.flight?.id ?? `sin-vuelo:${direction}:${reserva.flightNumber}`;
     const scheduledAt = reserva.flight?.scheduledAt ?? null;
     const estimatedAt = reserva.flight?.estimatedAt ?? null;
+    // La hora del vuelo sale de la misma función que el corte de venta (issue #140).
+    const vueloAt = scheduledAt ? horaEfectivaDelVuelo({ scheduledAt, estimatedAt }) : null;
     const operationAt =
       direction === "DEPARTURE"
         ? (airportPickupStart({
             direction,
             scheduledAt: scheduledAt ?? new Date(0),
+            estimatedAt,
             pickupStartOverrideAt: reserva.flight?.pickupStartOverrideAt ?? null
-          }) ?? scheduledAt ?? new Date(0))
-        : (estimatedAt ?? scheduledAt ?? new Date(0));
+          }) ?? vueloAt ?? new Date(0))
+        : (vueloAt ?? new Date(0));
 
     const { lodging, lodgingDetail } = alojamientoDelPasajero(reserva.pickupName, reserva.pickupAddress);
 
@@ -255,7 +259,7 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
       heading: direction === "DEPARTURE" ? "OUT" : "Llega",
       operationAt,
       scheduledAt: scheduledAt ?? operationAt,
-      flightAt: direction === "DEPARTURE" ? (scheduledAt ?? operationAt) : (estimatedAt ?? scheduledAt ?? operationAt),
+      flightAt: vueloAt ?? operationAt,
       estimatedAt,
       passengers: [pasajero],
       totalCents: pasajero.amountCents
@@ -276,7 +280,11 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
 export function blockTimeLabel(block: ServiceOrderBlock) {
   if (block.direction === "DEPARTURE") {
     const despegue = horaEnSalta(block.flightAt);
-    return `${block.heading} ${block.flightNumber} · recorrida ${horaEnSalta(block.operationAt)} · despegue ${despegue}`;
+    const programado = horaEnSalta(block.scheduledAt);
+    // Si la aerolínea movió el vuelo, el chofer ve la hora vigente y la programada entre paréntesis:
+    // el papel no puede esconder la hora a la que estaba citado (issue #140).
+    const corrido = despegue !== programado ? ` (programado ${programado})` : "";
+    return `${block.heading} ${block.flightNumber} · recorrida ${horaEnSalta(block.operationAt)} · despegue ${despegue}${corrido}`;
   }
 
   const llega = horaEnSalta(block.flightAt);

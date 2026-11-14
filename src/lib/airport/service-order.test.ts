@@ -100,6 +100,42 @@ describe("orden de servicio del aeropuerto", () => {
     expect(blockTimeLabel(blocks[0])).toBe("Llega 1671 · llega 14:40 (programado 14:10)");
   });
 
+  /**
+   * Issue #140: con demora, la partida mostraba en la hoja el despegue programado y una recorrida
+   * calculada sobre esa hora, mientras el corte de venta cerraba con la estimada.
+   */
+  it("una partida demorada mueve la recorrida y el despegue a la hora estimada", () => {
+    const blocks = buildServiceOrderBlocks([
+      reserva({
+        flight: vuelo({
+          scheduledAt: new Date("2026-11-12T18:15:00Z"),
+          // 17:15 en Salta.
+          estimatedAt: new Date("2026-11-12T20:15:00Z")
+        })
+      })
+    ]);
+
+    expect(blocks[0].flightAt.toISOString()).toBe("2026-11-12T20:15:00.000Z");
+    expect(blocks[0].operationAt.toISOString()).toBe("2026-11-12T17:45:00.000Z");
+    expect(blockTimeLabel(blocks[0])).toBe("OUT 1671 · recorrida 14:45 · despegue 17:15 (programado 15:15)");
+  });
+
+  it("la hora coordinada a mano manda sobre la demora sólo para la recorrida", () => {
+    const coordinada = new Date("2026-11-12T16:00:00Z");
+    const blocks = buildServiceOrderBlocks([
+      reserva({
+        flight: vuelo({
+          estimatedAt: new Date("2026-11-12T20:15:00Z"),
+          pickupStartOverrideAt: coordinada
+        })
+      })
+    ]);
+
+    // 13:00 en Salta: la recorrida coordinada; el despegue sigue siendo el estimado de la aerolínea.
+    expect(blocks[0].operationAt).toBe(coordinada);
+    expect(blockTimeLabel(blocks[0])).toBe("OUT 1671 · recorrida 13:00 · despegue 17:15 (programado 15:15)");
+  });
+
   it("ordena la recorrida de las partidas antes de los arribos y suma por bloque", () => {
     const blocks = buildServiceOrderBlocks([
       reserva({
