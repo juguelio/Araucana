@@ -536,11 +536,6 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 );
               })}
 
-              <div className="form-actions">
-                <button className="button" type="button" onClick={avanzar}>
-                  Continuar con los pickups
-                </button>
-              </div>
             </>
           ) : null}
 
@@ -619,9 +614,6 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               <div className="form-actions">
                 <button className="ghost-button" type="button" onClick={() => setPaso(1)}>
                   ← Volver
-                </button>
-                <button className="button" type="button" onClick={avanzar}>
-                  Continuar con tus datos
                 </button>
               </div>
             </>
@@ -705,9 +697,6 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               <div className="form-actions">
                 <button className="ghost-button" type="button" onClick={() => setPaso(2)}>
                   ← Volver
-                </button>
-                <button className="primary-button" type="submit" disabled={isSubmitting || fueraDeZona}>
-                  {isSubmitting ? "Reservando…" : "Reservar ida y vuelta"}
                 </button>
               </div>
             </>
