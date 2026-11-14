@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
-import { savePublicSchedule } from "@/lib/special-trips/conflicts";
+import { argentinaDateKey } from "@/lib/booking/admin-filters";
+import { vehicleConflictNotice } from "@/lib/booking/schedule-vehicle";
+import { fleetConflicts, lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
 import { prisma } from "@/lib/db/prisma";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
@@ -232,4 +234,77 @@ export async function deleteScheduleAction(formData: FormData) {
 
   revalidateSchedulePaths(schedule.route.slug, schedule.route.id);
   redirect(`/admin/rutas/${schedule.route.id}/salidas?notice=${encodeURIComponent(notice)}`);
+}
+
+/**
+ * Reasignar la nave de una salida desde el calendario de la ruta (issue #81), sin abrir el formulario
+ * completo: no toca fecha, hora, estado ni reservas, sólo el vehículo. Antes de guardar revisa que la
+ * nave no esté tomada en ese horario —otra salida, viaje especial, Chapelco o aeropuerto— y, si lo
+ * está, no cambia nada y vuelve al calendario con el aviso. La salida que se edita queda excluida del
+ * chequeo para no chocar consigo misma.
+ */
+export async function setScheduleVehicleAction(formData: FormData) {
+  await getCurrentAdminOrRedirect();
+
+  const id = value(formData, "id");
+  const vehicleId = value(formData, "vehicleId");
+  const current = id
+    ? await prisma.schedule.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        routeId: true,
+        vehicleId: true,
+        departureAt: true,
+        arrivalAt: true,
+        route: { select: { slug: true } }
+      }
+    })
+    : null;
+
+  if (!current) {
+    redirect(`/admin/rutas?notice=${encodeURIComponent("La salida que querés cambiar ya no existe.")}`);
+  }
+
+  const calendarPath = `/admin/rutas/${current.routeId}/salidas?month=${argentinaDateKey(current.departureAt).slice(0, 7)}`;
+  const backToCalendar = (notice: string): never => redirect(`${calendarPath}&notice=${encodeURIComponent(notice)}`);
+
+  if (!vehicleId) {
+    backToCalendar("Elegí la nave a la que pasa la salida.");
+  }
+
+  if (vehicleId === current.vehicleId) {
+    backToCalendar("La salida ya tiene esa nave.");
+  }
+
+  const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { isActive: true } });
+  if (!vehicle || !vehicle.isActive) {
+    backToCalendar("Esa nave no está disponible: elegí una unidad activa.");
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    // Mismo orden de locks que el resto de las escrituras de flota: nadie puede tomar esa nave en
+    // paralelo mientras se comprueba el horario.
+    await lockFleet(tx, [vehicleId]);
+    const conflicts = await fleetConflicts(
+      tx,
+      { vehicleId, startsAt: current.departureAt, endsAt: current.arrivalAt },
+      undefined,
+      current.id
+    );
+    if (conflicts.length) {
+      return { conflicts };
+    }
+
+    await tx.schedule.update({ where: { id: current.id }, data: { vehicleId } });
+    return { conflicts: [] };
+  });
+
+  if (result.conflicts.length) {
+    backToCalendar(vehicleConflictNotice(result.conflicts));
+  }
+
+  revalidateSchedulePaths(current.route.slug, current.routeId);
+  revalidatePath(`/admin/rutas/${current.routeId}/salidas/${current.id}`);
+  backToCalendar("Nave de la salida actualizada.");
 }
