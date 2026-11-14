@@ -60,6 +60,7 @@ export default async function RouteSchedulePage({ params, searchParams }: RouteS
   return (
     <AdminShell title={`${schedule.route.from} → ${schedule.route.to}`} eyebrow="Salida" notice={query?.notice}
       action={<div className="inline-actions">
+        <Link className="ghost-button" href={`/admin/rutas/${routeId}/salidas/${scheduleId}/planilla`}>Planilla del chofer</Link>
         <Link className="ghost-button" href={`/admin/rutas/${routeId}/salidas`}>Volver a salidas</Link>
         <Link className="button" href={`/admin/rutas/${routeId}/salidas/${scheduleId}/editar`}>Editar salida</Link>
       </div>}>
