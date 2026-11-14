@@ -43,6 +43,20 @@ describe("tablero del aeropuerto (FIDS)", () => {
     expect(estadoSegunHorario("SCHEDULED", s, null)).toBe("SCHEDULED");
   });
 
+  it("la estima 00:00hs del tablero es 'sin estima', no medianoche", () => {
+    const bloque = (c5: string) =>
+      `<li class="dl"><div class="c1"><img alt="JetSmart"></div>` +
+      `<div class="c2 hidden-xs"><span class="text-gray">JA</span>3183</div>` +
+      `<div class="c3">AEROPARQUE</div><div class="c4 hidden-xs">12:22hs</div>` +
+      `<div class="c5 hidden-xs">${c5}</div>` +
+      `<div class="c6"><span class="estado-vuelo arribado">Aterrizado</span></div></li>`;
+
+    expect(parseFidsBoard(bloque("00:00hs"))[0].estimated).toBeNull();
+    expect(parseFidsBoard(bloque("12:22hs"))[0].estimated).toBe("12:22");
+    // El tablero real publica 00:00hs cuando no tiene estima: ninguna fila puede volver "00:00".
+    for (const vuelo of parseFidsBoard(html)) expect(vuelo.estimated).not.toBe("00:00");
+  });
+
   it("ubica la hora en el día correcto", () => {
     const ahora = new Date("2026-10-16T18:00:00.000Z"); // 15:00 local
     expect(fechaDelTablero("18:00", ahora)).toBe("2026-10-16");

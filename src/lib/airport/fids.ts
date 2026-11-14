@@ -69,6 +69,9 @@ export function parseFidsBoard(html: string): FidsFlight[] {
 
     const img = bloque.match(/<img[^>]*alt="([^"]*)"/i);
     const estima = campo(bloque, "c5");
+    // El tablero publica "00:00hs" cuando todavía no tiene una estima: no es medianoche, es un
+    // hueco. Guardarla como 00:00 corría el vuelo doce horas y ensuciaba el corte y la recorrida.
+    const horaEstimada = (estima ?? "").replace(/hs$/i, "").trim();
     const estado = bloque.match(/<span class="estado-vuelo\s*([a-z-]*)">([^<]*)</i);
 
     salida.push({
@@ -77,7 +80,7 @@ export function parseFidsBoard(html: string): FidsFlight[] {
       number: `${codigo[1].toUpperCase()}${codigo[2]}`,
       city: c3 ?? "",
       scheduled: c4.replace(/hs$/i, "").trim(),
-      estimated: estima ? estima.replace(/hs$/i, "").trim() || null : null,
+      estimated: horaEstimada && horaEstimada !== "00:00" ? horaEstimada : null,
       statusText: estado ? text(estado[2]) : "—",
       statusClass: estado ? estado[1].toLowerCase() : ""
     });

@@ -2,7 +2,7 @@ import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/fligh
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
 import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
 import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
-import { DIAS_PROYECTADOS, fechaLocal, proyectarVuelos } from "@/lib/airport/projection";
+import { DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
@@ -310,17 +310,22 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
         resumen.actualizados += 1;
         resumen.desdeTablero += 1;
 
-        // Si el aeropuerto corrigió el horario (la API publicaba otro), se alinea la grilla futura
-        // de ese mismo vuelo para que el pasajero vea el horario bueno desde hoy.
+        // Si el aeropuerto corrigió el horario de hoy, se alinea la grilla futura **del mismo día
+        // de la semana**: ese es el mismo servicio y el dato del tablero es fresco. Los demás días
+        // tienen su propio horario (JetSMART sale 12:37 un sábado y 13:50 un domingo), y copiarles
+        // el reloj de hoy dejaba el vuelo de mañana 73 minutos antes de su horario real
+        // (reporte de Flor, 14-nov).
         {
+          const diaDelTablero = fechaLocal(scheduledAt);
           const futuros = await prisma.flight.findMany({
             where: { number, direction, source: "ESTIMADO", scheduledAt: { gte: hastaElDia } },
             select: { id: true, scheduledAt: true }
           });
           for (const fut of futuros) {
-            const horaFutura = new Date(fut.scheduledAt.getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
+            const fechaFutura = fechaLocal(fut.scheduledAt);
+            if (!mismaFrecuenciaSemanal(fechaFutura, diaDelTablero)) continue;
+            const horaFutura = horaLocal(fut.scheduledAt);
             if (horaFutura === f.scheduled) continue; // ya está alineado
-            const fechaFutura = new Date(fut.scheduledAt.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
             const destino = new Date(`${fechaFutura}T${f.scheduled}:00-03:00`);
             const ocupado = await prisma.flight.findFirst({
               where: {

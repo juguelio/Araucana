@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DIAS_PROYECTADOS, fechaLocal, horaLocal, proyectarVuelos, type ObservableFlight } from "./projection";
+import { DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ObservableFlight } from "./projection";
 
 const api = (o: Partial<ObservableFlight>): ObservableFlight => ({
   number: "AR1656",
@@ -47,6 +47,21 @@ describe("proyectarVuelos", () => {
     expect(proyectarVuelos("2026-10-21", [m, j, s])).toEqual([]); // miércoles
   });
 
+  it("proyecta cualquier día un vuelo visto en días consecutivos (AR1656 faltaba lunes y miércoles)", () => {
+    // AR1656/57 se ven jueves, viernes y sábado: es un servicio diario, aunque el muestreo nunca
+    // cayó un lunes ni un miércoles. Antes esos días la grilla quedaba sin el vuelo de la tarde.
+    const jueves = api({ scheduledAt: new Date("2026-11-12T20:35:00.000Z") }); // 17:35 local
+    const viernes = api({ scheduledAt: new Date("2026-11-13T20:35:00.000Z") });
+    const sabado = api({ scheduledAt: new Date("2026-11-14T20:35:00.000Z") });
+
+    const lunes = proyectarVuelos("2026-11-23", [jueves, viernes, sabado]);
+    expect(lunes.map((v) => v.number)).toEqual(["AR1656"]);
+    expect(horaLocal(lunes[0].scheduledAt)).toBe("17:35");
+
+    const miercoles = proyectarVuelos("2026-11-25", [jueves, viernes, sabado]);
+    expect(miercoles.map((v) => v.number)).toEqual(["AR1656"]);
+  });
+
   it("con una sola muestra asume servicio diario, pero no inventa si ya conoce varios días", () => {
     const unaMuestra = api({ number: "AR1656", source: "API", scheduledAt: new Date("2026-10-16T18:45:00.000Z") });
     expect(proyectarVuelos("2026-10-21", [unaMuestra])).toHaveLength(1);
@@ -80,5 +95,13 @@ describe("proyectarVuelos", () => {
 
   it("proyecta un horizonte razonable de días", () => {
     expect(DIAS_PROYECTADOS).toBeGreaterThanOrEqual(14);
+  });
+});
+
+describe("mismaFrecuenciaSemanal", () => {
+  it("sólo alinea los días futuros del mismo día de la semana que el tablero", () => {
+    expect(mismaFrecuenciaSemanal("2026-11-21", "2026-11-14")).toBe(true); // sábado → sábado
+    // El domingo 15-nov sale 13:50 en JetSMART y el sábado 14 salió 12:37: no es el mismo horario.
+    expect(mismaFrecuenciaSemanal("2026-11-15", "2026-11-14")).toBe(false);
   });
 });

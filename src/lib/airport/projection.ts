@@ -54,6 +54,20 @@ function conFechaYHora(fecha: string, hora: string): Date {
 }
 
 /**
+ * Dos días de calendario consecutivos en la muestra. Es la señal de que el servicio es diario:
+ * un vuelo que opera martes/jueves/sábado nunca se ve dos días seguidos.
+ */
+function hayDiasConsecutivos(dias: string[]): boolean {
+  const orden = [...dias].sort();
+  for (let i = 1; i < orden.length; i += 1) {
+    const previo = new Date(`${orden[i - 1]}T12:00:00-03:00`).getTime();
+    const actual = new Date(`${orden[i]}T12:00:00-03:00`).getTime();
+    if (Math.round((actual - previo) / 86400000) === 1) return true;
+  }
+  return false;
+}
+
+/**
  * Proyecta los vuelos observados a `fecha`. Si conocemos el mismo día de la semana, usa ese
  * patrón (los sábados pueden ser distintos a los miércoles); si no, usa el día real más reciente.
  */
@@ -70,9 +84,10 @@ const FUENTES_DEL_PATRON = new Set(["API", "MANUAL", "FIDS"]);
  * Importa porque no todas las aerolíneas vuelan todos los días: American Jet hace Neuquén–Chapelco
  * martes, jueves y sábados. Si proyectáramos "el día completo", esos vuelos aparecerían un lunes.
  *
- * Regla: si conocemos ese mismo día de la semana para ese vuelo, se proyecta; si no lo conocemos y
- * sólo tenemos una muestra (un día distinto), se asume que el servicio es diario; si ya lo vimos en
- * **varios** días distintos y el objetivo no es uno de ellos, no se proyecta.
+ * Regla: si conocemos ese mismo día de la semana para ese vuelo, se proyecta; si lo vimos en días
+ * consecutivos es un servicio diario y se proyecta cualquier día; si no lo conocemos y sólo tenemos
+ * una muestra (un día distinto), se asume que el servicio es diario; si lo vimos en **varios** días
+ * salteados y el objetivo no es uno de ellos, no se proyecta (martes/jueves/sábado).
  */
 export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): ProjectedFlight[] {
   const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source));
@@ -91,9 +106,14 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
 
   const salida = new Map<string, ProjectedFlight>();
   for (const [clave, ocurrencias] of porVuelo) {
-    const diasConocidos = new Set(ocurrencias.map((o) => diaDeLaSemana(fechaLocal(o.scheduledAt))));
+    const diasObservados = new Set(ocurrencias.map((o) => fechaLocal(o.scheduledAt)));
+    const diasConocidos = new Set([...diasObservados].map((d) => diaDeLaSemana(d)));
     const conoceElDia = diasConocidos.has(objetivo);
-    if (!conoceElDia && diasConocidos.size > 1) continue;
+    // Un vuelo visto en días consecutivos opera todos los días (Aerolíneas, JetSMART). Sin esta
+    // regla, la grilla futura sólo repetía los días de la semana que cayeron en la muestra y los
+    // lunes/miércoles quedaban sin el vuelo de la tarde (reporte de Flor, 14-nov: faltaba AR1656/57).
+    const servicioDiario = hayDiasConsecutivos([...diasObservados]);
+    if (!conoceElDia && diasConocidos.size > 1 && !servicioDiario) continue;
 
     // La referencia es la ocurrencia más reciente de ese vuelo (o la del mismo día de la semana).
     const candidatas = conoceElDia
@@ -121,6 +141,16 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
   }
 
   return [...salida.values()].sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
+}
+
+/**
+ * ¿La fila de `diaFuturo` es el mismo servicio semanal que la del tablero (`diaTablero`)?
+ * El tablero de hoy sólo prueba el horario de ese día de la semana: JetSMART sale 12:37 un sábado
+ * y 13:50 un domingo, así que copiarle el reloj de hoy a todos los días futuros corre el vuelo
+ * de mañana (reporte de Flor, 14-nov: JA3182 del 15-nov figuraba 73 min antes).
+ */
+export function mismaFrecuenciaSemanal(diaFuturo: string, diaTablero: string): boolean {
+  return diaDeLaSemana(diaFuturo) === diaDeLaSemana(diaTablero);
 }
 
 /** Días siguientes a proyectar (además de hoy, que se sincroniza con datos reales). */
