@@ -27,3 +27,48 @@
   .pagination { justify-content: center; text-align: center; }
   .pagination-status { order: -1; width: 100%; text-align: center; }
 }
+
+/* --- «Falta: nave, precio…» debajo del estado, para no abrir la ficha a ver qué le falta al viaje --- */
+.vesp-falta { display: block; margin-top: 4px; font-size: 11px; font-weight: 700; color: var(--accent); }
+
+/* --- Filtros plegables en el celular (en escritorio siempre abiertos) --- */
+.vesp-filtros-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.vesp-filtros-summary { display: none; }
+.vesp-filtros-activos { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; letter-spacing: .06em; }
+
+/* --- Celular: cada viaje es una tarjeta con rótulos; los meses quedan como títulos --- */
+@media (max-width: 760px) {
+  .vesp-filtros-summary { display: flex; align-items: center; min-height: 28px; cursor: pointer; margin: 0; color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .vesp-filtros-summary::after { content: "▾"; margin-left: auto; font-size: 14px; }
+  .admin-section:has(.vesp-filtros-toggle:checked) .vesp-filtros-summary { margin-bottom: 12px; }
+  .admin-section:has(.vesp-filtros-toggle:checked) .vesp-filtros-summary::after { content: "▴"; }
+  .admin-section:not(:has(.vesp-filtros-toggle:checked)) .vesp-filtros { display: none; }
+
+  .table-scroll:has(.vesp-tabla) { overflow: visible; }
+  .table-scroll .vesp-tabla { min-width: 0; width: 100%; display: block; background: transparent; }
+  .vesp-tabla thead { display: none; }
+  .vesp-tabla tbody { display: grid; gap: 10px; margin-bottom: 14px; }
+  .vesp-tabla tr { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .vesp-tabla tr[data-pendientes="true"] { border-color: var(--accent); }
+  .vesp-tabla tr.vesp-grupo-titulo { display: block; padding: 6px 0 0; border: 0; background: transparent; }
+  .vesp-tabla tr.vesp-grupo-titulo th { padding: 0; }
+  .vesp-tabla td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  .vesp-tabla td::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .vesp-tabla td[data-label="Fecha"]::before, .vesp-tabla td[data-label="Cliente"]::before,
+  .vesp-tabla td[data-label="Estado"]::before, .vesp-tabla td[data-label="Acciones"]::before { display: none; }
+  .vesp-tabla td[data-label="Fecha"] { grid-column: 1; order: -3; font-size: 12px; color: var(--ink-muted); }
+  .vesp-tabla td[data-label="Estado"] { grid-column: 2; grid-row: 1 / span 2; order: -3; justify-self: end; text-align: right; }
+  .vesp-tabla td[data-label="Cliente"] { grid-column: 1; order: -2; font-size: 16px; }
+  .vesp-tabla td[data-label="Destino o servicio"] { grid-column: 1 / -1; order: -1; }
+  .vesp-tabla td[data-label="Acciones"] { grid-column: 1 / -1; padding-top: 6px; border-top: 1px dashed var(--line); }
+  .vesp-tabla .vesp-num { white-space: normal; }
+  .vesp-vistas { gap: 6px; }
+  /* La tira de meses desplaza dentro de su caja, no la página. */
+  .vesp-meses { min-width: 0; max-width: 100%; }
+  .vesp-meses .dia-tira { max-width: 100%; }
+}
+@media (max-width: 760px) {
+  /* El «Falta:» no le quita ancho al cliente: va debajo de la etiqueta, en su columna. */
+  .vesp-tabla tr { grid-template-columns: minmax(0, 1fr) minmax(0, 46%); }
+  .vesp-tabla td[data-label="Estado"] .vesp-falta { text-align: right; }
+}
