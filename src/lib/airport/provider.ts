@@ -1,3 +1,4 @@
+import { airportLocalDay } from "./data-quality";
 import { jetSmartCanonicalNumber } from "./flights";
 
 /** Un tercero colgado no puede colgar la pantalla del aeropuerto (se llama al renderizar /reservar). */
@@ -99,11 +100,13 @@ export async function fetchSchedules(
 ): Promise<{ flights: NormalizedFlight[]; error: string | null }> {
   // La clave puede venir de la variable de entorno o de la configurada en el panel (la resuelve
   // el sync); sin ninguna, el conector queda en modo degradado y lo dice.
+  // /schedules es una ventana en vivo: no admite consultar fechas futuras.
+  if (dia !== airportLocalDay(new Date())) return { flights: [], error: "AirLabs schedules no confirma programación futura." };
   const key = (apiKey ?? process.env.AIRLABS_API_KEY ?? "").trim();
   if (!key) return { flights: [], error: "Falta la clave de AirLabs: cargala en el panel de Aeropuerto" };
 
   const param = direction === "ARRIVAL" ? "arr_iata" : "dep_iata";
-  const url = `https://airlabs.co/api/v9/schedules?${param}=CPC&date=${dia}&api_key=${encodeURIComponent(key)}`;
+  const url = `https://airlabs.co/api/v9/schedules?${param}=CPC&api_key=${encodeURIComponent(key)}`;
 
   try {
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(EXTERNAL_TIMEOUT_MS) });
@@ -112,7 +115,7 @@ export async function fetchSchedules(
     if (data.error) return { flights: [], error: data.error.message ?? "error de AirLabs" };
     const items = (data.response ?? []).filter((it) => {
       const ts = fecha(direction === "ARRIVAL" ? it.arr_time_ts : it.dep_time_ts);
-      return ts ? ts.toISOString().slice(0, 10) === dia : false;
+      return ts ? airportLocalDay(ts) === dia : false;
     });
     return { flights: normalizeSchedules(items, direction), error: null };
   } catch (e) {

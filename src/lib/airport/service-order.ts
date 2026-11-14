@@ -216,6 +216,7 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
         ? (airportPickupStart({
             direction,
             scheduledAt: scheduledAt ?? new Date(0),
+            estimatedAt,
             pickupStartOverrideAt: reserva.flight?.pickupStartOverrideAt ?? null
           }) ?? scheduledAt ?? new Date(0))
         : (estimatedAt ?? scheduledAt ?? new Date(0));

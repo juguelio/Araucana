@@ -1,3 +1,4 @@
+import { flightEvidenceWarning, reliableEstimate, type FlightEvidence } from "./data-quality";
 /**
  * Orden del tablero de aeropuerto (`/admin/aeropuerto`).
  *
@@ -10,29 +11,23 @@
  * o no». Acá es «todavía no pasó».
  */
 
-/** Cuánto se espera después del horario para dar un vuelo por terminado si nadie marcó «Aterrizó». */
+/** Margen tras el horario para pedir verificación; nunca implica aterrizaje confirmado. */
 export const MARGEN_TERMINADO_MIN = 90;
 
-export type VueloConHorario = {
-  status: string;
-  scheduledAt: Date;
-  estimatedAt: Date | null;
-};
+export type VueloConHorario = FlightEvidence;
 
 /** El horario que manda: el estimado si lo hay, si no el programado. */
 export function horaDeReferencia(vuelo: VueloConHorario): Date {
-  return vuelo.estimatedAt ?? vuelo.scheduledAt;
+  return reliableEstimate(vuelo) ?? vuelo.scheduledAt;
 }
 
 /**
  * ¿Ya pasó? Aterrizado sí; cancelado o desviado NO, porque son imprevistos que hay que seguir
- * viendo. El resto se da por terminado cuando pasó el margen desde su horario real: el tablero no
- * siempre recibe el «Aterrizó» de la aerolínea.
+ * viendo. El paso del tiempo no prueba que un avión haya llegado: ese caso se manda a verificar.
  */
-export function vueloTerminado(vuelo: VueloConHorario, ahora: Date, margenMin = MARGEN_TERMINADO_MIN): boolean {
-  if (["CANCELLED", "DIVERTED"].includes(vuelo.status)) return false;
-  if (vuelo.status === "LANDED") return true;
-  return ahora.getTime() - horaDeReferencia(vuelo).getTime() > margenMin * 60000;
+export function vueloTerminado(vuelo: VueloConHorario, ahora: Date): boolean {
+  if (flightEvidenceWarning(vuelo, ahora) || ["CANCELLED", "DIVERTED"].includes(vuelo.status)) return false;
+  return vuelo.status === "LANDED" || (vuelo.direction === "DEPARTURE" && vuelo.status === "EN_ROUTE");
 }
 
 /**
@@ -43,17 +38,22 @@ export function separarVuelosDelTablero<T extends VueloConHorario>(
   vuelos: readonly T[],
   ahora: Date,
   margenMin = MARGEN_TERMINADO_MIN
-): { enJuego: T[]; terminados: T[] } {
+): { enJuego: T[]; terminados: T[]; porVerificar: T[] } {
   const enJuego: T[] = [];
   const terminados: T[] = [];
+  const porVerificar: T[] = [];
 
   for (const vuelo of vuelos) {
-    (vueloTerminado(vuelo, ahora, margenMin) ? terminados : enJuego).push(vuelo);
+    if (flightEvidenceWarning(vuelo, ahora)) porVerificar.push(vuelo);
+    else if (vueloTerminado(vuelo, ahora)) terminados.push(vuelo);
+    else if (!["CANCELLED", "DIVERTED"].includes(vuelo.status) && ahora.getTime() - horaDeReferencia(vuelo).getTime() > margenMin * 60000) porVerificar.push(vuelo);
+    else enJuego.push(vuelo);
   }
 
   const porHorario = (a: VueloConHorario, b: VueloConHorario) => horaDeReferencia(a).getTime() - horaDeReferencia(b).getTime();
   enJuego.sort(porHorario);
   terminados.sort(porHorario);
 
-  return { enJuego, terminados };
+  porVerificar.sort(porHorario);
+  return { enJuego, terminados, porVerificar };
 }

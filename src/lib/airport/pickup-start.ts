@@ -15,11 +15,13 @@ export const AIRPORT_PICKUP_COPY =
 export function airportPickupStart(flight: {
   direction: string;
   scheduledAt: Date;
+  estimatedAt?: Date | null;
   pickupStartOverrideAt?: Date | null;
   status?: string;
 }) {
   if (flight.direction !== "DEPARTURE" || flight.status === "CANCELLED" || flight.status === "DIVERTED") return null;
-  return flight.pickupStartOverrideAt ?? new Date(flight.scheduledAt.getTime() - LEAD_MS);
+  const reference = flight.estimatedAt && flight.estimatedAt > flight.scheduledAt ? flight.estimatedAt : flight.scheduledAt;
+  return flight.pickupStartOverrideAt ?? new Date(reference.getTime() - LEAD_MS);
 }
 
 export const airportPickupDateTime = new Intl.DateTimeFormat("es-AR", {

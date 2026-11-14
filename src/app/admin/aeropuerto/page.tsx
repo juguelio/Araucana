@@ -1,3 +1,4 @@
+import { flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
@@ -38,16 +39,6 @@ function rangoDelDia(fecha: string) {
 
 const hhmm = (d: Date) => new Date(d.getTime() + TZ_OFFSET_MIN * 60000).toISOString().slice(11, 16);
 
-/** De dónde salió el dato, en una palabra. */
-function origenDelDato(source: string) {
-  if (source === "ESTIMADO") return "estimado";
-  if (source === "MANUAL") return "a mano";
-  if (source === "FIDS") return "tablero";
-  // Lo cargó el pasajero al reservar: nadie lo verificó todavía contra la aerolínea ni el tablero.
-  if (source === "PASAJERO") return "cargado por el pasajero · verificar";
-  return null;
-}
-
 /** Color del estado: lo que hay que mirar, lo que ya pasó, o lo normal. */
 function tonoDelEstado(snapshot: { status: string; scheduledAt: Date; estimatedAt: Date | null }) {
   if (["CANCELLED", "DIVERTED"].includes(snapshot.status)) return "grave";
@@ -74,7 +65,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
   const naves = await prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 
-  const imprevistos = vuelos.filter((v) => needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt }));
+  const imprevistos = vuelos.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
   const visibles = soloAlerta ? imprevistos : vuelos;
   const conEvento = await prisma.flightEvent.findMany({
     where: { flight: { scheduledAt: { gte: desde, lt: hasta } } },
@@ -104,14 +95,15 @@ export default async function AirportPage({ searchParams }: PageProps) {
   // ya pasó. Es la misma tarjeta —con pasajeros, combi y hoja del chofer— porque el operador
   // todavía tiene que poder abrirla.
   const tarjeta = (v: VueloDelDia, pasado = false) => {
-    const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt };
+    const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) };
+    const evidenceWarning = flightEvidenceWarning(v, ahora);
     const alerta = needsAttention(snapshot);
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
     const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
     const faltanCombis = ocupados > capacidad;
-    const estima = v.estimatedAt && hhmm(v.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(v.estimatedAt) : null;
-    const extra = origenDelDato(v.source);
-    const pickupStart = airportPickupStart(v);
+    const estima = snapshot.estimatedAt && hhmm(snapshot.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(snapshot.estimatedAt) : null;
+    const extra = flightSourceLabel(v.source);
+    const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart({ ...v, estimatedAt: snapshot.estimatedAt });
 
     return (
       <article id={`vuelo-${v.id}`} className="flight-card" data-alerta={alerta} data-pasado={pasado ? "true" : undefined} key={v.id}>
@@ -131,7 +123,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             </span>
           </div>
           <span className="pill pill-estado" data-tono={tonoDelEstado(snapshot)}>
-            {statusDetail(snapshot)}
+            {evidenceWarning ? "A verificar" : v.source === "ESTIMADO" ? "Sin confirmar" : v.source === "MANUAL" && v.status === "SCHEDULED" ? "Sin estado en vivo" : statusDetail(snapshot)}
           </span>
           <span className="flight-pax">
             <strong>{ocupados}</strong>
@@ -140,6 +132,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </span>
         </div>
 
+        <p className="muted">
+          {v.lastCheckedAt ? `Fuente consultada: ${airportPickupDateTime.format(v.lastCheckedAt)}` : `Carga sin consulta automática · ${airportPickupDateTime.format(v.updatedAt)}`}
+        </p>
+        {evidenceWarning ? <p className="error" role="status">{evidenceWarning}</p> : null}
         <div className="flight-foot">
           <span className="muted">{v.origin}</span>
           {pickupStart ? <span className="muted">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
@@ -226,6 +222,12 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
       }
     >
+      <section className="plain-card admin-section">
+        <p><strong>Vista consultada: {airportPickupDateTime.format(ahora)} · Argentina (UTC−3).</strong></p>
+        <p>AirLabs informa vuelos con fecha. El tablero del aeropuerto no fecha cada fila; su fecha se infiere al consultarlo.
+          Las cargas manuales y las proyecciones históricas no confirman que el vuelo opere ni que esté en horario.</p>
+        <p>Un horario vencido se marca para verificar: no significa que el avión haya aterrizado. Cada tarjeta indica su fuente y última consulta.</p>
+      </section>
       <section className="flights-toolbar">
         <form className="flights-date" method="get">
           <label>
@@ -296,7 +298,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
           // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
-          const { enJuego, terminados } = separarVuelosDelTablero(lista, ahora);
+          const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(lista, ahora);
           // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
           const pasadosConImprevisto = terminados.some((v) =>
             needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt })
@@ -309,10 +311,17 @@ export default async function AirportPage({ searchParams }: PageProps) {
               <div className="flights-list">
                 {enJuego.map((v) => tarjeta(v))}
               </div>
+              {porVerificar.length ? (
+                <section className="plain-card admin-section">
+                  <h3>Por verificar · {porVerificar.length}</h3>
+                  <p className="muted">Fecha o estado inconsistente, o pasó el horario sin confirmación de finalización. Actualizá y contrastá con la fuente.</p>
+                  <div className="flights-list">{porVerificar.map((v) => tarjeta(v))}</div>
+                </section>
+              ) : null}
               {terminados.length ? (
                 <details className="flights-pasados" open={pasadosConImprevisto}>
                   <summary>
-                    {terminados.length === 1 ? "1 vuelo que ya pasó" : `${terminados.length} vuelos que ya pasaron`}
+                    {terminados.length} con finalización informada
                     {pasadosConImprevisto ? " · con imprevisto" : ""}
                   </summary>
                   <div className="flights-list">

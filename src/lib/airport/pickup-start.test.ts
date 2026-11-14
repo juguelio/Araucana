@@ -21,6 +21,14 @@ describe("inicio de la recorrida del aeropuerto", () => {
     expect(airportPickupStart(partida({ pickupStartOverrideAt: coordinada }))).toBe(coordinada);
   });
 
+  it("acompaña una demora sin adelantar la recorrida y conserva el override", () => {
+    const delayed = { ...partida(), estimatedAt: new Date("2026-11-12T20:45:00Z") };
+    expect(airportPickupStart(delayed)?.toISOString()).toBe("2026-11-12T18:15:00.000Z");
+    expect(airportPickupStart({ ...delayed, estimatedAt: new Date("2026-11-12T17:45:00Z") })).toEqual(airportPickupStart(partida()));
+    const override = new Date("2026-11-12T15:00:00Z");
+    expect(airportPickupStart({ ...delayed, pickupStartOverrideAt: override })).toBe(override);
+  });
+
   it("no inventa recorrida para llegadas, cancelados ni desviados", () => {
     expect(airportPickupStart(partida({ direction: "ARRIVAL" }))).toBeNull();
     expect(airportPickupStart(partida({ status: "CANCELLED" }))).toBeNull();

@@ -1,3 +1,4 @@
+import { flightEvidenceWarning, reliableEstimate } from "./data-quality";
 import { roundTripOrderValid } from "./round-trip-summary";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -90,6 +91,8 @@ export function motivoNoReservable(
     scheduledAt: Date;
     estimatedAt?: Date | null;
     source?: string;
+    lastCheckedAt?: Date | null;
+    actualAt?: Date | null;
     direction?: string;
     pickupStartOverrideAt?: Date | null;
   },
@@ -98,8 +101,12 @@ export function motivoNoReservable(
   corteArriboMinutos = 0,
   corteSalidaMinutos = 0
 ): string | null {
+  if (flightEvidenceWarning({ ...vuelo, estimatedAt: vuelo.estimatedAt ?? null }, ahora)) return "Datos del vuelo pendientes de verificación. Consultanos antes de reservar.";
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
+  if (vuelo.status === "LANDED" || (vuelo.direction === "DEPARTURE" && vuelo.status === "EN_ROUTE")) {
+    return vuelo.direction === "ARRIVAL" ? "El vuelo ya llegó." : "El vuelo ya salió.";
+  }
   // Con demora manda el horario estimado: a la hora programada el avión todavía no llegó (o no
   // salió), así que no se le dice al pasajero que perdió el vuelo antes de que ocurra.
   const referencia = vuelo.estimatedAt && vuelo.estimatedAt > vuelo.scheduledAt ? vuelo.estimatedAt : vuelo.scheduledAt;
@@ -167,8 +174,8 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       airline: v.airline,
       origin: v.origin,
       scheduledAt: v.scheduledAt,
-      estimatedAt: v.estimatedAt,
-      pickupStartAt: airportPickupStart(v),
+      estimatedAt: reliableEstimate(v),
+      pickupStartAt: flightEvidenceWarning(v, ahora) && !v.pickupStartOverrideAt ? null : airportPickupStart(v),
       pickupStartCoordinated: Boolean(v.pickupStartOverrideAt),
       status: v.status,
       source: v.source,

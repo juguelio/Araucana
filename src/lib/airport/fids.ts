@@ -77,7 +77,7 @@ export function parseFidsBoard(html: string): FidsFlight[] {
       number: `${codigo[1].toUpperCase()}${codigo[2]}`,
       city: c3 ?? "",
       scheduled: c4.replace(/hs$/i, "").trim(),
-      estimated: estima ? estima.replace(/hs$/i, "").trim() || null : null,
+      estimated: estima && !/^00:00(?:hs)?$/i.test(estima) ? estima.replace(/hs$/i, "").trim() || null : null,
       statusText: estado ? text(estado[2]) : "—",
       statusClass: estado ? estado[1].toLowerCase() : ""
     });
@@ -98,15 +98,16 @@ export async function fetchFidsBoard(direction: FlightDirection): Promise<{ flig
 }
 
 /**
- * Fecha local (UTC-3) a la que corresponde un horario del tablero. El tablero cubre ~24 h, así que
- * una hora ya pasada hace más de 6 h pertenece al día siguiente.
+ * Fecha de observación local (UTC-3), inferida porque el tablero no fecha sus filas.
+ * Una hora pasada no permite concluir que pertenece a mañana.
  */
 export function fechaDelTablero(hora: string, ahora: Date = new Date()): string | null {
   if (!/^\d{1,2}:\d{2}$/.test(hora)) return null;
   const [h, m] = hora.split(":").map(Number);
+  if (h > 23 || m > 59) return null;
   const local = new Date(ahora.getTime() - 3 * 3600 * 1000);
   const base = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), h, m));
-  if (base.getTime() + 6 * 3600 * 1000 < local.getTime()) base.setUTCDate(base.getUTCDate() + 1);
+  // El HTML no trae fecha por vuelo: no trasladar estados de hoy a mañana.
   return base.toISOString().slice(0, 10);
 }
 
@@ -126,9 +127,11 @@ export function estadoSegunHorario(
   return minutos >= umbralMin ? "DELAYED" : estado;
 }
 
-/** Estado del tablero → estado nuestro. El texto manda; la clase ayuda cuando el texto es ambiguo. */
+/** Estado del tablero → estado nuestro, a partir del texto visible. */
 export function mapFidsStatus(f: FidsFlight): "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "LANDED" | "CANCELLED" | "DIVERTED" {
-  const t = `${f.statusText} ${f.statusClass}`.toLowerCase();
+  // El CSS puede estar desactualizado: el 14/11 «En Vuelo» llevaba clase «arribado».
+  // Ninguna clase visual puede probar un estado operacional.
+  const t = f.statusText.toLowerCase();
   if (t.includes("cancel")) return "CANCELLED";
   if (t.includes("desviad")) return "DIVERTED";
   if (t.includes("aterriz") || t.includes("arribad")) return "LANDED";

@@ -47,7 +47,18 @@ describe("tablero del aeropuerto (FIDS)", () => {
     const ahora = new Date("2026-10-16T18:00:00.000Z"); // 15:00 local
     expect(fechaDelTablero("18:00", ahora)).toBe("2026-10-16");
     expect(fechaDelTablero("23:30", ahora)).toBe("2026-10-16");
-    expect(fechaDelTablero("04:00", ahora)).toBe("2026-10-17"); // madrugada del día siguiente
+    expect(fechaDelTablero("04:00", ahora)).toBe("2026-10-16"); // fecha inferida, nunca mañana
     expect(fechaDelTablero("cualquiera", ahora)).toBeNull();
   });
+});
+
+it("el texto En Vuelo manda aunque el CSS diga arribado (captura 14/11)", () => {
+  const [f] = parseFidsBoard('<li class="dl"><div class="c2">JA 3183</div><div class="c4">12:22hs</div><div class="c5">00:00hs</div><span class="estado-vuelo arribado">En Vuelo</span></li>');
+  expect(mapFidsStatus(f)).toBe("EN_ROUTE");
+  expect(f.estimated).toBeNull();
+});
+
+it("no convierte vuelos del viernes por la tarde en vuelos del sábado", () => {
+  expect(fechaDelTablero("12:04", new Date("2026-11-13T22:00:05Z"))).toBe("2026-11-13");
+  expect(fechaDelTablero("25:77")).toBeNull();
 });
