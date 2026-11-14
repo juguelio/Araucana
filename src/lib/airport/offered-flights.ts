@@ -14,3 +14,15 @@ export const VUELOS_QUE_NO_SE_OFRECEN = new Set(["AJ324", "AJ325", "AJ328", "AJ3
 export function noSeOfrece(numero: string): boolean {
   return VUELOS_QUE_NO_SE_OFRECEN.has(numero.trim().toUpperCase());
 }
+
+/**
+ * ¿Esta fila ya conocida puede impedir que se cree la de **otro** vuelo que llega del tablero?
+ *
+ * El sync del tablero no crea una fila si ya hay un vuelo del mismo sentido a ±25 minutos: es el
+ * guard contra el mismo servicio reportado con otro código. Un vuelo que no se ofrece no cumple ese
+ * papel — es otro servicio, en otra ruta, que el pasajero no ve. Medido el 14-nov (#145): una fila
+ * AJ325 a las 14:30 dejaba sin crear el AR1657 de las 14:55 que el aeropuerto sí publica.
+ */
+export function puedeTaparUnVueloDelTablero(numero: string): boolean {
+  return !noSeOfrece(numero);
+}

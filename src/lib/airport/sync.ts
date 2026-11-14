@@ -5,7 +5,7 @@ import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
 import { debeRealinear, diaDeLaSemana, DIAS_PROYECTADOS, esGemeloHorario, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
-import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
+import { puedeTaparUnVueloDelTablero, VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { prisma } from "@/lib/db/prisma";
 import { getAirLabsKey } from "@/lib/settings/app-settings";
 
@@ -409,16 +409,22 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
         continue;
       }
 
-      const gemelo = canonical ? null : await prisma.flight.findFirst({
-        where: {
-          direction,
-          scheduledAt: {
-            gte: new Date(scheduledAt.getTime() - 25 * 60000),
-            lte: new Date(scheduledAt.getTime() + 25 * 60000)
-          }
-        }
-      });
-      if (gemelo) continue;
+      const gemelos = canonical
+        ? []
+        : await prisma.flight.findMany({
+            where: {
+              direction,
+              scheduledAt: {
+                gte: new Date(scheduledAt.getTime() - 25 * 60000),
+                lte: new Date(scheduledAt.getTime() + 25 * 60000)
+              }
+            },
+            select: { number: true }
+          });
+      // Un vuelo que no se ofrece no tapa a éste: son dos servicios distintos, no el mismo con otro
+      // código. Una fila AJ325 (Neuquén) a las 14:30 dejaba sin crear el AR1657 de las 14:55 que el
+      // aeropuerto publica en el tablero (#145).
+      if (gemelos.some((g) => puedeTaparUnVueloDelTablero(g.number))) continue;
 
       const { count } = await prisma.flight.createMany({
         skipDuplicates: true,
