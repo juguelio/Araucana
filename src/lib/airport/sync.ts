@@ -2,9 +2,10 @@ import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/fligh
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
 import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
 import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
-import { debeRealinear, diaDeLaSemana, DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
+import { debeRealinear, diaDeLaSemana, DIAS_PROYECTADOS, esGemeloHorario, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
+import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { prisma } from "@/lib/db/prisma";
 import { getAirLabsKey } from "@/lib/settings/app-settings";
 
@@ -496,17 +497,22 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       });
       if (mismoVuelo) continue;
 
-      // Para vuelos sin equivalencia explícita, se conserva la heurística de cercanía horaria.
+      // Para vuelos sin equivalencia explícita, se conserva la heurística de cercanía horaria —
+      // pero sólo contra vuelos de la **misma aerolínea** y que se ofrezcan. Antes comparaba
+      // cualquier vuelo del mismo sentido en ±25 minutos: el AJ325 de Neuquén (14:30) bloqueaba
+      // el AR1657 del martes 24/11 (14:55), que es otro servicio, otra ruta y otra empresa.
       const gemeloProyectado = jetSmartCanonicalNumber(proyectado.number) ? null : await prisma.flight.findFirst({
         where: {
           direction: proyectado.direction,
+          airline: proyectado.airline,
+          number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] },
           scheduledAt: {
             gte: new Date(proyectado.scheduledAt.getTime() - 25 * 60000),
             lte: new Date(proyectado.scheduledAt.getTime() + 25 * 60000)
           }
         }
       });
-      if (gemeloProyectado) continue;
+      if (gemeloProyectado && esGemeloHorario(proyectado, gemeloProyectado, proyectado.scheduledAt)) continue;
 
       const { count } = await prisma.flight.createMany({
         skipDuplicates: true,

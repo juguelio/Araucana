@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { noSeOfrece } from "./offered-flights";
-import { debeRealinear, DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ObservableFlight } from "./projection";
+import { debeRealinear, esGemeloHorario, DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ObservableFlight } from "./projection";
 
 const api = (o: Partial<ObservableFlight>): ObservableFlight => ({
   number: "AR1656",
@@ -146,5 +146,33 @@ describe("vuelos que no se ofrecen (pedido del cliente, 14-nov)", () => {
     expect(noSeOfrece("AJ328")).toBe(true);
     expect(noSeOfrece("aj329")).toBe(true);
     expect(noSeOfrece("AR1656")).toBe(false);
+  });
+});
+
+describe("esGemeloHorario (el AJ de Neuquén no tapa al AR de Aeroparque)", () => {
+  const proyectado = { direction: "DEPARTURE", airline: "Aerolíneas Argentinas" };
+  const cuando = new Date("2026-11-24T17:55:00.000Z"); // 14:55 local
+
+  it("no considera gemelo a un vuelo de otra aerolínea, aunque esté a 25 minutos", () => {
+    // El caso real: AJ325 de American Jet a las 14:30 bloqueaba el AR1657 de las 14:55.
+    const aj = { direction: "DEPARTURE", airline: "American Jet", number: "AJ325", scheduledAt: new Date("2026-11-24T17:30:00.000Z") };
+    expect(esGemeloHorario(proyectado, aj, cuando)).toBe(false);
+  });
+
+  it("tampoco lo hace un vuelo que no se ofrece, aunque coincida la aerolínea", () => {
+    const aj = { direction: "DEPARTURE", airline: "Aerolíneas Argentinas", number: "AJ324", scheduledAt: new Date("2026-11-24T17:55:00.000Z") };
+    expect(esGemeloHorario(proyectado, aj, cuando)).toBe(false);
+  });
+
+  it("sí lo es el mismo vuelo publicado con otro código de la misma aerolínea", () => {
+    const gemelo = { direction: "DEPARTURE", airline: "Aerolíneas Argentinas", number: "AR1657", scheduledAt: new Date("2026-11-24T17:40:00.000Z") };
+    expect(esGemeloHorario(proyectado, gemelo, cuando)).toBe(true);
+  });
+
+  it("no lo es si está fuera de la ventana o es del otro sentido", () => {
+    const lejos = { direction: "DEPARTURE", airline: "Aerolíneas Argentinas", number: "AR1655", scheduledAt: new Date("2026-11-24T16:00:00.000Z") };
+    const otroSentido = { direction: "ARRIVAL", airline: "Aerolíneas Argentinas", number: "AR1656", scheduledAt: new Date("2026-11-24T17:55:00.000Z") };
+    expect(esGemeloHorario(proyectado, lejos, cuando)).toBe(false);
+    expect(esGemeloHorario(proyectado, otroSentido, cuando)).toBe(false);
   });
 });
