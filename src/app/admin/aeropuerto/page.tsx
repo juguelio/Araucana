@@ -223,25 +223,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
           <form action={refreshFlightsAction}>
             <button className="ghost-button" type="submit">Actualizar ahora</button>
           </form>
-          <span className="flights-action-group" role="group" aria-label="Orden de servicio">
-            <Link
-              className="ghost-button"
-              href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}`}
-              target="_blank"
-              rel="noreferrer"
-              title="Ver la orden de servicio en pantalla: se puede imprimir y corregir un dato de cada reserva"
-            >
-              Orden de servicio
-            </Link>
-            <a
-              className="ghost-button"
-              href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}`}
-              title="Hoja para el chofer: un bloque por vuelo, con pasajeros, contacto y pago"
-            >
-              Excel
-            </a>
-          </span>
-          {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
         </div>
       }
     >
