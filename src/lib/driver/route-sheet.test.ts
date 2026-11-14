@@ -172,7 +172,8 @@ describe("planilla del chofer de una salida (issue #136)", () => {
 
     const buffer = await buildRouteSheetWorkbook(sheet, { generatedAt: new Date("2026-11-14T12:00:00.000Z") });
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer);
+    // ExcelJS tipa `load` con su propio alias de Buffer; el del test es el de Node.
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
 
     const page = workbook.worksheets[0];
     const columnaContacto = ROUTE_SHEET_COLUMNS.indexOf("Contacto") + 1;
