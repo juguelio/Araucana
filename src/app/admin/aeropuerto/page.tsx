@@ -164,17 +164,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
                 target="_blank"
                 rel="noreferrer"
-                title="Ver la hoja de este vuelo en pantalla (para imprimir o corregir un dato)"
-              >
-                Ver hoja
-              </Link>
-              <a
-                className="ghost-button"
-                href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
-                title="Hoja de este vuelo para el chofer (Excel)"
+                title="Hoja del chofer de este vuelo: verla, imprimirla o descargarla en Excel"
               >
                 Hoja del chofer
-              </a>
+              </Link>
             </>
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
@@ -216,6 +209,16 @@ export default async function AirportPage({ searchParams }: PageProps) {
       notice={params?.notice}
       action={
         <div className="form-actions flights-header-actions">
+          {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
+          <Link
+            className="ghost-button"
+            href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}`}
+            target="_blank"
+            rel="noreferrer"
+            title="Hoja del día: un bloque por vuelo, con pasajeros, contacto y pago. Se imprime o se descarga en Excel desde ahí"
+          >
+            Hoja del día
+          </Link>
           <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
           <form action={refreshFlightsAction}>
             <button className="ghost-button" type="submit">Actualizar ahora</button>

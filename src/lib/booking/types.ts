@@ -164,6 +164,10 @@ export type AdminScheduleRowDto = {
   to: string;
   routeId: string;
   vehicleId: string;
+  /** Issue #81: el calendario y el listado muestran la nave de cada salida. */
+  vehicleName: string;
+  vehiclePlate: string | null;
+  vehicleInternalNumber: string | null;
   departureAt: Date;
   arrivalAt: Date;
   status: string;
