@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DIAS_PROYECTADOS, fechaLocal, horaLocal, proyectarVuelos, type ObservableFlight } from "./projection";
+import { noSeOfrece } from "./offered-flights";
+import { debeRealinear, DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ObservableFlight } from "./projection";
 
 const api = (o: Partial<ObservableFlight>): ObservableFlight => ({
   number: "AR1656",
@@ -29,13 +30,13 @@ describe("proyectarVuelos", () => {
   });
 
   it("extiende los vuelos cargados a mano (aerolíneas que AirLabs no cubre)", () => {
-    // American Jet vuela martes, jueves y sábados: se carga una vez y se repite en esos días.
-    const martes = api({ number: "AJ324", airline: "AJ", source: "MANUAL", scheduledAt: new Date("2026-10-20T16:50:00.000Z") });
-    const jueves = api({ number: "AJ324", airline: "AJ", source: "MANUAL", scheduledAt: new Date("2026-10-22T16:50:00.000Z") });
-    const sabado = api({ number: "AJ324", airline: "AJ", source: "MANUAL", scheduledAt: new Date("2026-10-24T16:50:00.000Z") });
+    // El vuelo manual vuela martes, jueves y sábados: se carga una vez y se repite en esos días.
+    const martes = api({ number: "AJ900", airline: "AJ", source: "MANUAL", scheduledAt: new Date("2026-10-20T16:50:00.000Z") });
+    const jueves = api({ number: "AJ900", airline: "AJ", source: "MANUAL", scheduledAt: new Date("2026-10-22T16:50:00.000Z") });
+    const sabado = api({ number: "AJ900", airline: "AJ", source: "MANUAL", scheduledAt: new Date("2026-10-24T16:50:00.000Z") });
 
     const juevesSiguiente = proyectarVuelos("2026-10-29", [martes, jueves, sabado]);
-    expect(juevesSiguiente.map((v) => v.number)).toEqual(["AJ324"]);
+    expect(juevesSiguiente.map((v) => v.number)).toEqual(["AJ900"]);
     expect(horaLocal(juevesSiguiente[0].scheduledAt)).toBe("13:50");
   });
 
@@ -45,6 +46,21 @@ describe("proyectarVuelos", () => {
     const j = api({ number: "AJ324", source: "MANUAL", scheduledAt: new Date("2026-10-22T16:50:00.000Z") });
     const s = api({ number: "AJ324", source: "MANUAL", scheduledAt: new Date("2026-10-24T16:50:00.000Z") });
     expect(proyectarVuelos("2026-10-21", [m, j, s])).toEqual([]); // miércoles
+  });
+
+  it("proyecta cualquier día un vuelo visto en días consecutivos (AR1656 faltaba lunes y miércoles)", () => {
+    // AR1656/57 se ven jueves, viernes y sábado: es un servicio diario, aunque el muestreo nunca
+    // cayó un lunes ni un miércoles. Antes esos días la grilla quedaba sin el vuelo de la tarde.
+    const jueves = api({ scheduledAt: new Date("2026-11-12T20:35:00.000Z") }); // 17:35 local
+    const viernes = api({ scheduledAt: new Date("2026-11-13T20:35:00.000Z") });
+    const sabado = api({ scheduledAt: new Date("2026-11-14T20:35:00.000Z") });
+
+    const lunes = proyectarVuelos("2026-11-23", [jueves, viernes, sabado]);
+    expect(lunes.map((v) => v.number)).toEqual(["AR1656"]);
+    expect(horaLocal(lunes[0].scheduledAt)).toBe("17:35");
+
+    const miercoles = proyectarVuelos("2026-11-25", [jueves, viernes, sabado]);
+    expect(miercoles.map((v) => v.number)).toEqual(["AR1656"]);
   });
 
   it("con una sola muestra asume servicio diario, pero no inventa si ya conoce varios días", () => {
@@ -80,5 +96,55 @@ describe("proyectarVuelos", () => {
 
   it("proyecta un horizonte razonable de días", () => {
     expect(DIAS_PROYECTADOS).toBeGreaterThanOrEqual(14);
+  });
+});
+
+describe("mismaFrecuenciaSemanal", () => {
+  it("sólo alinea los días futuros del mismo día de la semana que el tablero", () => {
+    expect(mismaFrecuenciaSemanal("2026-11-21", "2026-11-14")).toBe(true); // sábado → sábado
+    // El domingo 15-nov sale 13:50 en JetSMART y el sábado 14 salió 12:37: no es el mismo horario.
+    expect(mismaFrecuenciaSemanal("2026-11-15", "2026-11-14")).toBe(false);
+  });
+});
+
+describe("debeRealinear (issue #145)", () => {
+  const objetivo = new Date("2026-11-15T16:50:00.000Z"); // 13:50 en San Martín
+  const fila = (p = {}) => ({
+    source: "ESTIMADO",
+    scheduledAt: new Date("2026-11-15T18:37:00.000Z"), // 15:37, la hora del vuelo del sábado
+    reservas: 0,
+    assignments: 0,
+    ...p
+  });
+
+  it("corrige una proyección suelta que quedó con la hora de otro día", () => {
+    expect(debeRealinear(fila(), objetivo)).toBe(true);
+  });
+
+  it("no toca una fila con reservas ni con combi asignada", () => {
+    expect(debeRealinear(fila({ reservas: 1 }), objetivo)).toBe(false);
+    expect(debeRealinear(fila({ assignments: 1 }), objetivo)).toBe(false);
+  });
+
+  it("no toca datos reales de la API, del tablero ni una carga manual", () => {
+    for (const source of ["API", "FIDS", "MANUAL"]) {
+      expect(debeRealinear(fila({ source }), objetivo)).toBe(false);
+    }
+  });
+
+  it("no reescribe si ya está en la hora del patrón", () => {
+    expect(debeRealinear(fila({ scheduledAt: objetivo }), objetivo)).toBe(false);
+  });
+});
+
+describe("vuelos que no se ofrecen (pedido del cliente, 14-nov)", () => {
+  it("no proyecta los American Jet de Neuquén", () => {
+    const aj = api({ number: "AJ324", source: "MANUAL", scheduledAt: new Date("2026-10-22T16:50:00.000Z") });
+    const proyectados = proyectarVuelos("2026-11-17", [aj, api({})]);
+    expect(proyectados.map((p) => p.number)).not.toContain("AJ324");
+    expect(proyectados.map((p) => p.number)).toContain("AR1656");
+    expect(noSeOfrece("AJ328")).toBe(true);
+    expect(noSeOfrece("aj329")).toBe(true);
+    expect(noSeOfrece("AR1656")).toBe(false);
   });
 });
