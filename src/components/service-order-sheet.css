@@ -367,3 +367,24 @@
   margin: 14px auto 0;
   text-align: center;
 }
+
+/* El contacto del chofer es un link de WhatsApp (pedido del cliente). */
+.orden-whatsapp {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.orden-whatsapp-icono {
+  font-size: 0.75em;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+}
+
+@media print {
+  .orden-whatsapp-icono {
+    display: none;
+  }
+}
