@@ -1,3 +1,4 @@
+import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
@@ -8,7 +9,7 @@ import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPaym
 import { BookingError, firstAvailableSeat } from "./repository";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
-import { capacidadDeVuelo, pasajerosOcupados } from "@/lib/airport/booking";
+import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable } from "@/lib/airport/booking";
 import { chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { esFranjaDeChapelco, hayLugar, lugaresLibres, personasQueBloqueanLaFranja, restoredStatus, servicioYaPaso, vueloYaPaso } from "./restore";
 
@@ -161,6 +162,9 @@ export async function manageReservation(code: string, command: ReservationOperat
                   details.direction === "ARRIVAL" ? "El vuelo ya llegó: no se puede restituir la reserva." : "El vuelo ya salió: no se puede restituir la reserva."
                 );
               }
+              const extras = await getAirportExtras(tx);
+              const closed = motivoNoReservable({ ...vuelo, direction: details.direction }, 1, ahora, extras.arrivalCutoffMinutes, extras.departureCutoffMinutes);
+              if (closed) throw new BookingError("SERVICE_ALREADY_STARTED", closed);
               const ocupados = pasajerosOcupados(vuelo.reservations.map((item) => item.reservation));
               const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
               if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {

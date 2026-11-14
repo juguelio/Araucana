@@ -60,3 +60,8 @@ describe("restitución de una reserva cancelada (#117)", () => {
     expect(personasQueBloqueanLaFranja(reservas, "12:00")).toBe(2);
   });
 });
+
+
+it("conserva la aprobación de documentación al restituir", () => {
+  expect(restoredStatus({ payment: { status: "APPROVED", provider: DISABILITY }, disabilityProvider: DISABILITY })).toBe("CONFIRMED");
+});

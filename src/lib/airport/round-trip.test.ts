@@ -147,9 +147,9 @@ describe("ida y vuelta del aeropuerto", () => {
     ]);
 
     await expect(createAirportRoundTripReservation(pedido)).rejects.toMatchObject({ code: "CAPACITY_FULL" });
-    // La llegada se crea primero (para que el error hable de la vuelta) y la base revierte las dos.
-    expect(mocks.createReservation).toHaveBeenCalledTimes(1);
-    expect(mocks.createPayment).toHaveBeenCalledTimes(1);
+    // Ambos vuelos se validan antes de crear reservas o pagos.
+    expect(mocks.createReservation).not.toHaveBeenCalled();
+    expect(mocks.createPayment).not.toHaveBeenCalled();
   });
 
   it("la vuelta no puede ser antes de la llegada", () => {
@@ -225,5 +225,26 @@ describe("ida y vuelta del aeropuerto", () => {
         passenger: { ...pasajero, documentId: "30111222" }
       }).success
     ).toBe(true);
+  });
+});
+
+
+describe("regresiones de lanzamiento: sentido y cronología", () => {
+  it("rechaza un arribo enviado como vuelo de salida, sin crear reservas", async () => {
+    await expect(createAirportRoundTripReservation({
+      ...pedido, departure: { ...pedido.departure, flightNumber: vueloLlegada.number, serviceDate: pedido.arrival.serviceDate }
+    })).rejects.toMatchObject({ code: "FLIGHT_NOT_FOUND" });
+    expect(mocks.createReservation).not.toHaveBeenCalled();
+  });
+
+  it.each(["ARRIVAL", "DEPARTURE"] as const)("rechaza horarios invertidos el mismo día, con %s primero", async (firstLeg) => {
+    mocks.findManyFlights.mockResolvedValue([
+      { ...vueloLlegada, scheduledAt: new Date(firstLeg === "ARRIVAL" ? "2030-01-01T21:00:00Z" : "2030-01-01T13:00:00Z") },
+      { ...vueloVuelta, scheduledAt: new Date(firstLeg === "ARRIVAL" ? "2030-01-01T13:00:00Z" : "2030-01-01T21:00:00Z") }
+    ]);
+    await expect(createAirportRoundTripReservation({
+      ...pedido, firstLeg, departure: { ...pedido.departure, serviceDate: pedido.arrival.serviceDate }
+    })).rejects.toMatchObject({ code: "INVALID_ROUND_TRIP_ORDER" });
+    expect(mocks.createReservation).not.toHaveBeenCalled();
   });
 });

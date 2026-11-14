@@ -49,7 +49,7 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
           initialDate={initialDate}
           initialFlights={checkout.flights}
           coverage={checkout.coverage}
-          extras={{ sportsLuggageCents: checkout.extras.sportsLuggageCents }}
+          extras={checkout.extras}
           officePickup={officePickupReady(checkout.officePickup) ? checkout.officePickup : null}
         />
       ) : route && checkout ? (

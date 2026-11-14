@@ -8,7 +8,7 @@ test.describe("Home pública", () => {
     await expect(page.getByRole("link", { name: /Reservar mi traslado/ })).toHaveAttribute("href", "/rutas");
     await expect(page.getByRole("link", { name: "Hablar por WhatsApp" }).first()).toHaveAttribute("href", "https://wa.me/5492944649049");
     await expect(page.getByRole("heading", { name: /Del aeropuerto/ })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Excursiones y destinos/ })).toHaveAttribute("href", /^https:\/\/wa\.me\/5492944649049\?text=/);
+    await expect(page.getByRole("link", { name: /Excursiones y destinos/ })).toHaveAttribute("href", "/excursiones");
     await expect(page.locator(".service-card").filter({ hasText: "Grupos y empresas" })).toHaveAttribute("href", /^https:\/\/wa\.me\/5492944649049\?text=/);
   });
 

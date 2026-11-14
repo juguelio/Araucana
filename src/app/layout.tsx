@@ -57,7 +57,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <WeatherChip />
             <div className="nav-links">
               {links.map((link) => (
-                <Link href={localizePath(link.href, locale)} prefetch={true} key={link.href}>
+                <Link href={localizePath(link.href, locale)} prefetch={true} key={`${link.href}:${link.label}`}>
                   {link.label}
                 </Link>
               ))}

@@ -1,3 +1,4 @@
+import { roundTripOrderValid } from "./round-trip-summary";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { omitReservationCreator, reservationCreatorData, type ReservationCreationContext } from "@/lib/booking/reservation-creator";
@@ -283,7 +284,7 @@ async function buscarVueloDelTramo(
   const candidatos = await tx.flight.findMany({
     where: {
       scheduledAt: { gte: desde, lt: hasta },
-      ...(privado ? { direction: tramo.direction } : {}),
+      direction: tramo.direction,
       OR: [
         { number: tramo.flightNumber.trim() },
         { number: tramo.flightNumber.trim().toUpperCase() },
@@ -292,7 +293,7 @@ async function buscarVueloDelTramo(
     },
     include: incluirCupo
   });
-  let vuelo = candidatos.find((v) => claveDeVuelo(v.number) === numero) ?? null;
+  let vuelo = candidatos.find((v) => claveDeVuelo(v.number) === numero && v.direction === tramo.direction) ?? null;
 
   // Vuelo privado (charter, avión particular): si otro pasajero del mismo avión ya lo cargó
   // ese día se reutiliza su vuelo —y su cupo—; si no, se crea marcado como cargado por el
@@ -358,9 +359,9 @@ type CrearTramoParams = {
 };
 
 /** Crea UNA reserva atada a su vuelo, con el pago pendiente, dentro de la transacción del llamador. */
-async function crearTramo(tx: Tx, params: CrearTramoParams) {
+async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<ReturnType<typeof buscarVueloDelTramo>>) {
   const { tramo, passengerId, passengerCount, halfFareCount, freeFareCount } = params;
-  const { vuelo, desde, disponible } = await buscarVueloDelTramo(
+  const { vuelo, desde, disponible } = resolved ?? await buscarVueloDelTramo(
     tx,
     tramo,
     params.reglas.extras.arrivalCutoffMinutes,
@@ -534,36 +535,17 @@ export async function createAirportRoundTripReservation(input: AirportRoundTripI
   for (let intento = 1; intento <= MAX_INTENTOS; intento += 1) {
     try {
       return await prisma.$transaction(async (tx) => {
+        const arrivalLeg: TramoSolicitado = { ...parsed.arrival, direction: "ARRIVAL" };
+        const departureLeg: TramoSolicitado = { ...parsed.departure, direction: "DEPARTURE" };
+        const arrivalFlight = await buscarVueloDelTramo(tx, arrivalLeg, reglas.extras.arrivalCutoffMinutes, reglas.extras.departureCutoffMinutes);
+        const departureFlight = await buscarVueloDelTramo(tx, departureLeg, reglas.extras.arrivalCutoffMinutes, reglas.extras.departureCutoffMinutes);
+        if (!roundTripOrderValid(arrivalFlight.vuelo, departureFlight.vuelo, parsed.firstLeg)) {
+          throw new BookingError("INVALID_ROUND_TRIP_ORDER", "El vuelo de vuelta debe ser posterior al vuelo de ida. Revisá los horarios.");
+        }
         const passenger = await tx.passenger.create({ data: parsed.passenger });
-        // El origen de la venta vale para los dos tramos: lo cargó una vez quien vendió el viaje.
         const base = { passengerId: passenger.id, passengerCount, halfFareCount, freeFareCount, roundTripId, referredBy: parsed.referredBy ?? null, reglas, creator };
-        // La llegada va primero: si el cupo de la vuelta falla, no queda media reserva creada.
-        const arrival = await crearTramo(tx, {
-          ...base,
-          tramo: {
-            flightNumber: parsed.arrival.flightNumber,
-            direction: "ARRIVAL",
-            serviceDate: parsed.arrival.serviceDate,
-            privateFlight: parsed.arrival.privateFlight,
-            pickupName: parsed.arrival.pickupName ?? null,
-            pickupAddress: parsed.arrival.pickupAddress ?? null,
-            pickupPoint: parsed.arrival.pickupPoint,
-            pickupNotes: parsed.arrival.pickupNotes ?? null
-          }
-        });
-        const departure = await crearTramo(tx, {
-          ...base,
-          tramo: {
-            flightNumber: parsed.departure.flightNumber,
-            direction: "DEPARTURE",
-            serviceDate: parsed.departure.serviceDate,
-            privateFlight: parsed.departure.privateFlight,
-            pickupName: parsed.departure.pickupName ?? null,
-            pickupAddress: parsed.departure.pickupAddress ?? null,
-            pickupPoint: parsed.departure.pickupPoint,
-            pickupNotes: parsed.departure.pickupNotes ?? null
-          }
-        });
+        const arrival = await crearTramo(tx, { ...base, tramo: arrivalLeg }, arrivalFlight);
+        const departure = await crearTramo(tx, { ...base, tramo: departureLeg }, departureFlight);
 
         return { roundTripId, arrival, departure };
       }, { isolationLevel: "Serializable" });
