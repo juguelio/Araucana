@@ -2478,3 +2478,40 @@ a.wizard-option { text-decoration: none; }
   .admin-top .section-title { font-size: clamp(30px, 9vw, 42px); }
   .admin-top .form-actions { width: 100%; }
 }
+
+/* Listado de vuelos del panel: resumen del día, arribos y partidas lado a lado en pantallas
+   anchas, y la combi como estado visible (antes era texto gris). */
+.flights-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 16px 0 0; }
+.flights-summary > div { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.flights-summary dt { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-muted); }
+.flights-summary dd { margin: 0; font-family: var(--display); font-size: 26px; line-height: 1; color: var(--primary); }
+.flights-summary > div[data-alerta="true"] { border-color: var(--accent); }
+.flights-summary > div[data-alerta="true"] dd { color: var(--accent); }
+.flights-header-actions { justify-content: flex-end; }
+.flights-board { display: grid; gap: 24px; }
+@media (min-width: 1400px) {
+  .flights-board { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .flights-board .flights-group { margin-bottom: 0; }
+}
+.pill-combi { padding: 4px 10px; font-size: 11px; }
+.pill-combi[data-tono="ok"] { color: var(--moss); border-color: var(--moss); }
+.flight-card-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.flight-card-actions .ghost-button, .flight-foot .flight-actions summary { padding: 4px 10px; font-size: 11px; }
+.flight-actions { margin-left: 0; }
+.flight-card:hover { border-color: var(--line-strong); }
+@media (max-width: 760px) {
+  .flights-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .flights-summary > div { padding: 10px 12px; }
+  .flights-summary dd { font-size: 22px; }
+  .flight-card-actions { margin-left: 0; width: 100%; }
+}
+@media (max-width: 760px) {
+  .flights-header-actions { justify-content: flex-start; }
+  .flight-pax { flex-wrap: wrap; justify-content: flex-end; }
+}
+.flights-summary > div { min-width: 0; }
+.flights-summary dt { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .flights-summary { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+  .flights-summary dt { font-size: 10px; letter-spacing: .06em; }
+}

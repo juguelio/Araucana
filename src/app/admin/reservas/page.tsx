@@ -48,6 +48,16 @@ function formatPaymentStatus(status: string | null) {
   return labels[status] ?? status;
 }
 
+/** Tono de la etiqueta de estado: lo mismo que decía el texto, pero de un vistazo. */
+function tonoEstado(status: string) {
+  return status === "CONFIRMED" ? "ok" : status === "CANCELLED" ? "normal" : "atencion";
+}
+
+function tonoPago(status: string | null, disabilityFare: boolean) {
+  if (disabilityFare) return "normal";
+  return status === "APPROVED" ? "ok" : status === "REJECTED" ? "grave" : status === "PENDING" ? "atencion" : "normal";
+}
+
 function whatsappHref(phone: string) {
   const digits = phone.replace(/\D/g, "");
   return digits ? `https://wa.me/${digits}` : null;
@@ -75,6 +85,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
+  const hayFiltros = ["code", "date", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -87,6 +98,11 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
         <Link className="button" href="/admin/reservas/nueva">Crear reserva</Link>
       </div>
       <section className="reservas-filters">
+        {/* En el celular los filtros se pliegan; la casilla (sin JS) recuerda si están abiertos. */}
+        <input className="reservas-filters-toggle" id="reservas-filtros-toggle" type="checkbox" defaultChecked={hayFiltros} />
+        <label className="reservas-filters-summary" htmlFor="reservas-filtros-toggle">
+          Filtros{hayFiltros ? <span className="reservas-filters-activos">activos</span> : null}
+        </label>
         <form action="/admin/reservas" method="get" className="reservas-filter-grid">
           <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} placeholder="Largo del link o corto" /></label>
           <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
@@ -133,20 +149,22 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
               const whatsappUrl = whatsappHref(reservation.passengerPhone);
               const detailPath = `/admin/reservas/${reservation.code}`;
               const canDelete = user.role === "ADMIN" && (reservation.paymentStatus !== "APPROVED" || disabilityFare);
+              const porValidar = reservation.hasReceipt && canViewReceipt && reservation.paymentStatus === "PENDING" &&
+                (disabilityFare ? reservation.status === DISABILITY_PENDING_STATUS : reservation.status === "PENDING_PAYMENT");
 
               return (
-                <tr key={reservation.code} className={reservationRowClassName(reservation.status)}>
-                  <td className="reservas-code">
+                <tr key={reservation.code} className={reservationRowClassName(reservation.status)} data-por-validar={porValidar || undefined}>
+                  <td className="reservas-code" data-label="Código">
                     <span className="reservas-short-code">{formatShortCode(reservation.shortCode)}</span>
                     <span className="reservas-long-code">{reservation.code}</span>
                   </td>
-                  <td>
+                  <td data-label="Pasajero">
                     <Link className="table-link" href={detailPath}>
                       {reservation.passenger}
                     </Link>
                   </td>
-                  <td>{reservation.creatorLabel}</td>
-                  <td>
+                  <td data-label="Creada por">{reservation.creatorLabel}</td>
+                  <td data-label="WhatsApp">
                     {whatsappUrl ? (
                       <a
                         aria-label={`Enviar WhatsApp a ${reservation.passenger}`}
@@ -162,19 +180,25 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       <span className="muted">-</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Ruta">
                     {reservation.route}
                     {reservation.flightNumber ? <div className="muted">Vuelo {reservation.flightNumber}</div> : null}
                   </td>
-                  <td className="reservas-date">{formatTravelDay(reservation.travelDay)}</td>
-                  <td>
+                  <td className="reservas-date" data-label="Fecha del viaje">{formatTravelDay(reservation.travelDay)}</td>
+                  <td data-label="Asiento">
                     {reservation.bookingMode === "CHAPELCO"
                       ? `${reservation.passengerCount} personas${reservation.chapelcoAscentSlot ? ` · ${reservation.chapelcoAscentSlot}` : ""}`
                       : `${reservation.passengerCount} ${reservation.passengerCount === 1 ? "lugar" : "lugares"}`}
                   </td>
-                  <td>{formatReservationStatus(reservation.status)}</td>
-                  <td>{disabilityFare ? "Sin cargo" : formatPaymentStatus(reservation.paymentStatus)}</td>
-                  <td>
+                  <td data-label="Estado">
+                    <span className="pill pill-estado pill-tabla" data-tono={tonoEstado(reservation.status)}>{formatReservationStatus(reservation.status)}</span>
+                  </td>
+                  <td data-label="Pago">
+                    <span className="pill pill-estado pill-tabla" data-tono={tonoPago(reservation.paymentStatus, disabilityFare)}>
+                      {disabilityFare ? "Sin cargo" : formatPaymentStatus(reservation.paymentStatus)}
+                    </span>
+                  </td>
+                  <td data-label="Comprobante">
                     {reservation.hasReceipt && canViewReceipt ? (
                       <Link className="table-link" href={`/admin/reservas/${reservation.code}/comprobante`} target="_blank">
                         {reservation.receiptFileName ?? "Ver comprobante"}
@@ -183,7 +207,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       <span className="muted">Pendiente</span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Acciones">
                     <form className="reservas-row-actions" action={manageReservationAction}>
                       <input type="hidden" name="code" value={reservation.code} />
                       <input type="hidden" name="listQuery" value={listQuery} />
