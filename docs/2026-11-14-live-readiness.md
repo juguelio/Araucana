@@ -8,7 +8,7 @@ La web ya está publicada; «responde en producción» no acredita que pueda ope
 
 ## Base y alcance
 
-- Se actualizó `upstream/main`: base `64e19a5` (PR #134).
+- Base inicial `64e19a5` (PR #134). Durante la revisión entraron #126 y #135: integrados sin conflictos desde `15733fa` (merge local `be2a637`).
 - Rama aislada: `codex/live-readiness-20261114`, worktree `/Users/altostake/Dev/araucana-live-review`.
 - El checkout principal estaba en `64450ff`, con cambios de otro agente y sin dependencias. La revisión anterior describía esa rama vieja, no el último main. No se tocaron sus cambios.
 - Se revisaron reservas de aeropuerto, ida/vuelta, cupos, cobros/revisión, cancelación/restitución, navegación, pruebas, migraciones y dependencias.
@@ -31,11 +31,11 @@ Sin cambios de esquema ni migraciones nuevas.
 
 - Base antes de cambios: **715/715** unitarios.
 - Reproducciones antes del arreglo: **3 fallos** de sentido/horarios, **2 fallos** de restitución. Después pasan.
-- Suite final: **728/728**, 104 archivos.
+- Suite antes de integrar los merges concurrentes: **728/728**, 104 archivos. Tras integrar `15733fa`: **744/744**, 106 archivos.
 - `npx tsc --noEmit`: sin errores.
 - `next build --webpack`: correcto, con URL de base local. No se usó el build para migrar producción.
 - Todas las migraciones existentes aplicadas desde cero en PostgreSQL local: correcto.
-- Navegador contra el build: suite general **13/14** inicialmente; el único fallo restante era el selector del nuevo test móvil. Corregidos los labels del test, los **3/3** casos de aeropuerto pasan. Los otros 11 escenarios ya estaban correctos. No se afirma una nueva ejecución única de 14/14.
+- Pasada final completa de navegador contra el build integrado: **14/14 correctos** (25,8 s), con los tres casos nuevos de aeropuerto. Se corrigieron los selectores del test móvil y se aislaron los contadores de rate limit en la base de prueba.
 - API: vuelo del sentido incorrecto y vuelta anterior rechazados sin reservas parciales.
 - API y BD: dos reservas/pagos creados con recargo, importes persistidos coincidentes.
 - Concurrencia: dos solicitudes simultáneas por los últimos 22 lugares → una 201 y una 409; ocupación final exactamente 24. No se acepta 429 como prueba de exclusión de cupo.
@@ -66,8 +66,8 @@ El corte de venta usa el horario estimado cuando hay demora, pero `airportPickup
 Consulta de GitHub durante esta revisión:
 - Issue #123: menor de 4 con asiento/sillita, decisión de cobro pendiente.
 - Issue #136: planilla de chofer para salidas de ruta, recorrido y WhatsApp.
-- Issue #110: planilla de excursiones, PR #126 abierto.
-- PR #135 abierto: recorrido del día y WhatsApp. No duplicar ese trabajo.
+- Issue #110: planilla de excursiones; su PR #126 se mergeó durante la revisión y está integrado en esta rama. El issue aún figuraba abierto en la última consulta.
+- PR #135: recorrido del día y WhatsApp; mergeado durante la revisión e integrado en esta rama.
 - PR #42 sigue abierto aunque la rama revisada contiene un limitador por IP; revisar el estado antes de tratarlo como funcionalidad faltante.
 
 Definir qué de esto integra el lanzamiento inicial y qué puede operar manualmente. Comprobar además flota/cupos, tarifas/recargos, domicilios y contactos finales sobre los datos reales; no se auditó toda la configuración de producción.
