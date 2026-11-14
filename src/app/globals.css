@@ -2456,3 +2456,25 @@ a.wizard-option { text-decoration: none; }
   border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-size: 14px; cursor: pointer; }
 .form-panel label.checkout-checkbox input[type="checkbox"] { width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0;
   flex: 0 0 auto; accent-color: var(--primary); }
+
+/* Panel en pantallas angostas: el menú lateral pasa a ser una tira horizontal arriba del contenido,
+   con la sección actual marcada, en vez de una lista que ocupa una pantalla entera en cada página.
+   `minmax(0, 1fr)` evita que una tabla ancha estire toda la página: el scroll queda en la tabla. */
+.admin-layout > * { min-width: 0; }
+.admin-main :has(> .data-table) { max-width: 100%; overflow-x: auto; }
+@media (max-width: 900px) {
+  .admin-layout { grid-template-columns: minmax(0, 1fr); }
+  .admin-sidebar { position: sticky; top: 0; z-index: 20; display: grid; gap: 10px; padding: 12px 16px 0;
+    background: rgba(251, 246, 235, 0.94); backdrop-filter: blur(8px); }
+  .admin-sidebar .brand-lockup { gap: 9px; }
+  .admin-sidebar .brand-lockup svg { width: 26px; height: 26px; }
+  .admin-sidebar .brand-name { font-size: 18px; }
+  .admin-sidebar .brand-kicker { font-size: 9px; }
+  .admin-sidebar nav { display: flex; gap: 6px; margin: 0 -16px; padding: 0 16px 10px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .admin-sidebar nav::-webkit-scrollbar { display: none; }
+  .admin-sidebar a { flex: 0 0 auto; padding: 8px 13px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+  .admin-sidebar a[aria-current="page"] { border-color: var(--primary); }
+  .admin-top { flex-direction: column; gap: 12px; margin-bottom: 20px; }
+  .admin-top .section-title { font-size: clamp(30px, 9vw, 42px); }
+  .admin-top .form-actions { width: 100%; }
+}

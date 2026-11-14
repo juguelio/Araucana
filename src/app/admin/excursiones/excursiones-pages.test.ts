@@ -12,7 +12,8 @@ vi.mock("./actions", () => ({
   saveExcursion: vi.fn(), uploadExcursionPhoto: vi.fn(), removeExcursionPhoto: vi.fn(),
   makeExcursionCover: vi.fn(), deleteExcursion: vi.fn()
 }));
-vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); } }));
+// `usePathname`: el menú del panel marca la sección actual.
+vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, usePathname: () => "/admin/excursiones" }));
 
 import ListPage from "./page";
 import NewPage from "./nueva/page";
