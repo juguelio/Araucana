@@ -319,6 +319,7 @@ model Passenger {
   documentId   String
   nationality  String?
   reservations Reservation[]
+  excursionBookings ExcursionBooking[]
   createdAt    DateTime      @default(now())
 }
 
@@ -653,6 +654,7 @@ model Excursion {
   isPublished Boolean  @default(false)
   photos      ExcursionPhoto[]
   departures  ExcursionDeparture[]
+  bookings    ExcursionBooking[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -679,4 +681,33 @@ model ExcursionDeparture {
 
   @@unique([excursionId, departureAt])
   @@index([departureAt])
+}
+
+/// Venta de una excursión (issue #110). El cliente pidió que la planilla de la excursión tenga la
+/// misma forma que la orden de servicio del chofer, con la columna «Derivado por».
+model ExcursionBooking {
+  id             String    @id @default(cuid())
+  /// Mismo formato que las reservas de traslado (`ARC-2611-…`), para buscarla y dictarla.
+  code           String    @unique
+  shortCode      String    @unique
+  excursionId    String
+  /// Restrict: borrar una excursión con ventas no debe dejar pasajeros huérfanos.
+  excursion      Excursion @relation(fields: [excursionId], references: [id], onDelete: Restrict)
+  /// Fecha y hora de la salida vendida.
+  departureAt    DateTime
+  passengerId    String
+  passenger      Passenger @relation(fields: [passengerId], references: [id])
+  passengerCount Int       @default(1)
+  totalCents     Int       @default(0)
+  currency       String    @default("ARS")
+  /// `PENDING_PAYMENT` | `CONFIRMED` | `CANCELLED`.
+  status         String    @default("PENDING_PAYMENT")
+  /// Quién derivó la venta; `null` cuando se vendió directo.
+  referredBy     String?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([departureAt])
+  @@index([excursionId, departureAt])
 }

@@ -12,7 +12,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *   firma  = HMAC-SHA256(secreto, "orden-servicio:" + cuerpo)
  */
 
-const PREFIJO = "orden-servicio:";
+/** Propósitos separados: un token de la orden del chofer no abre la planilla de excursiones (#110). */
+export const PROPOSITO_ORDEN = "orden-servicio";
+export const PROPOSITO_EXCURSION = "planilla-excursion";
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export type ServiceOrderLinkPayload = {
@@ -32,8 +34,8 @@ function secreto() {
   return valor;
 }
 
-function firmar(cuerpo: string) {
-  return createHmac("sha256", secreto()).update(PREFIJO + cuerpo).digest("base64url");
+function firmar(cuerpo: string, proposito: string = PROPOSITO_ORDEN) {
+  return createHmac("sha256", secreto()).update(`${proposito}:${cuerpo}`).digest("base64url");
 }
 
 /**
@@ -47,19 +49,23 @@ export function vencimientoDelLink(date: string) {
   return Math.floor((servicio.getTime() + 2 * 24 * 60 * 60 * 1000) / 1000);
 }
 
-export function crearTokenDeOrden(payload: ServiceOrderLinkPayload) {
+export function crearTokenDeOrden(payload: ServiceOrderLinkPayload, proposito: string = PROPOSITO_ORDEN) {
   const cuerpo = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
-  return `${cuerpo}.${firmar(cuerpo)}`;
+  return `${cuerpo}.${firmar(cuerpo, proposito)}`;
 }
 
 /** Devuelve el payload sólo si la firma es válida, no venció y la fecha tiene forma de fecha. */
-export function leerTokenDeOrden(token: string, ahora: Date = new Date()): ServiceOrderLinkPayload | null {
+export function leerTokenDeOrden(
+  token: string,
+  ahora: Date = new Date(),
+  proposito: string = PROPOSITO_ORDEN
+): ServiceOrderLinkPayload | null {
   const partes = token.split(".");
   if (partes.length !== 2) return null;
   const [cuerpo, firmaRecibida] = partes;
   if (!cuerpo || !firmaRecibida) return null;
 
-  const esperada = Buffer.from(firmar(cuerpo), "utf8");
+  const esperada = Buffer.from(firmar(cuerpo, proposito), "utf8");
   const recibida = Buffer.from(firmaRecibida, "utf8");
   // `timingSafeEqual` exige el mismo largo: si difiere, la firma ya es inválida.
   if (esperada.length !== recibida.length || !timingSafeEqual(esperada, recibida)) {
@@ -95,4 +101,16 @@ export function rutaDeLaOrden(date: string, flight: string | null) {
 /** El link completo para el chofer, a partir del origen del request. */
 export function linkDeLaOrden(origen: string, date: string, flight: string | null) {
   return `${origen.replace(/\/$/, "")}${rutaDeLaOrden(date, flight)}`;
+}
+
+/**
+ * La planilla de excursiones del día (#110), con el mismo esquema de token que la orden del chofer.
+ * Reusa el campo `flight` del payload para el id de la excursión cuando la planilla es de una sola.
+ */
+export function rutaDeLaPlanilla(date: string, excursion: string | null) {
+  return `/planilla-excursion/${crearTokenDeOrden({ date, flight: excursion, exp: vencimientoDelLink(date) }, PROPOSITO_EXCURSION)}`;
+}
+
+export function linkDeLaPlanilla(origen: string, date: string, excursion: string | null) {
+  return `${origen.replace(/\/$/, "")}${rutaDeLaPlanilla(date, excursion)}`;
 }
