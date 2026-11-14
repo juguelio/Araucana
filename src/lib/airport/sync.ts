@@ -2,7 +2,7 @@ import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/fligh
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
 import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
 import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
-import { DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
+import { debeRealinear, diaDeLaSemana, DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { prisma } from "@/lib/db/prisma";
@@ -33,6 +33,8 @@ export type SyncSummary = {
   limpiados: number;
   /** Filas proyectadas de un día que ya tiene datos reales: se descartan. */
   proyectadosLimpiados: number;
+  /** Filas futuras sueltas cuya hora no era la del patrón y se corrigieron (issue #145). */
+  realineados: number;
   /** Vuelos de JetSMART guardados dos veces (JA y WJ) que se unificaron en una sola fila JA. */
   jetSmartUnificados: number;
   /** Vuelos que siguen repetidos porque más de una fila tiene reservas: los resuelve una persona. */
@@ -88,6 +90,69 @@ async function limpiarProyectadosConDatosReales(dia: string): Promise<number> {
  * la API, y sus proyecciones), de hoy en adelante. Corre antes de sincronizar para que las
  * búsquedas por número encuentren una sola fila. Nunca borra una fila con reservas o combis.
  */
+/**
+ * Corrige las filas `ESTIMADO` futuras que quedaron con la hora de otro día.
+ *
+ * No toca una fila con reservas o combi asignada: ahí la hora la decidió una persona y manda. Si el
+ * día tiene más de una fila del mismo vuelo tampoco se toca: ése es un duplicado y lo resuelve la
+ * unificación, no este paso.
+ */
+async function realinearGrillaFutura(
+  observados: { number: string; direction: string; scheduledAt: Date; source: string; airline: string | null; origin: string; destination: string }[]
+): Promise<number> {
+  let corregidos = 0;
+
+  // Se usa el patrón que `proyectarVuelos` ya aplica a los días nuevos: la ocurrencia más reciente
+  // del vuelo (o la del mismo día de la semana si se conoce). Alinear las filas viejas a **ese**
+  // patrón deja la grilla consistente; el dato definitivo lo trae el tablero el día del vuelo.
+  // Ojo: las propias `ESTIMADO` no sirven como referencia, o la grilla mala se valida a sí misma.
+  const referencia = observados.filter((o) => o.source !== "ESTIMADO");
+
+  for (const dia of diasDesdeHoy(DIAS_PROYECTADOS + 1).slice(1)) {
+    const { desde, hasta } = rangoDelDia(dia);
+
+    for (const esperado of proyectarVuelos(dia, referencia)) {
+      const filas = await prisma.flight.findMany({
+        where: {
+          number: esperado.number,
+          direction: esperado.direction,
+          scheduledAt: { gte: desde, lt: hasta }
+        },
+        select: {
+          id: true,
+          scheduledAt: true,
+          source: true,
+          _count: { select: { reservations: true, assignments: true } }
+        }
+      });
+      if (filas.length !== 1) continue;
+
+      const [fila] = filas;
+      if (
+        !debeRealinear(
+          {
+            source: fila.source,
+            scheduledAt: fila.scheduledAt,
+            reservas: fila._count.reservations,
+            assignments: fila._count.assignments
+          },
+          esperado.scheduledAt
+        )
+      ) {
+        continue;
+      }
+
+      await prisma.flight.update({
+        where: { id: fila.id },
+        data: { scheduledAt: esperado.scheduledAt, estimatedAt: null }
+      });
+      corregidos += 1;
+    }
+  }
+
+  return corregidos;
+}
+
 async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
   const { desde } = rangoDelDia(diasDesdeHoy(1)[0]);
   const filas = await prisma.flight.findMany({
@@ -152,7 +217,7 @@ async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
 }
 
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
-  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
+  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, realineados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
 
@@ -399,6 +464,12 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
     }
   });
 
+  // La grilla futura se alineaba al reloj del vuelo de hoy y esas filas quedaron **escritas** en la
+  // base (issue #145: JA3182 del 15-nov, 73 minutos antes). Corregir sólo la generación no alcanza,
+  // y el bucle de proyección no sirve para esto: se saltea los días que ya tienen datos reales de la
+  // API, que son justo los días con la grilla vieja. Se recorre aparte, sólo proyecciones sueltas.
+  resumen.realineados += await realinearGrillaFutura(observados);
+
   for (const dia of diasDesdeHoy(DIAS_PROYECTADOS + 1).slice(1)) {
     const { desde, hasta } = rangoDelDia(dia);
     const realesDelDia = await prisma.flight.count({
@@ -420,7 +491,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
           number: proyectado.number,
           direction: proyectado.direction,
           scheduledAt: { gte: diaDesde, lt: diaHasta }
-        }
+        },
+        select: { id: true }
       });
       if (mismoVuelo) continue;
 

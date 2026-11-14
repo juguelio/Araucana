@@ -45,7 +45,7 @@ export function horaLocal(d: Date): string {
   return new Date(d.getTime() + TZ_OFFSET_MIN * 60000).toISOString().slice(11, 16);
 }
 
-function diaDeLaSemana(fecha: string): number {
+export function diaDeLaSemana(fecha: string): number {
   return new Date(`${fecha}T12:00:00-03:00`).getUTCDay();
 }
 
@@ -151,6 +151,25 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
  */
 export function mismaFrecuenciaSemanal(diaFuturo: string, diaTablero: string): boolean {
   return diaDeLaSemana(diaFuturo) === diaDeLaSemana(diaTablero);
+}
+
+/**
+ * Decide si una fila futura ya grabada se puede corregir para que coincida con el patrón.
+ *
+ * La grilla futura se alineaba al reloj del vuelo de hoy (issue #145: JA3182 del 15-nov quedó 73
+ * minutos antes), y esas filas quedaron **escritas** en la base. Arreglar sólo la proyección no
+ * alcanza: el pasajero sigue viendo la hora vieja hasta que alguien la corrija.
+ *
+ * Sólo se corrige la proyección propia (`ESTIMADO`) y sólo si está suelta: con una reserva o una
+ * combi asignada, la hora la decide el operador, no la grilla.
+ */
+export function debeRealinear(
+  fila: { source: string; scheduledAt: Date; reservas: number; assignments: number },
+  objetivo: Date
+): boolean {
+  if (fila.source !== "ESTIMADO") return false;
+  if (fila.reservas > 0 || fila.assignments > 0) return false;
+  return Math.abs(fila.scheduledAt.getTime() - objetivo.getTime()) >= 60_000;
 }
 
 /** Días siguientes a proyectar (además de hoy, que se sincroniza con datos reales). */

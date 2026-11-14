@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ObservableFlight } from "./projection";
+import { debeRealinear, DIAS_PROYECTADOS, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ObservableFlight } from "./projection";
 
 const api = (o: Partial<ObservableFlight>): ObservableFlight => ({
   number: "AR1656",
@@ -103,5 +103,35 @@ describe("mismaFrecuenciaSemanal", () => {
     expect(mismaFrecuenciaSemanal("2026-11-21", "2026-11-14")).toBe(true); // sábado → sábado
     // El domingo 15-nov sale 13:50 en JetSMART y el sábado 14 salió 12:37: no es el mismo horario.
     expect(mismaFrecuenciaSemanal("2026-11-15", "2026-11-14")).toBe(false);
+  });
+});
+
+describe("debeRealinear (issue #145)", () => {
+  const objetivo = new Date("2026-11-15T16:50:00.000Z"); // 13:50 en San Martín
+  const fila = (p = {}) => ({
+    source: "ESTIMADO",
+    scheduledAt: new Date("2026-11-15T18:37:00.000Z"), // 15:37, la hora del vuelo del sábado
+    reservas: 0,
+    assignments: 0,
+    ...p
+  });
+
+  it("corrige una proyección suelta que quedó con la hora de otro día", () => {
+    expect(debeRealinear(fila(), objetivo)).toBe(true);
+  });
+
+  it("no toca una fila con reservas ni con combi asignada", () => {
+    expect(debeRealinear(fila({ reservas: 1 }), objetivo)).toBe(false);
+    expect(debeRealinear(fila({ assignments: 1 }), objetivo)).toBe(false);
+  });
+
+  it("no toca datos reales de la API, del tablero ni una carga manual", () => {
+    for (const source of ["API", "FIDS", "MANUAL"]) {
+      expect(debeRealinear(fila({ source }), objetivo)).toBe(false);
+    }
+  });
+
+  it("no reescribe si ya está en la hora del patrón", () => {
+    expect(debeRealinear(fila({ scheduledAt: objetivo }), objetivo)).toBe(false);
   });
 });
