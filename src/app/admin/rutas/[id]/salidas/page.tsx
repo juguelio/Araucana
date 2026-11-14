@@ -3,21 +3,15 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { listAdminSchedules } from "@/lib/booking/repository";
+import { vehicleLabel } from "@/lib/booking/schedule-vehicle";
 import { prisma } from "@/lib/db/prisma";
 import { deleteScheduleAction, setScheduleStatusAction } from "../../../salidas/actions";
+import { ScheduleCard } from "./schedule-card";
 
 type RouteSchedulesPageProps = {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ month?: string; notice?: string }>;
 };
-
-const dateFormatter = new Intl.DateTimeFormat("es-AR", {
-  weekday: "long",
-  day: "2-digit",
-  month: "long",
-  year: "numeric",
-  timeZone: "America/Argentina/Salta"
-});
 
 const shortDateFormatter = new Intl.DateTimeFormat("es-AR", {
   weekday: "short",
@@ -49,10 +43,6 @@ function dateKey(value: Date) {
     month: "2-digit",
     day: "2-digit"
   }).format(value);
-}
-
-function statusLabel(status: string) {
-  return { OPEN: "Abierta", DOCUMENTATION: "Documentación", CLOSED: "Cerrada" }[status] ?? status;
 }
 
 function validMonth(value?: string) {
@@ -91,10 +81,16 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
   await getCurrentAdminOrRedirect();
   const { id } = await params;
   const query = await searchParams;
-  const [route, schedules] = await Promise.all([
+  const [route, schedules, vehicles] = await Promise.all([
     prisma.travelRoute.findUnique({ where: { id }, select: { id: true, from: true, to: true, via: true, category: true } }),
     // Sólo las salidas de esta ruta: antes traía las de todas las rutas y filtraba acá.
-    listAdminSchedules({ routeId: id })
+    listAdminSchedules({ routeId: id }),
+    // Para reasignar la nave desde el calendario (issue #81): las unidades activas de la flota.
+    prisma.vehicle.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, licensePlate: true, internalNumber: true, _count: { select: { seats: true } } },
+      orderBy: { name: "asc" }
+    })
   ]);
 
   if (!route) {
@@ -142,7 +138,7 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
           {nextSchedule ? (
             <>
               <strong>{shortDateFormatter.format(nextSchedule.departureAt)} · {timeFormatter.format(nextSchedule.departureAt)}</strong>
-              <small>{nextSchedule.availableSeats} de {nextSchedule.totalSeats} asientos libres</small>
+              <small>{vehicleLabel({ name: nextSchedule.vehicleName, licensePlate: nextSchedule.vehiclePlate, internalNumber: nextSchedule.vehicleInternalNumber })} · {nextSchedule.availableSeats} de {nextSchedule.totalSeats} asientos libres</small>
             </>
           ) : <strong>No hay salidas futuras</strong>}
         </div>
@@ -182,26 +178,13 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
                   </div>
                   <div className="calendar-day-schedules">
                     {daySchedules.map((schedule) => (
-                      <article className={`calendar-schedule ${schedule.status === "CLOSED" ? "is-closed" : ""}`} key={schedule.id}>
-                        <div className="calendar-schedule-line">
-                          <strong>{timeFormatter.format(schedule.departureAt)}</strong>
-                          <span>{schedule.availableSeats}/{schedule.totalSeats}</span>
-                        </div>
-                        <small>{statusLabel(schedule.status)}</small>
-                        <div className="calendar-schedule-actions">
-                          <Link href={`/admin/rutas/${route.id}/salidas/${schedule.id}`}>Ver reservas</Link>
-                          <Link href={`/admin/rutas/${route.id}/salidas/${schedule.id}/editar`}>Editar</Link>
-                          <form action={setScheduleStatusAction}>
-                            <input type="hidden" name="id" value={schedule.id} />
-                            <input type="hidden" name="status" value={schedule.status === "CLOSED" ? "OPEN" : "CLOSED"} />
-                            <button type="submit">{schedule.status === "CLOSED" ? "Abrir" : "Cerrar"}</button>
-                          </form>
-                          <form action={deleteScheduleAction}>
-                            <input type="hidden" name="id" value={schedule.id} />
-                            <button type="submit" aria-label="Eliminar salida">×</button>
-                          </form>
-                        </div>
-                      </article>
+                      <ScheduleCard
+                        key={schedule.id}
+                        schedule={schedule}
+                        routeId={route.id}
+                        vehicles={vehicles}
+                        timeLabel={timeFormatter.format(schedule.departureAt)}
+                      />
                     ))}
                     {!daySchedules.length ? <Link className="calendar-add-empty" href={`/admin/rutas/${route.id}/salidas/nueva?date=${day}`}>Agregar salida</Link> : null}
                   </div>
