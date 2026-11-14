@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { AdminToast } from "@/app/admin/form-ui";
 import { AppRole } from "@/lib/auth/roles";
+import { AdminNav } from "./admin-nav";
 import { BrandMark } from "./brand-mark";
 
 type AdminShellProps = {
@@ -40,13 +40,7 @@ export function AdminShell({ children, title, eyebrow = "Operacion", action, not
             <span className="brand-kicker">PANEL</span>
           </div>
         </div>
-        <nav aria-label="Administracion">
-          {visibleLinks.map((link) => (
-            <Link href={link.href} key={link.href}>
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <AdminNav links={visibleLinks.map(({ href, label }) => ({ href, label }))} />
       </aside>
       <section className="admin-main">
         <div className="admin-top">
