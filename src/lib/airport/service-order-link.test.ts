@@ -81,3 +81,17 @@ describe("link de la orden para el chofer (issue #118)", () => {
     expect(leerTokenDeOrden(token, ahora)?.date).toBe("2026-11-13");
   });
 });
+
+describe("propósitos separados (issue #110)", () => {
+  const ahora = new Date("2026-11-13T12:00:00Z");
+
+  it("un token de la planilla de excursiones no abre la orden del chofer", async () => {
+    process.env.AUTH_JWT_SECRET = "secreto-de-prueba-con-mas-de-32-bytes-1234";
+    const { crearTokenDeOrden, leerTokenDeOrden, PROPOSITO_EXCURSION, PROPOSITO_ORDEN } = await import("./service-order-link");
+
+    const tokenExcursion = crearTokenDeOrden({ date: "2026-11-13", flight: null, exp: 9999999999 }, PROPOSITO_EXCURSION);
+
+    expect(leerTokenDeOrden(tokenExcursion, ahora, PROPOSITO_ORDEN)).toBeNull();
+    expect(leerTokenDeOrden(tokenExcursion, ahora, PROPOSITO_EXCURSION)).not.toBeNull();
+  });
+});
