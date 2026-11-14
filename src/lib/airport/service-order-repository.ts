@@ -64,6 +64,8 @@ export async function getAirportServiceOrderReservations(
         pickupName: detalle.pickupName,
         pickupAddress: detalle.pickupAddress,
         pickupNotes: detalle.pickupNotes,
+        pickupLatitude: detalle.pickupLatitude,
+        pickupLongitude: detalle.pickupLongitude,
         passenger: {
           firstName: reserva.passenger.firstName,
           lastName: reserva.passenger.lastName,

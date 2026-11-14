@@ -7,6 +7,7 @@ import {
   serviceOrderRow,
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
+import { whatsappLink } from "@/lib/airport/route-order";
 import "./service-order-sheet.css";
 
 type ServiceOrderSheetProps = {
@@ -21,6 +22,22 @@ type ServiceOrderSheetProps = {
  * (issue #118). Sale de los mismos `blocks` que arma el .xlsx: una sola fuente para pantalla, papel y
  * Excel.
  */
+/**
+ * El contacto es un link de WhatsApp para que el chofer lo abra con un click (pedido del cliente); el
+ * resto de las celdas es texto. El número se muestra igual que se cargó, sin normalizar a la vista.
+ */
+function celdaContenido(celda: string, columna: string) {
+  if (columna !== "Contacto") return celda;
+  const whatsapp = whatsappLink(celda);
+  if (!whatsapp) return celda;
+  return (
+    <a className="orden-whatsapp" href={whatsapp} target="_blank" rel="noopener noreferrer">
+      {celda}
+      <span className="orden-whatsapp-icono" aria-hidden="true"> · WhatsApp</span>
+    </a>
+  );
+}
+
 export function ServiceOrderSheet({ date, blocks, variante = "panel" }: ServiceOrderSheetProps) {
   const totalDelDia = blocks.reduce((suma, bloque) => suma + bloque.totalCents, 0);
   const totalPasajeros = blocks.reduce((suma, bloque) => suma + bloque.passengers.reduce((n, p) => n + p.seats, 0), 0);
@@ -62,7 +79,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel" }: ServiceO
                   <tr key={pasajero.code}>
                     {serviceOrderRow(pasajero).map((celda, indice) => (
                       <td key={`${pasajero.code}-${indice}`} data-columna={SERVICE_ORDER_COLUMNS[indice]}>
-                        {celda || <span className="orden-vacio">—</span>}
+                        {celda ? celdaContenido(celda, SERVICE_ORDER_COLUMNS[indice]) : <span className="orden-vacio">—</span>}
                       </td>
                     ))}
                     {conAcciones ? (
@@ -98,7 +115,9 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel" }: ServiceO
 
       <p className="orden-pie">
         «Derivado por» es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío.
-        Cobrar / Pagado es el estado del pago.
+        Cobrar / Pagado es el estado del pago. Las filas están en el orden sugerido desde el aeropuerto: el retiro más
+        cercano primero, y al final los pasajeros que no tienen el punto marcado en el mapa. El contacto abre el
+        WhatsApp con un toque.
       </p>
     </article>
   );
