@@ -26,9 +26,11 @@ const cuando = new Intl.DateTimeFormat("es-AR", {
 function FilaComprobante({ item }: { item: AdminReceiptRow }) {
   return (
     <li>
-      <span className="panel-item-main">
-        {item.code} · {item.passenger}
-      </span>
+      {/* Cada fila abre la reserva: antes había que ir a la lista y buscarla por el código. */}
+      <Link className="panel-item-main" href={`/admin/reservas/${item.code}`}>
+        {item.passenger}
+        <span className="panel-item-code">{item.code}</span>
+      </Link>
       <span className="panel-item-meta">
         {formatCurrency(item.amountCents, item.currency)}
         {item.uploadedAt ? ` · subido ${cuando.format(item.uploadedAt)}` : ""}
@@ -51,25 +53,41 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
 
   return (
     <AdminShell title="Panel" eyebrow="Gestión comercial y operativa" action={<LogoutButton />} notice={params?.notice}>
-      <div className="plain-card" style={{ marginBottom: 24 }}>
-        <p className="eyebrow">Sesion activa</p>
-        <p className="lead">Ingresaste como {user.email}. Gestioná usuarios y sus roles junto con rutas, salidas y reservas desde un solo lugar.</p>
-      </div>
+      <p className="panel-session muted">Sesión de {user.email}</p>
 
-      <section className="admin-grid">
-        <div className="admin-card">
+      {/* Lo que se abre todos los días, a un toque. Son enlaces a pantallas que ya existen. */}
+      <nav className="panel-quick" aria-label="Accesos rápidos">
+        <Link className="panel-quick-link" href="/admin/aeropuerto">
+          <strong>Vuelos de hoy</strong>
+          <span>{flightsWithoutVehicle === 0 ? "Todos con unidad" : `${flightsWithoutVehicle} sin unidad`}</span>
+        </Link>
+        <Link className="panel-quick-link" href="/admin/aeropuerto/reservar">
+          <strong>Reserva de aeropuerto</strong>
+          <span>Un tramo o ida y vuelta</span>
+        </Link>
+        <Link className="panel-quick-link" href="/admin/reservas?payment=receipt-pending" data-alerta={receiptsPending.count > 0 || undefined}>
+          <strong>Comprobantes por validar</strong>
+          <span>{receiptsPending.count === 0 ? "Nada pendiente" : `${receiptsPending.count} esperando`}</span>
+        </Link>
+        <Link className="panel-quick-link" href="/admin/reservas/nueva">
+          <strong>Crear reserva</strong>
+          <span>Salidas regulares</span>
+        </Link>
+      </nav>
+
+      <section className="admin-grid panel-stats">
+        <Link className="admin-card panel-stat" href="/admin/rutas">
           <span className="muted">Rutas publicadas</span>
           <strong>{routes.length}</strong>
-        </div>
-        <div className="admin-card">
+        </Link>
+        <Link className="admin-card panel-stat" href="/admin/reservas">
           <span className="muted">Reservas registradas</span>
           <strong>{reservationCount}</strong>
-        </div>
-        <div className="admin-card">
+        </Link>
+        <Link className="admin-card panel-stat" href="/admin/aeropuerto" data-alerta={flightsWithoutVehicle > 0 || undefined}>
           <span className="muted">Vuelos sin unidad</span>
           <strong>{flightsWithoutVehicle}</strong>
-          <Link className="panel-link" href="/admin/aeropuerto">Ver vuelos →</Link>
-        </div>
+        </Link>
       </section>
 
       <section className="panel-section">
