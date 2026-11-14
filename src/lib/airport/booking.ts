@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 import { airportExtrasBreakdown, type AirportExtras } from "./extras";
 import { getAirportExtras } from "./extras-settings";
 import { airportPickupStart } from "./pickup-start";
+import { horaEfectivaDelVuelo } from "./effective-time";
 import { chargesZoneExtra, type AirportCoverage } from "./pickup-zone";
 import { getAirportCoverage } from "./pickup-zone-settings";
 import { jetSmartCanonicalNumber } from "./flights";
@@ -101,8 +102,9 @@ export function motivoNoReservable(
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
   // Con demora manda el horario estimado: a la hora programada el avión todavía no llegó (o no
-  // salió), así que no se le dice al pasajero que perdió el vuelo antes de que ocurra.
-  const referencia = vuelo.estimatedAt && vuelo.estimatedAt > vuelo.scheduledAt ? vuelo.estimatedAt : vuelo.scheduledAt;
+  // salió), así que no se le dice al pasajero que perdió el vuelo antes de que ocurra. La misma
+  // función alimenta la orden de servicio y la planilla del chofer (issue #140).
+  const referencia = horaEfectivaDelVuelo(vuelo);
   if (referencia <= ahora) {
     // Un horario proyectado no prueba que el vuelo haya pasado: no se afirma eso al pasajero.
     if (vuelo.source === "ESTIMADO") return "Horario estimado ya pasado.";
@@ -118,7 +120,8 @@ export function motivoNoReservable(
     const arranqueRecorrida = airportPickupStart({
       direction: "DEPARTURE",
       // Con demora la recorrida se corre con el horario vigente, no con el programado.
-      scheduledAt: referencia,
+      scheduledAt: vuelo.scheduledAt,
+      estimatedAt: vuelo.estimatedAt,
       pickupStartOverrideAt: vuelo.pickupStartOverrideAt ?? null,
       status: vuelo.status
     });

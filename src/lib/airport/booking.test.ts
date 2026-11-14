@@ -133,6 +133,16 @@ describe("corte de reservas de salidas", () => {
     expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T12:45:00Z"))).toMatch(/recorrida ya arrancó/i);
   });
 
+  it("con un adelanto informado cierra antes: el avión sale más temprano y la recorrida también", () => {
+    const adelantado = salida("2030-01-01T12:00:00Z", {
+      estimatedAt: new Date("2030-01-01T11:00:00Z"),
+      source: "API"
+    });
+    // Recorrida real 08:30Z (una hora antes de la programada): a las 08:45 ya no se puede reservar.
+    expect(motivoNoReservable(adelantado, 10, new Date("2030-01-01T08:00:00Z"))).toBeNull();
+    expect(motivoNoReservable(adelantado, 10, new Date("2030-01-01T08:45:00Z"))).toMatch(/recorrida ya arrancó/i);
+  });
+
   it("un vuelo que ya salió sigue avisando eso, no la recorrida", () => {
     expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T13:00:00Z"))).toMatch(/ya salió/i);
   });
