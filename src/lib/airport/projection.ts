@@ -175,3 +175,23 @@ export function debeRealinear(
 
 /** Días siguientes a proyectar (además de hoy, que se sincroniza con datos reales). */
 export const DIAS_PROYECTADOS = 30;
+
+/**
+ * ¿El candidato ya existente cubre al proyectado? Es la heurística de cercanía horaria que evita
+ * duplicar un vuelo que la API publica con otro código.
+ *
+ * Se compara **dentro de la misma aerolínea**: el 24-nov el AJ325 de Neuquén (14:30) bloqueaba el
+ * AR1657 (14:55) por estar a 25 minutos, aunque son otra ruta y otra empresa. Un vuelo que no se
+ * ofrece tampoco puede tapar a uno que sí.
+ */
+export function esGemeloHorario(
+  proyectado: { direction: string; airline: string | null },
+  candidato: { direction: string; airline: string | null; number: string; scheduledAt: Date },
+  proyectadoEn: Date,
+  minutos = 25
+): boolean {
+  if (candidato.direction !== proyectado.direction) return false;
+  if (candidato.airline !== proyectado.airline) return false;
+  if (noSeOfrece(candidato.number)) return false;
+  return Math.abs(candidato.scheduledAt.getTime() - proyectadoEn.getTime()) <= minutos * 60000;
+}
