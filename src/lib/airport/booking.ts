@@ -15,9 +15,11 @@ import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
 import {
   adminAirportReservationSchema,
+  adminAirportRoundTripSchema,
   airportReservationSchema,
   airportRoundTripSchema,
   type AdminAirportReservationInput,
+  type AdminAirportRoundTripOutput,
   type AirportRoundTripInput,
   type PrivateFlightInput
 } from "./validation";
@@ -346,6 +348,8 @@ type CrearTramoParams = {
   halfFareCount: number;
   freeFareCount: number;
   overrideTotalCents?: number;
+  /** Quién derivó la venta (agencia, voucher): sólo lo carga el panel (#109). */
+  referredBy?: string | null;
   /** Extras del aeropuerto: se cobran por tramo (el recargo de zona, según el pickup de ese tramo). */
   reglas: ReglasDeExtras;
   /** Las dos reservas de un ida y vuelta comparten este id; un tramo suelto va sin él. */
@@ -399,6 +403,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams) {
       halfFareCount: fares.half,
       freeFareCount: fares.free,
       currency: rutaDelSentido.currency,
+      referredBy: params.referredBy ?? null,
       airportDetails: {
         create: {
           halfFareCount,
@@ -488,6 +493,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
           halfFareCount: parsed.halfFareCount ?? 0,
           freeFareCount: parsed.freeFareCount ?? 0,
           overrideTotalCents: parsed.overrideTotalCents,
+          referredBy: parsed.referredBy ?? null,
           reglas,
           creator
         });
@@ -512,8 +518,10 @@ export async function createAirportReservation(input: AdminAirportReservationInp
  * Los extras (equipaje deportivo y recargo de zona) se cobran **por tramo**: el recargo depende del
  * punto de pickup de ese tramo y el equipaje viaja en los dos.
  */
-export async function createAirportRoundTripReservation(input: AirportRoundTripInput, { creator }: ReservationCreationContext = {}) {
-  const parsed = airportRoundTripSchema.parse(input);
+export async function createAirportRoundTripReservation(input: AirportRoundTripInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
+  // El alta del panel acepta la identidad del pasajero como opcional y el origen de la venta; el
+  // público no tiene ninguno de los dos campos.
+  const parsed = (fromAdmin ? adminAirportRoundTripSchema : airportRoundTripSchema).parse(input) as AdminAirportRoundTripOutput;
   await rutaDelSlug(parsed.routeSlug);
   validarVueloPrivado({ ...parsed.arrival, direction: "ARRIVAL" });
   validarVueloPrivado({ ...parsed.departure, direction: "DEPARTURE" });
@@ -527,7 +535,8 @@ export async function createAirportRoundTripReservation(input: AirportRoundTripI
     try {
       return await prisma.$transaction(async (tx) => {
         const passenger = await tx.passenger.create({ data: parsed.passenger });
-        const base = { passengerId: passenger.id, passengerCount, halfFareCount, freeFareCount, roundTripId, reglas, creator };
+        // El origen de la venta vale para los dos tramos: lo cargó una vez quien vendió el viaje.
+        const base = { passengerId: passenger.id, passengerCount, halfFareCount, freeFareCount, roundTripId, referredBy: parsed.referredBy ?? null, reglas, creator };
         // La llegada va primero: si el cupo de la vuelta falla, no queda media reserva creada.
         const arrival = await crearTramo(tx, {
           ...base,

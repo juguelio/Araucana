@@ -157,6 +157,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [selectedId, setSelectedId] = useState<string>("");
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
+  // Derivación de otra agencia (#109): sólo existe en el alta del panel.
+  const [referredBy, setReferredBy] = useState("");
   const [halfFareCount, setHalfFareCount] = useState(0);
   const [freeFareCount, setFreeFareCount] = useState(0);
   const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
@@ -444,6 +446,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           freeFareCount,
           sportsLuggageCount: adicionales.sportsLuggageCount,
           overrideTotalCents,
+          referredBy: fromAdmin ? referredBy.trim() || undefined : undefined,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
           pickupName: usandoSucursal && officePickup ? officePickup.label : undefined,
@@ -481,8 +484,18 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           <ol className="wizard-steps">
             {PASOS.map((titulo, i) => (
               <li key={titulo} data-active={paso === i + 1} data-done={paso > i + 1}>
-                <span>{i + 1}</span>
-                {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                {/* Un paso ya hecho se puede volver a abrir desde acá, igual que con «← Volver». */}
+                {paso > i + 1 ? (
+                  <button type="button" onClick={() => setPaso((i + 1) as 1 | 2)}>
+                    <span>{i + 1}</span>
+                    {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                  </button>
+                ) : (
+                  <>
+                    <span>{i + 1}</span>
+                    {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                  </>
+                )}
               </li>
             ))}
           </ol>
@@ -523,6 +536,24 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     <span className="muted">{fares[s.code] ? `${s.ayuda} · ${formatPrice(fares[s.code]!.priceCents, fares[s.code]!.currency)} por persona` : "Sin tarifa activa para este sentido."}</span>
                   </button>
                 ))}
+                {/* Tercera opción (#34/#36): los dos tramos en una sola reserva enlazada. Va como link
+                    y no como botón porque el flujo de ida y vuelta tiene su propia pantalla. */}
+                {!fromAdmin && fares.ARRIVAL && fares.DEPARTURE ? (
+                  <Link
+                    className="wizard-option wizard-option-round-trip"
+                    href={`/reservar/${route.slug}/ida-y-vuelta?date=${date}`}
+                  >
+                    <b>
+                      Ida y vuelta <span className="wizard-option-badge">2 tramos</span>
+                    </b>
+                    <span className="wizard-option-route">San Martín de los Andes ⇄ Aeropuerto Chapelco (CPC)</span>
+                    <span className="muted">
+                      Elegís el vuelo de llegada y el de salida, con los datos cargados una sola vez
+                      {" · "}
+                      {formatPrice(fares.ARRIVAL.priceCents + fares.DEPARTURE.priceCents, fares.ARRIVAL.currency)} por persona
+                    </span>
+                  </Link>
+                ) : null}
               </div>
             </>
           ) : null}
@@ -726,6 +757,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     <input inputMode="decimal" value={customPrice} onChange={(event) => setCustomPrice(event.target.value)}
                       placeholder="Usar tarifa automática" disabled={isSubmitting} aria-invalid={Boolean(fieldErrors.customPrice)} />
                     {fieldErrors.customPrice ? <span className="field-error" role="alert">{fieldErrors.customPrice}</span> : null}
+                  </label>
+                  <label>
+                    Derivado por (opcional)
+                    <input maxLength={120} value={referredBy} onChange={(event) => setReferredBy(event.target.value)}
+                      placeholder="Ej. una agencia de viajes" disabled={isSubmitting} />
+                    <small>Quién vendió la reserva. Sale en la columna «Derivado por» de la orden de servicio del chofer.</small>
                   </label>
                 </div>
               ) : null}

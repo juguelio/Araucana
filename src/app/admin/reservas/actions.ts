@@ -30,6 +30,7 @@ export async function createAdminReservationAction(formData: FormData) {
     scheduleId: value(formData, "scheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
     dropoffStop: value(formData, "dropoffStop") || undefined,
+    referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
     passenger: {
       firstName: value(formData, "firstName"),
@@ -135,6 +136,8 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
       return [key, key === "email" ? text.toLowerCase() : key === "nationality" ? text || null : text];
     }));
   const notes = formData.has("notes") ? value(formData, "notes") : undefined;
+  // Sólo viaja si el formulario lo mandó: así una edición que no toca el origen no lo borra.
+  const referredBy = formData.has("referredBy") ? value(formData, "referredBy") : undefined;
   let pickup;
   if (formData.has("address")) {
     const latitude = value(formData, "latitude");
@@ -154,11 +157,11 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     method: formData.has("method") ? value(formData, "method") : undefined,
     reference: formData.has("reference") ? value(formData, "reference") : undefined
   } : undefined;
-  if (!pickup && notes === undefined && !financial && Object.keys(passenger).length === 0) {
+  if (!pickup && notes === undefined && referredBy === undefined && !financial && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
-  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, financial });
+  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, referredBy, financial });
   if (!command.success) {
     return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
   }
@@ -186,12 +189,14 @@ function reservationNotice(path: string, message: string, query = "") {
 export async function manageReservationAction(formData: FormData) {
   const command = reservationManagementSchema.safeParse({
     operation: value(formData, "operation"),
+    reason: value(formData, "reason"),
     totalCents: parseReservationPrice(value(formData, "customPrice")),
     method: value(formData, "method"),
     reference: value(formData, "reference")
   });
-  if (command.success && command.data.operation === "delete") await getCurrentAdminOrRedirect();
-  else await getCurrentReservationsUserOrRedirect();
+  const user = command.success && command.data.operation === "delete"
+    ? await getCurrentAdminOrRedirect()
+    : await getCurrentReservationsUserOrRedirect();
 
   const code = value(formData, "code").toUpperCase();
   if (!/^ARC-[A-Z0-9-]+$/.test(code)) redirect("/admin/reservas");
@@ -200,12 +205,20 @@ export async function manageReservationAction(formData: FormData) {
   const returnPath = listQuery === null ? detailPath : "/admin/reservas";
   if (!command.success || command.data.operation === "edit") {
     const invalidPrice = !command.success && command.error.issues.some((issue) => issue.path[0] === "totalCents");
-    redirect(reservationNotice(returnPath, invalidPrice ? reservationPriceError : "Revisá los datos ingresados.", listQuery ?? ""));
+    const invalidReason = !command.success && command.error.issues.some((issue) => issue.path[0] === "reason");
+    redirect(reservationNotice(returnPath, invalidReason ? "Escribí el motivo de la cancelación (al menos 3 caracteres)." : invalidPrice ? reservationPriceError : "Revisá los datos ingresados.", listQuery ?? ""));
   }
 
   let result: Awaited<ReturnType<typeof manageReservation>>;
   try {
-    result = await manageReservation(code, command.data);
+    result = await manageReservation(
+      code,
+      command.data.operation === "cancel"
+        ? { ...command.data, cancelledBy: user.name?.trim() || user.email }
+        : command.data.operation === "restore"
+          ? { ...command.data, restoredBy: user.name?.trim() || user.email }
+          : command.data
+    );
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos actualizar la reserva. Intentalo de nuevo.";
     redirect(reservationNotice(returnPath, message, listQuery ?? ""));
@@ -221,6 +234,7 @@ export async function manageReservationAction(formData: FormData) {
 
   const notices = {
     cancel: "Reserva cancelada.",
+    restore: "Reserva restituida.",
     delete: receiptCleanupFailed ? "Reserva borrada. No pudimos eliminar el archivo del comprobante." : "Reserva borrada.",
     confirm: "Reserva confirmada.",
     payment: "Pago registrado.",

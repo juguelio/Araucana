@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { airportRoundTripSchema } from "./validation";
+import { adminAirportRoundTripSchema, airportRoundTripSchema } from "./validation";
 
 /**
  * Ida y vuelta del aeropuerto (#36): **una sola transacción** crea los dos tramos con el pasajero
@@ -173,5 +173,57 @@ describe("ida y vuelta del aeropuerto", () => {
   it("acepta un ida y vuelta el mismo día", () => {
     const parsed = airportRoundTripSchema.safeParse({ ...pedido, departure: { ...pedido.departure, serviceDate: "2030-01-01" } });
     expect(parsed.success).toBe(true);
+  });
+
+  /**
+   * El viaje se arma en los dos sentidos: primero llego y después me voy (`ARRIVAL`), o primero me
+   * voy y después vuelvo (`DEPARTURE`). Los sentidos de cada tramo no cambian; cambia el orden.
+   */
+  it("acepta la salida primero: me voy al aeropuerto y vuelvo una semana después", () => {
+    const parsed = airportRoundTripSchema.safeParse({
+      ...pedido,
+      firstLeg: "DEPARTURE",
+      departure: { ...pedido.departure, serviceDate: "2030-01-01" },
+      arrival: { ...pedido.arrival, serviceDate: "2030-01-08" }
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success ? parsed.data.firstLeg : "").toBe("DEPARTURE");
+  });
+
+  it("con la salida primero, la llegada no puede ser antes", () => {
+    const invalido = {
+      ...pedido,
+      firstLeg: "DEPARTURE",
+      departure: { ...pedido.departure, serviceDate: "2030-01-08" },
+      arrival: { ...pedido.arrival, serviceDate: "2030-01-01" }
+    };
+    const parsed = airportRoundTripSchema.safeParse(invalido);
+    expect(parsed.success).toBe(false);
+    expect(parsed.success ? "" : parsed.error.issues[0].message).toMatch(/antes de la salida/i);
+    expect(parsed.success ? [] : parsed.error.issues[0].path).toEqual(["arrival", "serviceDate"]);
+  });
+
+  it("sin firstLeg el viaje arranca con la llegada", () => {
+    const parsed = airportRoundTripSchema.safeParse(pedido);
+    expect(parsed.success ? parsed.data.firstLeg : "").toBe("ARRIVAL");
+  });
+
+  it("el alta del panel exige el documento igual que el flujo público (issue #122)", () => {
+    const sinDocumento = {
+      ...pedido,
+      firstLeg: "DEPARTURE" as const,
+      passenger: { ...pasajero, documentId: "" },
+      departure: { ...pedido.departure, serviceDate: "2030-01-01" },
+      arrival: { ...pedido.arrival, serviceDate: "2030-01-08" }
+    };
+    expect(adminAirportRoundTripSchema.safeParse(sinDocumento).success).toBe(false);
+    expect(airportRoundTripSchema.safeParse(sinDocumento).success).toBe(false);
+    // Con el documento cargado, el alta del panel acepta los dos órdenes.
+    expect(
+      adminAirportRoundTripSchema.safeParse({
+        ...sinDocumento,
+        passenger: { ...pasajero, documentId: "30111222" }
+      }).success
+    ).toBe(true);
   });
 });

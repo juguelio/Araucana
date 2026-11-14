@@ -1,7 +1,7 @@
 import { reservationPriceCents } from "@/lib/booking/admin-price";
 import { z } from "zod";
 import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
-import { adminPassengerSchema, passengerSchema } from "@/lib/booking/validation";
+import { adminPassengerSchema, passengerSchema, referredBySchema } from "@/lib/booking/validation";
 
 /**
  * Vuelo privado: el pasajero lo carga porque no figura en la lista del día (charter, avión
@@ -74,7 +74,11 @@ const noFullFareError = { path: ["freeFareCount"], message: sinAdultoMensaje };
 export const airportReservationSchema = airportReservationFields
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError);
-export const adminAirportReservationSchema = airportReservationFields.extend({ passenger: adminPassengerSchema, overrideTotalCents: reservationPriceCents.optional() })
+export const adminAirportReservationSchema = airportReservationFields.extend({
+  passenger: adminPassengerSchema,
+  overrideTotalCents: reservationPriceCents.optional(),
+  referredBy: referredBySchema
+})
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError);
 
@@ -85,24 +89,60 @@ export type PrivateFlightInput = z.infer<typeof privateFlightSchema>;
 /**
  * Ida y vuelta (#36): dos tramos y los datos del pasajero **una sola vez**. Cada tramo lleva su
  * propio vuelo, su fecha y su pickup (el de la llegada es el destino; el de la salida, el origen).
+ *
+ * `firstLeg` dice **cuál de los dos va primero en el calendario**, porque el ida y vuelta se arma
+ * en los dos sentidos: el pasajero puede llegar a San Martín y volver (`ARRIVAL`), o salir de San
+ * Martín y regresar después (`DEPARTURE`). Los sentidos de cada tramo no cambian —la llegada
+ * siempre es CPC → SMA—, lo que cambia es el orden: con `DEPARTURE` primero, la salida es la ida y
+ * la llegada es la vuelta.
  */
-export const airportRoundTripSchema = z
-  .object({
-    routeSlug: z.string().min(1),
-    passengerCount: z.coerce.number().int().min(1, "Al menos un pasajero.").max(24, "Máximo 24 por reserva.").default(1),
-    halfFareCount: z.number().int().min(0).max(24).optional(),
-    freeFareCount: z.number().int().min(0).max(24).optional(),
-    sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
-    passenger: passengerSchema,
-    arrival: airportLegFields,
-    departure: airportLegFields
-  })
+const airportRoundTripFields = z.object({
+  routeSlug: z.string().min(1),
+  firstLeg: z.enum(["ARRIVAL", "DEPARTURE"]).default("ARRIVAL"),
+  passengerCount: z.coerce.number().int().min(1, "Al menos un pasajero.").max(24, "Máximo 24 por reserva.").default(1),
+  halfFareCount: z.number().int().min(0).max(24).optional(),
+  freeFareCount: z.number().int().min(0).max(24).optional(),
+  sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
+  passenger: passengerSchema,
+  arrival: airportLegFields,
+  departure: airportLegFields
+});
+
+/**
+ * El segundo tramo no puede ser antes del primero, en cualquiera de los dos órdenes. Va por
+ * `superRefine` —y no por `.refine(fn, errorFn)`— porque el error depende del orden: zod ignora
+ * una función como mapa de error y publica `Invalid input` sin path.
+ */
+const roundTripChronology = (
+  { arrival, departure, firstLeg }: { arrival: { serviceDate: string }; departure: { serviceDate: string }; firstLeg: "ARRIVAL" | "DEPARTURE" },
+  context: z.RefinementCtx
+) => {
+  const vuelta = firstLeg === "ARRIVAL" ? "departure" : "arrival";
+  const [primero, segundo] = firstLeg === "ARRIVAL" ? [arrival, departure] : [departure, arrival];
+  if (segundo.serviceDate < primero.serviceDate) {
+    context.addIssue({
+      code: "custom",
+      path: [vuelta, "serviceDate"],
+      message: firstLeg === "ARRIVAL" ? "La vuelta no puede ser antes de la llegada." : "La vuelta no puede ser antes de la salida."
+    });
+  }
+};
+
+export const airportRoundTripSchema = airportRoundTripFields
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError)
-  .refine(({ arrival, departure }) => departure.serviceDate >= arrival.serviceDate, {
-    path: ["departure", "serviceDate"],
-    message: "La vuelta no puede ser antes de la llegada."
-  });
+  .superRefine(roundTripChronology);
 
-export type AirportRoundTripInput = z.infer<typeof airportRoundTripSchema>;
+/** Alta desde el panel: los datos de identidad del pasajero son opcionales. */
+export const adminAirportRoundTripSchema = airportRoundTripFields
+  .extend({ passenger: adminPassengerSchema, referredBy: referredBySchema })
+  .refine(halfFareFitsSeats, halfFareCountError)
+  .refine(faresHaveFull, noFullFareError)
+  .superRefine(roundTripChronology);
+
+/** Lo que manda el cliente: `firstLeg` es opcional (por defecto el viaje arranca con la llegada). */
+export type AirportRoundTripInput = z.input<typeof airportRoundTripSchema>;
+export type AdminAirportRoundTripInput = z.input<typeof adminAirportRoundTripSchema>;
+/** Lo ya validado por el alta del panel: incluye los campos que el público no tiene (`referredBy`). */
+export type AdminAirportRoundTripOutput = z.output<typeof adminAirportRoundTripSchema>;
 

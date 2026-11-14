@@ -98,6 +98,8 @@ export type ReservationDetailDto = {
   code: string;
   /** Ida y vuelta del aeropuerto (#36): id del viaje que comparten los dos tramos. */
   roundTripId?: string | null;
+  /** Quién derivó la venta (#109): agencia, voucher o persona. Vacío cuando se vendió directo. */
+  referredBy?: string | null;
   /** El otro tramo del ida y vuelta (sólo en las consultas del panel). */
   roundTripPartner?: { code: string; shortCode: string; direction: string | null } | null;
   /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
@@ -108,6 +110,13 @@ export type ReservationDetailDto = {
   halfFareCount?: number;
   freeFareCount?: number;
   status: ReservationStatus | string;
+  /** Cancelación con motivo (#108): lo que escribió quien canceló, cuándo y quién fue. */
+  cancellationReason?: string | null;
+  cancelledAt?: Date | null;
+  cancelledByName?: string | null;
+  /** Restitución (#117): quién y cuándo volvió atrás, sin borrar la cancelación. */
+  restoredAt?: Date | null;
+  restoredByName?: string | null;
   seatNumber: string | null;
   totalCents: number;
   total: number;
