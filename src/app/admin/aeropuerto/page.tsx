@@ -84,6 +84,19 @@ export default async function AirportPage({ searchParams }: PageProps) {
   });
 
   const clave = await airLabsKeyState();
+
+  // Cómo viene el día, de un vistazo: lo mismo que dice cada tarjeta, sumado.
+  const resumen = vuelos.reduce(
+    (acc, v) => {
+      const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
+      acc.pasajeros += ocupados;
+      if (v.direction === "ARRIVAL") acc.arribos += 1;
+      else acc.partidas += 1;
+      if (ocupados > 0 && v.assignments.length === 0) acc.sinCombi += 1;
+      return acc;
+    },
+    { arribos: 0, partidas: 0, pasajeros: 0, sinCombi: 0 }
+  );
   const partidasParaCoordinar = vuelos.filter((vuelo) => airportPickupStart(vuelo));
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
 
@@ -130,13 +143,20 @@ export default async function AirportPage({ searchParams }: PageProps) {
         <div className="flight-foot">
           <span className="muted">{v.origin}</span>
           {pickupStart ? <span className="muted">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
-          <span className="muted">
-            {v.assignments.length === 0
-              ? ocupados > 0
-                ? `sin combi · conviene ${combisSugeridas(ocupados)} ${combisSugeridas(ocupados) === 1 ? "combi" : "combis"}`
-                : "sin combi asignada"
-              : v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
-          </span>
+          {v.assignments.length === 0 ? (
+            ocupados > 0 ? (
+              <span className="pill pill-alerta pill-combi">
+                sin combi · conviene {combisSugeridas(ocupados)} {combisSugeridas(ocupados) === 1 ? "combi" : "combis"}
+              </span>
+            ) : (
+              <span className="muted">sin combi asignada</span>
+            )
+          ) : (
+            <span className="pill pill-combi" data-tono="ok">
+              {v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
+            </span>
+          )}
+          <span className="flight-card-actions">
           {ocupados > 0 ? (
             <>
               <Link
@@ -144,20 +164,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
                 target="_blank"
                 rel="noreferrer"
-                title="Ver la hoja de este vuelo en pantalla (para imprimir o corregir un dato)"
-              >
-                Ver hoja
-              </Link>
-              <a
-                className="ghost-button"
-                href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
-                title="Hoja de este vuelo para el chofer (Excel)"
+                title="Hoja del chofer de este vuelo: verla, imprimirla o descargarla en Excel"
               >
                 Hoja del chofer
-              </a>
+              </Link>
             </>
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
+          </span>
           <details className="flight-actions">
             <summary>Gestionar vuelo</summary>
             <div className="flight-actions-body">
@@ -194,24 +208,17 @@ export default async function AirportPage({ searchParams }: PageProps) {
       eyebrow="Operación"
       notice={params?.notice}
       action={
-        <div className="form-actions">
+        <div className="form-actions flights-header-actions">
           {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
           <Link
             className="ghost-button"
             href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}`}
             target="_blank"
             rel="noreferrer"
-            title="Ver la orden de servicio en pantalla: se puede imprimir y corregir un dato de cada reserva"
+            title="Hoja del día: un bloque por vuelo, con pasajeros, contacto y pago. Se imprime o se descarga en Excel desde ahí"
           >
-            Ver orden de servicio
+            Hoja del día
           </Link>
-          <a
-            className="ghost-button"
-            href={`/admin/aeropuerto/orden-de-servicio?date=${encodeURIComponent(fecha)}`}
-            title="Hoja para el chofer: un bloque por vuelo, con pasajeros, contacto y pago"
-          >
-            Orden de servicio (Excel)
-          </a>
           <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
           <form action={refreshFlightsAction}>
             <button className="ghost-button" type="submit">Actualizar ahora</button>
@@ -238,9 +245,19 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
       </section>
 
+      {vuelos.length > 0 ? (
+        <dl className="flights-summary" aria-label="Resumen del día">
+          <div><dt>Arribos</dt><dd>{resumen.arribos}</dd></div>
+          <div><dt>Partidas</dt><dd>{resumen.partidas}</dd></div>
+          <div><dt>Pasajeros</dt><dd>{resumen.pasajeros}</dd></div>
+          <div data-alerta={imprevistos.length > 0}><dt>Con imprevisto</dt><dd>{imprevistos.length}</dd></div>
+          <div data-alerta={resumen.sinCombi > 0}><dt>Sin combi</dt><dd>{resumen.sinCombi}</dd></div>
+        </dl>
+      ) : null}
+
       <p className="muted flights-note">
         {fecha === hoy ? "Hoy" : <strong>{fecha}</strong>} · datos de AirLabs y del tablero del aeropuerto. Se marcan
-        los <em>estimados</em> y los cargados <em>a mano</em>. El <strong>borde de color</strong> marca los vuelos con
+        los <em>estimados</em> y los cargados <em>a mano</em>; el <strong>borde de color</strong>, los vuelos con
         imprevisto.
       </p>
 
@@ -274,7 +291,8 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </p>
         </section>
       ) : (
-        (["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
+        <div className="flights-board">
+        {(["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
           // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
@@ -304,7 +322,8 @@ export default async function AirportPage({ searchParams }: PageProps) {
               ) : null}
             </section>
           );
-        })
+        })}
+        </div>
       )}
 
       {conEvento.length > 0 ? (
