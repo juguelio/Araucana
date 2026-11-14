@@ -33,7 +33,9 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: `npm run dev -- ${process.env.PLAYWRIGHT_WEBPACK === "1" ? "--webpack " : ""}--hostname ${target.hostname} -p ${target.port}`,
+    command: process.env.PLAYWRIGHT_USE_BUILD === "1"
+      ? `npm run start -- --hostname ${target.hostname} -p ${target.port}`
+      : `npm run dev -- ${process.env.PLAYWRIGHT_WEBPACK === "1" ? "--webpack " : ""}--hostname ${target.hostname} -p ${target.port}`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 120_000,

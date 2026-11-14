@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
@@ -52,7 +52,7 @@ type RoundTripCheckoutFormProps = {
   initialFlights: FlightOption[];
   coverage: AirportCoverage;
   /** Precio por bulto de equipaje deportivo (esquí, snowboard, bici), vigente al reservar. */
-  extras: { sportsLuggageCents: number };
+  extras: { sportsLuggageCents: number; zoneExtraCents: number };
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   /** Alta desde el panel: identidad opcional, sin freno por IP y vuelve a la reserva del panel. */
@@ -235,10 +235,16 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const precioLlegada = fares.ARRIVAL?.priceCents ?? route.priceCents;
   const precioVuelta = fares.DEPARTURE?.priceCents ?? route.priceCents;
   const moneda = fares.ARRIVAL?.currency ?? route.currency;
-  // El equipaje deportivo se cobra por tramo: viaja en los dos.
-  const equipajeCents = sportsLuggageCount * extras.sportsLuggageCents;
-  const totalLlegada = reservationTotalCents(precioLlegada, fareCounts(passengerCount, halfFareCount, freeFareCount)) + equipajeCents;
-  const totalVuelta = reservationTotalCents(precioVuelta, fareCounts(passengerCount, halfFareCount, freeFareCount)) + equipajeCents;
+  const monedaVuelta = fares.DEPARTURE?.currency ?? route.currency;
+  const quote = roundTripQuote({
+    arrival: { priceCents: precioLlegada, currency: moneda, point: pickupLlegada.point },
+    departure: { priceCents: precioVuelta, currency: monedaVuelta, point: pickupVuelta.point },
+    passengerCount, halfFareCount, freeFareCount, sportsLuggageCount, coverage, extras
+  });
+  const totalTexto = quote.totals.map((total) => formatPrice(total.amountCents, total.currency)).join(" + ");
+  const resumenTramos = orderedRoundTrip(
+    { flight: llegada, quote: quote.arrival }, { flight: vuelta, quote: quote.departure }, orden
+  );
 
   async function cargarVuelos(fecha: string, sentido: "ARRIVAL" | "DEPARTURE") {
     const setCargando = sentido === "ARRIVAL" ? setCargandoLlegada : setCargandoVuelta;
@@ -304,6 +310,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     // El segundo tramo sigue al primero, se arranque llegando o saliendo.
     if (orden === "ARRIVAL" && fechaVuelta < fechaLlegada) return "La vuelta no puede ser antes de la llegada.";
     if (orden === "DEPARTURE" && fechaLlegada < fechaVuelta) return "La vuelta no puede ser antes de la salida.";
+    if (!roundTripOrderValid(llegada, vuelta, orden)) return "El vuelo de vuelta debe ser posterior al vuelo de ida. Revisá los horarios.";
     return "";
   }
 
@@ -326,6 +333,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const problemaVuelos = validarPaso1();
+    if (problemaVuelos) { setError(problemaVuelos); setPaso(1); return; }
     const problemaPickups = validarPaso2();
     if (problemaPickups) {
       setError(problemaPickups);
@@ -398,10 +407,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           propio comprobante.
         </p>
         <div className="summary-list">
-          {[
-            { etiqueta: "Llegada", tramo: resultado.arrival },
-            { etiqueta: "Vuelta", tramo: resultado.departure }
-          ].map(({ etiqueta, tramo }) => (
+          {orderedRoundTrip(resultado.arrival, resultado.departure, orden).map(({ label: etiqueta, value: tramo }) => (
             <div key={tramo.code}>
               <span>{etiqueta} · {tramo.flightNumber ?? "vuelo"} · {tramo.serviceDate ? fechaCorta(String(tramo.serviceDate).slice(0, 10)) : ""}</span>
               <strong>{formatShortCode(tramo.shortCode)}</strong>
@@ -670,23 +676,18 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               ) : null}
 
               <div className="summary-list plain-card">
-                <div>
-                  <span>Llegada · {llegada ? descripcionVuelo(llegada) : "sin vuelo"}</span>
-                  <strong>{formatPrice(totalLlegada, moneda)}</strong>
-                </div>
-                <div>
-                  <span>Vuelta · {vuelta ? descripcionVuelo(vuelta) : "sin vuelo"}</span>
-                  <strong>{formatPrice(totalVuelta, moneda)}</strong>
-                </div>
-                {sportsLuggageCount > 0 ? (
-                  <div>
-                    <span>Equipaje deportivo</span>
-                    <strong>{sportsLuggageCount} bulto(s) · {formatPrice(equipajeCents, moneda)} por tramo</strong>
+                {resumenTramos.map(({ label, value }) => (
+                  <div key={label}>
+                    <span>{label} · {value.flight ? descripcionVuelo(value.flight) : "sin vuelo"}
+                      {value.quote.extras.zoneExtraCents > 0 ? ` · incluye recargo de zona ${formatPrice(value.quote.extras.zoneExtraCents, value.quote.currency)}` : ""}
+                      {sportsLuggageCount > 0 ? ` · incluye equipaje ${formatPrice(value.quote.extras.sportsLuggageTotalCents, value.quote.currency)}` : ""}
+                    </span>
+                    <strong>{formatPrice(value.quote.totalCents, value.quote.currency)}</strong>
                   </div>
-                ) : null}
+                ))}
                 <div>
                   <span>Total de los dos tramos</span>
-                  <strong>{formatPrice(totalLlegada + totalVuelta, moneda)}</strong>
+                  <strong>{totalTexto}</strong>
                 </div>
                 <div>
                   <span>Pickup</span>
@@ -741,10 +742,13 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           </div>
           <div>
             <span>Tarifa</span>
-            <strong>{formatPrice(precioLlegada, moneda)} la llegada · {formatPrice(precioVuelta, moneda)} la vuelta, por persona</strong>
+            <strong>{formatPrice(precioLlegada, moneda)} la llegada · {formatPrice(precioVuelta, monedaVuelta)} la salida, por persona</strong>
           </div>
         </div>
-        <strong className="price">{formatPrice(totalLlegada + totalVuelta, moneda)}</strong>
+        {resumenTramos.filter(({ value }) => value.quote.extras.zoneExtraCents > 0).map(({ label, value }) => (
+          <p className="muted" key={label}>{label}: incluye recargo de zona {formatPrice(value.quote.extras.zoneExtraCents, value.quote.currency)}</p>
+        ))}
+        <strong className="price">{totalTexto}</strong>
         {paso < 3 ? (
           <button className="button checkout-submit" type="button" onClick={avanzar}>
             {paso === 1 ? "Continuar con los pickups →" : "Continuar con tus datos →"}

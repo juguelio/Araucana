@@ -15,6 +15,8 @@ vi.mock("@/lib/db/prisma", () => ({
   prisma: { $transaction: (run: (client: typeof tx) => unknown) => run(tx) }
 }));
 
+vi.mock("@/lib/airport/extras-settings", () => ({ getAirportExtras: async () => ({ arrivalCutoffMinutes: 20, departureCutoffMinutes: 0 }) }));
+
 vi.mock("@/lib/airport/pickup-zone-settings", () => ({ getAirportCoverage: vi.fn() }));
 
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
@@ -393,4 +395,17 @@ describe("restitución de una reserva cancelada (#117)", () => {
     expect(reservationManagementSchema.parse({ operation: "restore", restoredBy: "Vale" }))
       .toMatchObject({ operation: "restore", restoredBy: "Vale" });
   });
+});
+
+
+it("no restituye una salida cuando la recorrida ya arrancó", async () => {
+  tx.reservation.findUnique.mockResolvedValue({ ...pending, status: "CANCELLED", bookingMode: "AIRPORT" });
+  tx.airportReservationDetails.findUnique.mockResolvedValue({
+    direction: "DEPARTURE", serviceDate: new Date(), flight: {
+      direction: "DEPARTURE", status: "SCHEDULED", scheduledAt: new Date(Date.now() + 60 * 60 * 1000),
+      estimatedAt: null, reservations: [], assignments: []
+    }
+  });
+  await expect(manageReservation(code, { operation: "restore" })).rejects.toMatchObject({ code: "SERVICE_ALREADY_STARTED" });
+  expect(tx.reservation.update).not.toHaveBeenCalled();
 });

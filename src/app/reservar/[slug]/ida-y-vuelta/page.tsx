@@ -100,7 +100,7 @@ export default async function AirportRoundTripPage({ params, searchParams }: Rut
             initialDate={fecha}
             initialFlights={vuelos}
             coverage={coverage}
-            extras={{ sportsLuggageCents: extras.sportsLuggageCents }}
+            extras={extras}
             officePickup={officePickupReady(officePickup) ? officePickup : null}
           />
         ) : (
