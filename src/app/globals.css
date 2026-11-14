@@ -1106,6 +1106,21 @@ svg {
   margin-top: 24px;
 }
 
+/* En escritorio el menú es una columna: el envoltorio no agrega nada y los pasos no se ven
+   (sólo aparecen cuando la tira horizontal tiene contenido fuera de vista). */
+.admin-nav-row {
+  position: relative;
+  min-width: 0;
+}
+
+.admin-nav-scroller {
+  min-width: 0;
+}
+
+.admin-nav-step {
+  display: none;
+}
+
 .admin-sidebar a {
   padding: 12px 14px;
   border-radius: 12px;
@@ -2470,9 +2485,25 @@ a.wizard-option { text-decoration: none; }
   .admin-sidebar .brand-lockup svg { width: 26px; height: 26px; }
   .admin-sidebar .brand-name { font-size: 18px; }
   .admin-sidebar .brand-kicker { font-size: 9px; }
-  .admin-sidebar nav { display: flex; gap: 6px; margin: 0 -16px; padding: 0 16px 10px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .admin-sidebar nav::-webkit-scrollbar { display: none; }
+  .admin-nav-row { margin: 0 -16px; }
+  .admin-nav-scroller { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .admin-nav-scroller::-webkit-scrollbar { display: none; }
+  .admin-sidebar nav { display: flex; gap: 6px; padding: 0 16px 10px; }
   .admin-sidebar a { flex: 0 0 auto; padding: 8px 13px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; white-space: nowrap; }
+  /* Pista de que la tira sigue: el borde se desvanece cuando hay más secciones de ese lado. */
+  .admin-nav-row::before,
+  .admin-nav-row::after { content: ""; position: absolute; top: 0; bottom: 10px; width: 46px; opacity: 0;
+    pointer-events: none; transition: opacity 0.18s ease; z-index: 1; }
+  .admin-nav-row::before { left: 0; background: linear-gradient(to right, rgba(251, 246, 235, 0.98), rgba(251, 246, 235, 0)); }
+  .admin-nav-row::after { right: 0; background: linear-gradient(to left, rgba(251, 246, 235, 0.98), rgba(251, 246, 235, 0)); }
+  .admin-nav-row[data-izquierda="true"]::before { opacity: 1; }
+  .admin-nav-row[data-derecha="true"]::after { opacity: 1; }
+  .admin-nav-step { position: absolute; top: 50%; transform: translateY(-62%); z-index: 2; display: grid; place-items: center;
+    width: 30px; height: 30px; min-height: 0; padding: 0; border: 0; border-radius: 50%;
+    background: transparent; color: var(--primary-deep); font-size: 22px; line-height: 1; cursor: pointer;
+    text-shadow: 0 0 6px rgba(251, 246, 235, 0.95), 0 0 3px rgba(251, 246, 235, 0.95); }
+  .admin-nav-step[data-dir="atras"] { left: -2px; }
+  .admin-nav-step[data-dir="adelante"] { right: -2px; }
   .admin-sidebar a[aria-current="page"] { border-color: var(--primary); }
   .admin-top { flex-direction: column; gap: 12px; margin-bottom: 20px; }
   .admin-top .section-title { font-size: clamp(30px, 9vw, 42px); }
