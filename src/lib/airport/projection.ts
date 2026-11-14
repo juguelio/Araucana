@@ -1,5 +1,6 @@
 import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
+import { noSeOfrece } from "./offered-flights";
 
 /**
  * Proyección del horario de vuelos a los días siguientes.
@@ -90,7 +91,7 @@ const FUENTES_DEL_PATRON = new Set(["API", "MANUAL", "FIDS"]);
  * salteados y el objetivo no es uno de ellos, no se proyecta (martes/jueves/sábado).
  */
 export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): ProjectedFlight[] {
-  const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source));
+  const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source) && !noSeOfrece(o.number));
   if (base.length === 0) return [];
 
   const objetivo = diaDeLaSemana(fecha);
