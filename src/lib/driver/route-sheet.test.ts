@@ -1,3 +1,5 @@
+import ExcelJS from "exceljs";
+import { whatsappLink } from "@/lib/airport/route-order";
 import { describe, expect, it } from "vitest";
 import {
   buildRouteSheet,
@@ -155,5 +157,39 @@ describe("planilla del chofer de una salida (issue #136)", () => {
     const sheet = buildRouteSheet(salida());
 
     expect(routeSheetFileName(sheet)).toBe("planilla-salida-san-martin-de-los-andes-villa-la-angostura-2026-11-20.xlsx");
+  });
+
+  it("el Excel del chofer trae el WhatsApp como hipervínculo, no como texto suelto", async () => {
+    // El teléfono se arma por partes: copiar uno de una salida de herramientas se lleva los asteriscos
+    // con los que se redactan los números.
+    const telefono = ["+549", "2944", "123456"].join("");
+    const base = reserva();
+    const sheet = buildRouteSheet(
+      salida({
+        reservations: [reserva({ passenger: { ...base.passenger, phone: telefono } })]
+      })
+    );
+
+    const buffer = await buildRouteSheetWorkbook(sheet, { generatedAt: new Date("2026-11-14T12:00:00.000Z") });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+
+    const page = workbook.worksheets[0];
+    const columnaContacto = ROUTE_SHEET_COLUMNS.indexOf("Contacto") + 1;
+    let celdaContacto: ExcelJS.Cell | null = null;
+    page.eachRow((fila) => {
+      if (String(fila.getCell(1).value ?? "").includes("Ana Pérez")) celdaContacto = fila.getCell(columnaContacto);
+    });
+
+    expect(celdaContacto).not.toBeNull();
+    expect(celdaContacto!.value).toMatchObject({
+      text: telefono,
+      hyperlink: "https://wa.me/5492944123456"
+    });
+  });
+
+  it("un número incompleto no genera link", () => {
+    expect(whatsappLink("123")).toBeNull();
+    expect(whatsappLink("")).toBeNull();
   });
 });

@@ -6,7 +6,7 @@ import {
   paymentLabel,
   plata
 } from "@/lib/airport/service-order";
-import { ordenarPorRecorrido, type PickupCoords } from "@/lib/airport/route-order";
+import { ordenarPorRecorrido, whatsappLink, type PickupCoords } from "@/lib/airport/route-order";
 
 /**
  * Planilla del chofer de una salida programada de ruta (issue #136).
@@ -276,7 +276,16 @@ export async function buildRouteSheetWorkbook(
 
   for (const pasajero of sheet.passengers) {
     const filaDatos = page.getRow(fila);
-    routeSheetRow(pasajero).forEach((valor, indice) => {
+    const celdas = routeSheetRow(pasajero);
+    celdas.forEach((valor, indice) => {
+      // El contacto abre el WhatsApp desde el propio Excel, igual que en la orden de servicio (#135):
+      // con la celda como texto plano el chofer tiene que copiar el número a mano.
+      if (ROUTE_SHEET_COLUMNS[indice] === "Contacto") {
+        const whatsapp = whatsappLink(valor);
+        filaDatos.getCell(indice + 1).value = whatsapp ? { text: valor, hyperlink: whatsapp, tooltip: "Abrir WhatsApp" } : valor;
+        if (whatsapp) filaDatos.getCell(indice + 1).font = { underline: true };
+        return;
+      }
       filaDatos.getCell(indice + 1).value = valor;
     });
     fila += 1;
