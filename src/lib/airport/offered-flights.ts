@@ -3,8 +3,8 @@
  *
  * Pedido del cliente (14-nov): «saca los vuelos a NQN por ahora». Son los American Jet entre
  * Neuquén y Chapelco: AJ324/325 (cargados a mano) y AJ328/329 (vistos en el tablero en octubre).
- * No se borran de la base porque el dato del aeropuerto es real; simplemente no se listan ni se
- * proyectan a futuro, así el pasajero no los ve y no se pueden reservar.
+ * No se borran de la base porque el dato del aeropuerto es real; simplemente no se listan —ni en la
+ * reserva ni en el panel del día— y no se proyectan a futuro, así no se pueden reservar.
  *
  * Volver a ofrecerlos es borrar el número de esta lista: no hay nada más que tocar.
  */
