@@ -8,9 +8,16 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getAdminReservationByCode } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
-import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
-import { manageReservationAction } from "../actions";
+import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
+import {
+  approveDisabilityDocumentAction,
+  approveManualPaymentAction,
+  manageReservationAction,
+  rejectDisabilityDocumentAction,
+  rejectManualPaymentAction
+} from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
+import "./detalle.css";
 
 type AdminPassengerPageProps = {
   searchParams: Promise<{ notice?: string }>;
@@ -25,6 +32,15 @@ function formatDateTime(value: Date | string) {
     timeStyle: "short",
     timeZone: "America/Argentina/Salta"
   }).format(new Date(value));
+}
+
+function tonoEstado(status: string) {
+  return status === "CONFIRMED" ? "ok" : status === "CANCELLED" ? "normal" : "atencion";
+}
+
+function whatsappHref(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  return digits ? `https://wa.me/${digits}` : null;
 }
 
 function formatStatus(status: string) {
@@ -65,33 +81,87 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const pickupPoint: PickupPoint | null = pickupDetails?.pickupLatitude != null && pickupDetails.pickupLongitude != null
     ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
   const detailPath = `/admin/reservas/${reservation.code}`;
+  const whatsappUrl = whatsappHref(reservation.passenger.phone);
+  const hasReceipt = Boolean(payment?.receiptBlobPathname);
+  const canViewReceipt = !disability || user.role === "ADMIN";
+  // Las mismas condiciones que usa el listado para ofrecer «Validar pago» / «Aprobar documentación».
+  const receiptReview = hasReceipt && canViewReceipt && payment?.status === "PENDING"
+    ? disability
+      ? reservation.status === DISABILITY_PENDING_STATUS && payment.receiptUploadedAt ? "documentacion" : null
+      : reservation.status === "PENDING_PAYMENT" ? "pago" : null
+    : null;
+  const pagoTexto = disability ? "Sin cargo" : paid ? "Pago registrado" : payment?.status === "REJECTED" ? "Comprobante rechazado" : hasReceipt ? "Comprobante por validar" : "Sin pago registrado";
+  const pagoTono = disability ? "normal" : paid ? "ok" : payment?.status === "REJECTED" ? "grave" : "atencion";
 
   return (
-    <AdminShell title={passengerName} role={user.role}>
-      <div className="admin-edit-head">
-        <div>
-          <p className="eyebrow">Pasajero</p>
-          <h2 className="section-title">{passengerName}</h2>
+    <AdminShell title={passengerName} eyebrow={`Reserva ${formatShortCode(reservation.shortCode)}`} role={user.role}>
+      {/* Estado y pago arriba de todo: antes el estado estaba al final del resumen y el título se repetía. */}
+      <div className="detalle-head">
+        <div className="detalle-estado">
+          <span className="pill pill-estado" data-tono={tonoEstado(reservation.status)}>{formatStatus(reservation.status)}</span>
+          <span className="pill pill-estado" data-tono={pagoTono}>{pagoTexto}</span>
+          {!disability ? <span className="detalle-total">{total}</span> : null}
+          {reservation.roundTripPartner ? (
+            <Link className="pill detalle-tramo" href={`/admin/reservas/${reservation.roundTripPartner.code}`}>
+              Ida y vuelta · ver {reservation.roundTripPartner.direction === "ARRIVAL" ? "la llegada" : reservation.roundTripPartner.direction === "DEPARTURE" ? "la vuelta" : "el otro tramo"} →
+            </Link>
+          ) : null}
         </div>
-        <Link className="ghost-button" href="/admin/reservas">
-          Volver a reservas
-        </Link>
+        <div className="detalle-contacto">
+          {whatsappUrl ? (
+            <a className="ghost-button detalle-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp al pasajero</a>
+          ) : null}
+          <Link className="ghost-button" href="/admin/reservas">Volver a reservas</Link>
+        </div>
       </div>
 
       {notice ? <p className="plain-card" role="status">{notice}</p> : null}
+
+      {receiptReview ? (
+        <section className="plain-card admin-section detalle-revision">
+          <h2>{receiptReview === "pago" ? "Comprobante por validar" : "Documentación por revisar"}</h2>
+          <p>
+            {payment?.receiptFileName ?? "Archivo subido"}
+            {payment?.receiptUploadedAt ? ` · subido el ${formatDateTime(payment.receiptUploadedAt)}` : ""}
+            {payment?.amountCents ? ` · ${money(payment.amountCents)}` : ""}
+          </p>
+          <div className="form-actions">
+            <Link className="ghost-button" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
+            {receiptReview === "pago" ? (
+              <form action={approveManualPaymentAction} className="detalle-revision-form">
+                <input type="hidden" name="code" value={reservation.code} />
+                <button className="button" type="submit">Validar pago</button>
+                <button className="ghost-button" formAction={rejectManualPaymentAction} type="submit">Rechazar</button>
+              </form>
+            ) : (
+              <form action={approveDisabilityDocumentAction} className="detalle-revision-form">
+                <input type="hidden" name="code" value={reservation.code} />
+                <input type="hidden" name="receiptVersion" value={new Date(payment!.receiptUploadedAt!).toISOString()} />
+                <button className="button" type="submit">Aprobar documentación</button>
+                <button className="ghost-button" formAction={rejectDisabilityDocumentAction} type="submit">Rechazar documentación</button>
+              </form>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <section className="plain-card admin-section">
         <h2>Gestionar reserva</h2>
         <p>{disability ? "Tarifa por discapacidad" : `Total: ${total} · ${paid ? "Pago registrado" : "Sin pago registrado"}`}</p>
         {payment?.method && paid ? <p className="muted">Forma de pago: {payment.method}</p> : null}
         {payment?.externalRef && paid ? <p className="muted">Referencia: {payment.externalRef}</p> : null}
+        {hasReceipt && canViewReceipt && !receiptReview ? (
+          <p className="muted">
+            Comprobante: <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">{payment?.receiptFileName ?? "ver archivo"}</Link>
+          </p>
+        ) : null}
         <div className="form-actions">
           <Link className="ghost-button" href={`${detailPath}/editar`}>Editar reserva</Link>
           {pending && !disability ? (
             <form action={manageReservationAction}>
               <input type="hidden" name="code" value={reservation.code} />
               <input type="hidden" name="operation" value="confirm" />
-              <button className="primary-button" type="submit" disabled={!paid && reservation.totalCents > 0}>Confirmar reserva</button>
+              <button className="button" type="submit" disabled={!paid && reservation.totalCents > 0}>Confirmar reserva</button>
             </form>
           ) : null}
           {!cancelled ? (
@@ -104,7 +174,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             <form action={manageReservationAction}>
               <input type="hidden" name="code" value={reservation.code} />
               <input type="hidden" name="operation" value="restore" />
-              <button className="primary-button" type="submit">Restituir reserva</button>
+              <button className="button" type="submit">Restituir reserva</button>
             </form>
           ) : null}
           {user.role === "ADMIN" && !paid ? (
@@ -126,17 +196,6 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <span>Código corto</span>
               <strong>{formatShortCode(reservation.shortCode)}</strong>
             </div>
-            {reservation.roundTripPartner ? (
-              <div>
-                <span>Ida y vuelta</span>
-                <strong>
-                  <Link className="table-link" href={`/admin/reservas/${reservation.roundTripPartner.code}`}>
-                    {reservation.roundTripPartner.direction === "ARRIVAL" ? "Llegada" : reservation.roundTripPartner.direction === "DEPARTURE" ? "Vuelta" : "Otro tramo"} ·{" "}
-                    {formatShortCode(reservation.roundTripPartner.shortCode)}
-                  </Link>
-                </strong>
-              </div>
-            ) : null}
             <div>
               <span>Creada por</span>
               <strong>{reservation.creatorLabel}</strong>
@@ -199,16 +258,12 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             {airport?.zoneExtraCents ? <div><span>Recargo por zona</span><strong>{money(airport.zoneExtraCents)}</strong></div> : null}
             {isChapelco && reservation.chapelcoDetails ? (
               <div>
-                <span>Busqueda</span>
+                <span>Búsqueda</span>
                 <strong>
                   {reservation.chapelcoDetails.pickupName} · {reservation.chapelcoDetails.pickupAddress}
                 </strong>
               </div>
             ) : null}
-            <div>
-              <span>Estado</span>
-              <strong>{formatStatus(reservation.status)}</strong>
-            </div>
           </div>
         </div>
 
@@ -221,8 +276,10 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <strong>{reservation.passenger.email}</strong>
             </div>
             <div>
-              <span>Telefono</span>
-              <strong>{reservation.passenger.phone}</strong>
+              <span>Teléfono</span>
+              <strong>
+                {whatsappUrl ? <a className="table-link" href={whatsappUrl} target="_blank" rel="noopener noreferrer">{reservation.passenger.phone}</a> : reservation.passenger.phone}
+              </strong>
             </div>
             <div>
               <span>Documento</span>

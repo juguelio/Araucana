@@ -1,0 +1,19 @@
+/* === Detalle de una reserva del panel ===
+   Estilos propios de la pantalla, sin tocar globals.css. */
+.detalle-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+.detalle-estado { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.detalle-total { font-family: var(--display); font-size: 22px; line-height: 1; color: var(--ink); margin-left: 4px; }
+.detalle-tramo { color: var(--primary); border-color: var(--primary-soft); text-decoration: none; }
+.detalle-tramo:hover { border-color: var(--primary); }
+.detalle-contacto { display: flex; gap: 8px; flex-wrap: wrap; }
+.detalle-whatsapp { border-color: #25d366; color: #157a3c; }
+.detalle-whatsapp:hover { background: #e6f8ec; }
+.detalle-revision { border-color: var(--accent); background: #fff8ef; }
+.detalle-revision h2 { color: var(--accent); }
+.detalle-revision-form { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .detalle-head { align-items: stretch; flex-direction: column; }
+  .detalle-contacto .ghost-button { flex: 1 1 auto; text-align: center; }
+}
+/* «Confirmar reserva» se deshabilita hasta que el pago esté registrado: que se note. */
+.admin-section .form-actions .button:disabled { opacity: .45; cursor: not-allowed; }
