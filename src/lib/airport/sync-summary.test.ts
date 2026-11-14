@@ -11,6 +11,7 @@ const resumen = (p: Partial<SyncSummary> = {}): SyncSummary => ({
   desdeTablero: 1,
   limpiados: 0,
   proyectadosLimpiados: 0,
+  realineados: 0,
   jetSmartUnificados: 0,
   repetidosConReservas: [],
   errores: [],
@@ -45,5 +46,12 @@ describe("mensajeDeRefresco", () => {
     expect(mensaje).toContain("3 vuelo(s) de JetSMART repetidos se unificaron.");
     expect(mensaje).toContain("JA3181 ARRIVAL 2026-11-13");
     expect(mensaje).toContain("tablero ARRIVAL: timeout");
+  });
+
+  it("avisa cuántos vuelos futuros tenían la hora de otro día", () => {
+    expect(mensajeDeRefresco(resumen({ realineados: 3 }))).toContain(
+      "3 vuelo(s) futuro(s) con la hora de otro día se corrigieron."
+    );
+    expect(mensajeDeRefresco(resumen())).not.toContain("se corrigieron");
   });
 });

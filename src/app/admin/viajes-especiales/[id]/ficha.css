@@ -1,0 +1,42 @@
+/* === Ficha del viaje especial === estilos propios, sin tocar globals.css */
+.viaje-cabecera { display: grid; gap: 10px; margin-bottom: 20px; }
+.viaje-cabecera-fecha { display: grid; }
+.viaje-dia-semana { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); }
+.viaje-cabecera-fecha strong { font-family: var(--display); font-size: 26px; line-height: 1.1; }
+.viaje-cabecera-datos { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 14px; color: var(--ink-soft); }
+.viaje-dato strong { color: var(--ink); }
+.viaje-contacto { font-variant-numeric: tabular-nums; }
+.viaje-faltan { margin: 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; font-size: 14px; }
+.viaje-faltan > span { font-weight: 800; color: var(--accent); }
+.viaje-faltan a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+.viaje-columnas { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+.viaje-principal, .viaje-lateral { display: grid; gap: 20px; min-width: 0; }
+.viaje-columnas .admin-section { margin-bottom: 0; }
+.viaje-lateral .admin-section[data-falta="true"] { border-color: var(--accent); }
+
+.viaje-tramos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.viaje-tramo { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; position: relative; padding-bottom: 18px; }
+.viaje-tramo:last-child { padding-bottom: 0; }
+.viaje-tramo:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 0; border-left: 2px dashed var(--line-strong); }
+.viaje-tramo-numero { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: #fff; font-size: 13px; font-weight: 800; margin-top: 2px; }
+.viaje-tramo-cuerpo h3 { margin: 4px 0 4px; font-size: 17px; }
+.viaje-tramo-meta { margin: 0; display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 14px; color: var(--ink-soft); }
+.viaje-tramo-descripcion { margin: 6px 0 0; white-space: pre-line; }
+.viaje-notas { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--line); white-space: pre-line; }
+
+.viaje-asignaciones { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.viaje-asignaciones li { display: grid; gap: 2px; font-size: 14px; }
+.viaje-resumen div { padding: 8px 0; }
+.viaje-subtitulo { margin: 14px 0 6px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
+.viaje-cobros { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.viaje-cobros li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.viaje-origen summary { cursor: pointer; font-size: 14px; }
+
+@media (max-width: 960px) {
+  .viaje-columnas { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .viaje-cabecera-fecha strong { font-size: 22px; }
+  .viaje-cabecera-datos { gap: 8px 12px; font-size: 13px; }
+}
