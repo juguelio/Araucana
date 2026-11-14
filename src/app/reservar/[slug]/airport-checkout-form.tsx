@@ -484,8 +484,18 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           <ol className="wizard-steps">
             {PASOS.map((titulo, i) => (
               <li key={titulo} data-active={paso === i + 1} data-done={paso > i + 1}>
-                <span>{i + 1}</span>
-                {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                {/* Un paso ya hecho se puede volver a abrir desde acá, igual que con «← Volver». */}
+                {paso > i + 1 ? (
+                  <button type="button" onClick={() => setPaso((i + 1) as 1 | 2)}>
+                    <span>{i + 1}</span>
+                    {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                  </button>
+                ) : (
+                  <>
+                    <span>{i + 1}</span>
+                    {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                  </>
+                )}
               </li>
             ))}
           </ol>
