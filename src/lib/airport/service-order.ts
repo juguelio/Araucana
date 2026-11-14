@@ -19,6 +19,7 @@
  */
 import ExcelJS from "exceljs";
 import { airportPickupStart } from "./pickup-start";
+import { ordenarPorRecorrido, whatsappLink } from "./route-order";
 import { ORDER_LOGO_PNG_BASE64 } from "./service-order-logo";
 
 export type ServiceOrderDirection = "ARRIVAL" | "DEPARTURE";
@@ -37,6 +38,9 @@ export type ServiceOrderReservationInput = {
   pickupName: string | null;
   pickupAddress: string | null;
   pickupNotes: string | null;
+  /** Coordenadas del retiro; sin ellas el pasajero va al final del recorrido. */
+  pickupLatitude?: number | null;
+  pickupLongitude?: number | null;
   passenger: {
     firstName: string;
     lastName: string;
@@ -68,6 +72,8 @@ export type ServiceOrderPassenger = {
   amountCents: number;
   currency: string;
   contact: string;
+  /** Punto de retiro, para ordenar la recorrida del día. */
+  pickup: { latitude: number; longitude: number } | null;
 };
 
 export type ServiceOrderBlock = {
@@ -227,7 +233,11 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
       payment: paymentLabel(reserva.paymentStatus, reserva.totalCents, reserva.currency),
       amountCents: reserva.totalCents,
       currency: reserva.currency,
-      contact: reserva.passenger.phone
+      contact: reserva.passenger.phone,
+      pickup:
+        typeof reserva.pickupLatitude === "number" && typeof reserva.pickupLongitude === "number"
+          ? { latitude: reserva.pickupLatitude, longitude: reserva.pickupLongitude }
+          : null
     };
 
     const existente = bloques.get(key);
@@ -255,7 +265,9 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
   return [...bloques.values()]
     .map((bloque) => ({
       ...bloque,
-      passengers: [...bloque.passengers].sort((a, b) => a.name.localeCompare(b.name, "es"))
+      // La recorrida sale del aeropuerto y encadena el retiro más cercano: el chofer no cruza la ciudad
+      // y vuelve. Los pasajeros sin ubicación en el mapa quedan al final (ver `ordenarPorRecorrido`).
+      passengers: ordenarPorRecorrido(bloque.passengers, (pasajero) => pasajero.pickup)
     }))
     .sort((a, b) => a.operationAt.getTime() - b.operationAt.getTime());
 }
@@ -576,9 +588,15 @@ export async function buildServiceOrderWorkbook(
       celdaPago.alignment = { horizontal: "right" };
 
       const celdaContacto = renglon.getCell(7);
-      celdaContacto.value = pasajero.contact;
+      // El chofer abre el WhatsApp con un click desde el Excel (pedido del cliente).
+      const whatsapp = whatsappLink(pasajero.contact);
+      celdaContacto.value = whatsapp
+        ? { text: pasajero.contact, hyperlink: whatsapp, tooltip: "Abrir WhatsApp" }
+        : pasajero.contact;
       celdaContacto.numFmt = "@";
-      celdaContacto.font = { size: 9.5, color: { argb: TINTA } };
+      celdaContacto.font = whatsapp
+        ? { size: 9.5, color: { argb: TINTA }, underline: true }
+        : { size: 9.5, color: { argb: TINTA } };
 
       for (let columna = 1; columna <= 7; columna += 1) {
         const celda = renglon.getCell(columna);

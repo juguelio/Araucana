@@ -15,7 +15,11 @@ export default async function AdminExcursionsPage({ searchParams }: {
 
   return (
     <AdminShell title="Excursiones" role={user.role} notice={typeof params.notice === "string" ? params.notice : undefined}
-      action={<Link className="button" href="/admin/excursiones/nueva">Nueva excursión</Link>}>
+      action={<div className="form-actions">
+        <Link className="button" href="/admin/excursiones/nueva">Nueva excursión</Link>
+        <Link className="ghost-button" href="/admin/excursiones/ventas/nueva">Registrar venta</Link>
+        <Link className="ghost-button" href="/admin/excursiones/planilla">Planilla del día</Link>
+      </div>}>
       <section className="plain-card admin-section">
         <h2>Catálogo de excursiones</h2>
         <p className={styles.help}>Creá un borrador, agregá sus fotos y publicalo cuando esté listo. Las fechas son opcionales.</p>

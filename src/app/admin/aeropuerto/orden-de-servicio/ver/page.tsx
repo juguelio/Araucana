@@ -7,7 +7,7 @@ import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-
 import { buildServiceOrderBlocks } from "@/lib/airport/service-order";
 import { linkDeLaOrden } from "@/lib/airport/service-order-link";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { CopiarLink } from "./copiar-link";
+import { CopiarLink } from "@/components/copiar-link";
 import { ImprimirButton } from "@/components/imprimir-button";
 
 export const dynamic = "force-dynamic";
