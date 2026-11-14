@@ -82,9 +82,9 @@
 
 /* `border-collapse: collapse` rompe `position: sticky` en celdas: con border-spacing 0 las líneas
    se siguen viendo igual y la última columna sí queda fija. */
-.reservas-table-scroll .data-table { min-width: 1010px; border-collapse: separate; border-spacing: 0; overflow: visible; }
+.reservas-table-scroll .data-table { min-width: 940px; border-collapse: separate; border-spacing: 0; overflow: visible; }
 .reservas-table-scroll .data-table th,
-.reservas-table-scroll .data-table td { padding: 11px 12px; }
+.reservas-table-scroll .data-table td { padding: 10px 10px; }
 .reservas-table-scroll .data-table th { white-space: nowrap; }
 
 .reservas-date {
@@ -185,4 +185,57 @@
 .reservas-row-cancelled .reservas-short-code,
 .reservas-row-cancelled .table-link {
   color: var(--ink-muted);
+}
+
+/* --- Estado y pago como etiquetas de color; la fila con comprobante por validar, resaltada --- */
+.pill-tabla { padding: 4px 10px; font-size: 11px; }
+.reservas-table-scroll tr[data-por-validar="true"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.reservas-table-scroll tr[data-por-validar="true"] td { background: #fff8ef; }
+
+/* --- Filtros plegables: en escritorio siempre abiertos; en el celular, un renglón que se abre --- */
+.reservas-filters-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.reservas-filters-summary { display: flex; align-items: center; margin: -4px 0 10px; color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.reservas-filters-activos { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; letter-spacing: .06em; }
+.reservas-filters-toggle:focus-visible + .reservas-filters-summary { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --- Celular: cada reserva es una tarjeta con sus rótulos, no una tabla de 1010 px --- */
+@media (max-width: 760px) {
+  .reservas-filters { position: relative; }
+  .reservas-filters-summary { cursor: pointer; margin: 0; min-height: 28px; }
+  .reservas-filters-summary::after { content: "▾"; margin-left: auto; font-size: 14px; }
+  .reservas-filters:has(.reservas-filters-toggle:checked) .reservas-filters-summary { margin-bottom: 12px; }
+  .reservas-filters:has(.reservas-filters-toggle:checked) .reservas-filters-summary::after { content: "▴"; }
+  .reservas-filters:not(:has(.reservas-filters-toggle:checked)) .reservas-filter-grid { display: none; }
+
+  .reservas-table-scroll { overflow: visible; border-radius: 0; }
+  .reservas-table-scroll .data-table { min-width: 0; display: block; background: transparent; overflow: visible; }
+  .reservas-table-scroll .data-table thead { display: none; }
+  .reservas-table-scroll .data-table tbody { display: grid; gap: 12px; }
+  .reservas-table-scroll .data-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 14px 14px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+  .reservas-table-scroll .data-table td { display: block; min-width: 0; padding: 0; border: 0; background: transparent; }
+  .reservas-table-scroll .data-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .reservas-table-scroll .data-table td.reservas-code::before,
+  .reservas-table-scroll .data-table td[data-label="Pasajero"]::before,
+  .reservas-table-scroll .data-table td[data-label="Acciones"]::before { display: none; }
+  .reservas-table-scroll .data-table td.reservas-code { grid-column: 1 / -1; order: -2; }
+  .reservas-table-scroll .data-table td[data-label="Pasajero"] { grid-column: 1 / -1; order: -1; font-size: 16px; }
+  .reservas-table-scroll .data-table td[data-label="WhatsApp"] { justify-self: end; }
+  .reservas-table-scroll .data-table td[data-label="Ruta"],
+  .reservas-table-scroll .data-table td[data-label="Comprobante"] { grid-column: 1 / -1; }
+  .reservas-table-scroll .data-table td:last-child { position: static; grid-column: 1 / -1; width: auto; box-shadow: none; padding-top: 6px; border-top: 1px dashed var(--line); white-space: normal; }
+  .reservas-code .reservas-long-code { max-width: 100%; }
+  .reservas-table-scroll tr[data-por-validar="true"] { border-color: var(--accent); }
+  .reservas-table-scroll tr[data-por-validar="true"] td:first-child { box-shadow: none; }
+  .reservas-table-scroll tr[data-por-validar="true"] td { background: transparent; }
+  .reservas-row-cancelled { background: #efece5; }
+  .reservas-row-actions { grid-template-columns: repeat(4, max-content); }
+  .reservas-actions { grid-template-columns: 1fr 1fr; }
+}
+
+/* Escritorio: la columna «Creada por» y la ruta en un cuerpo más chico, para que a 1280 px se
+   vean también estado y pago sin desplazar la tabla. */
+@media (min-width: 761px) {
+  .reservas-table-scroll .data-table td { font-size: 13px; }
+  .reservas-table-scroll .data-table td[data-label="Creada por"] { font-size: 12px; color: var(--ink-soft); }
+  .reservas-table-scroll .data-table td[data-label="Ruta"] { max-width: 180px; }
 }
