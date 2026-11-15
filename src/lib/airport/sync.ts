@@ -7,6 +7,7 @@ import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } fr
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { prisma } from "@/lib/db/prisma";
+import { reconciliarReservasDeVuelosPasados } from "@/lib/airport/reservation-cleanup";
 import { getAirLabsKey } from "@/lib/settings/app-settings";
 
 /**
@@ -599,6 +600,15 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
     }
 
     resumen.proyectadosLimpiados += await limpiarProyectadosQueYaNoCorresponden(dia, proyectadosDelDia);
+  }
+
+  // El sync es el único proceso que corre todos los días sin que nadie lo pida: es el lugar para
+  // cerrar las reservas de vuelos que ya pasaron y quedaron abiertas.
+  const reservas = await reconciliarReservasDeVuelosPasados();
+  if (reservas.confirmadas > 0 || reservas.canceladas > 0) {
+    resumen.repetidosConReservas.push(
+      `reservas cerradas: ${reservas.confirmadas} confirmadas (pago aprobado), ${reservas.canceladas} canceladas (vuelo pasado sin pago)`
+    );
   }
 
   return resumen;

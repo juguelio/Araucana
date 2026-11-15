@@ -1,0 +1,72 @@
+import { prisma } from "@/lib/db/prisma";
+
+/**
+ * Cierra las reservas de aeropuerto que quedaron abiertas cuando el vuelo ya pasó.
+ *
+ * Toda reserva nace en `PENDING_PAYMENT`. Si nadie la toca, queda así para siempre: en la base del
+ * cliente había 14 reservas impagas de vuelos que ya habían volado, con lo que el estado dejaba de
+ * significar algo. Y cuatro de ellas tenían el pago **aprobado**: plata cobrada, reserva sin
+ * confirmar, porque nadie sincronizaba el pago con el estado del viaje.
+ *
+ * Dos reglas, en este orden:
+ *
+ * 1. Si el pago está aprobado, la reserva se confirma. El pago manda: la persona pagó.
+ * 2. Si el vuelo ya pasó y nunca se aprobó el pago, la reserva se cancela. No se borra: queda el
+ *    registro de que existió, y el operador puede volver a confirmarla si el pasajero viajó igual.
+ *
+ * Las reservas de vuelos futuros no se tocan: son plata que todavía se puede cobrar. Y
+ * `DOCUMENTATION_PENDING` tampoco: ahí el pago ya se resolvió y falta la documentación.
+ */
+
+/** Margen después del horario del vuelo antes de dar una reserva por vencida. */
+const HORAS_DE_GRACIA = 12;
+
+export type ReconciliacionReservas = {
+  confirmadas: number;
+  canceladas: number;
+};
+
+export async function reconciliarReservasDeVuelosPasados(
+  ahora: Date = new Date()
+): Promise<ReconciliacionReservas> {
+  const abiertas = await prisma.reservation.findMany({
+    where: {
+      status: "PENDING_PAYMENT",
+      airportDetails: { isNot: null },
+      payment: { isNot: null }
+    },
+    select: {
+      id: true,
+      airportDetails: { select: { flight: { select: { scheduledAt: true } } } },
+      payment: { select: { status: true } }
+    }
+  });
+
+  const limite = new Date(ahora.getTime() - HORAS_DE_GRACIA * 3600000);
+  const confirmar: string[] = [];
+  const cancelar: string[] = [];
+
+  for (const reserva of abiertas) {
+    if (reserva.payment?.status === "APPROVED") {
+      confirmar.push(reserva.id);
+      continue;
+    }
+    const vuelo = reserva.airportDetails?.flight?.scheduledAt;
+    if (vuelo && vuelo < limite) cancelar.push(reserva.id);
+  }
+
+  if (confirmar.length > 0) {
+    await prisma.reservation.updateMany({
+      where: { id: { in: confirmar } },
+      data: { status: "CONFIRMED" }
+    });
+  }
+  if (cancelar.length > 0) {
+    await prisma.reservation.updateMany({
+      where: { id: { in: cancelar } },
+      data: { status: "CANCELLED" }
+    });
+  }
+
+  return { confirmadas: confirmar.length, canceladas: cancelar.length };
+}
