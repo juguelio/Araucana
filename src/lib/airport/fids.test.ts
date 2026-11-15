@@ -61,7 +61,26 @@ describe("tablero del aeropuerto (FIDS)", () => {
     const ahora = new Date("2026-10-16T18:00:00.000Z"); // 15:00 local
     expect(fechaDelTablero("18:00", ahora)).toBe("2026-10-16");
     expect(fechaDelTablero("23:30", ahora)).toBe("2026-10-16");
-    expect(fechaDelTablero("04:00", ahora)).toBe("2026-10-17"); // madrugada del día siguiente
+    // A las 15:00 el tablero no publica la madrugada de mañana: un 04:00 es el de hoy, que ya pasó.
+    expect(fechaDelTablero("04:00", ahora)).toBe("2026-10-16");
     expect(fechaDelTablero("cualquiera", ahora)).toBeNull();
+  });
+
+  /**
+   * El JA3183 del domingo 15 figuraba «Aterrizó» en el panel desde el sábado a la noche: el sync
+   * leyó el tablero del sábado a las 19:47, vio el vuelo de las 12:22 con estado «Aterrizó» y le
+   * asignó la fecha del domingo por haber pasado más de 6 h. Un vuelo aterrizado no es de mañana.
+   */
+  it("no adelanta el día de un vuelo que ya aterrizó", () => {
+    const sabadoALaNoche = new Date("2026-11-14T22:47:00.000Z"); // 19:47 local
+    expect(fechaDelTablero("12:22", sabadoALaNoche, "LANDED")).toBe("2026-11-14");
+    // Sin el estado tampoco se adelanta: mediodía no es la madrugada del día siguiente.
+    expect(fechaDelTablero("12:22", sabadoALaNoche)).toBe("2026-11-14");
+  });
+
+  it("de noche sí ubica la madrugada siguiente, salvo que haya aterrizado", () => {
+    const noche = new Date("2026-11-14T22:47:00.000Z"); // 19:47 local
+    expect(fechaDelTablero("06:00", noche, "SCHEDULED")).toBe("2026-11-15");
+    expect(fechaDelTablero("06:00", noche, "LANDED")).toBe("2026-11-14");
   });
 });
