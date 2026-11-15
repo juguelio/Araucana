@@ -1,3 +1,5 @@
+import { horaEfectivaDelVuelo } from "./effective-time";
+
 /**
  * Cuánto antes del vuelo arranca la recorrida que pasa a buscar a los pasajeros por sus domicilios.
  *
@@ -12,14 +14,22 @@ const LEAD_MS = AIRPORT_PICKUP_LEAD_MINUTES * 60 * 1000;
 export const AIRPORT_PICKUP_COPY =
   "Tené todo listo en la dirección indicada desde esa hora. La camioneta busca a los pasajeros uno por uno y puede pasar más tarde, según el orden de la recorrida.";
 
+/**
+ * Inicio de la recorrida de una partida: la hora coordinada a mano si existe, si no 2 h 30 antes de
+ * la **hora efectiva** del vuelo (issue #140). Con demora la recorrida se corre con la estimada —
+ * antes se calculaba con la programada y el chofer salía a buscar pasajeros de un vuelo que todavía
+ * no había salido—, y es la misma cuenta que usa el corte de venta.
+ */
 export function airportPickupStart(flight: {
   direction: string;
   scheduledAt: Date;
+  estimatedAt?: Date | null;
   pickupStartOverrideAt?: Date | null;
   status?: string;
 }) {
   if (flight.direction !== "DEPARTURE" || flight.status === "CANCELLED" || flight.status === "DIVERTED") return null;
-  return flight.pickupStartOverrideAt ?? new Date(flight.scheduledAt.getTime() - LEAD_MS);
+  if (flight.pickupStartOverrideAt) return flight.pickupStartOverrideAt;
+  return new Date(horaEfectivaDelVuelo(flight).getTime() - LEAD_MS);
 }
 
 export const airportPickupDateTime = new Intl.DateTimeFormat("es-AR", {
