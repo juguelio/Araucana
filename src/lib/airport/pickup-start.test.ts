@@ -23,6 +23,18 @@ describe("inicio de la recorrida del aeropuerto", () => {
     expect(airportPickupStart(partida({ pickupStartOverrideAt: coordinada }))).toBe(coordinada);
   });
 
+  it("acompaña la hora efectiva: la demora y el adelanto mueven la recorrida", () => {
+    // Con demora, la recorrida se corre con la estimada (issue #140).
+    const delayed = { ...partida(), estimatedAt: new Date("2026-11-12T20:45:00Z") };
+    expect(airportPickupStart(delayed)?.toISOString()).toBe("2026-11-12T18:15:00.000Z");
+    // Con adelanto también: el avión sale antes y el chofer no puede salir a la hora vieja.
+    const adelantado = { ...partida(), estimatedAt: new Date("2026-11-12T17:45:00Z") };
+    expect(airportPickupStart(adelantado)?.toISOString()).toBe("2026-11-12T15:15:00.000Z");
+    // La hora coordinada a mano manda sobre las dos.
+    const override = new Date("2026-11-12T15:00:00Z");
+    expect(airportPickupStart({ ...delayed, pickupStartOverrideAt: override })).toBe(override);
+  });
+
   it("no inventa recorrida para llegadas, cancelados ni desviados", () => {
     expect(airportPickupStart(partida({ direction: "ARRIVAL" }))).toBeNull();
     expect(airportPickupStart(partida({ status: "CANCELLED" }))).toBeNull();

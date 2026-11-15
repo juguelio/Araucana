@@ -52,9 +52,16 @@ describe("reserva de aeropuerto", () => {
       status: "LANDED",
       scheduledAt: new Date("2029-01-01T12:00:00Z"),
       source: "FIDS",
+      lastCheckedAt: new Date("2029-01-01T13:00:00Z"),
       direction: "ARRIVAL" as const
     };
     expect(motivoNoReservable(arribo, 10, ahora)).toMatch(/ya llegó/i);
+  });
+
+  it("una finalización informada cierra aunque el horario programado esté por delante", () => {
+    const early = { ...vuelo("LANDED"), source: "API", direction: "ARRIVAL" };
+    expect(motivoNoReservable(early, 10, ahora)).toMatch(/ya llegó/);
+    expect(motivoNoReservable({ ...early, direction: "DEPARTURE", status: "EN_ROUTE" }, 10, ahora)).toMatch(/ya salió/);
   });
 
   it("cierra las reservas de un arribo los minutos configurados antes de aterrizar", () => {

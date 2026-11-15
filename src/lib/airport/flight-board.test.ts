@@ -13,8 +13,8 @@ describe("vuelo terminado", () => {
     expect(vueloTerminado(vuelo({ status: "LANDED", scheduledAt: enMinutos(5) }), ahora)).toBe(true);
   });
 
-  it("sin «Aterrizó», el vuelo se da por terminado después del margen", () => {
-    expect(vueloTerminado(vuelo({ scheduledAt: enMinutos(-(MARGEN_TERMINADO_MIN + 1)) }), ahora)).toBe(true);
+  it("sin confirmación, una hora vencida no prueba que terminó", () => {
+    expect(vueloTerminado(vuelo({ scheduledAt: enMinutos(-(MARGEN_TERMINADO_MIN + 1)) }), ahora)).toBe(false);
     expect(vueloTerminado(vuelo({ scheduledAt: enMinutos(-(MARGEN_TERMINADO_MIN - 1)) }), ahora)).toBe(false);
   });
 
@@ -44,17 +44,18 @@ describe("separar vuelos del tablero", () => {
     );
 
     expect(enJuego.map((v) => v.scheduledAt)).toEqual([enMinutos(30), enMinutos(120)]);
-    expect(terminados.map((v) => v.scheduledAt)).toEqual([enMinutos(-200), enMinutos(-120)]);
+    expect(terminados.map((v) => v.scheduledAt)).toEqual([enMinutos(-120)]);
   });
 
-  it("un día entero pasado queda todo en el bloque de abajo, en orden", () => {
-    const { enJuego, terminados } = separarVuelosDelTablero(
+  it("un día pasado sin confirmación queda por verificar", () => {
+    const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(
       [vuelo({ scheduledAt: enMinutos(-600) }), vuelo({ scheduledAt: enMinutos(-400) })],
       ahora
     );
 
     expect(enJuego).toHaveLength(0);
-    expect(terminados).toHaveLength(2);
+    expect(terminados).toHaveLength(0);
+    expect(porVerificar).toHaveLength(2);
   });
 
   it("no muta la lista que recibe", () => {

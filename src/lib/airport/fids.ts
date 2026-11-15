@@ -130,6 +130,7 @@ export function fechaDelTablero(
 ): string | null {
   if (!/^\d{1,2}:\d{2}$/.test(hora)) return null;
   const [h, m] = hora.split(":").map(Number);
+  if (h > 23 || m > 59) return null;
   const local = new Date(ahora.getTime() - 3 * 3600 * 1000);
   const base = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), h, m));
 
@@ -160,9 +161,15 @@ export function estadoSegunHorario(
   return minutos >= umbralMin ? "DELAYED" : estado;
 }
 
-/** Estado del tablero → estado nuestro. El texto manda; la clase ayuda cuando el texto es ambiguo. */
+/**
+ * Estado del tablero → estado nuestro, a partir del texto visible.
+ *
+ * La clase CSS no entra en la cuenta: puede estar desactualizada y describir otro momento del
+ * vuelo. El 15/11 el tablero publicaba «En Vuelo» con la clase `arribado`, así que un avión en el
+ * aire figuraba aterrizado. Ninguna clase visual prueba un estado operacional.
+ */
 export function mapFidsStatus(f: FidsFlight): "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "LANDED" | "CANCELLED" | "DIVERTED" {
-  const t = `${f.statusText} ${f.statusClass}`.toLowerCase();
+  const t = f.statusText.toLowerCase();
   if (t.includes("cancel")) return "CANCELLED";
   if (t.includes("desviad")) return "DIVERTED";
   if (t.includes("aterriz") || t.includes("arribad")) return "LANDED";
