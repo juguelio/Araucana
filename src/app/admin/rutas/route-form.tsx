@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { AdminFormAlert, AdminSubmitButton, FieldError } from "../form-ui";
 import { initialAdminFormState, type AdminFormState } from "../form-state";
 import { StopsEditorField } from "./stops-editor-field";
+import "./ruta-form.css";
 
 type RouteFormAction = (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
 
@@ -35,9 +36,13 @@ export function RouteForm({ action, route, submitLabel }: RouteFormProps) {
   const errors = state.fieldErrors;
 
   return (
-    <form className="admin-form-grid" action={formAction}>
+    <form className="admin-form-grid ruta-form" action={formAction}>
       <AdminFormAlert state={state} />
       {route?.id ? <input type="hidden" name="id" value={route.id} /> : null}
+      {/* Antes: todos los campos en una sola grilla y las paradas apretadas en media columna
+          («Agregar parada» y «Quitar» quedaban fuera de la tarjeta). Ahora, en bloques. */}
+      <fieldset className="ruta-form-bloque">
+        <legend>Recorrido</legend>
       <label>
         Origen
         <input
@@ -63,7 +68,7 @@ export function RouteForm({ action, route, submitLabel }: RouteFormProps) {
         <FieldError id="to-error" message={errors.to} />
       </label>
       <label>
-        Via
+        Vía
         <input
           name="via"
           defaultValue={route?.via}
@@ -75,18 +80,7 @@ export function RouteForm({ action, route, submitLabel }: RouteFormProps) {
         <FieldError id="via-error" message={errors.via} />
       </label>
       <label>
-        Slug publico
-        <input
-          name="slug"
-          defaultValue={route?.slug}
-          placeholder="origen-destino-temporada"
-          aria-invalid={Boolean(errors.slug)}
-          aria-describedby={errors.slug ? "slug-error" : undefined}
-        />
-        <FieldError id="slug-error" message={errors.slug} />
-      </label>
-      <label>
-        Duracion (min)
+        Duración (min)
         <input
           name="durationMin"
           type="number"
@@ -98,6 +92,9 @@ export function RouteForm({ action, route, submitLabel }: RouteFormProps) {
         />
         <FieldError id="durationMin-error" message={errors.durationMin} />
       </label>
+      </fieldset>
+      <fieldset className="ruta-form-bloque">
+        <legend>Venta</legend>
       <label>
         Precio
         <input
@@ -124,7 +121,7 @@ export function RouteForm({ action, route, submitLabel }: RouteFormProps) {
         <FieldError id="currency-error" message={errors.currency} />
       </label>
       <label>
-        Categoria
+        Categoría
         <input
           name="category"
           defaultValue={route?.category ?? "Argentina"}
@@ -134,20 +131,35 @@ export function RouteForm({ action, route, submitLabel }: RouteFormProps) {
         />
         <FieldError id="category-error" message={errors.category} />
       </label>
-      <label className="span-2">
-        Descripcion
+      <label>
+        Slug público
+        <input
+          name="slug"
+          defaultValue={route?.slug}
+          placeholder="origen-destino-temporada"
+          aria-invalid={Boolean(errors.slug)}
+          aria-describedby={errors.slug ? "slug-error" : undefined}
+        />
+        <FieldError id="slug-error" message={errors.slug} />
+      </label>
+      </fieldset>
+      <label className="ruta-form-ancho">
+        Descripción
         <textarea name="description" rows={3} defaultValue={route?.description} />
       </label>
       <StopsEditorField stops={route?.stops} />
-      <label className="checkbox-row">
-        <input name="featured" type="checkbox" defaultChecked={route?.featured ?? false} />
-        Destacada
-      </label>
+      <fieldset className="ruta-form-bloque ruta-form-publicacion">
+        <legend>Publicación</legend>
       <label className="checkbox-row">
         <input name="isActive" type="checkbox" defaultChecked={route?.isActive ?? true} />
         Activa
       </label>
-      <div className="form-actions span-2">
+      <label className="checkbox-row">
+        <input name="featured" type="checkbox" defaultChecked={route?.featured ?? false} />
+        Destacada
+      </label>
+      </fieldset>
+      <div className="form-actions ruta-form-ancho">
         <AdminSubmitButton>{submitLabel}</AdminSubmitButton>
         <Link className="ghost-button" href="/admin/rutas">Cancelar</Link>
       </div>

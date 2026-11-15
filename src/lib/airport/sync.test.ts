@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { syncAirportFlights } from "./sync";
-const m = vi.hoisted(() => ({ findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), update: vi.fn(), createMany: vi.fn(), api: vi.fn(), fids: vi.fn() }));
-vi.mock("@/lib/db/prisma", () => ({ prisma: { flight: { findMany: m.findMany, findFirst: m.findFirst, count: m.count, update: m.update, createMany: m.createMany } } }));
+const m = vi.hoisted(() => ({ findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), update: vi.fn(), updateMany: vi.fn(), createMany: vi.fn(), api: vi.fn(), fids: vi.fn() }));
+vi.mock("@/lib/db/prisma", () => ({ prisma: { flight: { findMany: m.findMany, findFirst: m.findFirst, count: m.count, update: m.update, updateMany: m.updateMany, createMany: m.createMany } } }));
 vi.mock("@/lib/settings/app-settings", () => ({ getAirLabsKey: async () => "test-key" }));
 vi.mock("./provider", () => ({ fetchSchedules: m.api }));
 vi.mock("./fids", async (original) => ({ ...await original<typeof import("./fids")>(), fetchFidsBoard: m.fids }));
@@ -9,7 +9,7 @@ const live = { number: "JA3183", airline: "JA", origin: "AEP", destination: "CPC
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date("2026-11-14T14:22:00Z"));
   m.findMany.mockResolvedValue([]); m.findFirst.mockResolvedValue(null); m.count.mockResolvedValue(0);
-  m.update.mockResolvedValue({}); m.createMany.mockResolvedValue({ count: 1 });
+  m.update.mockResolvedValue({}); m.updateMany.mockResolvedValue({ count: 0 }); m.createMany.mockResolvedValue({ count: 1 });
   m.api.mockResolvedValue({ flights: [], error: null }); m.fids.mockResolvedValue({ flights: [], error: null });
 });
 afterEach(() => vi.useRealTimers());

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
@@ -21,7 +22,15 @@ export default async function EditRoutePage({ params }: EditRoutePageProps) {
   }
 
   return (
-    <AdminShell title="Editar ruta">
+    <AdminShell
+      title="Editar ruta"
+      action={
+        <div className="inline-actions">
+          <Link className="ghost-button" href="/admin/rutas">Volver a rutas</Link>
+          <Link className="button" href={`/admin/rutas/${route.id}/salidas`}>Ver salidas</Link>
+        </div>
+      }
+    >
       <section className="plain-card admin-section">
         <h2>
           {route.from} → {route.to}

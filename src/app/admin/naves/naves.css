@@ -1,0 +1,41 @@
+/* === Naves: vencimientos juntos arriba y tarjetas en el celular === estilos propios */
+@media (min-width: 761px) { .naves-stats { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
+.naves-stats .naves-stat-link { text-decoration: none; color: inherit; }
+.naves-stats .naves-stat-link:hover { border-color: var(--primary); }
+.naves-stats .naves-stat-link[data-alerta="true"] strong { color: var(--accent); }
+.naves-vencimientos { border-color: var(--accent); }
+.naves-urgentes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.naves-urgentes li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.naves-urgentes li[data-nivel="vencido"] { border-color: #c0392b; background: #fff4f2; }
+.naves-urgente-unidad { display: grid; gap: 1px; text-decoration: none; color: inherit; min-width: 0; }
+.naves-urgente-unidad:hover strong { text-decoration: underline; }
+.naves-urgente-unidad .muted { font-size: 12px; }
+.naves-urgente-papeles { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.naves-urgente-papeles .pill { font-size: 11px; padding: 4px 9px; }
+.naves-tabla tr[data-nivel="vencido"] td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
+.naves-tabla tr[data-nivel="proximo"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+
+@media (max-width: 760px) {
+  .naves-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
+  .naves-stats .admin-card { padding: 12px; }
+  .naves-stats .admin-card strong { font-size: 22px; }
+  .naves-urgentes li { align-items: flex-start; flex-direction: column; }
+  .naves-urgente-papeles { justify-content: flex-start; }
+
+  .naves-tabla-scroll { overflow: visible; }
+  .table-scroll .naves-tabla { min-width: 0; width: 100%; display: block; background: transparent; }
+  .naves-tabla thead { display: none; }
+  .naves-tabla tbody { display: grid; gap: 10px; }
+  .naves-tabla tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .naves-tabla tr[data-nivel="vencido"] { border-color: #c0392b; }
+  .naves-tabla tr[data-nivel="proximo"] { border-color: var(--accent); }
+  .naves-tabla tr[data-nivel] td:first-child { box-shadow: none; }
+  .naves-tabla td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  .naves-tabla td::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .naves-tabla td[data-label="Unidad"]::before, .naves-tabla td[data-label="Estado"]::before, .naves-tabla td[data-label="Acciones"]::before { display: none; }
+  .naves-tabla td[data-label="Unidad"] { grid-column: 1; grid-row: 1; font-size: 15px; }
+  .naves-tabla td[data-label="Estado"] { grid-column: 2; grid-row: 1; justify-self: end; }
+  .naves-tabla td[data-label="Marca / modelo · patente"], .naves-tabla td[data-label="Vencimientos"], .naves-tabla td[data-label="Acciones"] { grid-column: 1 / -1; }
+  .naves-tabla td[data-label="Acciones"] { padding-top: 8px; border-top: 1px dashed var(--line); }
+  .naves-tabla .table-actions { flex-wrap: wrap; }
+}

@@ -50,6 +50,7 @@ export function StopsEditorField({ stops }: StopsEditorFieldProps) {
 
           return (
             <div className="stops-editor-row" key={rowId}>
+              <span className="stops-editor-num" aria-hidden="true">{index + 1}</span>
               <label>
                 Nombre
                 <input
@@ -99,7 +100,7 @@ export function StopsEditorField({ stops }: StopsEditorFieldProps) {
                   placeholder="Sin tarifa"
                 />
               </label>
-              <button className="danger-button" type="button" onClick={() => removeRow(index)}>
+              <button className="danger-button" type="button" onClick={() => removeRow(index)} aria-label={`Quitar parada ${index + 1}`}>
                 Quitar
               </button>
             </div>

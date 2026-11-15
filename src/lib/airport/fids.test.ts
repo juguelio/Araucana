@@ -61,18 +61,53 @@ describe("tablero del aeropuerto (FIDS)", () => {
     const ahora = new Date("2026-10-16T18:00:00.000Z"); // 15:00 local
     expect(fechaDelTablero("18:00", ahora)).toBe("2026-10-16");
     expect(fechaDelTablero("23:30", ahora)).toBe("2026-10-16");
-    expect(fechaDelTablero("04:00", ahora)).toBe("2026-10-16"); // fecha inferida, nunca mañana
+    // A las 15:00 el tablero no publica la madrugada de mañana: un 04:00 es el de hoy, que ya pasó.
+    expect(fechaDelTablero("04:00", ahora)).toBe("2026-10-16");
     expect(fechaDelTablero("cualquiera", ahora)).toBeNull();
   });
-});
 
-it("el texto En Vuelo manda aunque el CSS diga arribado (captura 14/11)", () => {
-  const [f] = parseFidsBoard('<li class="dl"><div class="c2">JA 3183</div><div class="c4">12:22hs</div><div class="c5">00:00hs</div><span class="estado-vuelo arribado">En Vuelo</span></li>');
-  expect(mapFidsStatus(f)).toBe("EN_ROUTE");
-  expect(f.estimated).toBeNull();
-});
+  /**
+   * El JA3183 del domingo 15 figuraba «Aterrizó» en el panel desde el sábado a la noche: el sync
+   * leyó el tablero del sábado a las 19:47, vio el vuelo de las 12:22 con estado «Aterrizó» y le
+   * asignó la fecha del domingo por haber pasado más de 6 h. Un vuelo aterrizado no es de mañana.
+   */
+  it("no adelanta el día de un vuelo que ya aterrizó", () => {
+    const sabadoALaNoche = new Date("2026-11-14T22:47:00.000Z"); // 19:47 local
+    expect(fechaDelTablero("12:22", sabadoALaNoche, "LANDED")).toBe("2026-11-14");
+    // Sin el estado tampoco se adelanta: mediodía no es la madrugada del día siguiente.
+    expect(fechaDelTablero("12:22", sabadoALaNoche)).toBe("2026-11-14");
+  });
 
-it("no convierte vuelos del viernes por la tarde en vuelos del sábado", () => {
-  expect(fechaDelTablero("12:04", new Date("2026-11-13T22:00:05Z"))).toBe("2026-11-13");
-  expect(fechaDelTablero("25:77")).toBeNull();
+  it("una hora imposible no se ubica en ningún día", () => {
+    const ahora = new Date("2026-11-15T12:00:00.000Z");
+    expect(fechaDelTablero("25:00", ahora)).toBeNull();
+    expect(fechaDelTablero("12:75", ahora)).toBeNull();
+  });
+
+  /**
+   * El 15/11 el tablero publicaba «En Vuelo» con la clase CSS `arribado`. Sumando texto y clase, un
+   * avión en el aire se mapeaba a LANDED y el panel lo daba por aterrizado.
+   */
+  it("el estado sale del texto visible, no de la clase CSS", () => {
+    const vuelo = (statusText: string, statusClass: string): FidsFlight => ({
+      airlineCode: "AR",
+      airlineName: null,
+      number: "AR1658",
+      city: "AEROPARQUE",
+      scheduled: "15:40",
+      estimated: null,
+      statusText,
+      statusClass
+    });
+    expect(mapFidsStatus(vuelo("En Vuelo", "arribado"))).toBe("EN_ROUTE");
+    expect(mapFidsStatus(vuelo("Aterrizó", "arribado"))).toBe("LANDED");
+    expect(mapFidsStatus(vuelo("Demorado", "delay"))).toBe("DELAYED");
+    expect(mapFidsStatus(vuelo("Finalizado", "finalizado"))).toBe("SCHEDULED");
+  });
+
+  it("de noche sí ubica la madrugada siguiente, salvo que haya aterrizado", () => {
+    const noche = new Date("2026-11-14T22:47:00.000Z"); // 19:47 local
+    expect(fechaDelTablero("06:00", noche, "SCHEDULED")).toBe("2026-11-15");
+    expect(fechaDelTablero("06:00", noche, "LANDED")).toBe("2026-11-14");
+  });
 });

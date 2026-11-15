@@ -1,4 +1,5 @@
 import { flightEvidenceWarning, reliableEstimate, type FlightEvidence } from "./data-quality";
+import { horaEfectivaDelVuelo } from "./effective-time";
 /**
  * Orden del tablero de aeropuerto (`/admin/aeropuerto`).
  *
@@ -18,7 +19,8 @@ export type VueloConHorario = FlightEvidence;
 
 /** El horario que manda: el estimado si lo hay, si no el programado. */
 export function horaDeReferencia(vuelo: VueloConHorario): Date {
-  return reliableEstimate(vuelo) ?? vuelo.scheduledAt;
+  // La estima 00:00 del tablero no es medianoche: `reliableEstimate` la descarta y manda la programada.
+  return horaEfectivaDelVuelo({ scheduledAt: vuelo.scheduledAt, estimatedAt: reliableEstimate(vuelo) });
 }
 
 /**

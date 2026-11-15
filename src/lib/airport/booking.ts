@@ -8,9 +8,11 @@ import { createReservationCode, createReservationShortCode } from "@/lib/booking
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
+import { VUELOS_QUE_NO_SE_OFRECEN } from "./offered-flights";
 import { airportExtrasBreakdown, type AirportExtras } from "./extras";
 import { getAirportExtras } from "./extras-settings";
 import { airportPickupStart } from "./pickup-start";
+import { horaEfectivaDelVuelo } from "./effective-time";
 import { chargesZoneExtra, type AirportCoverage } from "./pickup-zone";
 import { getAirportCoverage } from "./pickup-zone-settings";
 import { jetSmartCanonicalNumber } from "./flights";
@@ -108,8 +110,9 @@ export function motivoNoReservable(
     return vuelo.direction === "ARRIVAL" ? "El vuelo ya llegó." : "El vuelo ya salió.";
   }
   // Con demora manda el horario estimado: a la hora programada el avión todavía no llegó (o no
-  // salió), así que no se le dice al pasajero que perdió el vuelo antes de que ocurra.
-  const referencia = vuelo.estimatedAt && vuelo.estimatedAt > vuelo.scheduledAt ? vuelo.estimatedAt : vuelo.scheduledAt;
+  // salió), así que no se le dice al pasajero que perdió el vuelo antes de que ocurra. La misma
+  // función alimenta la orden de servicio y la planilla del chofer (issue #140).
+  const referencia = horaEfectivaDelVuelo(vuelo);
   if (referencia <= ahora) {
     // Un horario proyectado no prueba que el vuelo haya pasado: no se afirma eso al pasajero.
     if (vuelo.source === "ESTIMADO") return "Horario estimado ya pasado.";
@@ -125,7 +128,8 @@ export function motivoNoReservable(
     const arranqueRecorrida = airportPickupStart({
       direction: "DEPARTURE",
       // Con demora la recorrida se corre con el horario vigente, no con el programado.
-      scheduledAt: referencia,
+      scheduledAt: vuelo.scheduledAt,
+      estimatedAt: vuelo.estimatedAt,
       pickupStartOverrideAt: vuelo.pickupStartOverrideAt ?? null,
       status: vuelo.status
     });
@@ -154,7 +158,12 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
   const { arrivalCutoffMinutes, departureCutoffMinutes } = await getAirportExtras();
 
   const vuelos = await prisma.flight.findMany({
-    where: { ...(input.direction ? { direction: input.direction } : {}), scheduledAt: { gte: desde, lt: hasta } },
+    where: {
+      ...(input.direction ? { direction: input.direction } : {}),
+      scheduledAt: { gte: desde, lt: hasta },
+      // El cliente pidió sacar Neuquén por ahora: el vuelo existe, pero no se ofrece.
+      number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
+    },
     orderBy: { scheduledAt: "asc" },
     include: {
       reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },

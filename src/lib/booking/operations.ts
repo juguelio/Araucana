@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { ADMIN_PAYMENT_QUEUES, adminReservationWhere, type AdminPaymentQueue } from "./admin-filters";
 
 /**
@@ -103,6 +104,9 @@ export async function getAdminOperationsSummary(now = new Date()): Promise<Admin
     prisma.flight.count({
       where: {
         scheduledAt: { gte: now },
+        // Neuquén está fuera de la oferta (pedido del cliente, 14-nov): que una reserva vieja
+        // sobre un AJ no siga generando una alerta de «vuelo sin unidad».
+        number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] },
         assignments: { none: {} },
         reservations: { some: { reservation: { status: { not: "CANCELLED" } } } }
       }

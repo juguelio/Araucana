@@ -14,6 +14,7 @@ import type { Prisma } from "@prisma/client";
 import { airLabsKeyState } from "@/lib/settings/app-settings";
 import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
+import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo?: string }> };
 
@@ -58,7 +59,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const ahora = new Date();
 
   const vuelos = await prisma.flight.findMany({
-    where: { scheduledAt: { gte: desde, lt: hasta } },
+    where: {
+      scheduledAt: { gte: desde, lt: hasta },
+      // Neuquén está fuera de la oferta por pedido del cliente (14-nov): no se opera ni se muestra.
+      number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
+    },
     orderBy: { scheduledAt: "asc" },
     include: INCLUDE_VUELO
   });

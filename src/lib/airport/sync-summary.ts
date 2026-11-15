@@ -11,6 +11,10 @@ export function mensajeDeRefresco(r: SyncSummary): string {
     r.jetSmartUnificados > 0 ? ` ${r.jetSmartUnificados} vuelo(s) de JetSMART repetidos se unificaron.` : "";
   const realineados =
     r.realineados > 0 ? ` ${r.realineados} vuelo(s) futuro(s) con la hora de otro día se corrigieron.` : "";
+  const aterrizadosAntesDeTiempo =
+    r.estadosFuturosLimpiados > 0
+      ? ` ${r.estadosFuturosLimpiados} vuelo(s) futuro(s) figuraban aterrizados y volvieron a programados.`
+      : "";
   const conReservas =
     r.repetidosConReservas.length > 0
       ? ` Quedan repetidos con reservas en las dos filas, revisalos a mano: ${r.repetidosConReservas.join("; ")}.`
@@ -19,5 +23,5 @@ export function mensajeDeRefresco(r: SyncSummary): string {
     r.errores.length > 0
       ? ` No se pudo traer los vuelos (${r.errores[0]}); se sigue con lo cargado a mano.`
       : "";
-  return `Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados (${r.desdeTablero} desde el tablero del aeropuerto), ${r.eventos} imprevisto(s).${realineados}${unificados}${conReservas}${degradado}`;
+  return `Vuelos actualizados: ${r.creados} nuevos, ${r.actualizados} revisados (${r.desdeTablero} desde el tablero del aeropuerto), ${r.eventos} imprevisto(s).${realineados}${aterrizadosAntesDeTiempo}${unificados}${conReservas}${degradado}`;
 }

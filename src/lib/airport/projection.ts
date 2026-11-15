@@ -1,5 +1,6 @@
 import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
+import { noSeOfrece } from "./offered-flights";
 
 /**
  * Proyección del horario de vuelos a los días siguientes.
@@ -90,7 +91,7 @@ const FUENTES_DEL_PATRON = new Set(["API", "MANUAL", "FIDS"]);
  * salteados y el objetivo no es uno de ellos, no se proyecta (martes/jueves/sábado).
  */
 export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): ProjectedFlight[] {
-  const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source));
+  const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source) && !noSeOfrece(o.number));
   if (base.length === 0) return [];
 
   const objetivo = diaDeLaSemana(fecha);
@@ -174,3 +175,23 @@ export function debeRealinear(
 
 /** Días siguientes a proyectar (además de hoy, que se sincroniza con datos reales). */
 export const DIAS_PROYECTADOS = 30;
+
+/**
+ * ¿El candidato ya existente cubre al proyectado? Es la heurística de cercanía horaria que evita
+ * duplicar un vuelo que la API publica con otro código.
+ *
+ * Se compara **dentro de la misma aerolínea**: el 24-nov el AJ325 de Neuquén (14:30) bloqueaba el
+ * AR1657 (14:55) por estar a 25 minutos, aunque son otra ruta y otra empresa. Un vuelo que no se
+ * ofrece tampoco puede tapar a uno que sí.
+ */
+export function esGemeloHorario(
+  proyectado: { direction: string; airline: string | null },
+  candidato: { direction: string; airline: string | null; number: string; scheduledAt: Date },
+  proyectadoEn: Date,
+  minutos = 25
+): boolean {
+  if (candidato.direction !== proyectado.direction) return false;
+  if (candidato.airline !== proyectado.airline) return false;
+  if (noSeOfrece(candidato.number)) return false;
+  return Math.abs(candidato.scheduledAt.getTime() - proyectadoEn.getTime()) <= minutos * 60000;
+}
