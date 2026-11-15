@@ -1,5 +1,6 @@
 import { jetSmartCanonicalNumber } from "./flights";
 import type { FlightDirection } from "./provider";
+import { noSeOfrece } from "./offered-flights";
 
 /**
  * Proyección del horario de vuelos a los días siguientes.
@@ -45,12 +46,26 @@ export function horaLocal(d: Date): string {
   return new Date(d.getTime() + TZ_OFFSET_MIN * 60000).toISOString().slice(11, 16);
 }
 
-function diaDeLaSemana(fecha: string): number {
+export function diaDeLaSemana(fecha: string): number {
   return new Date(`${fecha}T12:00:00-03:00`).getUTCDay();
 }
 
 function conFechaYHora(fecha: string, hora: string): Date {
   return new Date(`${fecha}T${hora}:00-03:00`);
+}
+
+/**
+ * Dos días de calendario consecutivos en la muestra. Es la señal de que el servicio es diario:
+ * un vuelo que opera martes/jueves/sábado nunca se ve dos días seguidos.
+ */
+function hayDiasConsecutivos(dias: string[]): boolean {
+  const orden = [...dias].sort();
+  for (let i = 1; i < orden.length; i += 1) {
+    const previo = new Date(`${orden[i - 1]}T12:00:00-03:00`).getTime();
+    const actual = new Date(`${orden[i]}T12:00:00-03:00`).getTime();
+    if (Math.round((actual - previo) / 86400000) === 1) return true;
+  }
+  return false;
 }
 
 /**
@@ -70,12 +85,13 @@ const FUENTES_DEL_PATRON = new Set(["API", "MANUAL", "FIDS"]);
  * Importa porque no todas las aerolíneas vuelan todos los días: American Jet hace Neuquén–Chapelco
  * martes, jueves y sábados. Si proyectáramos "el día completo", esos vuelos aparecerían un lunes.
  *
- * Regla: si conocemos ese mismo día de la semana para ese vuelo, se proyecta; si no lo conocemos y
- * sólo tenemos una muestra (un día distinto), se asume que el servicio es diario; si ya lo vimos en
- * **varios** días distintos y el objetivo no es uno de ellos, no se proyecta.
+ * Regla: si conocemos ese mismo día de la semana para ese vuelo, se proyecta; si lo vimos en días
+ * consecutivos es un servicio diario y se proyecta cualquier día; si no lo conocemos y sólo tenemos
+ * una muestra (un día distinto), se asume que el servicio es diario; si lo vimos en **varios** días
+ * salteados y el objetivo no es uno de ellos, no se proyecta (martes/jueves/sábado).
  */
 export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): ProjectedFlight[] {
-  const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source));
+  const base = observados.filter((o) => FUENTES_DEL_PATRON.has(o.source) && !noSeOfrece(o.number));
   if (base.length === 0) return [];
 
   const objetivo = diaDeLaSemana(fecha);
@@ -91,9 +107,14 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
 
   const salida = new Map<string, ProjectedFlight>();
   for (const [clave, ocurrencias] of porVuelo) {
-    const diasConocidos = new Set(ocurrencias.map((o) => diaDeLaSemana(fechaLocal(o.scheduledAt))));
+    const diasObservados = new Set(ocurrencias.map((o) => fechaLocal(o.scheduledAt)));
+    const diasConocidos = new Set([...diasObservados].map((d) => diaDeLaSemana(d)));
     const conoceElDia = diasConocidos.has(objetivo);
-    if (!conoceElDia && diasConocidos.size > 1) continue;
+    // Un vuelo visto en días consecutivos opera todos los días (Aerolíneas, JetSMART). Sin esta
+    // regla, la grilla futura sólo repetía los días de la semana que cayeron en la muestra y los
+    // lunes/miércoles quedaban sin el vuelo de la tarde (reporte de Flor, 14-nov: faltaba AR1656/57).
+    const servicioDiario = hayDiasConsecutivos([...diasObservados]);
+    if (!conoceElDia && diasConocidos.size > 1 && !servicioDiario) continue;
 
     // La referencia es la ocurrencia más reciente de ese vuelo (o la del mismo día de la semana).
     const candidatas = conoceElDia
@@ -123,5 +144,54 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
   return [...salida.values()].sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime());
 }
 
+/**
+ * ¿La fila de `diaFuturo` es el mismo servicio semanal que la del tablero (`diaTablero`)?
+ * El tablero de hoy sólo prueba el horario de ese día de la semana: JetSMART sale 12:37 un sábado
+ * y 13:50 un domingo, así que copiarle el reloj de hoy a todos los días futuros corre el vuelo
+ * de mañana (reporte de Flor, 14-nov: JA3182 del 15-nov figuraba 73 min antes).
+ */
+export function mismaFrecuenciaSemanal(diaFuturo: string, diaTablero: string): boolean {
+  return diaDeLaSemana(diaFuturo) === diaDeLaSemana(diaTablero);
+}
+
+/**
+ * Decide si una fila futura ya grabada se puede corregir para que coincida con el patrón.
+ *
+ * La grilla futura se alineaba al reloj del vuelo de hoy (issue #145: JA3182 del 15-nov quedó 73
+ * minutos antes), y esas filas quedaron **escritas** en la base. Arreglar sólo la proyección no
+ * alcanza: el pasajero sigue viendo la hora vieja hasta que alguien la corrija.
+ *
+ * Sólo se corrige la proyección propia (`ESTIMADO`) y sólo si está suelta: con una reserva o una
+ * combi asignada, la hora la decide el operador, no la grilla.
+ */
+export function debeRealinear(
+  fila: { source: string; scheduledAt: Date; reservas: number; assignments: number },
+  objetivo: Date
+): boolean {
+  if (fila.source !== "ESTIMADO") return false;
+  if (fila.reservas > 0 || fila.assignments > 0) return false;
+  return Math.abs(fila.scheduledAt.getTime() - objetivo.getTime()) >= 60_000;
+}
+
 /** Días siguientes a proyectar (además de hoy, que se sincroniza con datos reales). */
 export const DIAS_PROYECTADOS = 30;
+
+/**
+ * ¿El candidato ya existente cubre al proyectado? Es la heurística de cercanía horaria que evita
+ * duplicar un vuelo que la API publica con otro código.
+ *
+ * Se compara **dentro de la misma aerolínea**: el 24-nov el AJ325 de Neuquén (14:30) bloqueaba el
+ * AR1657 (14:55) por estar a 25 minutos, aunque son otra ruta y otra empresa. Un vuelo que no se
+ * ofrece tampoco puede tapar a uno que sí.
+ */
+export function esGemeloHorario(
+  proyectado: { direction: string; airline: string | null },
+  candidato: { direction: string; airline: string | null; number: string; scheduledAt: Date },
+  proyectadoEn: Date,
+  minutos = 25
+): boolean {
+  if (candidato.direction !== proyectado.direction) return false;
+  if (candidato.airline !== proyectado.airline) return false;
+  if (noSeOfrece(candidato.number)) return false;
+  return Math.abs(candidato.scheduledAt.getTime() - proyectadoEn.getTime()) <= minutos * 60000;
+}

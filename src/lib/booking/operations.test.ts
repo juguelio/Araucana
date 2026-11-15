@@ -119,6 +119,7 @@ describe("resumen operativo del panel", () => {
     });
     expect(mocks.countFlights.mock.calls[0][0].where).toEqual({
       scheduledAt: { gte: ahora },
+      number: { notIn: ["AJ324", "AJ325", "AJ328", "AJ329"] },
       assignments: { none: {} },
       reservations: { some: { reservation: { status: { not: "CANCELLED" } } } }
     });

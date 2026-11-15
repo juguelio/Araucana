@@ -7,6 +7,7 @@ import { createReservationCode, createReservationShortCode } from "@/lib/booking
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
+import { VUELOS_QUE_NO_SE_OFRECEN } from "./offered-flights";
 import { airportExtrasBreakdown, type AirportExtras } from "./extras";
 import { getAirportExtras } from "./extras-settings";
 import { airportPickupStart } from "./pickup-start";
@@ -147,7 +148,12 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
   const { arrivalCutoffMinutes, departureCutoffMinutes } = await getAirportExtras();
 
   const vuelos = await prisma.flight.findMany({
-    where: { ...(input.direction ? { direction: input.direction } : {}), scheduledAt: { gte: desde, lt: hasta } },
+    where: {
+      ...(input.direction ? { direction: input.direction } : {}),
+      scheduledAt: { gte: desde, lt: hasta },
+      // El cliente pidió sacar Neuquén por ahora: el vuelo existe, pero no se ofrece.
+      number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
+    },
     orderBy: { scheduledAt: "asc" },
     include: {
       reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },

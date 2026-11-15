@@ -15,6 +15,18 @@ const base = "/admin/viajes-especiales";
 const porPagina = 50;
 const claves = ["vista", "mes", "q", "estado", "nave", "semana", "pagina"] as const;
 
+/** Lo que todavía no está cargado en el viaje, para verlo desde el listado sin abrir la ficha. */
+function pendientesDe(trip: { status: string; totalCents: number | null; billingMode: string; contact: string | null; passengers: number | null; legs: unknown }, tieneNave: boolean) {
+  if (trip.status === "CANCELLED" || trip.status === "COMPLETED") return [];
+  return [
+    !tieneNave ? "nave" : null,
+    trip.totalCents === null && trip.billingMode !== "INCLUDED" ? "precio" : null,
+    !trip.contact ? "contacto" : null,
+    trip.passengers === null ? "pasajeros" : null,
+    !Array.isArray(trip.legs) || trip.legs.length === 0 ? "itinerario" : null
+  ].filter((x): x is string => x !== null);
+}
+
 function duration(start: Date, end: Date) {
   const minutes = Math.floor((+end - +start) / 60_000);
   const days = Math.floor(minutes / 1440);
@@ -104,6 +116,11 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
           </Link>
         </li>)}
       </ul>
+      {/* En el celular los filtros se pliegan; la casilla (sin JS) los deja abiertos si hay alguno activo. */}
+      <input className="vesp-filtros-toggle" id="vesp-filtros-toggle" type="checkbox" defaultChecked={Boolean(q || status || vehicleId || mes)} />
+      <label className="vesp-filtros-summary" htmlFor="vesp-filtros-toggle">
+        Filtros{q || status || vehicleId || mes ? <span className="vesp-filtros-activos">activos</span> : null}
+      </label>
       <form method="get" className="admin-form-grid vesp-filtros">
         <input type="hidden" name="vista" value={vista} />
         {mes && <input type="hidden" name="mes" value={mes} />}
@@ -133,18 +150,22 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
       {!!trips.length && <div className="table-scroll"><table className="data-table vesp-tabla">
         <thead><tr><th>Fecha</th><th>Cliente</th><th>Destino o servicio</th><th>Pax</th><th>Nave</th><th>Estado</th><th>Acciones</th></tr></thead>
         {grupos.map((grupo) => <tbody key={grupo.clave} className="vesp-grupo">
-          {(grupos.length > 1 || filtroMes === null) && <tr><th colSpan={7} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
+          {(grupos.length > 1 || filtroMes === null) && <tr className="vesp-grupo-titulo"><th colSpan={7} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
           {grupo.items.map((trip) => {
             const asignadas = [...new Set(trip.assignments.map((a) => naves.get(a.vehicleId) ?? "Nave"))];
             const estado = tonoFila(trip, asignadas.length > 0, hoy);
-            return <tr key={trip.id}>
-              <td className="vesp-num" data-hoy={claveDia(trip.serviceDate) === claveDia(hoy)}>{etiquetaRelativa(trip.serviceDate, hoy) && <strong>{etiquetaRelativa(trip.serviceDate, hoy)} · </strong>}{etiquetaFecha(trip.serviceDate, hoy)}</td>
-              <td className="vesp-cliente"><Link href={`${base}/${trip.id}`}>{trip.client}</Link>{trip.contact && <small>{trip.contact}</small>}</td>
-              <td>{trip.destinationSearch.replaceAll("\n", " · ")}</td>
-              <td className="vesp-num">{trip.passengers ?? "—"}</td>
-              <td className="vesp-nave">{asignadas.length ? <strong>{asignadas.join(", ")}</strong> : "Sin nave"}</td>
-              <td><span className="pill pill-estado" data-tono={estado.tono}>{estado.label}</span></td>
-              <td><Link className="table-link" href={`${base}/${trip.id}/editar`}>Editar</Link></td>
+            const pendientes = pendientesDe(trip, asignadas.length > 0);
+            return <tr key={trip.id} data-pendientes={pendientes.length > 0 || undefined}>
+              <td className="vesp-num" data-label="Fecha" data-hoy={claveDia(trip.serviceDate) === claveDia(hoy)}>{etiquetaRelativa(trip.serviceDate, hoy) && <strong>{etiquetaRelativa(trip.serviceDate, hoy)} · </strong>}{etiquetaFecha(trip.serviceDate, hoy)}</td>
+              <td className="vesp-cliente" data-label="Cliente"><Link href={`${base}/${trip.id}`}>{trip.client}</Link>{trip.contact && <small>{trip.contact}</small>}</td>
+              <td data-label="Destino o servicio">{trip.destinationSearch.replaceAll("\n", " · ")}</td>
+              <td className="vesp-num" data-label="Pax">{trip.passengers ?? "—"}</td>
+              <td className="vesp-nave" data-label="Nave">{asignadas.length ? <strong>{asignadas.join(", ")}</strong> : "Sin nave"}</td>
+              <td data-label="Estado">
+                <span className="pill pill-estado" data-tono={estado.tono}>{estado.label}</span>
+                {pendientes.length > 0 && <small className="vesp-falta">Falta: {pendientes.join(", ")}</small>}
+              </td>
+              <td data-label="Acciones"><Link className="table-link" href={`${base}/${trip.id}/editar`}>Editar</Link></td>
             </tr>;
           })}
         </tbody>)}
