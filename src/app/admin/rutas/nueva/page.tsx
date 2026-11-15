@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { createRouteAction } from "../actions";
@@ -7,7 +8,7 @@ export default async function NewRoutePage() {
   await getCurrentAdminOrRedirect();
 
   return (
-    <AdminShell title="Agregar ruta">
+    <AdminShell title="Agregar ruta" action={<Link className="ghost-button" href="/admin/rutas">Volver a rutas</Link>}>
       <section className="plain-card admin-section">
         <h2>Nueva ruta</h2>
         <RouteForm action={createRouteAction} submitLabel="Crear ruta" />
