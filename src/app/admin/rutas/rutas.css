@@ -1,0 +1,34 @@
+/* === Rutas: cifras de control arriba y tarjetas en el celular === estilos propios */
+.rutas-stats .admin-card > .muted:last-child { font-size: 12px; }
+.rutas-stats .admin-card[data-alerta="true"] { border-color: var(--accent); }
+.rutas-stats .admin-card[data-alerta="true"] strong { color: var(--accent); }
+.rutas-nombre { display: block; }
+.rutas-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 3px; font-size: 12px; }
+.rutas-modo { padding: 2px 8px; font-size: 10px; }
+.rutas-tabla tr[data-inactiva="true"] td:not(:last-child) { color: var(--ink-muted); }
+.rutas-tabla tr[data-inactiva="true"] .rutas-nombre { color: var(--ink-soft); }
+.rutas-tabla tr[data-aviso="true"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.rutas-tabla .table-actions { flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .rutas-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px; }
+  .rutas-stats .admin-card { padding: 12px 10px; }
+  .rutas-stats .admin-card strong { font-size: 22px; }
+  .rutas-stats .admin-card > .muted:last-child { display: none; }
+
+  .rutas-tabla-scroll { overflow: visible; }
+  .table-scroll .rutas-tabla { min-width: 0; width: 100%; display: block; background: transparent; }
+  .rutas-tabla thead { display: none; }
+  .rutas-tabla tbody { display: grid; gap: 10px; }
+  .rutas-tabla tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .rutas-tabla tr[data-aviso="true"] { border-color: var(--accent); }
+  .rutas-tabla tr[data-aviso="true"] td:first-child { box-shadow: none; }
+  .rutas-tabla td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  .rutas-tabla td::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .rutas-tabla td[data-label="Ruta"]::before, .rutas-tabla td[data-label="Acciones"]::before { display: none; }
+  .rutas-tabla td[data-label="Ruta"] { grid-column: 1 / -1; font-size: 15px; }
+  .rutas-tabla td[data-label="Acciones"] { grid-column: 1 / -1; padding-top: 8px; border-top: 1px dashed var(--line); }
+}
+@media (max-width: 760px) {
+  .rutas-tabla td[data-label="Precio"] .pill { white-space: normal; line-height: 1.3; }
+}
