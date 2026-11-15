@@ -55,16 +55,20 @@ export function ScheduleCard({ schedule, routeId, vehicles, timeLabel }: {
   const detalle = vehicleDetails(nave);
 
   return (
-    <article className={`calendar-schedule ${schedule.status === "CLOSED" ? "is-closed" : ""}`}>
+    <article
+      className={`calendar-schedule ${schedule.status === "CLOSED" ? "is-closed" : ""}`}
+      data-estado={schedule.status}
+      data-completa={(schedule.totalSeats > 0 && schedule.availableSeats === 0) || undefined}
+    >
       <div className="calendar-schedule-line">
         <strong>{timeLabel}</strong>
-        <span>{schedule.availableSeats}/{schedule.totalSeats}</span>
+        <span className="calendar-schedule-cupo" title="Lugares libres / total">{schedule.availableSeats}/{schedule.totalSeats}</span>
       </div>
+      <small className="calendar-schedule-estado">{statusLabel(schedule.status)}</small>
       <p className="calendar-schedule-vehicle">
         <strong>{schedule.vehicleName}</strong>
         {detalle ? <span>{detalle}</span> : null}
       </p>
-      <small>{statusLabel(schedule.status)}</small>
       <form action={setScheduleVehicleAction} className="calendar-schedule-vehicle-change">
         <input type="hidden" name="id" value={schedule.id} />
         <select name="vehicleId" defaultValue={schedule.vehicleId} aria-label={`Nave de la salida de las ${timeLabel}`}>
@@ -75,7 +79,7 @@ export function ScheduleCard({ schedule, routeId, vehicles, timeLabel }: {
         <button type="submit">Cambiar nave</button>
       </form>
       <div className="calendar-schedule-actions">
-        <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}`}>Ver reservas</Link>
+        <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}`}>Reservas</Link>
         <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}/editar`}>Editar</Link>
         <form action={setScheduleStatusAction}>
           <input type="hidden" name="id" value={schedule.id} />

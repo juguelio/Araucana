@@ -9,6 +9,7 @@
  * Distinto del selector de reserva (`flight-selector.ts`): ahí el criterio es «se puede reservar
  * o no». Acá es «todavía no pasó».
  */
+import { horaEfectivaDelVuelo } from "./effective-time";
 
 /** Cuánto se espera después del horario para dar un vuelo por terminado si nadie marcó «Aterrizó». */
 export const MARGEN_TERMINADO_MIN = 90;
@@ -19,9 +20,9 @@ export type VueloConHorario = {
   estimatedAt: Date | null;
 };
 
-/** El horario que manda: el estimado si lo hay, si no el programado. */
+/** El horario que manda: el estimado si lo hay, si no el programado. Misma cuenta que la planilla. */
 export function horaDeReferencia(vuelo: VueloConHorario): Date {
-  return vuelo.estimatedAt ?? vuelo.scheduledAt;
+  return horaEfectivaDelVuelo(vuelo);
 }
 
 /**
