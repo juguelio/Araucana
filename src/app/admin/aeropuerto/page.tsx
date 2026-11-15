@@ -15,6 +15,7 @@ import { airLabsKeyState } from "@/lib/settings/app-settings";
 import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
+import "./aeropuerto.css";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo?: string }> };
 
@@ -121,7 +122,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             <AirlineBadge code={v.airline} size={30} />
             <span>
               <strong>{v.number}</strong>
-              <small className="muted">
+              <small className="muted flight-airline">
                 {airlineName(v.airline) ?? "Sin aerolínea"}
                 {extra ? ` · ${extra}` : ""}
               </small>
@@ -133,14 +134,16 @@ export default async function AirportPage({ searchParams }: PageProps) {
           <span className="flight-pax">
             <strong>{ocupados}</strong>
             <span className="muted">/{capacidad} lugares</span>
-            {faltanCombis ? <span className="pill pill-alerta">falta combi</span> : null}
           </span>
         </div>
 
         {evidenceWarning ? <p className="error" role="status">{evidenceWarning}</p> : null}
+        {/* Antes, según qué botones tenía el vuelo, «Gestionar vuelo» quedaba en un renglón aparte y
+            las tarjetas de una misma columna salían de distinto alto. Ahora todas tienen la misma forma:
+            un renglón de datos (combi, recorrida, origen) y uno de acciones del mismo tamaño. */}
         <div className="flight-foot">
-          <span className="muted">{v.origin}</span>
-          {pickupStart ? <span className="muted">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
+          <div className="flight-info">
+          {faltanCombis && v.assignments.length > 0 ? <span className="pill pill-alerta pill-combi">falta combi</span> : null}
           {v.assignments.length === 0 ? (
             ocupados > 0 ? (
               <span className="pill pill-alerta pill-combi">
@@ -154,7 +157,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
               {v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
             </span>
           )}
-          <span className="flight-card-actions">
+          {pickupStart ? <span className="muted flight-info-recorrida">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
+          <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>
+          </div>
+          <div className="flight-card-actions">
           {ocupados > 0 ? (
             <>
               <Link
@@ -169,7 +175,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
             </>
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto/${v.id}/editar`}>Editar vuelo</Link>
-          </span>
           <details className="flight-actions">
             <summary>Gestionar vuelo</summary>
             <div className="flight-actions-body">
@@ -195,6 +200,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
               </form>
             </div>
           </details>
+          </div>
         </div>
       </article>
     );
@@ -260,8 +266,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
       </p>
 
       {partidasParaCoordinar.length ? (
-        <details className="plain-card admin-section">
-          <summary><strong>Coordinar inicio de recorrida</strong></summary>
+        <details className="plain-card admin-section aero-coordinar">
+          <summary>
+            <strong>Coordinar inicio de recorrida</strong>
+            <span className="muted">{partidasParaCoordinar.length} {partidasParaCoordinar.length === 1 ? "partida" : "partidas"}</span>
+          </summary>
           <p className="muted">Seleccioná una partida o varias si la misma camioneta hace la recorrida. La hora indica cuándo empieza la búsqueda por las direcciones. Verificá que la unidad asignada tenga lugar para todos los pasajeros.</p>
           <form action={savePickupStartAction}>
             <input type="hidden" name="date" value={fecha} />
@@ -289,7 +298,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </p>
         </section>
       ) : (
-        <div className="flights-board">
+        <div className="flights-board aero-tablero">
         {(["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
@@ -346,7 +355,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </section>
       ) : null}
 
-      <section className="plain-card admin-section">
+      <section className="plain-card admin-section aero-carga">
         <h2>Cargar vuelo a mano</h2>
         <p className="muted">Estados posibles: {FLIGHT_STATUSES.map((s) => s.label).join(" · ")}.</p>
         <FlightForm action={createFlightAction} />

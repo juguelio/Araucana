@@ -1,0 +1,147 @@
+/* === Panel de aeropuerto: tarjetas parejas ===
+   Antes las tarjetas de una misma columna salían de distinto alto: «Gestionar vuelo» a veces bajaba a un
+   renglón propio, «Hoja del chofer» y «Editar vuelo» eran botones de 46 px junto a una etiqueta chica,
+   y el nombre de la aerolínea partía en dos renglones. Ahora toda tarjeta tiene la misma forma:
+   encabezado de un renglón, datos de un renglón y acciones de un renglón. Estilos propios de la pantalla. */
+
+/* Encabezado: un solo renglón; la aerolínea se recorta en vez de partirse. */
+.aero-tablero .flight-main { grid-template-columns: 78px minmax(0, 1fr) auto auto; }
+/* «13:25 estima» en un renglón: antes partía en dos y esa tarjeta salía más alta. */
+.aero-tablero .flight-estima { white-space: nowrap; letter-spacing: .02em; }
+.aero-tablero .flight-id > span { overflow: hidden; }
+.aero-tablero .flight-id strong { line-height: 1.2; }
+.aero-tablero .flight-airline { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aero-tablero .flight-pax { white-space: nowrap; }
+.aero-tablero .flight-card .error { margin: 0; font-size: 13px; }
+
+/* Pie: datos a la izquierda, acciones a la derecha cuando entran; si no, uno debajo del otro. */
+.aero-tablero .flight-card { position: relative; container-type: inline-size; }
+.aero-tablero .flight-card:has(.flight-actions[open]) { z-index: 3; }
+.aero-tablero .flight-foot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 14px;
+}
+@container (min-width: 620px) {
+  .aero-tablero .flight-foot { grid-template-columns: minmax(0, 1fr) auto; }
+}
+.aero-tablero .flight-info {
+  display: flex;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.aero-tablero .flight-info > * { flex: none; }
+/* Mismo alto con o sin etiqueta de combi: si no, las tarjetas sin pasajeros salían 6 px más bajas. */
+.aero-tablero .flight-info { min-height: 26px; }
+.aero-tablero .flight-main { min-height: 44px; }
+.aero-tablero .flight-info-origen { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.aero-tablero .flight-info .pill-combi { padding: 3px 9px; }
+
+/* Acciones: los tres del mismo tamaño. */
+.aero-tablero .flight-card-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 6px;
+  width: auto;
+  margin: 0;
+}
+.aero-tablero .flight-card-actions .ghost-button,
+.aero-tablero .flight-card-actions .flight-actions > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.aero-tablero .flight-card-actions .ghost-button:hover,
+.aero-tablero .flight-card-actions .flight-actions > summary:hover { border-color: var(--primary); }
+.aero-tablero .flight-card-actions .flight-actions > summary::after { content: "▾"; margin-left: 6px; font-size: 10px; }
+.aero-tablero .flight-card-actions .flight-actions[open] > summary { border-color: var(--accent); color: var(--accent); }
+
+/* «Gestionar vuelo» se abre como un menú sobre la tarjeta, sin estirarla. */
+.aero-tablero .flight-actions { position: relative; }
+.aero-tablero .flight-actions-body {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 4;
+  display: grid;
+  gap: 8px;
+  width: 260px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(23, 40, 34, 0.16);
+}
+.aero-tablero .flight-actions-body form { display: flex; gap: 6px; margin: 0; }
+.aero-tablero .flight-actions-body fieldset { display: flex; flex-wrap: wrap; flex: 1; gap: 6px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.aero-tablero .flight-actions-body select { flex: 1; min-width: 0; }
+.aero-tablero .flight-actions-body .ghost-button { min-height: 34px; padding: 0 12px; font-size: 12px; }
+.aero-tablero .flight-actions-body form:last-child { padding-top: 8px; border-top: 1px dashed var(--line); }
+.aero-tablero .flight-actions-body form:last-child .ghost-button { width: 100%; justify-content: center; color: var(--accent); }
+
+/* Coordinar inicio de recorrida: un renglón finito en vez de una tarjeta grande. */
+.aero-coordinar { padding: 0; }
+.aero-coordinar > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  font-size: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.aero-coordinar > summary::-webkit-details-marker { display: none; }
+.aero-coordinar > summary::before { content: "▸"; font-size: 11px; color: var(--ink-muted); transition: transform .15s ease; }
+.aero-coordinar[open] > summary::before { transform: rotate(90deg); }
+.aero-coordinar > summary .muted { font-size: 12px; }
+.aero-coordinar[open] > summary { border-bottom: 1px dashed var(--line); }
+.aero-coordinar > p, .aero-coordinar > form { margin: 12px 18px; }
+
+/* Cargar vuelo a mano: título del tamaño del resto y el botón del alto de los campos. */
+.aero-carga { margin-top: 24px; }
+.aero-carga h2 { font-size: 22px; }
+.aero-carga .admin-form-grid { align-items: end; }
+.aero-carga .admin-form-grid > button { align-self: end; min-height: 46px; height: 46px; }
+
+/* Clave de AirLabs: el campo con el mismo estilo que los demás. */
+.key-box .checkout-fields { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.key-box .checkout-fields > label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.key-box .checkout-fields input[type="password"] {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+}
+.key-box .checkout-fields .quantity-help { grid-column: 1 / -1; }
+
+@media (max-width: 760px) {
+  /* Resumen: 3 arriba y 2 abajo a lo ancho, sin hueco al final. */
+  .flights-summary { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .flights-summary > div { grid-column: span 2; }
+  .flights-summary > div:nth-child(n+4) { grid-column: span 3; }
+  .aero-tablero .flight-main { grid-template-columns: 58px minmax(0, 1fr); }
+  .aero-tablero .flight-card-actions { justify-content: stretch; }
+  .aero-tablero .flight-card-actions > * { flex: 1 1 0; }
+  .aero-tablero .flight-card-actions .ghost-button,
+  .aero-tablero .flight-card-actions .flight-actions > summary { justify-content: center; width: 100%; min-height: 36px; padding: 0 8px; }
+  .aero-tablero .flight-actions-body { width: min(280px, calc(100vw - 48px)); }
+  .key-box .checkout-fields { grid-template-columns: minmax(0, 1fr); }
+}
