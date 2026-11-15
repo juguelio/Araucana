@@ -101,15 +101,46 @@ export async function fetchFidsBoard(direction: FlightDirection): Promise<{ flig
 }
 
 /**
- * Fecha local (UTC-3) a la que corresponde un horario del tablero. El tablero cubre ~24 h, así que
- * una hora ya pasada hace más de 6 h pertenece al día siguiente.
+ * Desde qué hora de la tarde el tablero empieza a publicar los primeros vuelos del día siguiente.
+ * Antes de esa hora, cualquier hora que figure en el tablero es de hoy.
  */
-export function fechaDelTablero(hora: string, ahora: Date = new Date()): string | null {
+const HORA_DESDE_LA_QUE_EL_TABLERO_ADELANTA = 18;
+
+/** Hasta qué hora se considera que un vuelo es de los primeros del día. */
+const ULTIMA_HORA_DE_LA_MADRUGADA = 9;
+
+/**
+ * Fecha local (UTC-3) a la que corresponde un horario del tablero.
+ *
+ * El tablero publica la hora sin fecha, así que la fecha se infiere — y esa inferencia escribe en
+ * la grilla que el pasajero puede reservar, así que tiene que ser conservadora.
+ *
+ * Antes la regla era «una hora que ya pasó hace más de 6 h es del día siguiente». Un sábado a las
+ * 19:47 el tablero todavía listaba el JA3183 de las 12:22 con su estado «Aterrizó» (7 h 25 antes),
+ * y el sync marcó como aterrizado el vuelo del **domingo**: el panel lo mostraba como «ya pasó»
+ * el domingo a la mañana, antes de que el avión despegara.
+ *
+ * Ahora sólo se adelanta el día en el único caso en que el tablero lo hace: de noche, con los
+ * primeros vuelos de la madrugada siguiente. Y un vuelo que ya aterrizó es siempre de hoy.
+ */
+export function fechaDelTablero(
+  hora: string,
+  ahora: Date = new Date(),
+  estado?: "SCHEDULED" | "DELAYED" | "EN_ROUTE" | "LANDED" | "CANCELLED" | "DIVERTED"
+): string | null {
   if (!/^\d{1,2}:\d{2}$/.test(hora)) return null;
   const [h, m] = hora.split(":").map(Number);
   const local = new Date(ahora.getTime() - 3 * 3600 * 1000);
   const base = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), h, m));
-  if (base.getTime() + 6 * 3600 * 1000 < local.getTime()) base.setUTCDate(base.getUTCDate() + 1);
+
+  // Un vuelo que ya aterrizó no puede ser de mañana: es de hoy, por más horas que hayan pasado.
+  if (estado === "LANDED") return base.toISOString().slice(0, 10);
+
+  const horaActual = local.getUTCHours() + local.getUTCMinutes() / 60;
+  const esDeNoche = horaActual >= HORA_DESDE_LA_QUE_EL_TABLERO_ADELANTA;
+  const esPrimerVueloDelDia = h < ULTIMA_HORA_DE_LA_MADRUGADA;
+  if (esDeNoche && esPrimerVueloDelDia) base.setUTCDate(base.getUTCDate() + 1);
+
   return base.toISOString().slice(0, 10);
 }
 

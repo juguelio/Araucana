@@ -12,6 +12,7 @@ const resumen = (p: Partial<SyncSummary> = {}): SyncSummary => ({
   limpiados: 0,
   proyectadosLimpiados: 0,
   realineados: 0,
+  estadosFuturosLimpiados: 0,
   jetSmartUnificados: 0,
   repetidosConReservas: [],
   errores: [],

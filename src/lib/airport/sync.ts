@@ -36,6 +36,8 @@ export type SyncSummary = {
   proyectadosLimpiados: number;
   /** Filas futuras sueltas cuya hora no era la del patrón y se corrigieron (issue #145). */
   realineados: number;
+  /** Filas futuras que figuraban aterrizadas y volvieron a programadas: un vuelo que no salió no aterrizó. */
+  estadosFuturosLimpiados: number;
   /** Vuelos de JetSMART guardados dos veces (JA y WJ) que se unificaron en una sola fila JA. */
   jetSmartUnificados: number;
   /** Vuelos que siguen repetidos porque más de una fila tiene reservas: los resuelve una persona. */
@@ -98,6 +100,22 @@ async function limpiarProyectadosConDatosReales(dia: string): Promise<number> {
  * día tiene más de una fila del mismo vuelo tampoco se toca: ése es un duplicado y lo resuelve la
  * unificación, no este paso.
  */
+/**
+ * Un vuelo que todavía no salió no puede estar aterrizado.
+ *
+ * El tablero se actualizaba con la fecha mal inferida y dejaba el estado `LANDED` en la fila del
+ * día siguiente —el vuelo aparecía «ya pasó» en el panel antes de despegar—. La inferencia ya está
+ * corregida; esto limpia lo que quedó escrito mientras el bug existió, y queda como red de
+ * seguridad para cualquier otra fuente que escriba un estado imposible.
+ */
+async function limpiarEstadosQueNoPudieronOcurrir(ahora: Date = new Date()): Promise<number> {
+  const { count } = await prisma.flight.updateMany({
+    where: { scheduledAt: { gt: ahora }, status: "LANDED" },
+    data: { status: "SCHEDULED" }
+  });
+  return count;
+}
+
 async function realinearGrillaFutura(
   observados: { number: string; direction: string; scheduledAt: Date; source: string; airline: string | null; origin: string; destination: string }[]
 ): Promise<number> {
@@ -218,7 +236,7 @@ async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
 }
 
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
-  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, realineados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
+  const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, realineados: 0, estadosFuturosLimpiados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
 
@@ -315,7 +333,9 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
     const vistos = new Set<string>();
 
     for (const { f, canonical } of tablero) {
-      const fecha = fechaDelTablero(f.scheduled);
+      const estadoDelTablero = mapFidsStatus(f);
+      // El estado entra en la cuenta de la fecha: un vuelo que ya aterrizó es de hoy, no de mañana.
+      const fecha = fechaDelTablero(f.scheduled, new Date(), estadoDelTablero);
       if (!fecha) continue;
       const number = canonical ?? f.number;
       const airline = canonical ? "JA" : f.airlineCode;
@@ -326,7 +346,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       const estimatedAt = f.estimated ? new Date(`${fecha}T${f.estimated}:00-03:00`) : null;
       // El estado declarado por el tablero, corregido con los horarios: si la estima se corrió
       // 30 min o más, es una demora aunque el tablero diga "Pre Embarque" o "En horario".
-      const estado = estadoSegunHorario(mapFidsStatus(f), scheduledAt, estimatedAt);
+      const estado = estadoSegunHorario(estadoDelTablero, scheduledAt, estimatedAt);
 
       // Mismo número y mismo día = el mismo vuelo, aunque las fuentes no coincidan en el horario
       // (la API puede estar publicando el horario viejo). El tablero es la vista del aeropuerto, así
@@ -444,6 +464,7 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
   // día todavía era futuro, se descartan una vez que hay dato de la API o del tablero.
   for (const dia of diasDesdeHoy(opts.days ?? DIAS_A_SINCRONIZAR)) {
     resumen.proyectadosLimpiados += await limpiarProyectadosConDatosReales(dia);
+  resumen.estadosFuturosLimpiados += await limpiarEstadosQueNoPudieronOcurrir();
   }
 
   // Los días futuros NO vienen de la API (el plan de AirLabs no publica horarios futuros).
