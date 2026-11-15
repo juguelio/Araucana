@@ -1,0 +1,100 @@
+/* === Formulario de ruta (agregar / editar) ===
+   Antes: una grilla de 4 columnas donde «Paradas» ocupaba dos y sus filas pedían más ancho del que
+   había: en una pantalla de 1280 px la página medía 1399 y «Agregar parada» y «Quitar» quedaban fuera
+   de la tarjeta. Ahora el formulario va en bloques a lo ancho. Estilos propios de esta pantalla. */
+.ruta-form { gap: 18px; }
+
+.ruta-form > .ruta-form-bloque,
+.ruta-form > .ruta-form-ancho,
+.ruta-form > .stops-editor { grid-column: 1 / -1; min-width: 0; }
+
+.ruta-form-bloque {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 250, 241, 0.55);
+}
+.ruta-form-bloque > legend {
+  padding: 0 8px;
+  margin-left: -8px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Activa / Destacada: dos casillas grandes, fáciles de tocar. */
+.ruta-form-publicacion { grid-template-columns: repeat(2, minmax(0, 220px)); }
+.ruta-form-publicacion .checkbox-row {
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+.ruta-form-publicacion .checkbox-row:has(input:checked) { border-color: var(--primary); background: #eef4f0; }
+
+.ruta-form .form-actions { margin-top: 4px; }
+
+/* Paradas: a lo ancho, numeradas, todo dentro de la tarjeta. */
+.ruta-form .stops-editor {
+  padding: 16px 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 250, 241, 0.55);
+}
+.ruta-form .stops-editor-head > span {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ruta-form .stops-editor > .muted { margin: -4px 0 0; font-size: 13px; }
+.ruta-form .stops-editor-row {
+  grid-template-columns: 28px minmax(0, 2fr) minmax(0, 0.7fr) minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 1.2fr) auto;
+  padding: 10px 12px;
+  background: var(--surface);
+}
+.ruta-form .stops-editor-row > label { min-width: 0; }
+.stops-editor-num {
+  align-self: end;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+.ruta-form .stops-editor-row .danger-button { margin-bottom: 4px; }
+
+@media (max-width: 1100px) {
+  .ruta-form-bloque { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Celular: un bloque debajo del otro; cada parada en dos columnas en vez de cinco campos apilados. */
+@media (max-width: 760px) {
+  .ruta-form-bloque,
+  .ruta-form .stops-editor { padding: 12px; }
+  .ruta-form-bloque { grid-template-columns: minmax(0, 1fr); }
+  .ruta-form-publicacion { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ruta-form .stops-editor-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 10px;
+    padding: 10px;
+  }
+  .ruta-form .stops-editor-row > label:nth-of-type(1) { grid-column: 1 / -1; }
+  .stops-editor-num { grid-column: 1; margin: 0; }
+  .ruta-form .stops-editor-row .danger-button { grid-row: 1; grid-column: 2; justify-self: end; min-height: 32px; margin: 0; }
+}
