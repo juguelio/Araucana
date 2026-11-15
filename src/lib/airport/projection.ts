@@ -55,20 +55,6 @@ function conFechaYHora(fecha: string, hora: string): Date {
 }
 
 /**
- * Dos días de calendario consecutivos en la muestra. Es la señal de que el servicio es diario:
- * un vuelo que opera martes/jueves/sábado nunca se ve dos días seguidos.
- */
-function hayDiasConsecutivos(dias: string[]): boolean {
-  const orden = [...dias].sort();
-  for (let i = 1; i < orden.length; i += 1) {
-    const previo = new Date(`${orden[i - 1]}T12:00:00-03:00`).getTime();
-    const actual = new Date(`${orden[i]}T12:00:00-03:00`).getTime();
-    if (Math.round((actual - previo) / 86400000) === 1) return true;
-  }
-  return false;
-}
-
-/**
  * Proyecta los vuelos observados a `fecha`. Si conocemos el mismo día de la semana, usa ese
  * patrón (los sábados pueden ser distintos a los miércoles); si no, usa el día real más reciente.
  */
@@ -110,11 +96,10 @@ export function proyectarVuelos(fecha: string, observados: ObservableFlight[]): 
     const diasObservados = new Set(ocurrencias.map((o) => fechaLocal(o.scheduledAt)));
     const diasConocidos = new Set([...diasObservados].map((d) => diaDeLaSemana(d)));
     const conoceElDia = diasConocidos.has(objetivo);
-    // Un vuelo visto en días consecutivos opera todos los días (Aerolíneas, JetSMART). Sin esta
-    // regla, la grilla futura sólo repetía los días de la semana que cayeron en la muestra y los
-    // lunes/miércoles quedaban sin el vuelo de la tarde (reporte de Flor, 14-nov: faltaba AR1656/57).
-    const servicioDiario = hayDiasConsecutivos([...diasObservados]);
-    if (!conoceElDia && diasConocidos.size > 1 && !servicioDiario) continue;
+    // Sólo se proyecta en los días de la semana que se vieron. Un vuelo visto en días consecutivos
+    // NO es diario: AR1654/AR1655 opera miércoles, jueves y viernes, y darlo por diario lo hacía
+    // aparecer los martes sin su par — el tablero mostraba 5 arribos y 6 partidas el 17/11.
+    if (!conoceElDia && diasConocidos.size > 1) continue;
 
     // La referencia es la ocurrencia más reciente de ese vuelo (o la del mismo día de la semana).
     const candidatas = conoceElDia

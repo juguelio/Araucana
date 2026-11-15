@@ -2,7 +2,7 @@ import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/fligh
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
 import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
 import { unificarFilasDeVuelo } from "@/lib/airport/flight-merge";
-import { debeRealinear, diaDeLaSemana, DIAS_PROYECTADOS, esGemeloHorario, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos } from "@/lib/airport/projection";
+import { debeRealinear, diaDeLaSemana, DIAS_PROYECTADOS, esGemeloHorario, fechaLocal, horaLocal, mismaFrecuenciaSemanal, proyectarVuelos, type ProjectedFlight } from "@/lib/airport/projection";
 import { estadoSegunHorario, fechaDelTablero, fetchFidsBoard, mapFidsStatus } from "@/lib/airport/fids";
 import { fetchSchedules, type FlightDirection } from "@/lib/airport/provider";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -233,6 +233,50 @@ async function unificarJetSmartRepetidos(resumen: SyncSummary): Promise<void> {
   for (const r of plan.conReservasRepetidas) {
     resumen.repetidosConReservas.push(`${r.number} ${r.direction} ${r.dia} (${r.ids.length} filas con reservas)`);
   }
+}
+
+/**
+ * Un vuelo proyectado vale mientras el patrón lo justifique.
+ *
+ * Cuando se conocen más días de un servicio, la proyección deja de generarlo —pero la fila vieja
+ * seguía en la base para siempre, porque la única limpieza que había borra los ESTIMADO de los días
+ * que ya tienen datos reales, y un día futuro nunca los tiene.
+ *
+ * Se veía en el tablero: el 17/11 mostraba 5 arribos y 6 partidas. AR1655 estaba proyectado sin su
+ * AR1654, que es el mismo avión: el que llega es el que después sale.
+ *
+ * Sólo se borra lo que es proyección (ESTIMADO) y no tiene ninguna reserva encima: si alguien
+ * reservó, la fila se queda y la resuelve una persona.
+ */
+export async function limpiarProyectadosQueYaNoCorresponden(
+  dia: string,
+  vigentes: ProjectedFlight[]
+): Promise<number> {
+  const { desde, hasta } = rangoDelDia(dia);
+  const esperados = new Set(vigentes.map((p) => `${p.number}|${p.direction}`));
+  const existentes = await prisma.flight.findMany({
+    where: { source: "ESTIMADO", scheduledAt: { gte: desde, lt: hasta } },
+    select: { id: true, number: true, direction: true }
+  });
+  const sobrantes = existentes.filter((f) => !esperados.has(`${f.number}|${f.direction}`));
+  if (sobrantes.length === 0) return 0;
+
+  const conReserva = new Set(
+    (
+      await prisma.airportReservationDetails.findMany({
+        where: { flightId: { in: sobrantes.map((f) => f.id) } },
+        select: { flightId: true }
+      })
+    ).map((r) => r.flightId)
+  );
+
+  let borrados = 0;
+  for (const fila of sobrantes) {
+    if (conReserva.has(fila.id)) continue;
+    await prisma.flight.delete({ where: { id: fila.id } });
+    borrados += 1;
+  }
+  return borrados;
 }
 
 export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
@@ -498,7 +542,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
     });
     if (realesDelDia > 0) continue;
 
-    for (const proyectado of proyectarVuelos(dia, observados)) {
+    const proyectadosDelDia = proyectarVuelos(dia, observados);
+    for (const proyectado of proyectadosDelDia) {
       const existe = await prisma.flight.findFirst({
         where: { number: proyectado.number, scheduledAt: proyectado.scheduledAt, direction: proyectado.direction }
       });
@@ -552,6 +597,8 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
       });
       resumen.proyectados += count;
     }
+
+    resumen.proyectadosLimpiados += await limpiarProyectadosQueYaNoCorresponden(dia, proyectadosDelDia);
   }
 
   return resumen;

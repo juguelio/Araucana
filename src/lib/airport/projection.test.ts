@@ -48,19 +48,26 @@ describe("proyectarVuelos", () => {
     expect(proyectarVuelos("2026-10-21", [m, j, s])).toEqual([]); // miércoles
   });
 
-  it("proyecta cualquier día un vuelo visto en días consecutivos (AR1656 faltaba lunes y miércoles)", () => {
-    // AR1656/57 se ven jueves, viernes y sábado: es un servicio diario, aunque el muestreo nunca
-    // cayó un lunes ni un miércoles. Antes esos días la grilla quedaba sin el vuelo de la tarde.
-    const jueves = api({ scheduledAt: new Date("2026-11-12T20:35:00.000Z") }); // 17:35 local
-    const viernes = api({ scheduledAt: new Date("2026-11-13T20:35:00.000Z") });
-    const sabado = api({ scheduledAt: new Date("2026-11-14T20:35:00.000Z") });
+  it("sólo proyecta los días de la semana que se vieron: tres días seguidos no son «diario»", () => {
+    // AR1654/AR1655 opera miércoles, jueves y viernes. Tres días consecutivos parecían un servicio
+    // diario y el vuelo se proyectaba los martes sin su par: el tablero mostraba 5 arribos y 6
+    // partidas el 17/11. Los dos son el mismo avión, el que llega es el que después sale.
+    const miercoles = api({ number: "AR1655", direction: "DEPARTURE", scheduledAt: new Date("2026-11-11T16:45:00.000Z") });
+    const jueves = api({ number: "AR1655", direction: "DEPARTURE", scheduledAt: new Date("2026-11-12T16:00:00.000Z") });
+    const viernes = api({ number: "AR1655", direction: "DEPARTURE", scheduledAt: new Date("2026-11-13T16:00:00.000Z") });
 
-    const lunes = proyectarVuelos("2026-11-23", [jueves, viernes, sabado]);
-    expect(lunes.map((v) => v.number)).toEqual(["AR1656"]);
-    expect(horaLocal(lunes[0].scheduledAt)).toBe("17:35");
+    expect(proyectarVuelos("2026-11-17", [miercoles, jueves, viernes])).toHaveLength(0); // martes
+    expect(proyectarVuelos("2026-11-21", [miercoles, jueves, viernes])).toHaveLength(0); // sábado
+    expect(proyectarVuelos("2026-11-18", [miercoles, jueves, viernes])).toHaveLength(1); // miércoles
+    expect(proyectarVuelos("2026-11-19", [miercoles, jueves, viernes])).toHaveLength(1); // jueves
+  });
 
-    const miercoles = proyectarVuelos("2026-11-25", [jueves, viernes, sabado]);
-    expect(miercoles.map((v) => v.number)).toEqual(["AR1656"]);
+  it("un vuelo visto todos los días de la semana sí se proyecta cualquier día", () => {
+    // JetSMART (JA3182) opera a diario: ahí la proyección tiene que cubrir los siete días.
+    const dias = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15"];
+    const muestras = dias.map((d) => api({ number: "JA3182", direction: "DEPARTURE", scheduledAt: new Date(`${d}T16:50:00.000Z`) }));
+    expect(proyectarVuelos("2026-11-20", muestras)).toHaveLength(1); // viernes
+    expect(proyectarVuelos("2026-11-24", muestras)).toHaveLength(1); // martes
   });
 
   it("con una sola muestra asume servicio diario, pero no inventa si ya conoce varios días", () => {
