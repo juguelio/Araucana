@@ -7,6 +7,9 @@ import { vehicleLabel } from "@/lib/booking/schedule-vehicle";
 import { prisma } from "@/lib/db/prisma";
 import { deleteScheduleAction, setScheduleStatusAction } from "../../../salidas/actions";
 import { ScheduleCard } from "./schedule-card";
+import "./salidas.css";
+
+const weekdayShort = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZone: "UTC" });
 
 type RouteSchedulesPageProps = {
   params: Promise<{ id: string }>;
@@ -127,13 +130,11 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
         </div>
       }
     >
-      <section className="route-schedule-hero">
-        <div>
-          <p className="eyebrow">{route.category} · {route.via}</p>
-          <h2>Todo el movimiento de esta ruta, en un solo lugar.</h2>
-          <p>Consultá el calendario completo, controlá los cupos disponibles y abrí cualquier salida para editarla.</p>
-        </div>
-        <div className="route-schedule-next">
+      {/* Antes: un bloque grande con un eslogan. La próxima salida pasa a ser la primera cifra. */}
+      <p className="salidas-ruta-meta">{route.category} · {route.via}</p>
+
+      <section className="route-schedule-stats salidas-stats" aria-label="Resumen de salidas">
+        <div className="salidas-proxima">
           <span>Próxima salida</span>
           {nextSchedule ? (
             <>
@@ -142,9 +143,6 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
             </>
           ) : <strong>No hay salidas futuras</strong>}
         </div>
-      </section>
-
-      <section className="route-schedule-stats" aria-label="Resumen de salidas">
         <div><span>Total programadas</span><strong>{routeSchedules.length}</strong><small>Histórico completo</small></div>
         <div><span>Desde hoy</span><strong>{upcomingSchedules.length}</strong><small>Incluye las de hoy</small></div>
         <div><span>Disponibles</span><strong>{openSchedules}</strong><small>Abiertas o en documentación</small></div>
@@ -170,10 +168,20 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
           {days.map((day, index) => {
             const daySchedules = day ? schedulesByDay.get(day) ?? [] : [];
             return (
-              <div className={`calendar-day ${day ? "" : "is-empty"}`} key={day ?? `empty-${index}`}>
+              <div
+                className={`calendar-day ${day ? "" : "is-empty"}`}
+                key={day ?? `empty-${index}`}
+                data-hoy={day === today || undefined}
+                data-pasado={(day !== null && day < today) || undefined}
+                data-sin-salidas={(day !== null && daySchedules.length === 0) || undefined}
+              >
                 {day ? <>
                   <div className="calendar-day-head">
-                    <strong>{Number(day.slice(-2))}</strong>
+                    <strong>
+                      {/* El día de la semana sólo se ve en el celular, donde el calendario pasa a lista. */}
+                      <span className="calendar-day-weekday">{weekdayShort.format(new Date(`${day}T12:00:00Z`))}</span>
+                      {Number(day.slice(-2))}
+                    </strong>
                     <Link href={`/admin/rutas/${route.id}/salidas/nueva?date=${day}`} aria-label={`Agregar salida el ${day}`}>+</Link>
                   </div>
                   <div className="calendar-day-schedules">
@@ -186,7 +194,6 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
                         timeLabel={timeFormatter.format(schedule.departureAt)}
                       />
                     ))}
-                    {!daySchedules.length ? <Link className="calendar-add-empty" href={`/admin/rutas/${route.id}/salidas/nueva?date=${day}`}>Agregar salida</Link> : null}
                   </div>
                 </> : null}
               </div>
