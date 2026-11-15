@@ -137,9 +137,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </span>
         </div>
 
-        <p className="muted">
-          {v.lastCheckedAt ? `Fuente consultada: ${airportPickupDateTime.format(v.lastCheckedAt)}` : `Carga sin consulta automática · ${airportPickupDateTime.format(v.updatedAt)}`}
-        </p>
         {evidenceWarning ? <p className="error" role="status">{evidenceWarning}</p> : null}
         <div className="flight-foot">
           <span className="muted">{v.origin}</span>
@@ -227,12 +224,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
       }
     >
-      <section className="plain-card admin-section">
-        <p><strong>Vista consultada: {airportPickupDateTime.format(ahora)} · Argentina (UTC−3).</strong></p>
-        <p>AirLabs informa vuelos con fecha. El tablero del aeropuerto no fecha cada fila; su fecha se infiere al consultarlo.
-          Las cargas manuales y las proyecciones históricas no confirman que el vuelo opere ni que esté en horario.</p>
-        <p>Un horario vencido se marca para verificar: no significa que el avión haya aterrizado. Cada tarjeta indica su fuente y última consulta.</p>
-      </section>
       <section className="flights-toolbar">
         <form className="flights-date" method="get">
           <label>
