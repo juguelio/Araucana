@@ -5,6 +5,7 @@ import {
   absoluteUrl,
   buildVoucher,
   diaCalendario,
+  documentoDelPasajero,
   estadoDelVoucher,
   importeDelVoucher,
   voucherMessage,
@@ -178,6 +179,26 @@ describe("buildVoucher", () => {
     expect(voucher.passengerName).toBe("Mercedes Utrera");
     expect(voucher.document).toBe("DNI 30111222");
     expect(voucher.referredBy).toBe("Voucher Sur");
+  });
+});
+
+describe("documento del pasajero en el voucher (#170)", () => {
+  it("imprime tipo y número cuando la reserva lo tiene", () => {
+    expect(buildVoucher(reserva()).document).toBe("DNI 30111222");
+  });
+
+  it("imprime «—» cuando la reserva anterior al DNI obligatorio lo tiene vacío", () => {
+    const sinDocumento = buildVoucher(
+      reserva({
+        passenger: { ...reserva().passenger, documentType: "DNI", documentId: "" }
+      })
+    );
+    expect(sinDocumento.document).toBe("—");
+  });
+
+  it("no inventa el tipo cuando el número viene sin tipo", () => {
+    expect(documentoDelPasajero({ documentType: "", documentId: "30111222" })).toBe("30111222");
+    expect(documentoDelPasajero({ documentType: "DNI", documentId: "   " })).toBe("—");
   });
 });
 
