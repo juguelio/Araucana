@@ -57,7 +57,7 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
     const receipt = formData.get("receipt");
 
     if (!(receipt instanceof File)) {
-      setClientError("Subi un comprobante valido.");
+      setClientError("Subí un comprobante válido.");
       event.preventDefault();
       return;
     }
@@ -113,7 +113,7 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
           <dt>CUIT</dt>
           <dd>{manualBankDetails.cuit}</dd>
         </div> : null}
-      </dl> : <a href="/soporte">Coordinar el pago</a>}
+      </dl> : <a className="ghost-button" href="/soporte">Coordinar el pago</a>}
       </>}
 
       {existingReceipt?.fileName ? (
