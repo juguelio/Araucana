@@ -20,6 +20,7 @@ import {
 } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
 import "./detalle.css";
+import { isAdminRole } from "@/lib/auth/roles";
 
 type AdminPassengerPageProps = {
   searchParams: Promise<{ notice?: string }>;
@@ -95,7 +96,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
     })
   );
   const hasReceipt = Boolean(payment?.receiptBlobPathname);
-  const canViewReceipt = !disability || user.role === "ADMIN";
+  const canViewReceipt = !disability || isAdminRole(user.role);
   // Las mismas condiciones que usa el listado para ofrecer «Validar pago» / «Aprobar documentación».
   const receiptReview = hasReceipt && canViewReceipt && payment?.status === "PENDING"
     ? disability
@@ -193,7 +194,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <button className="button" type="submit">Restituir reserva</button>
             </form>
           ) : null}
-          {user.role === "ADMIN" && !paid ? (
+          {isAdminRole(user.role) && !paid ? (
             <form action={manageReservationAction}>
               <input type="hidden" name="code" value={reservation.code} />
               <ConfirmReservationButton operation="delete" />

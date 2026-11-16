@@ -38,7 +38,7 @@ function whatsappHref(phone: string) {
 }
 
 export default async function RouteSchedulePage({ params, searchParams }: RouteSchedulePageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const [{ id: routeId, scheduleId }, query] = await Promise.all([params, searchParams]);
   const [schedule, reservations] = await Promise.all([
     prisma.schedule.findFirst({ where: { id: scheduleId, routeId }, include: { route: true, vehicle: { select: { name: true } } } }),
@@ -58,7 +58,7 @@ export default async function RouteSchedulePage({ params, searchParams }: RouteS
 
   const status = { OPEN: "Abierta", DOCUMENTATION: "Documentación", CLOSED: "Cerrada" }[schedule.status] ?? schedule.status;
   return (
-    <AdminShell title={`${schedule.route.from} → ${schedule.route.to}`} eyebrow="Salida" notice={query?.notice}
+    <AdminShell role={sessionUser.role} title={`${schedule.route.from} → ${schedule.route.to}`} eyebrow="Salida" notice={query?.notice}
       action={<div className="inline-actions">
         <Link className="ghost-button" href={`/admin/rutas/${routeId}/salidas/${scheduleId}/planilla`}>Planilla del chofer</Link>
         <Link className="ghost-button" href={`/admin/rutas/${routeId}/salidas`}>Volver a salidas</Link>

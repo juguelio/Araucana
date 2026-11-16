@@ -21,6 +21,7 @@ export function reservationCreatorLabel({ createdByName, createdByRole }: Reserv
   if (createdByRole === "GUEST") return "Huésped";
   if (!createdByName) return "Sin registro";
   const roles: Record<string, string> = {
+    SUPERADMIN: "Super administrador",
     ADMIN: "Administrador",
     SECRETARY: "Secretaría",
     DRIVER: "Chofer"

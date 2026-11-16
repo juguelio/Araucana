@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   if (!user.isActive) {
     return NextResponse.json({
-      user: { ...user, isActive: false },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, isActive: false },
       error: { code: "PENDING_APPROVAL", message: "La cuenta esta pendiente de aprobacion." }
     }, { status: 403 });
   }

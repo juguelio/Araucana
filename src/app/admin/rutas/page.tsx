@@ -37,7 +37,7 @@ function formatDuration(minutes: number) {
 }
 
 export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const routes = await listAdminRoutes();
   const activas = routes.filter((r) => r.isActive);
@@ -47,7 +47,7 @@ export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageP
   const sinSalidas = activas.filter((r) => r.scheduleCount === 0 && r.bookingMode !== "AIRPORT");
 
   return (
-    <AdminShell
+    <AdminShell role={sessionUser.role}
       title="Rutas"
       notice={params?.notice}
       action={

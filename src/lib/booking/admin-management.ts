@@ -11,6 +11,9 @@ import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
 import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable } from "@/lib/airport/booking";
 import { chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
+import { diffRecords, hasChanges } from "@/lib/audit/diff";
+import { recordAudit, type AuditAction, type AuditActor } from "@/lib/audit/record";
+import { reservationAuditInclude, reservationAuditSnapshot, reservationPassengerName, withShortCode } from "@/lib/audit/reservation";
 import { esFranjaDeChapelco, hayLugar, lugaresLibres, personasQueBloqueanLaFranja, restoredStatus, servicioYaPaso, vueloYaPaso } from "./restore";
 
 const paymentFields = {
@@ -64,14 +67,36 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
 
 type ReservationOperation = z.infer<typeof reservationManagementSchema>;
 
-export async function manageReservation(code: string, command: ReservationOperation) {
+/** Cómo queda anotada cada operación en la auditoría. */
+const auditOfOperation: Record<ReservationOperation["operation"], { action: AuditAction; summary: string }> = {
+  cancel: { action: "CANCEL", summary: "Reserva cancelada." },
+  restore: { action: "RESTORE", summary: "Reserva restituida." },
+  delete: { action: "DELETE", summary: "Reserva borrada." },
+  confirm: { action: "CONFIRM", summary: "Reserva confirmada." },
+  payment: { action: "PAYMENT_REGISTERED", summary: "Pago registrado a mano." },
+  correctPayment: { action: "UPDATE", summary: "Datos del pago corregidos." },
+  price: { action: "UPDATE", summary: "Precio de la reserva modificado." },
+  edit: { action: "UPDATE", summary: "Datos de la reserva editados." }
+};
+
+/**
+ * `actor` es quién hace la operación (lo arma el server action o la ruta desde la sesión). La
+ * auditoría se escribe en esta misma transacción: no queda un cambio sin su registro.
+ */
+export async function manageReservation(code: string, command: ReservationOperation, actor?: AuditActor | null) {
   try {
     return await prisma.$transaction(async (tx) => {
       const reservation = await tx.reservation.findUnique({
         where: { code },
-        include: { payment: true }
+        include: reservationAuditInclude
       });
       if (!reservation) throw new BookingError("RESERVATION_NOT_FOUND", "No encontramos la reserva.");
+      const before = reservationAuditSnapshot(reservation);
+      const operationAudit = auditOfOperation[command.operation];
+      const audit = {
+        actor, entity: "RESERVATION" as const, entityId: reservation.id, entityLabel: code,
+        action: operationAudit.action, summary: withShortCode(operationAudit.summary, reservation.shortCode)
+      };
 
       const { id, status, payment } = reservation;
       const paid = payment?.status === "APPROVED" && payment.provider !== DISABILITY_DOCUMENT_PROVIDER;
@@ -227,6 +252,12 @@ export async function manageReservation(code: string, command: ReservationOperat
         case "delete":
           if (paid) throw new BookingError("PAYMENT_LOCKED", "La reserva tiene un pago registrado. Podés cancelarla para conservar el registro contable.");
           await tx.reservation.delete({ where: { id } });
+          // La fila desaparece: en la auditoría queda la foto de lo que se borró.
+          await recordAudit(tx, {
+            ...audit,
+            summary: withShortCode(`Reserva borrada${reservationPassengerName(reservation) ? ` (pasajero ${reservationPassengerName(reservation)})` : ""}.`, reservation.shortCode),
+            changes: diffRecords(before, null)
+          });
           return { receiptPath: payment?.receiptBlobPathname };
         case "confirm":
           if (status === "CONFIRMED") break;
@@ -341,6 +372,13 @@ export async function manageReservation(code: string, command: ReservationOperat
           break;
         }
       }
+
+      // Sólo lo que cambió de verdad: una operación que no movió nada (cancelar una reserva ya
+      // cancelada) no deja fila.
+      const changes = diffRecords(before, reservationAuditSnapshot(
+        await tx.reservation.findUnique({ where: { id }, include: reservationAuditInclude })
+      ));
+      if (hasChanges(changes)) await recordAudit(tx, { ...audit, changes });
 
       return { receiptPath: null };
     }, { isolationLevel: "Serializable" });

@@ -40,6 +40,34 @@ model Session {
   @@index([expiresAt])
 }
 
+/// Auditoría: quién hizo qué y cuándo. Sólo se agregan filas; no hay código que las edite o borre.
+/// Sin FK a User a propósito: el actor queda copiado (id, nombre, email y rol del momento) para que
+/// borrar una cuenta no se lleve su rastro.
+model AuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  actorId     String?
+  actorName   String?
+  actorEmail  String?
+  // Rol al momento del hecho: ADMIN, SECRETARY, DRIVER, USER, GUEST (sin sesión) o SYSTEM.
+  actorRole   String   @default("SYSTEM")
+  action      String
+  entity      String
+  entityId    String?
+  // Cómo se nombra el registro en pantalla: código de reserva, email de la cuenta, etc.
+  entityLabel String?
+  summary     String
+  // Sólo los campos que cambiaron: { campo: { before, after } }. Nunca contraseñas ni tokens.
+  changes     Json?
+  ip          String?
+  userAgent   String?
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+}
+
 model TravelRoute {
   id          String     @id @default(cuid())
   slug        String     @unique

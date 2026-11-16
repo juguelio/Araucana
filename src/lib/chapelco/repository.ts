@@ -1,6 +1,7 @@
 import { omitReservationCreator, reservationCreatorData, type ReservationCreationContext } from "@/lib/booking/reservation-creator";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
+import { recordReservationCreated } from "@/lib/audit/reservation";
 import { createReservationCode, createReservationShortCode, createTicketCode } from "@/lib/booking/codes";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
@@ -282,6 +283,7 @@ export async function createChapelcoReservation(input: ChapelcoReservationInput,
         externalRef: payment.externalRef
       }
     });
+    await recordReservationCreated(tx, reservation, creator, "Chapelco");
 
     const ticketCode = createTicketCode();
     await tx.ticket.create({

@@ -52,7 +52,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
   const pendientes = receiptsPending.count + receiptsRejected.count;
 
   return (
-    <AdminShell title="Panel" eyebrow="Gestión comercial y operativa" action={<LogoutButton />} notice={params?.notice}>
+    <AdminShell role={user.role} title="Panel" eyebrow="Gestión comercial y operativa" action={<LogoutButton />} notice={params?.notice}>
       <p className="panel-session muted">Sesión de {user.email}</p>
 
       {/* Lo que se abre todos los días, a un toque. Son enlaces a pantallas que ya existen. */}

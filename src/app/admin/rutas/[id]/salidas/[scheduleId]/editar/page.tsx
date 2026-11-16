@@ -13,7 +13,7 @@ type EditRouteSchedulePageProps = {
 };
 
 export default async function EditRouteSchedulePage({ params, searchParams }: EditRouteSchedulePageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const [{ id: routeId, scheduleId }, query] = await Promise.all([params, searchParams]);
   const [schedule, formData] = await Promise.all([
     prisma.schedule.findFirst({ where: { id: scheduleId, routeId }, include: { route: true } }),
@@ -24,7 +24,7 @@ export default async function EditRouteSchedulePage({ params, searchParams }: Ed
   const detail = `/admin/rutas/${routeId}/salidas/${scheduleId}`;
 
   return (
-    <AdminShell title="Editar salida" eyebrow="Salidas de la ruta" notice={query.notice}
+    <AdminShell role={sessionUser.role} title="Editar salida" eyebrow="Salidas de la ruta" notice={query.notice}
       action={<Link className="ghost-button" href={detail}>Volver a la salida</Link>}>
       <section className="plain-card admin-section">
         <h2>{schedule.route.from} → {schedule.route.to}</h2>

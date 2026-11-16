@@ -1091,6 +1091,33 @@ describe("booking repository", () => {
     await expect(repository.rejectManualPayment(reservation.code)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
   });
 
+  it("audits who reviewed a receipt, who uploaded it, and nothing when the review is refused", async () => {
+    const client = new FakeBookingClient();
+    const rows: Array<Record<string, unknown>> = [];
+    Object.assign(client, { auditLog: { create: async ({ data }: { data: Record<string, unknown> }) => { rows.push(data); } } });
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation();
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null, receiptBlobPathname: "old" });
+    const secretary = { id: "user-2", name: "Vale", email: "vale@example.com", role: "SECRETARY" };
+    const admin = { id: "user-1", name: "Ivo", email: "ivo@example.com", role: "ADMIN" };
+
+    await repository.rejectManualPayment(reservation.code, secretary);
+    await expect(repository.approveManualPayment(reservation.code, admin)).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    await repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "new.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() });
+    await repository.approveManualPayment(reservation.code, admin);
+
+    expect(rows.map((row) => [row.action, row.actorRole, row.actorId])).toEqual([
+      ["PAYMENT_REJECTED", "SECRETARY", "user-2"],
+      ["UPDATE", "GUEST", null],
+      ["PAYMENT_APPROVED", "ADMIN", "user-1"]
+    ]);
+    expect(rows[0]).toMatchObject({ entity: "RESERVATION", entityId: reservation.id, entityLabel: reservation.code, changes: { "payment.status": { before: "PENDING", after: "REJECTED" } } });
+    expect(rows[2].changes).toEqual({
+      status: { before: "PENDING_PAYMENT", after: "CONFIRMED" },
+      "payment.status": { before: "PENDING", after: "APPROVED" }
+    });
+  });
+
   it("requires a receipt for either review decision and rejects non-manual providers", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
