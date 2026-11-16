@@ -15,6 +15,7 @@ import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type Ent
 import { formatAuditDate } from "@/lib/audit/labels";
 import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
+import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -234,6 +235,8 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   });
   if (!result.day) return result;
   revalidatePath("/admin/aeropuerto");
+  revalidatePath("/admin/salidas-del-dia");
+  if (returnsToBoard(formData)) redirectToBoard(result.day, "Combi asignada al vuelo.");
   redirect(`/admin/aeropuerto?date=${result.day}&notice=${encodeURIComponent("Combi asignada al vuelo.")}`);
 }
 
@@ -252,6 +255,8 @@ export async function removeAssignmentAction(formData: FormData) {
     });
   }
   revalidatePath("/admin/aeropuerto");
+  revalidatePath("/admin/salidas-del-dia");
+  if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.");
   notice("Combi quitada del vuelo.");
 }
 

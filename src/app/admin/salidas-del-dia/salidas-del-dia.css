@@ -1,0 +1,125 @@
+/* === Salidas del día (issue #174) ===
+   Una fila por servicio: hora | servicio | pasajeros | nave y chofer. Lo que falta asignar lleva
+   borde naranja. Estilos propios de esta pantalla. */
+
+.sd-days { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.sd-days .ghost-button { min-height: 38px; padding: 0 14px; }
+.sd-days .ghost-button.is-active { border-color: var(--primary); background: var(--primary); color: #fff; }
+.sd-date { display: flex; gap: 6px; margin: 0; }
+.sd-date input { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font: inherit; }
+
+.sd-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 24px; align-items: end; margin-bottom: 18px; }
+.sd-head h2 { margin: 0; font-size: 26px; text-transform: none; }
+.sd-head > div > .muted { margin: 4px 0 0; max-width: 62ch; font-size: 14px; }
+.sd-summary { display: grid; grid-template-columns: repeat(5, minmax(84px, auto)); gap: 8px; margin: 0; }
+.sd-summary > div { padding: 10px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.sd-summary dt { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.sd-summary dd { margin: 2px 0 0; color: var(--ink); font-size: 24px; font-weight: 800; line-height: 1.1; }
+.sd-summary > div[data-alerta] { border-color: var(--accent); background: #fbf0ea; }
+.sd-summary > div[data-alerta] dd { color: var(--accent); }
+.sd-filter { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.sd-filter .pill { padding: 7px 14px; color: var(--ink-soft); background: var(--surface); }
+.sd-filter .pill.is-active { border-color: var(--primary); background: var(--primary); color: #fff; }
+
+.sd-empty { margin: 0; padding: 28px; color: var(--ink-soft); text-align: center; }
+
+.sd-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.sd-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1.1fr) 96px minmax(0, 1.5fr);
+  gap: 14px 18px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.sd-row[data-area="RUTA"] { border-left-color: var(--primary); }
+.sd-row[data-area="AEROPUERTO"] { border-left-color: #4a7a9a; }
+.sd-row[data-area="CHAPELCO"] { border-left-color: #7b8981; }
+.sd-row[data-area="ESPECIAL"] { border-left-color: #a07a38; }
+.sd-row[data-falta] { box-shadow: inset 0 0 0 1px var(--accent); }
+
+.sd-time strong { display: block; color: var(--ink); font-size: 24px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.sd-time span { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+
+.sd-service { min-width: 0; }
+.sd-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 6px; }
+.sd-tags .pill { padding: 3px 9px; font-size: 11px; }
+.sd-area { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin-right: 4px; }
+.sd-service h3 { margin: 0; font-size: 17px; line-height: 1.3; }
+.sd-service h3 a { color: var(--ink); text-decoration: none; }
+.sd-service h3 a:hover { color: var(--primary); text-decoration: underline; }
+.sd-service .muted { margin: 2px 0 0; font-size: 13px; }
+
+.sd-pax strong { display: block; color: var(--ink); font-size: 22px; font-weight: 800; line-height: 1; }
+.sd-pax span { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 12px; }
+
+.sd-assign { min-width: 0; }
+.sd-assign select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.sd-assign select[data-falta] { border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.sd-assign .ghost-button { min-height: 36px; padding: 0 14px; font-size: 13px; white-space: nowrap; }
+
+/* Ruta: nave y chofer en una línea. */
+.sd-crew { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; margin: 0; }
+.sd-crew label { display: grid; gap: 4px; min-width: 0; }
+.sd-crew label > span { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.sd-error { grid-column: 1 / -1; margin: 0; color: var(--accent); font-size: 13px; font-weight: 700; }
+
+/* Aeropuerto y Chapelco: una línea por unidad, y abajo para sumar otra. */
+.sd-units { display: grid; gap: 8px; }
+.sd-unit { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr) auto; gap: 8px; align-items: center; }
+.sd-unit-name { margin: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sd-unit-name .muted { font-size: 12px; }
+.sd-driver { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin: 0; }
+.sd-remove { margin: 0; }
+.sd-remove .text-button { padding: 4px 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.sd-remove .text-button:hover { text-decoration: underline; }
+.sd-units form .inline-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin: 0; padding: 0; border: 0; }
+.sd-units form .inline-actions > .form-alert,
+.sd-units form .inline-actions > p { grid-column: 1 / -1; margin: 0; }
+.sd-unit + form, .sd-unit + .sd-note { padding-top: 8px; border-top: 1px dashed var(--line); }
+.sd-driver-name { margin: 0; font-size: 14px; font-weight: 700; }
+.sd-driver-name.is-missing { color: var(--accent); }
+.sd-note { margin: 0; font-size: 12px; }
+.sd-footnote { margin-top: 14px; font-size: 13px; }
+
+@media (max-width: 1180px) {
+  .sd-row { grid-template-columns: 84px minmax(0, 1fr) 84px; }
+  .sd-assign { grid-column: 1 / -1; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .sd-summary { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .sd-head { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .sd-days { width: 100%; }
+  .sd-date { flex: 1 1 100%; }
+  .sd-date input { flex: 1; }
+  /* 3 arriba y 2 abajo a lo ancho, sin hueco. */
+  .sd-summary { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .sd-summary > div { grid-column: span 2; }
+  .sd-summary > div:nth-child(n+4) { grid-column: span 3; }
+  .sd-summary > div { padding: 8px 10px; }
+  .sd-summary dd { font-size: 20px; }
+  .sd-row { grid-template-columns: 64px minmax(0, 1fr); padding: 12px; gap: 10px 12px; }
+  .sd-time strong { font-size: 20px; }
+  .sd-pax { grid-column: 2; display: flex; align-items: baseline; gap: 6px; }
+  .sd-pax strong { font-size: 18px; }
+  .sd-pax span { margin: 0; }
+  .sd-crew { grid-template-columns: minmax(0, 1fr); }
+  .sd-crew .ghost-button { width: 100%; }
+  .sd-unit { grid-template-columns: minmax(0, 1fr) auto; }
+  .sd-unit .sd-driver { grid-column: 1 / -1; grid-row: 2; }
+}

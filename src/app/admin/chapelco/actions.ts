@@ -9,6 +9,7 @@ import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts
 import { dateOnly } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
 import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit } from "@/lib/audit/entity";
+import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -110,6 +111,8 @@ export async function assignChapelcoVehicle(_state: unknown, form: FormData): Pr
   });
   if (!result.saved) return result;
   revalidatePath("/admin/chapelco");
+  revalidatePath("/admin/salidas-del-dia");
+  if (returnsToBoard(form)) redirectToBoard(day, "Nave asignada a Chapelco.");
   return chapelcoRedirect(day, "Nave asignada a Chapelco.");
 }
 
@@ -121,7 +124,10 @@ export async function releaseChapelcoVehicle(form: FormData) {
   });
   if (!duty) return;
   const day = duty.operationDay.serviceDate.toISOString().slice(0, 10);
-  if (duty._count.runs) chapelcoRedirect(day, "La nave tiene recorridos cargados para ese día.");
+  if (duty._count.runs) {
+    if (returnsToBoard(form)) redirectToBoard(day, "La nave tiene recorridos cargados para ese día.");
+    chapelcoRedirect(day, "La nave tiene recorridos cargados para ese día.");
+  }
   await prisma.chapelcoVehicleDuty.update({ where: { id }, data: { status: "INACTIVE" } });
   await recordEntityAuditAfterCommit(prisma, {
     actor, entity: "CHAPELCO", entityId: duty.operationDayId, entityLabel: `Operación del ${day}`, action: "DELETE",
@@ -129,5 +135,7 @@ export async function releaseChapelcoVehicle(form: FormData) {
     before: { vehicle: duty.vehicle.name, capacity: duty.capacity }
   });
   revalidatePath("/admin/chapelco");
+  revalidatePath("/admin/salidas-del-dia");
+  if (returnsToBoard(form)) redirectToBoard(day, "Nave quitada de la operación.");
   chapelcoRedirect(day, "Nave quitada de la operación.");
 }
