@@ -12,7 +12,6 @@ import {
 } from "@/lib/booking/voucher";
 import { formatPrice } from "../presentation";
 import { PrintButton } from "./print-button";
-import "./voucher.css";
 
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
 

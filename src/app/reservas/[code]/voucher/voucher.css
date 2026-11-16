@@ -217,6 +217,14 @@
 }
 
 /* Papel: sólo el documento. Los botones, el menú y el pie del sitio no se imprimen. */
+/* En pantalla el voucher también va sin el menú del sitio: quien lo abre viene desde un link de
+   WhatsApp, no está navegando, y el comprobante arranca arriba. El botón «Volver a la reserva» está
+   dentro de la página. En papel se oculta igual, por las dudas. */
+body:has(.voucher-pagina) header.site-header,
+body:has(.voucher-pagina) .site-footer {
+  display: none;
+}
+
 @media print {
   @page {
     size: A4 portrait;
