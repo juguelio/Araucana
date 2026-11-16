@@ -5,9 +5,12 @@ import { requireReservationAccess } from "@/lib/booking/access";
 import { AuthorizationError } from "@/lib/auth/service";
 import { getManualBankDetails } from "@/lib/payments/manual-bank-details";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
+import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
+import { siteOrigin } from "@/lib/site-origin";
 import { ManualPaymentPanel } from "./manual-payment-panel";
 
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -44,6 +47,16 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
     })}`
     : null;
   const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
+  // Voucher (#166): el pasajero lo abre desde acá y lo puede reenviar por WhatsApp.
+  const voucherHref = voucherPath(reservation.code);
+  const voucherWhatsApp = whatsappShareUrl(
+    reservation.passenger.phone,
+    voucherMessage({
+      firstName: reservation.passenger.firstName,
+      shortCode: formatShortCode(reservation.shortCode),
+      url: absoluteUrl(voucherHref, await siteOrigin())
+    })
+  );
 
   return (
     <>
@@ -58,6 +71,19 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <span>Código de reserva</span>
             <strong>{formatShortCode(reservation.shortCode)}</strong>
             <span className="ticket-code-note">Código del link privado: {reservation.code}</span>
+          </div>
+        </section>
+
+        <section className="plain-card voucher-cta">
+          <div>
+            <p className="eyebrow">Voucher</p>
+            <p>Tu comprobante para presentar en el viaje, con las políticas de cancelación. Podés mostrarlo desde el celular o imprimirlo.</p>
+          </div>
+          <div className="form-actions">
+            <Link className="ghost-button" href={voucherHref}>Ver voucher</Link>
+            {voucherWhatsApp ? (
+              <a className="ghost-button" href={voucherWhatsApp} target="_blank" rel="noopener noreferrer">Compartir por WhatsApp</a>
+            ) : null}
           </div>
         </section>
 
