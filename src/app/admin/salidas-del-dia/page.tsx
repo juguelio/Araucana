@@ -12,7 +12,7 @@ import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type Bo
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
-import { setAirportDriverAction, setChapelcoDriverAction } from "./actions";
+import { addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
 import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
@@ -45,7 +45,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
   const { from, to } = dayRange(dateKey);
   const serviceDate = new Date(`${dateKey}T00:00:00.000Z`);
 
-  const [schedules, flights, chapelcoRoutes, specialTrips, vehicles, drivers] = await Promise.all([
+  const [schedules, flights, chapelcoRoutes, specialTrips, vehicles, drivers, routes] = await Promise.all([
     prisma.schedule.findMany({
       where: { departureAt: { gte: from, lt: to } },
       orderBy: { departureAt: "asc" },
@@ -53,7 +53,8 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         route: { select: { from: true, to: true } },
         vehicle: { select: VEHICLE_SELECT },
         driver: { select: DRIVER_SELECT },
-        reservations: { where: { status: ACTIVE_RESERVATION }, select: { passengerCount: true } }
+        reservations: { where: { status: ACTIVE_RESERVATION }, select: { passengerCount: true } },
+        _count: { select: { reservations: true } }
       }
     }),
     prisma.flight.findMany({
@@ -83,7 +84,13 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       include: { assignments: { orderBy: { startsAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } } }
     }),
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { ...VEHICLE_SELECT, internalNumber: true } }),
-    prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, orderBy: [{ name: "asc" }, { email: "asc" }], select: DRIVER_SELECT })
+    prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, orderBy: [{ name: "asc" }, { email: "asc" }], select: DRIVER_SELECT }),
+    // Rutas con salidas propias, para crear una desde el tablero (aeropuerto y Chapelco tienen su lógica).
+    prisma.travelRoute.findMany({
+      where: { bookingMode: { notIn: ["AIRPORT", CHAPELCO_BOOKING_MODE] } },
+      orderBy: [{ isActive: "desc" }, { from: "asc" }, { to: "asc" }],
+      select: { id: true, from: true, to: true, isActive: true, durationMin: true }
+    })
   ]);
 
   const board = buildDayBoard({
@@ -96,6 +103,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       departureAt: schedule.departureAt,
       status: schedule.status,
       passengers: schedule.reservations.reduce((sum, reservation) => sum + reservation.passengerCount, 0),
+      reservations: schedule._count.reservations,
       vehicle: { id: schedule.vehicle.id, name: schedule.vehicle.name, seats: seatsOf(schedule.vehicle) },
       driver: schedule.driver
     })),
@@ -136,6 +144,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       units: trip.assignments.map((assignment) => ({
         id: assignment.id,
         startsAt: assignment.startsAt,
+        endsAt: assignment.endsAt,
         vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: seatsOf(assignment.vehicle) },
         driver: assignment.driver
       }))
@@ -151,6 +160,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
   // Un chofer o una nave que quedaron inactivos siguen apareciendo donde ya estaban asignados.
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
+  const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
   const dayHref = (key: string) => `/admin/salidas-del-dia?date=${key}${onlyMissing ? "&falta=1" : ""}`;
 
   return (
@@ -192,6 +202,53 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         </div>
       </section>
 
+      {/* Crear desde el tablero: una salida de ruta acá mismo; el resto, a su formulario completo. */}
+      <details className="plain-card sd-add">
+        <summary>
+          <strong>Agregar al día</strong>
+          <span className="muted">salida de ruta, vuelo, reserva, viaje especial, nave o chofer</span>
+        </summary>
+        <div className="sd-add-body">
+          {canEditRoutes ? (
+            <div className="sd-add-form">
+              <h3>Salida de ruta</h3>
+              <FleetAssignmentForm action={createBoardScheduleAction}>
+                <input type="hidden" name="date" value={dateKey} />
+                <label><span>Ruta</span>
+                  <select name="routeId" defaultValue="" required>
+                    <option value="" disabled>Elegir ruta…</option>
+                    {routeOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label><span>Sale</span><input type="time" name="time" required /></label>
+                <label><span>Nave</span>
+                  <select name="vehicleId" defaultValue="" required>
+                    <option value="" disabled>Elegir nave…</option>
+                    {vehicleOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label><span>Chofer</span>
+                  <select name="driverId" defaultValue="">
+                    <option value="">Sin chofer</option>
+                    {driverOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+                <button className="button" type="submit">Crear salida</button>
+              </FleetAssignmentForm>
+              <p className="muted sd-note">La llegada se calcula con la duración de la ruta. Para cambiarla, después tocás «Editar».</p>
+            </div>
+          ) : null}
+          <div className="sd-add-links">
+            <h3>Otros</h3>
+            <Link className="ghost-button" href={`/admin/aeropuerto?date=${dateKey}`}>Cargar vuelo a mano</Link>
+            <Link className="ghost-button" href={`/admin/aeropuerto/reservar?date=${dateKey}`}>Reserva de aeropuerto</Link>
+            <Link className="ghost-button" href="/admin/viajes-especiales/nuevo">Viaje especial</Link>
+            {canEditRoutes ? <Link className="ghost-button" href="/admin/naves/nueva">Nave nueva</Link> : null}
+            {canEditRoutes ? <Link className="ghost-button" href="/admin/choferes/nueva">Chofer nuevo</Link> : null}
+          </div>
+        </div>
+      </details>
+
       {rows.length === 0 ? (
         <p className="plain-card sd-empty">
           {onlyMissing && board.rows.length ? "Todo lo del día tiene nave y chofer." : "No hay servicios cargados para este día."}
@@ -220,6 +277,9 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
                 </p>
                 <h3><Link href={row.href}>{row.title}</Link></h3>
                 {row.detail ? <p className="muted">{row.detail}</p> : null}
+                {row.area !== "RUTA" ? (
+                  <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
+                ) : null}
               </div>
 
               <div className="sd-pax">
@@ -230,14 +290,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
               <div className="sd-assign">
                 {row.area === "RUTA" ? (
                   canEditRoutes ? (
-                    <ScheduleCrewForm
-                      scheduleId={row.serviceId}
-                      dateKey={dateKey}
-                      vehicleId={row.units[0].vehicleId}
-                      driverId={row.units[0].driverId}
-                      vehicles={withCurrent(vehicleOptions, row.units[0].vehicleId, row.units[0].vehicleName)}
-                      drivers={withCurrent(driverOptions, row.units[0].driverId, row.units[0].driverName)}
-                    />
+                    <RouteUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                   ) : (
                     <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
                   )
@@ -246,7 +299,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
                 ) : row.area === "CHAPELCO" ? (
                   <ChapelcoUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                 ) : (
-                  <UnitsReadOnly units={row.units} note={<>Las naves de un viaje especial se asignan con sus horarios en la <Link href={row.href}>ficha del viaje</Link>.</>} />
+                  <SpecialUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                 )}
               </div>
             </li>
@@ -305,7 +358,8 @@ function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
         </div>
       ))}
       {/* Sólo las naves que el vuelo todavía no tiene: volver a «agregar» una ya asignada le borraría el chofer. */}
-      <FleetAssignmentForm action={assignVehicleAction}>
+      <div className="sd-sumar" data-campos="1">
+<FleetAssignmentForm action={assignVehicleAction}>
         <input type="hidden" name="flightId" value={row.serviceId} />
         <BoardReturn />
         <select name="vehicleId" defaultValue="" aria-label="Combi para sumar al vuelo">
@@ -314,6 +368,7 @@ function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
         </select>
         <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
       </FleetAssignmentForm>
+</div>
     </div>
   );
 }
@@ -333,7 +388,8 @@ function ChapelcoUnits({ row, dateKey, vehicleOptions, driverOptions, withCurren
           </form>
         </div>
       ))}
-      <FleetAssignmentForm action={assignChapelcoVehicle}>
+      <div className="sd-sumar" data-campos="1">
+<FleetAssignmentForm action={assignChapelcoVehicle}>
         <input type="hidden" name="routeId" value={row.serviceId} />
         <input type="hidden" name="serviceDate" value={dateKey} />
         <BoardReturn />
@@ -343,6 +399,7 @@ function ChapelcoUnits({ row, dateKey, vehicleOptions, driverOptions, withCurren
         </select>
         <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
       </FleetAssignmentForm>
+</div>
     </div>
   );
 }
@@ -360,3 +417,93 @@ function UnitsReadOnly({ units, note }: { units: BoardUnit[]; note: ReactNode })
     </div>
   );
 }
+
+const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
+
+/** Rutas: cada unidad es una salida con su nave y su chofer; abajo, sumar otra unidad a la misma hora. */
+function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
+  return (
+    <div className="sd-units">
+      {row.units.map((unit) => (
+        <div className="sd-route-unit" key={unit.id}>
+          <ScheduleCrewForm
+            scheduleId={unit.id}
+            dateKey={dateKey}
+            vehicleId={unit.vehicleId}
+            driverId={unit.driverId}
+            vehicles={withCurrent(vehicleOptions, unit.vehicleId, unit.vehicleName)}
+            drivers={withCurrent(driverOptions, unit.driverId, unit.driverName)}
+          />
+          <p className="sd-unit-meta">
+            {row.units.length > 1 ? <span>{unit.passengers ?? 0} de {unit.seats} lug.</span> : null}
+            {unit.status && !row.status ? <span className="pill pill-estado" data-tono="grave">{unit.status}</span> : null}
+            {unit.editHref ? <Link href={unit.editHref}>Editar</Link> : null}
+            {unit.removable ? (
+              <form action={removeBoardScheduleAction} className="sd-remove">
+                <input type="hidden" name="id" value={unit.id} />
+                <input type="hidden" name="date" value={dateKey} />
+                <button className="text-button" type="submit" aria-label={`Quitar la unidad ${unit.vehicleName}`}>Quitar</button>
+              </form>
+            ) : null}
+          </p>
+        </div>
+      ))}
+      {/* Sumar otra unidad: otra salida de la misma ruta a la misma hora, con sus propios asientos. */}
+      <div className="sd-sumar" data-campos="3">
+<FleetAssignmentForm action={createBoardScheduleAction}>
+        <input type="hidden" name="date" value={dateKey} />
+        <input type="hidden" name="routeId" value={row.routeId} />
+        <input type="hidden" name="time" value={timeFormat(row.at ?? undefined)} />
+        <select name="vehicleId" defaultValue="" aria-label="Nave para sumar a la salida" required>
+          <option value="" disabled>Sumar otra unidad…</option>
+          {vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
+        <select name="driverId" defaultValue="" aria-label="Chofer de la unidad nueva">
+          <option value="">Sin chofer</option>
+          {driverOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
+        <button className="ghost-button" type="submit">Sumar</button>
+      </FleetAssignmentForm>
+</div>
+    </div>
+  );
+}
+
+/** Viajes especiales: chofer de cada nave, quitar, y sumar otra nave con su horario. */
+function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
+  const first = row.units[0];
+  return (
+    <div className="sd-units">
+      {row.units.map((unit) => (
+        <div className="sd-unit" key={unit.id}>
+          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{timeFormat(unit.from)}–{timeFormat(unit.to)}</span></p>
+          <DriverForm unit={unit} action={setSpecialDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+          <form action={removeSpecialVehicleAction} className="sd-remove">
+            <input type="hidden" name="id" value={unit.id} />
+            <input type="hidden" name="date" value={dateKey} />
+            <button className="text-button" type="submit" aria-label={`Quitar ${unit.vehicleName} del viaje`}>Quitar</button>
+          </form>
+        </div>
+      ))}
+      <div className="sd-sumar" data-campos="4">
+<FleetAssignmentForm action={addSpecialVehicleAction}>
+        <input type="hidden" name="tripId" value={row.serviceId} />
+        <select name="vehicleId" defaultValue="" aria-label="Nave para sumar al viaje" required>
+          <option value="" disabled>{row.units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
+          {vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
+        <select name="driverId" defaultValue="" aria-label="Chofer de la nave nueva">
+          <option value="">Sin chofer</option>
+          {driverOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </select>
+        <span className="sd-window">
+          <input type="time" name="from" defaultValue={timeFormat(first?.from) || "08:00"} aria-label="Desde" required />
+          <input type="time" name="to" defaultValue={timeFormat(first?.to) || "18:00"} aria-label="Hasta" required />
+        </span>
+        <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
+      </FleetAssignmentForm>
+</div>
+    </div>
+  );
+}
+

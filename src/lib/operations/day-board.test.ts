@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDayBoard, dayRange, flightRow, isDateKey, localDateKey, personName, shiftDateKey, sortBoard, type BoardRow } from "./day-board";
+import { buildDayBoard, dayRange, flightRow, isDateKey, localDateKey, personName, scheduleRows, shiftDateKey, sortBoard, type BoardRow } from "./day-board";
 
 const at = (hm: string) => new Date(`2026-11-17T${hm}:00-03:00`);
 const chofer = { id: "d1", name: "Ramón Paz", email: "ramon@ejemplo.test" };
@@ -70,7 +70,7 @@ describe("salidas del día (issue #174)", () => {
   });
 
   it("lo que no tiene hora va al final", () => {
-    const base: Omit<BoardRow, "title" | "at"> = { key: "", area: "RUTA", serviceId: "", atLabel: "", detail: null, passengers: 0, capacity: null, units: [], missingVehicle: false, missingDriver: false, overbooked: false, status: null, href: "" };
+    const base: Omit<BoardRow, "title" | "at"> = { key: "", area: "RUTA", serviceId: "", atLabel: "", detail: null, passengers: 0, capacity: null, units: [], missingVehicle: false, missingDriver: false, overbooked: false, status: null, href: "", editHref: "" };
     const rows: BoardRow[] = [{ ...base, title: "b", at: null }, { ...base, title: "a", at: at("10:00") }, { ...base, title: "c", at: at("09:00") }];
     expect(sortBoard(rows).map((row) => row.title)).toEqual(["c", "a", "b"]);
   });
@@ -88,5 +88,20 @@ describe("salidas del día (issue #174)", () => {
     expect(isDateKey("2026-11-17")).toBe(true);
     expect(isDateKey("17/11/2026")).toBe(false);
     expect(isDateKey(undefined)).toBe(false);
+  });
+
+  it("dos salidas de la misma ruta a la misma hora son una fila con dos unidades", () => {
+    const sprinter = { id: "v2", name: "Sprinter 196", seats: 19 };
+    const [row, otra] = scheduleRows([
+      { id: "s1", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("08:00"), status: "OPEN", passengers: 15, reservations: 4, vehicle: combi, driver: chofer },
+      { id: "s2", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("08:00"), status: "OPEN", passengers: 0, reservations: 0, vehicle: sprinter, driver: null },
+      { id: "s3", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("14:30"), status: "CLOSED", passengers: 2, vehicle: combi, driver: null }
+    ]);
+    expect(row).toMatchObject({ passengers: 15, capacity: 38, missingDriver: true, detail: "2 unidades", routeId: "r1", status: null });
+    expect(row.units.map((unit) => [unit.vehicleName, unit.passengers, unit.removable])).toEqual([["Combi 243", 15, false], ["Sprinter 196", 0, true]]);
+    expect(row.units[1].editHref).toBe("/admin/rutas/r1/salidas/s2/editar");
+    // Una salida sola, cerrada: el estado va en la fila. Sin el total de reservas, se mira el de pasajeros.
+    expect(otra).toMatchObject({ status: "Cerrada", detail: null });
+    expect(otra.units[0].removable).toBe(false);
   });
 });

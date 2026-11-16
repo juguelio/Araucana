@@ -123,3 +123,56 @@
   .sd-unit { grid-template-columns: minmax(0, 1fr) auto; }
   .sd-unit .sd-driver { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ── Más flexibilidad: varias unidades por ruta, sumar/quitar, crear desde el tablero ─────────── */
+.sd-units .sd-sumar form .inline-actions { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; }
+.sd-sumar[data-campos="1"] form .inline-actions { grid-template-columns: minmax(0, 1fr) auto; }
+.sd-sumar[data-campos="3"] form .inline-actions { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; }
+.sd-sumar[data-campos="4"] form .inline-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.sd-sumar[data-campos="4"] form .inline-actions > .ghost-button { justify-self: end; }
+.sd-sumar form .inline-actions > .form-alert,
+.sd-sumar form .inline-actions > p { grid-column: 1 / -1; margin: 0; }
+.sd-unit + .sd-sumar, .sd-route-unit + .sd-sumar { padding-top: 8px; border-top: 1px dashed var(--line); }
+.sd-window { display: flex; gap: 4px; }
+.sd-window input { min-height: 36px; padding: 0 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; font-size: 13px; }
+
+.sd-route-unit { display: grid; gap: 4px; }
+.sd-route-unit + .sd-route-unit { padding-top: 8px; border-top: 1px dashed var(--line); }
+.sd-unit-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0; font-size: 12px; color: var(--ink-muted); }
+.sd-unit-meta a { color: var(--primary); font-weight: 700; }
+.sd-unit-meta .pill { padding: 2px 8px; font-size: 11px; }
+.sd-unit-meta .sd-remove { display: inline; }
+.sd-links { margin: 6px 0 0; font-size: 12px; }
+.sd-links a { color: var(--primary); font-weight: 700; }
+
+/* «Agregar al día» */
+.sd-add { margin: 0 0 14px; padding: 0; }
+.sd-add > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 14px 18px; cursor: pointer; list-style: none; }
+.sd-add > summary::-webkit-details-marker { display: none; }
+.sd-add > summary::before { content: "+"; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; background: var(--primary); color: #fff; font-weight: 800; }
+.sd-add[open] > summary::before { content: "–"; }
+.sd-add > summary .muted { font-size: 13px; }
+.sd-add-body { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr); gap: 18px 28px; padding: 4px 18px 18px; border-top: 1px dashed var(--line); }
+.sd-add-body h3 { margin: 12px 0 8px; font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
+.sd-add-form form .inline-actions { display: grid; grid-template-columns: minmax(0, 1.6fr) 110px minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; margin: 0; padding: 0; border: 0; }
+.sd-add-form form .inline-actions > p, .sd-add-form form .inline-actions > .form-alert { grid-column: 1 / -1; margin: 0; color: var(--accent); font-weight: 700; }
+.sd-add-form label { display: grid; gap: 4px; min-width: 0; }
+.sd-add-form label > span { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+.sd-add-form select, .sd-add-form input { width: 100%; min-width: 0; min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; font-size: 14px; }
+.sd-add-form .button { min-height: 40px; white-space: nowrap; }
+.sd-add-form .sd-note { margin-top: 8px; }
+.sd-add-links { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; }
+.sd-add-links h3 { flex-basis: 100%; }
+.sd-add-links .ghost-button { min-height: 36px; padding: 0 14px; font-size: 13px; }
+
+@media (max-width: 1180px) {
+  .sd-add-body { grid-template-columns: minmax(0, 1fr); }
+  .sd-add-form form .inline-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .sd-add-form form .inline-actions,
+  .sd-sumar[data-campos="3"] form .inline-actions,
+  .sd-sumar[data-campos="4"] form .inline-actions { grid-template-columns: minmax(0, 1fr); }
+  .sd-window input { flex: 1; }
+}
+.sd-crew > .form-alert { grid-column: 1 / -1; margin: 0; }

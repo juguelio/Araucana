@@ -20,6 +20,16 @@ export type BoardUnit = {
   seats: number;
   driverId: string | null;
   driverName: string | null;
+  /** Rutas: pasajeros de esa unidad (cada unidad es su propia salida, con sus asientos). */
+  passengers?: number;
+  /** Rutas: se puede quitar desde el tablero porque la salida no tiene ninguna reserva. */
+  removable?: boolean;
+  /** Rutas: cerrada, documentación. */
+  status?: string | null;
+  /** Viajes especiales: horario de la nave. */
+  from?: Date;
+  to?: Date;
+  editHref?: string;
 };
 
 export type BoardRow = {
@@ -41,6 +51,10 @@ export type BoardRow = {
   /** Cerrada, cancelada, demorada: lo que conviene ver antes de asignar. */
   status: string | null;
   href: string;
+  /** Pantalla completa para editar el servicio (hora, estado, recorrido…). */
+  editHref: string;
+  /** Rutas: para sumar otra unidad a la misma hora. */
+  routeId?: string;
 };
 
 export type BoardSummary = {
@@ -59,6 +73,8 @@ export type ScheduleInput = {
   departureAt: Date;
   status: string;
   passengers: number;
+  /** Todas las reservas de la salida, canceladas incluidas: con alguna, no se quita desde el tablero. */
+  reservations?: number;
   vehicle: { id: string; name: string; seats: number };
   driver: BoardPerson | null;
 };
@@ -93,7 +109,7 @@ export type SpecialTripInput = {
   passengers: number | null;
   status: string;
   firstLegAt: Date | null;
-  units: Array<{ id: string; startsAt: Date; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
+  units: Array<{ id: string; startsAt: Date; endsAt?: Date; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
 };
 
 export function personName(person: BoardPerson | null): string | null {
@@ -113,29 +129,55 @@ function crewFlags(passengers: number, units: BoardUnit[], needsVehicle: boolean
   };
 }
 
+/**
+ * Salidas de una misma ruta a la misma hora van en una fila: cada salida es una unidad (su nave, su
+ * chofer y sus asientos). Así «sumar otra combi» a un recorrido se ve como en el aeropuerto.
+ */
+export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
+  const groups = new Map<string, ScheduleInput[]>();
+  for (const schedule of schedules) {
+    const key = `${schedule.routeId}|${schedule.departureAt.toISOString()}`;
+    groups.set(key, [...(groups.get(key) ?? []), schedule]);
+  }
+  return [...groups.values()].map((group) => {
+    const first = group[0];
+    const units: BoardUnit[] = group.map((schedule) => ({
+      id: schedule.id,
+      vehicleId: schedule.vehicle.id,
+      vehicleName: schedule.vehicle.name,
+      seats: schedule.vehicle.seats,
+      driverId: schedule.driver?.id ?? null,
+      driverName: personName(schedule.driver),
+      passengers: schedule.passengers,
+      removable: (schedule.reservations ?? schedule.passengers) === 0,
+      status: SCHEDULE_STATUS[schedule.status] ?? null,
+      editHref: `/admin/rutas/${schedule.routeId}/salidas/${schedule.id}/editar`
+    }));
+    const passengers = group.reduce((sum, schedule) => sum + schedule.passengers, 0);
+    const statuses = [...new Set(units.map((unit) => unit.status ?? null))];
+    return {
+      key: `ruta-${first.routeId}-${first.departureAt.toISOString()}`,
+      area: "RUTA" as const,
+      serviceId: first.id,
+      at: first.departureAt,
+      atLabel: "Sale",
+      title: `${first.from} → ${first.to}`,
+      detail: group.length > 1 ? `${group.length} unidades` : null,
+      passengers,
+      ...crewFlags(passengers, units, false),
+      units,
+      // El estado va en la fila sólo si todas las unidades lo comparten; si no, en cada unidad.
+      status: statuses.length === 1 ? statuses[0] : null,
+      href: `/admin/rutas/${first.routeId}/salidas/${first.id}`,
+      editHref: `/admin/rutas/${first.routeId}/salidas/${first.id}/editar`,
+      routeId: first.routeId
+    };
+  });
+}
+
+/** Una salida sola (compatibilidad): la fila de su grupo. */
 export function scheduleRow(schedule: ScheduleInput): BoardRow {
-  const units: BoardUnit[] = [{
-    id: schedule.id,
-    vehicleId: schedule.vehicle.id,
-    vehicleName: schedule.vehicle.name,
-    seats: schedule.vehicle.seats,
-    driverId: schedule.driver?.id ?? null,
-    driverName: personName(schedule.driver)
-  }];
-  return {
-    key: `ruta-${schedule.id}`,
-    area: "RUTA",
-    serviceId: schedule.id,
-    at: schedule.departureAt,
-    atLabel: "Sale",
-    title: `${schedule.from} → ${schedule.to}`,
-    detail: null,
-    passengers: schedule.passengers,
-    ...crewFlags(schedule.passengers, units, false),
-    units,
-    status: SCHEDULE_STATUS[schedule.status] ?? null,
-    href: `/admin/rutas/${schedule.routeId}/salidas/${schedule.id}`
-  };
+  return scheduleRows([schedule])[0];
 }
 
 export function flightRow(flight: FlightInput, dateKey: string): BoardRow {
@@ -162,7 +204,8 @@ export function flightRow(flight: FlightInput, dateKey: string): BoardRow {
     ...crewFlags(flight.passengers, units, flight.passengers > 0 && flight.status !== "CANCELLED"),
     units,
     status: FLIGHT_STATUS[flight.status] ?? null,
-    href: `/admin/aeropuerto?date=${dateKey}#vuelo-${flight.id}`
+    href: `/admin/aeropuerto?date=${dateKey}#vuelo-${flight.id}`,
+    editHref: `/admin/aeropuerto/${flight.id}/editar`
   };
 }
 
@@ -188,7 +231,8 @@ export function chapelcoRow(day: ChapelcoInput): BoardRow {
     ...crewFlags(day.passengers, units, day.passengers > 0 && day.status !== "CANCELLED"),
     units,
     status: day.status === "CANCELLED" ? "Cancelada" : null,
-    href: `/admin/chapelco?date=${day.dateKey}`
+    href: `/admin/chapelco?date=${day.dateKey}`,
+    editHref: `/admin/chapelco?date=${day.dateKey}`
   };
 }
 
@@ -199,7 +243,9 @@ export function specialTripRow(trip: SpecialTripInput): BoardRow {
     vehicleName: unit.vehicle.name,
     seats: unit.vehicle.seats,
     driverId: unit.driver?.id ?? null,
-    driverName: personName(unit.driver)
+    driverName: personName(unit.driver),
+    from: unit.startsAt,
+    to: unit.endsAt
   }));
   const firstUnit = trip.units.reduce<Date | null>((min, unit) => (!min || unit.startsAt < min ? unit.startsAt : min), null);
   const passengers = trip.passengers ?? 0;
@@ -215,7 +261,8 @@ export function specialTripRow(trip: SpecialTripInput): BoardRow {
     ...crewFlags(passengers, units, true),
     units,
     status: null,
-    href: `/admin/viajes-especiales/${trip.id}`
+    href: `/admin/viajes-especiales/${trip.id}`,
+    editHref: `/admin/viajes-especiales/${trip.id}/editar`
   };
 }
 
@@ -237,7 +284,7 @@ export function buildDayBoard(input: {
   specialTrips: SpecialTripInput[];
 }): { rows: BoardRow[]; summary: BoardSummary } {
   const rows = sortBoard([
-    ...input.schedules.filter((schedule) => !["CANCELLED", "CANCELED"].includes(schedule.status)).map(scheduleRow),
+    ...scheduleRows(input.schedules.filter((schedule) => !["CANCELLED", "CANCELED"].includes(schedule.status))),
     // Un vuelo sin pasajeros ni combis no es un servicio todavía: en el tablero sólo sería ruido.
     ...input.flights.filter((flight) => flight.passengers > 0 || flight.units.length > 0).map((flight) => flightRow(flight, input.dateKey)),
     ...input.chapelco.filter((day) => day.passengers > 0 || day.units.length > 0).map(chapelcoRow),
