@@ -37,7 +37,7 @@ export async function updateDriverStopStatusAction(formData: FormData) {
   const status = value(formData, "status") as ChapelcoManifestStatus;
 
   await assertDriverOwnsStop(driver.id, stopId);
-  await updateChapelcoStopStatus({ stopId, status });
+  await updateChapelcoStopStatus({ stopId, status }, driver);
   revalidatePath("/chofer");
 }
 

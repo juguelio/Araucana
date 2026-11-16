@@ -2,6 +2,8 @@ import { omitReservationCreator, reservationCreatorData, type ReservationCreatio
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { recordReservationCreated } from "@/lib/audit/reservation";
+import { recordEntityAudit } from "@/lib/audit/entity";
+import type { AuditActor } from "@/lib/audit/record";
 import { createReservationCode, createReservationShortCode, createTicketCode } from "@/lib/booking/codes";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
@@ -546,7 +548,7 @@ export async function reorderChapelcoStops(runId: string, orderedStopIds: string
   );
 }
 
-export async function updateChapelcoStopStatus(input: StopStatusInput) {
+export async function updateChapelcoStopStatus(input: StopStatusInput, actor?: AuditActor | null) {
   const parsed = stopStatusSchema.parse(input);
 
   return prisma.$transaction(async (tx) => {
@@ -563,13 +565,20 @@ export async function updateChapelcoStopStatus(input: StopStatusInput) {
       throw new ChapelcoError("STOP_STATUS_INVALID", "Stop status is not allowed for run direction");
     }
 
-    return tx.chapelcoManifestStop.update({
+    const updated = await tx.chapelcoManifestStop.update({
       where: { id: parsed.stopId },
       data: {
         status: parsed.status,
         checkedAt: parsed.status === "PENDING" ? null : new Date()
       }
     });
+    // Quién marcó al pasajero como subido, ausente o trasladado (lo hace el chofer desde su pantalla).
+    await recordEntityAudit(tx, {
+      actor, entity: "CHAPELCO", entityId: stop.id, entityLabel: `Parada ${stop.pickupName}`.slice(0, 200),
+      summary: "Estado de una parada de Chapelco cambiado.",
+      before: { stopStatus: stop.status }, after: { stopStatus: updated.status }
+    });
+    return updated;
   });
 }
 

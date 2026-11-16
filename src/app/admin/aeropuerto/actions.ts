@@ -11,6 +11,8 @@ import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from 
 import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
+import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
+import { formatAuditDate } from "@/lib/audit/labels";
 import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
@@ -23,8 +25,18 @@ function notice(text: string): never {
   redirect(`/admin/aeropuerto?notice=${encodeURIComponent(text)}`);
 }
 
+/** "AR 1656 · 16/11/2026, 14:30": cómo se nombra un vuelo en la auditoría. */
+function flightLabel(flight: { number: string; scheduledAt: Date }) {
+  return `${flight.number} · ${formatAuditDate(flight.scheduledAt)}`;
+}
+
+/** Para escrituras que ya quedaron guardadas: la auditoría no puede convertirlas en un error. */
+function auditAirport(entry: Omit<EntityAudit, "entity">) {
+  return recordEntityAuditAfterCommit(prisma, { entity: "AIRPORT", ...entry });
+}
+
 export async function savePickupStartAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
   const date = value(formData, "date");
   if (!z.iso.date().safeParse(date).success) notice("Revisá la fecha de la recorrida.");
 
@@ -51,7 +63,7 @@ export async function savePickupStartAction(formData: FormData) {
     status: { notIn: ["CANCELLED", "DIVERTED"] },
     scheduledAt: { gte: dayStart, lt: dayEnd }
   };
-  const flights = await prisma.flight.findMany({ where, select: { scheduledAt: true, estimatedAt: true } });
+  const flights = await prisma.flight.findMany({ where, select: { number: true, scheduledAt: true, estimatedAt: true, pickupStartOverrideAt: true } });
   if (flights.length !== ids.length) finish("Seleccioná partidas activas del día que estás viendo.");
   if (start && (!Number.isFinite(start.getTime()) || start.getTime() < dayStart.getTime() - 24 * 3600000 ||
     flights.some((flight) => start >= flight.scheduledAt || (flight.estimatedAt && start >= flight.estimatedAt)))) {
@@ -59,13 +71,19 @@ export async function savePickupStartAction(formData: FormData) {
   }
 
   await prisma.flight.updateMany({ where, data: { pickupStartOverrideAt: start } });
+  const previousStarts = [...new Set(flights.map((flight) => (flight.pickupStartOverrideAt ? formatAuditDate(flight.pickupStartOverrideAt) : "estimado")))].join(", ");
+  await auditAirport({
+    actor, action: "UPDATE", entityLabel: flights.map((flight) => flight.number).join(", ").slice(0, 200),
+    summary: reset ? `Inicio de recorrida restaurado al estimado en ${flights.length} partidas del ${date}.` : `Inicio de recorrida fijado para ${flights.length} partidas del ${date}.`,
+    extra: { pickupStartOverrideAt: { before: previousStarts, after: start ? start.toISOString() : "estimado" } }
+  });
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/reservar/[slug]", "page");
   finish(reset ? "Se restauró el horario estimado de las partidas seleccionadas." : "Se guardó el inicio de recorrida para las partidas seleccionadas.");
 }
 
 export async function createFlightAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
 
   const inputNumber = value(formData, "number").toUpperCase();
   const canonical = jetSmartCanonicalNumber(inputNumber);
@@ -109,6 +127,10 @@ export async function createFlightAction(_prev: AdminFormState, formData: FormDa
   });
 
   if (!count) return errorState(`El vuelo ${number} ya está cargado.`);
+  await auditAirport({
+    actor, entityLabel: flightLabel({ number, scheduledAt: horario }), summary: "Vuelo cargado a mano.",
+    after: { number, airline, origin, direction, scheduledAt: horario, passengers: passengers ? Number(passengers) : null, notes }
+  });
 
   revalidatePath("/admin/aeropuerto");
   notice(`Vuelo ${number} cargado.`);
@@ -119,7 +141,7 @@ export async function createFlightAction(_prev: AdminFormState, formData: FormDa
  * desvío, adelanto), queda registrado como FlightEvent: eso es lo que después avisa.
  */
 export async function updateFlightAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
 
   const id = value(formData, "id");
   const status = value(formData, "status");
@@ -139,7 +161,7 @@ export async function updateFlightAction(formData: FormData) {
     next
   );
 
-  await prisma.flight.update({
+  const updated = await prisma.flight.update({
     where: { id },
     data: {
       status: next.status,
@@ -149,6 +171,11 @@ export async function updateFlightAction(formData: FormData) {
         ? { events: { create: { kind: cambio.kind, fromValue: cambio.fromValue, toValue: cambio.toValue } } }
         : {})
     }
+  });
+  await auditAirport({
+    actor, entityId: id, entityLabel: flightLabel(prev), summary: "Estado u horario del vuelo cambiado a mano.",
+    before: { status: prev.status, estimatedAt: prev.estimatedAt, actualAt: prev.actualAt },
+    after: { status: updated.status, estimatedAt: updated.estimatedAt, actualAt: updated.actualAt }
   });
 
   revalidatePath("/admin/aeropuerto");
@@ -179,12 +206,30 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
     const confirmation = conflictKey(conflicts, [flightId, vehicleId]);
     if (conflicts.length && value(formData, "confirmation") !== confirmation) return { conflicts, confirmation };
 
+    const previous = await tx.airportVehicleAssignment.findUnique({
+      where: { flightId_vehicleId: { flightId, vehicleId } }, select: { driverId: true }
+    });
     const assignment = await tx.airportVehicleAssignment.upsert({
       where: { flightId_vehicleId: { flightId, vehicleId } },
       update: { driverId },
       create: { flightId, vehicleId, driverId }
     });
     await recordAcceptance(tx, "AIRPORT", assignment.id, user.id, conflicts);
+    const [vehicle, drivers] = await Promise.all([
+      tx.vehicle.findUnique({ where: { id: vehicleId }, select: { name: true } }),
+      tx.user.findMany({ where: { id: { in: [previous?.driverId, driverId].filter((d): d is string => !!d) } }, select: { id: true, name: true, email: true } })
+    ]);
+    const driverName = (driver: string | null | undefined) => {
+      const found = drivers.find((item) => item.id === driver);
+      return found ? found.name ?? found.email : null;
+    };
+    await recordEntityAudit(tx, {
+      actor: user, entity: "AIRPORT", entityId: flightId, entityLabel: flightLabel(flight),
+      action: previous ? "UPDATE" : "CREATE",
+      summary: previous ? `Chofer de la combi ${vehicle?.name ?? vehicleId} cambiado en el vuelo.` : `Combi ${vehicle?.name ?? vehicleId} asignada al vuelo.`,
+      before: previous ? { driver: driverName(previous.driverId) } : null,
+      after: { vehicle: vehicle?.name ?? vehicleId, driver: driverName(driverId) }
+    });
     return { day: localInput(flight.scheduledAt).slice(0, 10) };
   });
   if (!result.day) return result;
@@ -193,15 +238,28 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
 }
 
 export async function removeAssignmentAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
+  const removed = await readForAudit(() => prisma.airportVehicleAssignment.findUnique({
+    where: { id: value(formData, "id") },
+    select: { flight: { select: { id: true, number: true, scheduledAt: true } }, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
+  }));
   await prisma.airportVehicleAssignment.delete({ where: { id: value(formData, "id") } });
+  if (removed) {
+    await auditAirport({
+      actor, entityId: removed.flight.id, entityLabel: flightLabel(removed.flight), action: "DELETE",
+      summary: `Combi ${removed.vehicle.name} quitada del vuelo.`,
+      before: { vehicle: removed.vehicle.name, driver: removed.driver ? removed.driver.name ?? removed.driver.email : null }
+    });
+  }
   revalidatePath("/admin/aeropuerto");
   notice("Combi quitada del vuelo.");
 }
 
 export async function deleteFlightAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
+  const deleted = await readForAudit(() => prisma.flight.findUnique({ where: { id: value(formData, "id") } }));
   await prisma.flight.delete({ where: { id: value(formData, "id") } });
+  if (deleted) await auditAirport({ actor, entityId: deleted.id, entityLabel: flightLabel(deleted), summary: "Vuelo borrado.", before: deleted });
   revalidatePath("/admin/aeropuerto");
   notice("Vuelo borrado.");
 }
@@ -229,6 +287,7 @@ export async function saveAirLabsKeyAction(formData: FormData) {
 
   if (borrar) {
     await setSetting(AIRLABS_KEY_SETTING, null, usuario.email);
+    await auditAirport({ actor: usuario, action: "DELETE", entityLabel: "Clave de AirLabs", summary: "Clave de AirLabs borrada: los vuelos dejan de actualizarse solos." });
     revalidatePath("/admin/aeropuerto");
     notice("Clave borrada: los vuelos se siguen viendo, pero ya no se actualizan solos.");
   }
@@ -238,6 +297,8 @@ export async function saveAirLabsKeyAction(formData: FormData) {
   }
 
   await setSetting(AIRLABS_KEY_SETTING, apiKey, usuario.email);
+  // Sólo el hecho: la clave no se copia a la auditoría.
+  await auditAirport({ actor: usuario, action: "UPDATE", entityLabel: "Clave de AirLabs", summary: "Clave de AirLabs guardada." });
   const r = await syncAirportFlights();
   revalidatePath("/admin/aeropuerto");
 
