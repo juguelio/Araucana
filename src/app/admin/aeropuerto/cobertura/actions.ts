@@ -1,12 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { saveAirportExtras } from "@/lib/airport/extras-settings";
-import { airportCoverageSchema, saveAirportCoverage } from "@/lib/airport/pickup-zone-settings";
-import { airportOfficePickupSchema, saveAirportOfficePickup } from "@/lib/airport/office-pickup";
+import { getAirportExtras, saveAirportExtras } from "@/lib/airport/extras-settings";
+import { airportCoverageSchema, getAirportCoverage, saveAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { airportOfficePickupSchema, getAirportOfficePickup, saveAirportOfficePickup } from "@/lib/airport/office-pickup";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { errorState, successState, type AdminFormState } from "../../form-state";
+import { readForAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
+import { prisma } from "@/lib/db/prisma";
+
+/** La configuración se guarda en su propio módulo; la auditoría va después y no puede romperla. */
+function auditSetting(entry: Omit<EntityAudit, "entity">) {
+  return recordEntityAuditAfterCommit(prisma, { entity: "AIRPORT", action: "UPDATE", ...entry });
+}
 
 export async function saveCoverageAction(_previous: AdminFormState, formData: FormData): Promise<AdminFormState> {
   const user = await getCurrentAdminOrRedirect();
@@ -21,7 +28,17 @@ export async function saveCoverageAction(_previous: AdminFormState, formData: Fo
   }
   const parsed = airportCoverageSchema.safeParse(value);
   if (!parsed.success) return errorState("Cada sector necesita un contorno de al menos tres puntos que encierre un área.");
+  const previous = await readForAudit(() => getAirportCoverage());
   await saveAirportCoverage(parsed.data, user.id);
+  // El dibujo del mapa no se copia punto por punto: queda si cambió y si la validación está activa.
+  const drawingChanged = JSON.stringify(previous) !== JSON.stringify(parsed.data);
+  if (drawingChanged) {
+    await auditSetting({
+      actor: user, entityLabel: "Mapa de cobertura", summary: "Mapa de cobertura del aeropuerto modificado.",
+      before: { enabled: previous?.enabled ?? null }, after: { enabled: parsed.data.enabled },
+      extra: { coverage: { before: "mapa anterior", after: "mapa nuevo" } }
+    });
+  }
   revalidatePath("/admin/aeropuerto/cobertura");
   revalidatePath("/admin/aeropuerto/reservar");
   revalidatePath("/reservar/[slug]", "page");
@@ -53,7 +70,10 @@ export async function saveExtrasAction(_previous: AdminFormState, formData: Form
     return errorState("Revisá los campos marcados.", fieldErrors);
   }
 
-  await saveAirportExtras({ zoneExtraCents, sportsLuggageCents, arrivalCutoffMinutes, departureCutoffMinutes }, user.id);
+  const previous = await readForAudit(() => getAirportExtras());
+  const next = { zoneExtraCents, sportsLuggageCents, arrivalCutoffMinutes, departureCutoffMinutes };
+  await saveAirportExtras(next, user.id);
+  await auditSetting({ actor: user, entityLabel: "Extras y cierres del aeropuerto", summary: "Extras y cierres de reserva del aeropuerto modificados.", before: previous, after: next });
   revalidateAirport();
   return successState("Extras guardados.");
 }
@@ -90,7 +110,12 @@ export async function saveOfficePickupAction(_previous: AdminFormState, formData
     return errorState("Revisá los campos marcados.", { point: "Con el atajo activo hace falta el punto de la oficina (latitud y longitud)." });
   }
 
+  const previous = await readForAudit(() => getAirportOfficePickup());
   await saveAirportOfficePickup(parsed.data, user.id);
+  const flat = (pickup: typeof parsed.data | null) => pickup && {
+    enabled: pickup.enabled, label: pickup.label, address: pickup.address, pickupLatitude: pickup.point?.[0] ?? null, pickupLongitude: pickup.point?.[1] ?? null
+  };
+  await auditSetting({ actor: user, entityLabel: "Atajo de salida desde la sucursal", summary: "Atajo de salida desde la sucursal modificado.", before: flat(previous), after: flat(parsed.data) });
   revalidateAirport();
   return successState(parsed.data.enabled ? "Atajo activo en el checkout." : "Atajo guardado y desactivado.");
 }

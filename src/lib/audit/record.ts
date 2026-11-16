@@ -14,12 +14,15 @@ export type AuditActor = {
 
 export const guestActor: AuditActor = { role: "GUEST" };
 
-export const auditEntities = ["SESSION", "RESERVATION", "ACCOUNTING_ENTRY", "USER"] as const;
+export const auditEntities = [
+  "SESSION", "RESERVATION", "ACCOUNTING_ENTRY", "USER",
+  "ROUTE", "VEHICLE", "SCHEDULE", "EXCURSION", "DEPARTURE_SHEET", "SPECIAL_TRIP", "AIRPORT", "CHAPELCO"
+] as const;
 export type AuditEntity = (typeof auditEntities)[number];
 
 export const auditActions = [
   "LOGIN", "LOGIN_FAILED", "LOGOUT", "REGISTER",
-  "CREATE", "UPDATE", "DELETE",
+  "CREATE", "UPDATE", "DELETE", "IMPORT",
   "CANCEL", "RESTORE", "CONFIRM",
   "PAYMENT_REGISTERED", "PAYMENT_APPROVED", "PAYMENT_REJECTED",
   "DOCUMENT_APPROVED", "DOCUMENT_REJECTED"

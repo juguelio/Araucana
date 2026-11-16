@@ -13,7 +13,7 @@
 .audit-when { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
 .audit-sub { display: block; color: var(--ink-muted); font-size: 12px; font-weight: 400; }
 .audit-action { font-weight: 700; }
-.audit-changes { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.audit-changes { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; overflow-wrap: anywhere; }
 .audit-field { color: var(--ink-muted); }
 .audit-before { color: var(--ink-muted); text-decoration: line-through; }
 .audit-after { font-weight: 700; }

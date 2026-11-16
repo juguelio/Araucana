@@ -8,6 +8,7 @@ import { addChapelcoVehicleDuty } from "@/lib/chapelco/repository";
 import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { dateOnly } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
+import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit } from "@/lib/audit/entity";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -27,7 +28,7 @@ function isDateKey(value: string) {
 }
 
 export async function updateChapelcoSeasonAction(formData: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
   const routeId = value(formData, "routeId");
   const serviceDate = value(formData, "serviceDate") || value(formData, "serviceStartDate");
   const serviceStartDate = value(formData, "serviceStartDate");
@@ -41,6 +42,7 @@ export async function updateChapelcoSeasonAction(formData: FormData) {
     chapelcoRedirect(serviceDate, "La fecha inicio no puede ser posterior a la fecha fin.");
   }
 
+  const previous = await readForAudit(() => prisma.travelRoute.findUnique({ where: { id: routeId }, select: { serviceStartDate: true, serviceEndDate: true } }));
   const updated = await prisma.travelRoute.updateMany({
     where: {
       id: routeId,
@@ -55,6 +57,11 @@ export async function updateChapelcoSeasonAction(formData: FormData) {
   if (updated.count === 0) {
     chapelcoRedirect(serviceDate, "No encontramos la ruta Chapelco para actualizar.");
   }
+  await recordEntityAuditAfterCommit(prisma, {
+    actor, entity: "CHAPELCO", entityId: routeId, entityLabel: "Temporada Chapelco", action: "UPDATE",
+    summary: "Fechas de la temporada de Chapelco modificadas.",
+    before: previous, after: { serviceStartDate: serviceDateFromKey(serviceStartDate), serviceEndDate: serviceDateFromKey(serviceEndDate) }
+  });
 
   revalidatePath("/admin/chapelco");
   revalidatePath("/reservar/chapelco");
@@ -91,6 +98,14 @@ export async function assignChapelcoVehicle(_state: unknown, form: FormData): Pr
       operationDayId: operation.id, vehicleId, capacity: vehicle._count.seats, driverId: current?.driverId, notes: current?.notes
     }, tx);
     await recordAcceptance(tx, "CHAPELCO", duty.id, user.id, conflicts);
+    // Volver a asignar una nave que ya estaba activa ese día no cambia nada y no deja fila.
+    if (current?.status !== "ACTIVE") {
+      await recordEntityAudit(tx, {
+        actor: user, entity: "CHAPELCO", entityId: operation.id, entityLabel: `Operación del ${day}`, action: "CREATE",
+        summary: `Nave ${vehicle.name} asignada a la operación de Chapelco del ${day}.`,
+        after: { vehicle: vehicle.name, capacity: vehicle._count.seats }
+      });
+    }
     return { saved: true };
   });
   if (!result.saved) return result;
@@ -99,15 +114,20 @@ export async function assignChapelcoVehicle(_state: unknown, form: FormData): Pr
 }
 
 export async function releaseChapelcoVehicle(form: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
   const id = value(form, "id");
   const duty = await prisma.chapelcoVehicleDuty.findUnique({
-    where: { id }, include: { operationDay: true, _count: { select: { runs: true } } }
+    where: { id }, include: { operationDay: true, vehicle: { select: { name: true } }, _count: { select: { runs: true } } }
   });
   if (!duty) return;
   const day = duty.operationDay.serviceDate.toISOString().slice(0, 10);
   if (duty._count.runs) chapelcoRedirect(day, "La nave tiene recorridos cargados para ese día.");
   await prisma.chapelcoVehicleDuty.update({ where: { id }, data: { status: "INACTIVE" } });
+  await recordEntityAuditAfterCommit(prisma, {
+    actor, entity: "CHAPELCO", entityId: duty.operationDayId, entityLabel: `Operación del ${day}`, action: "DELETE",
+    summary: `Nave ${duty.vehicle.name} quitada de la operación de Chapelco del ${day}.`,
+    before: { vehicle: duty.vehicle.name, capacity: duty.capacity }
+  });
   revalidatePath("/admin/chapelco");
   chapelcoRedirect(day, "Nave quitada de la operación.");
 }

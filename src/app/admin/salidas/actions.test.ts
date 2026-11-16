@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   lockFleet: vi.fn(),
   fleetConflicts: vi.fn(),
   save: vi.fn(),
+  audit: vi.fn(),
   refresh: vi.fn(),
   redirect: vi.fn()
 }));
@@ -19,7 +20,12 @@ vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     schedule: { findUnique: mocks.findSchedule },
     vehicle: { findUnique: mocks.findVehicle },
-    $transaction: (run: (tx: unknown) => unknown) => run({ schedule: { update: mocks.updateSchedule } })
+    $transaction: (run: (tx: unknown) => unknown) => run({
+      schedule: { update: mocks.updateSchedule, findUnique: mocks.findSchedule },
+      vehicle: { findMany: async () => [{ id: "v1", name: "Sprinter 1" }, { id: "v2", name: "Sprinter 2" }] },
+      travelRoute: { findUnique: async () => ({ from: "SMA", to: "Bariloche" }) },
+      auditLog: { create: mocks.audit }
+    })
   }
 }));
 vi.mock("@/lib/special-trips/conflicts", () => ({
@@ -60,6 +66,7 @@ beforeEach(() => {
   mocks.auth.mockResolvedValue({ id: "staff" });
   mocks.findSchedule.mockResolvedValue(salida);
   mocks.findVehicle.mockResolvedValue({ isActive: true });
+  mocks.updateSchedule.mockImplementation(async ({ data }: { data: object }) => ({ ...salida, ...data }));
   mocks.fleetConflicts.mockResolvedValue([]);
   mocks.redirect.mockImplementation((url: string) => {
     throw new Error(`redirect:${url}`);
@@ -97,6 +104,14 @@ describe("reasignar la nave desde el calendario (issue #81)", () => {
     const message = await redirectTo(setScheduleVehicleAction(form({ id: "s1", vehicleId: "v2" })));
 
     expect(mocks.updateSchedule).toHaveBeenCalledWith({ where: { id: "s1" }, data: { vehicleId: "v2" } });
+    // Queda en la auditoría quién cambió la nave, con el nombre de la unidad de antes y de después.
+    expect(mocks.audit).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: "staff", action: "UPDATE", entity: "SCHEDULE", entityId: "s1",
+        entityLabel: expect.stringContaining("SMA → Bariloche"),
+        changes: { vehicle: { before: "Sprinter 1", after: "Sprinter 2" } }
+      })
+    });
     expect(mocks.refresh).toHaveBeenCalledWith("/admin/rutas/r1/salidas");
     expect(decodeURIComponent(message)).toBe("redirect:/admin/rutas/r1/salidas?month=2026-11&notice=Nave de la salida actualizada.");
   });

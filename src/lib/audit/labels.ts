@@ -13,6 +13,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   CREATE: "Alta",
   UPDATE: "Edición",
   DELETE: "Borrado",
+  IMPORT: "Importación",
   CANCEL: "Cancelación",
   RESTORE: "Restitución",
   CONFIRM: "Confirmación",
@@ -27,7 +28,15 @@ export const auditEntityLabels: Record<AuditEntity, string> = {
   SESSION: "Accesos",
   RESERVATION: "Reservas y pagos",
   ACCOUNTING_ENTRY: "Contabilidad",
-  USER: "Usuarios"
+  USER: "Usuarios",
+  ROUTE: "Rutas",
+  VEHICLE: "Naves",
+  SCHEDULE: "Salidas",
+  EXCURSION: "Excursiones",
+  DEPARTURE_SHEET: "Planillas",
+  SPECIAL_TRIP: "Viajes especiales",
+  AIRPORT: "Aeropuerto",
+  CHAPELCO: "Chapelco"
 };
 
 const roleLabels: Record<string, string> = {
@@ -85,7 +94,84 @@ const fieldLabels: Record<string, string> = {
   vehicleId: "Nave",
   userId: "Persona",
   salaryPeriod: "Período del sueldo",
-  notes: "Notas"
+  notes: "Notas",
+  slug: "Dirección pública",
+  from: "Origen",
+  to: "Destino",
+  via: "Vía",
+  durationMin: "Duración (min)",
+  priceCents: "Precio",
+  description: "Descripción",
+  featured: "Destacada",
+  stops: "Paradas",
+  bookingMode: "Modo de reserva",
+  serviceStartDate: "Inicio de temporada",
+  serviceEndDate: "Fin de temporada",
+  plate: "Patente",
+  model: "Modelo",
+  capacity: "Capacidad",
+  seats: "Asientos",
+  internalNumber: "Número interno",
+  owner: "Titular",
+  year: "Año",
+  acquiredAt: "Fecha de compra",
+  technicalInspectionDueAt: "Vencimiento VTV",
+  rtoDueAt: "Vencimiento RTO",
+  insurer: "Aseguradora",
+  policyDueAt: "Vencimiento de póliza",
+  publicTransport: "Transporte público",
+  kind: "Tipo",
+  departureAt: "Salida",
+  arrivalAt: "Llegada",
+  vehicle: "Nave",
+  driver: "Chofer",
+  routeId: "Ruta",
+  isPublished: "Publicada",
+  duration: "Duración",
+  photos: "Fotos",
+  isOpen: "Abierta",
+  firstName: "Nombre",
+  lastName: "Apellido",
+  documentType: "Tipo de documento",
+  documentNumber: "Documento",
+  nationality: "Nacionalidad",
+  serviceDate: "Fecha del servicio",
+  client: "Cliente",
+  contact: "Contacto",
+  passengers: "Pasajeros",
+  legs: "Tramos",
+  payments: "Cobros",
+  billingMode: "Condición de cobro",
+  supplier: "Proveedor",
+  invoice: "Factura",
+  invoiceDate: "Fecha de factura",
+  paymentStatus: "Estado de cobro",
+  destinationSearch: "Destinos",
+  assignments: "Ocupaciones de flota",
+  number: "Vuelo",
+  airline: "Aerolínea",
+  origin: "Origen o destino",
+  direction: "Sentido",
+  scheduledAt: "Hora programada",
+  estimatedAt: "Hora estimada",
+  actualAt: "Hora real",
+  pickupStartOverrideAt: "Inicio de recorrida",
+  enabled: "Activo",
+  label: "Nombre",
+  address: "Dirección",
+  pickupLatitude: "Latitud",
+  pickupLongitude: "Longitud",
+  coverage: "Mapa",
+  zoneExtraCents: "Recargo por zona",
+  sportsLuggageCents: "Equipaje deportivo",
+  arrivalCutoffMinutes: "Cierre de llegadas (min)",
+  departureCutoffMinutes: "Cierre de partidas (min)",
+  stopStatus: "Estado de la parada",
+  closedSchedules: "Salidas cerradas",
+  source: "Origen del dato",
+  licensePlate: "Patente",
+  brand: "Marca",
+  templateKey: "Plantilla de asientos"
 };
 
 const valueLabels: Record<string, string> = {
@@ -118,12 +204,19 @@ export function formatAuditValue(field: string, value: unknown, currency = "ARS"
   if (typeof value === "number" && /Cents$/.test(field)) return formatCurrency(value, currency);
   if (typeof value === "string") {
     // La fecha de un movimiento contable es un día, no un instante: se muestra sin hora ni huso.
-    if (field === "occurredAt" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10).split("-").reverse().join("/");
+    // Un día sin hora (fecha de un movimiento, de un servicio, de una factura, de una temporada) se
+    // guarda como medianoche UTC: se muestra como día, sin correrlo al huso argentino.
+    if ((field === "occurredAt" && /^\d{4}-\d{2}-\d{2}/.test(value)) || /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/.test(value)) {
+      return value.slice(0, 10).split("-").reverse().join("/");
+    }
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return dateTime.format(new Date(value));
     if (field === "category") return ACCOUNTING_CATEGORY_LABELS[value as AccountingCategory] ?? value;
     return valueLabels[value] ?? value;
   }
-  return typeof value === "object" ? JSON.stringify(value) : String(value);
+  if (typeof value !== "object") return String(value);
+  // Listas guardadas como JSON (paradas, tramos, cobros): se muestran, pero recortadas para no tapar la tabla.
+  const text = JSON.stringify(value);
+  return text.length > 280 ? `${text.slice(0, 280)}…` : text;
 }
 
 export type AuditChangeLine = { field: string; label: string; before: string; after: string };

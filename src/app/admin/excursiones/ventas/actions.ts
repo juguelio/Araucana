@@ -7,6 +7,8 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { createReservationCode, createReservationShortCode } from "@/lib/booking/codes";
 import { passengerDocumentError, normalizePassengerDocument, normalizePassengerPhone } from "@/lib/booking/passenger-contact";
 import { createExcursionBooking } from "@/lib/excursions/booking-repository";
+import { readForAudit, recordEntityAuditAfterCommit } from "@/lib/audit/entity";
+import { prisma } from "@/lib/db/prisma";
 
 /**
  * Alta manual de una venta de excursión (issue #110). El cliente lo pidió textual: las agencias no
@@ -31,7 +33,7 @@ const ventaSchema = z.object({
 });
 
 export async function crearVentaDeExcursionAction(_state: AdminFormState, form: FormData): Promise<AdminFormState> {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
 
   const parsed = ventaSchema.safeParse({
     excursionId: form.get("excursionId"),
@@ -93,6 +95,15 @@ export async function crearVentaDeExcursionAction(_state: AdminFormState, form: 
   } catch {
     return errorState("No pudimos guardar la venta. Intentá nuevamente.");
   }
+  const excursion = await readForAudit(() => prisma.excursion.findUnique({ where: { id: data.excursionId }, select: { name: true } }));
+  await recordEntityAuditAfterCommit(prisma, {
+    actor, entity: "EXCURSION", entityLabel: `${excursion?.name ?? "Excursión"} · venta ${creada.shortCode}`,
+    summary: `Venta de excursión registrada para ${data.firstName} ${data.lastName}.`,
+    after: {
+      departureAt, passengerCount: data.passengerCount, totalCents: Math.round(data.total * 100),
+      referredBy: data.referredBy || null, notes: data.notes || null
+    }
+  });
 
   redirect(`/admin/excursiones/planilla?date=${data.date}&notice=${encodeURIComponent(`Venta ${creada.shortCode} registrada`)}`);
 }

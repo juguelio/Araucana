@@ -10,6 +10,14 @@ import {
   setDepartureSheetOpen
 } from "@/lib/departure-sheets/repository";
 import { isDepartureSheetKind } from "@/lib/departure-sheets/types";
+import { readForAudit, recordEntityAuditAfterCommit } from "@/lib/audit/entity";
+import { prisma } from "@/lib/db/prisma";
+
+/** "DUT · Cliente": la planilla se reconoce por su tipo y el viaje al que pertenece. */
+async function sheetLabel(where: { id: string } | { specialTripId_kind: { specialTripId: string; kind: string } }) {
+  const sheet = await readForAudit(() => prisma.departureSheet.findUnique({ where, select: { id: true, kind: true, isOpen: true, specialTrip: { select: { client: true } } } }));
+  return sheet ? { ...sheet, label: `${sheet.kind} · ${sheet.specialTrip.client}` } : null;
+}
 
 const viajes = "/admin/viajes-especiales";
 
@@ -32,7 +40,16 @@ export async function ensureDepartureSheetAction(form: FormData) {
 
   let notice = "Link de la planilla listo para enviar a los pasajeros.";
   try {
+    const existed = await sheetLabel({ specialTripId_kind: { specialTripId: tripId, kind } });
     await ensureDepartureSheet(tripId, kind, user.id);
+    const sheet = existed ? null : await sheetLabel({ specialTripId_kind: { specialTripId: tripId, kind } });
+    // Pedir el link de una planilla que ya existe no cambia nada: sólo se registra cuando se crea.
+    if (sheet) {
+      await recordEntityAuditAfterCommit(prisma, {
+        actor: user, entity: "DEPARTURE_SHEET", entityId: sheet.id, entityLabel: sheet.label,
+        summary: "Planilla de salida creada.", after: { kind: sheet.kind, isOpen: sheet.isOpen }
+      });
+    }
   } catch (error) {
     if (!(error instanceof DepartureSheetError)) {
       throw error;
@@ -45,7 +62,7 @@ export async function ensureDepartureSheetAction(form: FormData) {
 }
 
 export async function setDepartureSheetOpenAction(form: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
 
   const id = value(form, "id");
   const tripId = value(form, "tripId");
@@ -53,14 +70,21 @@ export async function setDepartureSheetOpenAction(form: FormData) {
     redirect(viajes);
   }
 
-  await setDepartureSheetOpen(id, value(form, "isOpen") === "1");
+  const sheet = await sheetLabel({ id });
+  const isOpen = value(form, "isOpen") === "1";
+  await setDepartureSheetOpen(id, isOpen);
+  await recordEntityAuditAfterCommit(prisma, {
+    actor, entity: "DEPARTURE_SHEET", entityId: id, entityLabel: sheet?.label,
+    summary: isOpen ? "Planilla reabierta para carga de pasajeros." : "Planilla cerrada.",
+    before: { isOpen: sheet?.isOpen ?? null }, after: { isOpen }
+  });
   revalidatePath(`${viajes}/${tripId}`);
   revalidatePath(`/admin/planillas/${id}`);
   redirect(`${viajes}/${tripId}#planillas`);
 }
 
 export async function removeDepartureSheetPassengerAction(form: FormData) {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
 
   const passengerId = value(form, "passengerId");
   const sheetId = value(form, "sheetId");
@@ -68,7 +92,17 @@ export async function removeDepartureSheetPassengerAction(form: FormData) {
     redirect(viajes);
   }
 
+  const removed = await readForAudit(() => prisma.departureSheetPassenger.findUnique({
+    where: { id: passengerId }, select: { firstName: true, lastName: true, documentType: true, documentNumber: true, nationality: true }
+  }));
+  const sheet = await sheetLabel({ id: sheetId });
   await removeDepartureSheetPassenger(passengerId);
+  if (removed) {
+    await recordEntityAuditAfterCommit(prisma, {
+      actor, entity: "DEPARTURE_SHEET", entityId: sheetId, entityLabel: sheet?.label,
+      summary: `Pasajero quitado de la planilla: ${removed.firstName} ${removed.lastName}.`, before: removed
+    });
+  }
   revalidatePath(`/admin/planillas/${sheetId}`);
   redirect(`/admin/planillas/${sheetId}`);
 }
