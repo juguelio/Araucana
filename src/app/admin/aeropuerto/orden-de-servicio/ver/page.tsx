@@ -36,7 +36,7 @@ function diaDeHoy() {
  * desde acá se saca el link firmado para el chofer, que la abre sin usuario.
  */
 export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenPageProps) {
-  await getCurrentReservationsUserOrRedirect();
+  const usuario = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
   const date = params?.date ?? diaDeHoy();
   const flightId = params?.flight || null;
@@ -57,6 +57,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     <AdminShell
       title="Orden de servicio"
       eyebrow="Operación"
+      role={usuario.role}
       action={
         <div className="form-actions no-print">
           <ImprimirButton />

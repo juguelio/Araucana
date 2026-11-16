@@ -210,6 +210,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
     <AdminShell
       title="Aeropuerto"
       eyebrow="Operación"
+      role={usuario.role}
       notice={params?.notice}
       action={
         <div className="form-actions flights-header-actions">
