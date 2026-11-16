@@ -12,7 +12,7 @@ type EditVehiclePageProps = {
 };
 
 export default async function EditVehiclePage({ params }: EditVehiclePageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const { id } = await params;
   const vehicle = await prisma.vehicle.findUnique({
     where: { id },
@@ -28,7 +28,7 @@ export default async function EditVehiclePage({ params }: EditVehiclePageProps) 
   }
 
   return (
-    <AdminShell title="Editar nave">
+    <AdminShell role={sessionUser.role} title="Editar nave">
       <section className="plain-card admin-section">
         <h2>{vehicle.name}</h2>
         <VehicleForm action={updateVehicleAction} vehicle={vehicle} submitLabel="Guardar cambios" />

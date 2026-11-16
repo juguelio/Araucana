@@ -23,7 +23,7 @@ type PageProps = {
  * misma forma que la orden de servicio del aeropuerto y la planilla de excursiones.
  */
 export default async function PlanillaDeSalidaPage({ params }: PageProps) {
-  await getCurrentReservationsUserOrRedirect();
+  const sessionUser = await getCurrentReservationsUserOrRedirect();
   const { id: routeId, scheduleId } = await params;
 
   const input = await getRouteSheetInput(scheduleId);
@@ -36,7 +36,7 @@ export default async function PlanillaDeSalidaPage({ params }: PageProps) {
   const sheet = buildRouteSheet(input);
 
   return (
-    <AdminShell
+    <AdminShell role={sessionUser.role}
       title="Planilla del chofer"
       eyebrow="Operación"
       action={

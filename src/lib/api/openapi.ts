@@ -268,7 +268,7 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
             id: { type: "string" },
             email: { type: "string", format: "email" },
             name: { type: ["string", "null"] },
-            role: { type: "string", enum: ["ADMIN", "SECRETARY", "DRIVER", "USER"] }
+            role: { type: "string", enum: ["SUPERADMIN", "ADMIN", "SECRETARY", "DRIVER", "USER"] }
           }
         },
         UserEnvelope: { type: "object", properties: { user: { $ref: "#/components/schemas/User" } } },

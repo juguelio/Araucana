@@ -8,6 +8,7 @@ import { createReservationCode, createReservationShortCode } from "@/lib/booking
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { BookingError } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
+import { recordReservationCreated } from "@/lib/audit/reservation";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "./offered-flights";
 import { airportExtrasBreakdown, type AirportExtras } from "./extras";
 import { getAirportExtras } from "./extras-settings";
@@ -500,6 +501,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
       externalRef: pago.externalRef
     }
   });
+  await recordReservationCreated(tx, reservation, params.creator, "traslado al aeropuerto");
 
   return reservation;
 }

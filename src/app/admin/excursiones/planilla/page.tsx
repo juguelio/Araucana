@@ -31,14 +31,14 @@ export default async function PlanillaDeExcursionesPage({
 }: {
   searchParams: Promise<{ date?: string; excursion?: string }>;
 }) {
-  await getCurrentReservationsUserOrRedirect();
+  const usuario = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
   const date = params?.date ?? diaDeHoy();
   const excursionId = params?.excursion || null;
 
   if (!DATE_PATTERN.test(date)) {
     return (
-      <AdminShell title="Planilla de excursiones" eyebrow="Operación">
+      <AdminShell title="Planilla de excursiones" eyebrow="Operación" role={usuario.role}>
         <p className="form-error">La fecha tiene que ser YYYY-MM-DD.</p>
       </AdminShell>
     );
@@ -53,6 +53,7 @@ export default async function PlanillaDeExcursionesPage({
 
   return (
     <AdminShell
+      role={usuario.role}
       title="Planilla de excursiones"
       eyebrow="Operación"
       action={

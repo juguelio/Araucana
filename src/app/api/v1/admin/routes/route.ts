@@ -14,8 +14,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAdminApi(request);
-    const route = await createAdminApiRoute(await readJsonBody(request));
+    const actor = await requireAdminApi(request);
+    const route = await createAdminApiRoute(await readJsonBody(request), actor);
     return NextResponse.json({ route }, { status: 201 });
   } catch (error) {
     return handleApiError(error);

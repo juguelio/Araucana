@@ -1,3 +1,12 @@
+import type { Prisma } from "@prisma/client";
+import type { AuditActor } from "@/lib/audit/record";
+import { listChange, recordEntityAudit } from "@/lib/audit/entity";
+import { recordScheduleAudit } from "@/lib/audit/schedule";
+
+/** Quien llama a la API: la sesión que validó `requireAdminApi`. Va a la auditoría de cada escritura. */
+type ApiActor = AuditActor & { id: string };
+const VIA_API = " (por la API)";
+const routeLabel = (route: { from: string; to: string }) => `${route.from} → ${route.to}`;
 import { lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
 import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
@@ -221,31 +230,44 @@ export async function getAdminApiRoute(id: string) {
   };
 }
 
-export async function createAdminApiRoute(payload: unknown) {
+export async function createAdminApiRoute(payload: unknown, actor?: ApiActor | null) {
   const data = parseAdminPayload(adminRouteInputSchema, payload);
-  const route = await prisma.travelRoute.create({ data });
+  const route = await prisma.$transaction(async (tx) => {
+    const created = await tx.travelRoute.create({ data });
+    await recordEntityAudit(tx, { actor, entity: "ROUTE", entityId: created.id, entityLabel: routeLabel(created), summary: `Ruta creada${VIA_API}.`, after: created, json: ["stops"] });
+    return created;
+  });
   return getAdminApiRoute(route.id);
 }
 
-export async function updateAdminApiRoute(id: string, payload: unknown) {
+/** Edita la ruta y deja la auditoría en la misma transacción. */
+async function updateRouteAudited(id: string, data: Prisma.TravelRouteUpdateInput, summary: string, actor?: ApiActor | null) {
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.travelRoute.findUnique({ where: { id } });
+    const after = await tx.travelRoute.update({ where: { id }, data });
+    await recordEntityAudit(tx, { actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(after), summary, before, after, json: ["stops"] });
+  });
+}
+
+export async function updateAdminApiRoute(id: string, payload: unknown, actor?: ApiActor | null) {
   const data = parseAdminPayload(adminRouteInputSchema, payload);
-  await prisma.travelRoute.update({ where: { id }, data });
+  await updateRouteAudited(id, data, `Ruta editada${VIA_API}.`, actor);
   return getAdminApiRoute(id);
 }
 
-export async function patchAdminApiRoute(id: string, payload: unknown) {
+export async function patchAdminApiRoute(id: string, payload: unknown, actor?: ApiActor | null) {
   const activeOnly = z.object({ isActive: z.coerce.boolean() }).safeParse(payload);
 
   if (activeOnly.success && Object.keys(payload as Record<string, unknown>).length === 1) {
-    await prisma.travelRoute.update({ where: { id }, data: { isActive: activeOnly.data.isActive } });
+    await updateRouteAudited(id, { isActive: activeOnly.data.isActive }, `${activeOnly.data.isActive ? "Ruta activada" : "Ruta inactivada"}${VIA_API}.`, actor);
     return getAdminApiRoute(id);
   }
 
-  return updateAdminApiRoute(id, payload);
+  return updateAdminApiRoute(id, payload, actor);
 }
 
-export async function deleteAdminApiRoute(id: string) {
-  const route = await prisma.travelRoute.findUnique({ where: { id }, select: { id: true } });
+export async function deleteAdminApiRoute(id: string, actor?: ApiActor | null) {
+  const route = await prisma.travelRoute.findUnique({ where: { id } });
   if (!route) {
     throw new ApiError("ROUTE_NOT_FOUND", "Ruta no encontrada", 404);
   }
@@ -259,14 +281,23 @@ export async function deleteAdminApiRoute(id: string) {
   });
 
   if (reservations > 0) {
-    await prisma.$transaction([
-      prisma.travelRoute.update({ where: { id }, data: { isActive: false } }),
-      prisma.schedule.updateMany({ where: { routeId: id }, data: { status: "CLOSED" } })
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await tx.travelRoute.update({ where: { id }, data: { isActive: false } });
+      const closed = await tx.schedule.updateMany({ where: { routeId: id, status: { not: "CLOSED" } }, data: { status: "CLOSED" } });
+      await recordEntityAudit(tx, {
+        actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(route), action: "UPDATE",
+        summary: `Ruta archivada porque ya tenía reservas; se cerraron ${closed.count} salidas${VIA_API}.`,
+        before: { isActive: route.isActive }, after: { isActive: false },
+        extra: closed.count ? { closedSchedules: { before: 0, after: closed.count } } : undefined
+      });
+    });
     return { archived: true };
   }
 
-  await prisma.travelRoute.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    await tx.travelRoute.delete({ where: { id } });
+    await recordEntityAudit(tx, { actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(route), summary: `Ruta borrada${VIA_API}.`, before: route, json: ["stops"] });
+  });
   return { deleted: true };
 }
 
@@ -289,12 +320,20 @@ export async function getAdminApiSchedule(id: string) {
 
 async function persistAdminApiSchedule(
   data: { routeId: string; vehicleId: string; departureAt: Date; arrivalAt: Date; status: string },
-  userId: string,
+  actor: ApiActor,
   confirmation?: string,
   id?: string,
   statusOnly = false
 ) {
-  const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, userId, confirmation ?? "", id, statusOnly));
+  const result = await prisma.$transaction(async (tx) => {
+    const before = id ? await tx.schedule.findUnique({ where: { id } }) : null;
+    const saved = await savePublicSchedule(tx, data, actor.id, confirmation ?? "", id, statusOnly);
+    if ("id" in saved && saved.id) {
+      const summary = `${!id ? "Salida creada" : statusOnly ? "Estado de la salida cambiado" : "Salida editada"}${VIA_API}.`;
+      await recordScheduleAudit(tx, actor, summary, before, await tx.schedule.findUnique({ where: { id: saved.id } }));
+    }
+    return saved;
+  });
   if (result.conflicts) {
     throw new ApiError("FLEET_CONFLICT", "La nave ya tiene un viaje especial en ese horario.", 409, {
       confirmation: result.confirmation, conflicts: JSON.stringify(result.conflicts)
@@ -303,40 +342,44 @@ async function persistAdminApiSchedule(
   return getAdminApiSchedule(result.id);
 }
 
-async function saveAdminApiSchedule(payload: unknown, userId: string, id?: string) {
+async function saveAdminApiSchedule(payload: unknown, actor: ApiActor, id?: string) {
   const { confirmation, ...input } = parseAdminPayload(adminScheduleInputSchema, payload);
   const durationMin = await getRouteDuration(input.routeId);
-  return persistAdminApiSchedule({ ...input, arrivalAt: addMinutes(input.departureAt, durationMin) }, userId, confirmation, id);
+  return persistAdminApiSchedule({ ...input, arrivalAt: addMinutes(input.departureAt, durationMin) }, actor, confirmation, id);
 }
 
-export async function createAdminApiSchedule(payload: unknown, userId: string) {
-  return saveAdminApiSchedule(payload, userId);
+export async function createAdminApiSchedule(payload: unknown, actor: ApiActor) {
+  return saveAdminApiSchedule(payload, actor);
 }
 
-export async function patchAdminApiSchedule(id: string, payload: unknown, userId: string) {
+export async function patchAdminApiSchedule(id: string, payload: unknown, actor: ApiActor) {
   if (payload && typeof payload === "object" && Object.keys(payload).every((key) => ["status", "confirmation"].includes(key))) {
     const { status, confirmation } = parseAdminPayload(adminScheduleStatusSchema, payload);
     const current = await getAdminApiSchedule(id);
     const { routeId, vehicleId, departureAt, arrivalAt } = current;
-    return persistAdminApiSchedule({ routeId, vehicleId, departureAt, arrivalAt, status }, userId, confirmation, id, true);
+    return persistAdminApiSchedule({ routeId, vehicleId, departureAt, arrivalAt, status }, actor, confirmation, id, true);
   }
-  return saveAdminApiSchedule(payload, userId, id);
+  return saveAdminApiSchedule(payload, actor, id);
 }
 
-export async function deleteAdminApiSchedule(id: string) {
-  const schedule = await prisma.schedule.findUnique({ where: { id }, select: { id: true } });
+export async function deleteAdminApiSchedule(id: string, actor?: ApiActor | null) {
+  const schedule = await prisma.schedule.findUnique({ where: { id } });
   if (!schedule) {
     throw new ApiError("SCHEDULE_NOT_FOUND", "Salida no encontrada", 404);
   }
 
   const reservations = await prisma.reservation.count({ where: { scheduleId: id } });
-  if (reservations > 0) {
-    await prisma.schedule.update({ where: { id }, data: { status: "CLOSED" } });
-    return { archived: true };
-  }
-
-  await prisma.schedule.delete({ where: { id } });
-  return { deleted: true };
+  return prisma.$transaction(async (tx) => {
+    if (reservations > 0) {
+      const closed = await tx.schedule.update({ where: { id }, data: { status: "CLOSED" } });
+      await recordScheduleAudit(tx, actor, `Salida cerrada porque ya tenía reservas${VIA_API}.`, schedule, closed);
+      return { archived: true };
+    }
+    // La etiqueta se arma antes de borrar: después la salida ya no existe para nombrarla.
+    await recordScheduleAudit(tx, actor, `Salida borrada${VIA_API}.`, schedule, null);
+    await tx.schedule.delete({ where: { id } });
+    return { deleted: true };
+  });
 }
 
 export async function listAdminApiVehicles() {
@@ -359,37 +402,53 @@ export async function getAdminApiVehicle(id: string) {
   return vehicle;
 }
 
-export async function createAdminApiVehicle(payload: unknown) {
+export async function createAdminApiVehicle(payload: unknown, actor?: ApiActor | null) {
   const input = parseAdminPayload(adminVehicleInputSchema, payload);
-  const vehicle = await prisma.vehicle.create({
-    data: {
-      name: input.name,
-      brand: input.brand,
-      model: input.model,
-      licensePlate: input.licensePlate,
-      templateKey: input.templateKey,
-      isActive: input.isActive,
-      seats: {
-        create: input.seats
+  const vehicle = await prisma.$transaction(async (tx) => {
+    const created = await tx.vehicle.create({
+      data: {
+        name: input.name,
+        brand: input.brand,
+        model: input.model,
+        licensePlate: input.licensePlate,
+        templateKey: input.templateKey,
+        isActive: input.isActive,
+        seats: {
+          create: input.seats
+        }
       }
-    }
+    });
+    const seats = listChange(null, input.seats.map((seat) => seat.number));
+    await recordEntityAudit(tx, {
+      actor, entity: "VEHICLE", entityId: created.id, entityLabel: created.name, summary: `Nave creada${VIA_API}.`, after: created,
+      extra: seats ? { seats } : undefined
+    });
+    return created;
   });
 
   return getAdminApiVehicle(vehicle.id);
 }
 
-export async function patchAdminApiVehicle(id: string, payload: unknown) {
+export async function patchAdminApiVehicle(id: string, payload: unknown, actor?: ApiActor | null) {
   const activeOnly = z.object({ isActive: z.coerce.boolean() }).safeParse(payload);
 
   if (activeOnly.success && Object.keys(payload as Record<string, unknown>).length === 1) {
-    await prisma.vehicle.update({ where: { id }, data: activeOnly.data });
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.vehicle.findUnique({ where: { id }, select: { isActive: true } });
+      const after = await tx.vehicle.update({ where: { id }, data: activeOnly.data });
+      await recordEntityAudit(tx, {
+        actor, entity: "VEHICLE", entityId: id, entityLabel: after.name,
+        summary: `${after.isActive ? "Nave activada" : "Nave inactivada"}${VIA_API}.`, before, after: { isActive: after.isActive }
+      });
+    });
     return getAdminApiVehicle(id);
   }
 
   const input = parseAdminPayload(adminVehicleInputSchema, payload);
 
   await prisma.$transaction(async (tx) => {
-    await tx.vehicle.update({
+    const before = await tx.vehicle.findUnique({ where: { id } });
+    const updated = await tx.vehicle.update({
       where: { id },
       data: {
         name: input.name,
@@ -449,23 +508,34 @@ export async function patchAdminApiVehicle(id: string, payload: unknown) {
         }
       });
     }
+
+    const seats = listChange(currentSeats.map((seat) => seat.number), input.seats.map((seat) => seat.number));
+    await recordEntityAudit(tx, {
+      actor, entity: "VEHICLE", entityId: id, entityLabel: updated.name, summary: `Nave editada${VIA_API}.`, before, after: updated,
+      extra: seats ? { seats } : undefined
+    });
   });
 
   return getAdminApiVehicle(id);
 }
 
-export async function deleteAdminApiVehicle(id: string) {
+export async function deleteAdminApiVehicle(id: string, actor?: ApiActor | null) {
   return prisma.$transaction(async (tx) => {
     await lockFleet(tx, [id]);
     const vehicle = await tx.vehicle.findUnique({
-      where: { id }, select: { _count: { select: { schedules: true, specialTripAssignments: true } } }
+      where: { id }, include: { _count: { select: { schedules: true, specialTripAssignments: true } } }
     });
     if (!vehicle) throw new ApiError("VEHICLE_NOT_FOUND", "Nave no encontrada", 404);
     if (vehicle._count.schedules || vehicle._count.specialTripAssignments) {
       await tx.vehicle.update({ where: { id }, data: { isActive: false } });
+      await recordEntityAudit(tx, {
+        actor, entity: "VEHICLE", entityId: id, entityLabel: vehicle.name, action: "UPDATE",
+        summary: `Nave archivada porque ya tenía viajes o salidas${VIA_API}.`, before: { isActive: vehicle.isActive }, after: { isActive: false }
+      });
       return { archived: true };
     }
     await tx.vehicle.delete({ where: { id } });
+    await recordEntityAudit(tx, { actor, entity: "VEHICLE", entityId: id, entityLabel: vehicle.name, summary: `Nave borrada${VIA_API}.`, before: vehicle });
     return { deleted: true };
   });
 }
@@ -484,11 +554,11 @@ export async function getAdminApiReservation(code: string) {
   return reservation;
 }
 
-export async function patchAdminApiReservation(code: string, payload: unknown) {
+export async function patchAdminApiReservation(code: string, payload: unknown, actor?: AuditActor | null) {
   const input = parseAdminPayload(adminReservationPassengerUpdateSchema, payload);
-  return updatePassengerForReservation(normalizeReservationCode(code), input.passenger);
+  return updatePassengerForReservation(normalizeReservationCode(code), input.passenger, actor);
 }
 
-export async function approveAdminApiReservationPayment(code: string) {
-  return approveManualPayment(normalizeReservationCode(code));
+export async function approveAdminApiReservationPayment(code: string, actor?: AuditActor | null) {
+  return approveManualPayment(normalizeReservationCode(code), actor);
 }

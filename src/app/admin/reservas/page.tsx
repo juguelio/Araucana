@@ -10,6 +10,7 @@ import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
 import "./pagination.css";
 import "./reservas.css";
+import { isAdminRole } from "@/lib/auth/roles";
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
@@ -113,7 +114,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             <select name="payment" defaultValue={params?.payment ?? ""}>
               <option value="">Todos</option>
               <option value="receipt-pending">Comprobante de pago por validar</option>
-              {user.role === "ADMIN" && <option value="documentation-pending">Documentación por revisar</option>}
+              {isAdminRole(user.role) && <option value="documentation-pending">Documentación por revisar</option>}
               <option value="rejected">Comprobante rechazado</option>
             </select>
           </label>
@@ -145,10 +146,10 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           <tbody>
             {reservations.map((reservation) => {
               const disabilityFare = reservation.paymentProvider === DISABILITY_DOCUMENT_PROVIDER;
-              const canViewReceipt = !disabilityFare || user.role === "ADMIN";
+              const canViewReceipt = !disabilityFare || isAdminRole(user.role);
               const whatsappUrl = whatsappHref(reservation.passengerPhone);
               const detailPath = `/admin/reservas/${reservation.code}`;
-              const canDelete = user.role === "ADMIN" && (reservation.paymentStatus !== "APPROVED" || disabilityFare);
+              const canDelete = isAdminRole(user.role) && (reservation.paymentStatus !== "APPROVED" || disabilityFare);
               const porValidar = reservation.hasReceipt && canViewReceipt && reservation.paymentStatus === "PENDING" &&
                 (disabilityFare ? reservation.status === DISABILITY_PENDING_STATUS : reservation.status === "PENDING_PAYMENT");
 

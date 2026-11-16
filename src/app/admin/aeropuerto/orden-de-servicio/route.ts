@@ -5,6 +5,7 @@ import {
   buildServiceOrderWorkbook,
   serviceOrderFileName
 } from "@/lib/airport/service-order";
+import { recordDownload } from "@/lib/audit/download";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,8 +28,9 @@ function diaDeHoy() {
  * Mismo permiso que el resto de la operación.
  */
 export async function GET(request: Request) {
+  let downloader;
   try {
-    await requireReservationsUser(request);
+    downloader = await requireReservationsUser(request);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return new Response("No autorizado", { status: 401 });
@@ -49,6 +51,11 @@ export async function GET(request: Request) {
   const blocks = buildServiceOrderBlocks(reservas);
   const workbook = await buildServiceOrderWorkbook({ date, generatedAt }, blocks);
   const referencia = flightId ? (blocks[0]?.flightNumber ?? flightId) : null;
+
+  await recordDownload(request, downloader, {
+    entity: "AIRPORT", entityId: flightId, entityLabel: `Orden de servicio ${date}${referencia ? ` · ${referencia}` : ""}`,
+    summary: `Orden de servicio del aeropuerto descargada (${reservas.length} reservas).`
+  });
 
   return new Response(new Uint8Array(workbook), {
     headers: {

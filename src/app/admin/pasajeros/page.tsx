@@ -20,7 +20,7 @@ export default async function AdminPassengersPage({
 }: {
   searchParams: Promise<{ q?: string | string[]; page?: string | string[] }>;
 }) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q.trim().slice(0, SEARCH_LIMIT) : "";
   const requestedPage = typeof params.page === "string" && /^\d{1,6}$/.test(params.page) ? Number(params.page) : 1;
@@ -55,7 +55,7 @@ export default async function AdminPassengersPage({
   });
 
   return (
-    <AdminShell title="CRM · Pasajeros" eyebrow="Panel de administración">
+    <AdminShell role={sessionUser.role} title="CRM · Pasajeros" eyebrow="Panel de administración">
       <CrmNavigation current="pasajeros" />
       <p className="muted">Consultá los contactos que se registraron al cargar una reserva.</p>
       <form method="get" action="/admin/pasajeros" className="admin-form-grid crm-search">

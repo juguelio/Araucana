@@ -81,7 +81,7 @@ function monthOffset(month: string, offset: number) {
 }
 
 export default async function RouteSchedulesPage({ params, searchParams }: RouteSchedulesPageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const { id } = await params;
   const query = await searchParams;
   const [route, schedules, vehicles] = await Promise.all([
@@ -119,7 +119,7 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
   }
 
   return (
-    <AdminShell
+    <AdminShell role={sessionUser.role}
       title={`${route.from} → ${route.to}`}
       eyebrow="Salidas de la ruta"
       notice={query?.notice}
