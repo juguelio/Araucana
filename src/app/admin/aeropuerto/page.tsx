@@ -16,6 +16,7 @@ import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFli
 import { FlightForm } from "./flight-form";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import "./aeropuerto.css";
+import { isAdminRole } from "@/lib/auth/roles";
 
 type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo?: string }> };
 
@@ -210,10 +211,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
     <AdminShell
       title="Aeropuerto"
       eyebrow="Operación"
+      role={usuario.role}
       notice={params?.notice}
       action={
         <div className="form-actions flights-header-actions">
-          {usuario.role === "ADMIN" ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
+          {isAdminRole(usuario.role) ? <Link className="ghost-button" href="/admin/aeropuerto/cobertura">Mapa de cobertura</Link> : null}
           <Link
             className="ghost-button"
             href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}`}
@@ -386,7 +388,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
               ? " — cargada desde este panel"
               : ""}
         </p>
-        {usuario.role === "ADMIN" ? (
+        {isAdminRole(usuario.role) ? (
           <form action={saveAirLabsKeyAction} className="checkout-fields">
             <label>
               {clave.source === "panel" ? "Reemplazar la clave" : "Pegar la clave"}

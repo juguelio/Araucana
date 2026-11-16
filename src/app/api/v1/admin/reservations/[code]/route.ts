@@ -19,9 +19,9 @@ export async function GET(request: Request, context: RouteContext) {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    await requireAdminApi(request);
+    const actor = await requireAdminApi(request);
     const { code } = await context.params;
-    return NextResponse.json({ reservation: await patchAdminApiReservation(code, await readJsonBody(request)) });
+    return NextResponse.json({ reservation: await patchAdminApiReservation(code, await readJsonBody(request), actor) });
   } catch (error) {
     return handleApiError(error);
   }

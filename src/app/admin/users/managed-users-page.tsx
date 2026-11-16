@@ -10,7 +10,7 @@ import { deleteManagedUserAction, setManagedUserActiveAction } from "./actions";
 type ManagedUsersPageProps = { role?: ManagedUserRole; notice?: string; query?: string };
 
 export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUsersPageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const search = query.trim();
   const users = await prisma.user.findMany({
     where: {
@@ -24,7 +24,7 @@ export async function ManagedUsersPage({ role, notice, query = "" }: ManagedUser
   const activeCount = users.filter((user) => user.isActive).length;
 
   return (
-    <AdminShell
+    <AdminShell role={sessionUser.role}
       title={role ? getManagedUserRoleName(role) : "CRM · Usuarios y roles"}
       eyebrow="Panel de administración"
       notice={notice}

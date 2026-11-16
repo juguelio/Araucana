@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { lockFleet } from "@/lib/special-trips/conflicts";
 import { prisma } from "@/lib/db/prisma";
+import { listChange, recordEntityAudit } from "@/lib/audit/entity";
 import { getVehicleTemplate, type VehicleSeat } from "@/lib/vehicles/templates";
 import { parseSeatLayout } from "@/lib/vehicles/validation";
 import { parseLayoutMarkers, type VehicleLayoutMarker } from "@/lib/vehicles/layout-markers";
@@ -124,17 +125,24 @@ function revalidateVehiclePaths() {
 }
 
 export async function createVehicleAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   try {
     const { vehicle, seats } = vehicleData(formData);
-    await prisma.vehicle.create({
-      data: {
-        ...vehicle,
-        seats: {
-          create: seats
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.vehicle.create({
+        data: {
+          ...vehicle,
+          seats: {
+            create: seats
+          }
         }
-      }
+      });
+      const seatChange = listChange(null, seats.map((seat) => seat.number));
+      await recordEntityAudit(tx, {
+        actor, entity: "VEHICLE", entityId: created.id, entityLabel: created.name, summary: "Nave creada.", after: created,
+        extra: seatChange ? { seats: seatChange } : undefined
+      });
     });
   } catch (error) {
     return vehicleErrorState(error);
@@ -145,7 +153,7 @@ export async function createVehicleAction(_state: AdminFormState, formData: Form
 }
 
 export async function updateVehicleAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   if (!id) {
@@ -156,7 +164,8 @@ export async function updateVehicleAction(_state: AdminFormState, formData: Form
     const { vehicle, seats } = vehicleData(formData);
 
     await prisma.$transaction(async (tx) => {
-      await tx.vehicle.update({
+      const before = await tx.vehicle.findUnique({ where: { id } });
+      const updated = await tx.vehicle.update({
         where: { id },
         data: vehicle
       });
@@ -209,6 +218,12 @@ export async function updateVehicleAction(_state: AdminFormState, formData: Form
           }
         });
       }
+
+      const seatChange = listChange(currentSeats.map((seat) => seat.number), seats.map((seat) => seat.number));
+      await recordEntityAudit(tx, {
+        actor, entity: "VEHICLE", entityId: id, entityLabel: updated.name, summary: "Nave editada.", before, after: updated,
+        extra: seatChange ? { seats: seatChange } : undefined
+      });
     });
   } catch (error) {
     return vehicleErrorState(error);
@@ -219,14 +234,21 @@ export async function updateVehicleAction(_state: AdminFormState, formData: Form
 }
 
 export async function setVehicleActiveAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   const isActive = value(formData, "isActive") === "true";
 
-  await prisma.vehicle.update({
-    where: { id },
-    data: { isActive }
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.vehicle.findUnique({ where: { id }, select: { isActive: true } });
+    const updated = await tx.vehicle.update({
+      where: { id },
+      data: { isActive }
+    });
+    await recordEntityAudit(tx, {
+      actor, entity: "VEHICLE", entityId: id, entityLabel: updated.name,
+      summary: isActive ? "Nave activada." : "Nave inactivada.", before, after: { isActive: updated.isActive }
+    });
   });
 
   revalidateVehiclePaths();
@@ -234,19 +256,26 @@ export async function setVehicleActiveAction(formData: FormData) {
 }
 
 export async function deleteVehicleAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   const archived = await prisma.$transaction(async (tx) => {
     await lockFleet(tx, [id]);
     const occupied = await tx.vehicle.findUnique({
-      where: { id }, select: { _count: { select: { schedules: true, specialTripAssignments: true } } }
+      where: { id }, include: { _count: { select: { schedules: true, specialTripAssignments: true } } }
     });
     if (occupied && (occupied._count.schedules || occupied._count.specialTripAssignments)) {
       await tx.vehicle.update({ where: { id }, data: { isActive: false } });
+      await recordEntityAudit(tx, {
+        actor, entity: "VEHICLE", entityId: id, entityLabel: occupied.name, action: "UPDATE",
+        summary: "Nave archivada porque ya tenía viajes o salidas.", before: { isActive: occupied.isActive }, after: { isActive: false }
+      });
       return true;
     }
     await tx.vehicle.delete({ where: { id } });
+    if (occupied) {
+      await recordEntityAudit(tx, { actor, entity: "VEHICLE", entityId: id, entityLabel: occupied.name, summary: "Nave borrada.", before: occupied });
+    }
     return false;
   });
   const notice = archived ? "Nave archivada porque ya tenía viajes o salidas." : "Nave borrada con éxito.";

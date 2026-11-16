@@ -24,6 +24,11 @@ export async function getCurrentAdminOrRedirect() {
   return getCurrentEmployeeOrRedirect(["ADMIN"]);
 }
 
+/** Sólo el rol SUPERADMIN. Un administrador común vuelve al panel. */
+export async function getCurrentSuperAdminOrRedirect() {
+  return getCurrentEmployeeOrRedirect(["SUPERADMIN"]);
+}
+
 export async function getCurrentReservationsUserOrRedirect() {
   return getCurrentEmployeeOrRedirect(["ADMIN", "SECRETARY"]);
 }

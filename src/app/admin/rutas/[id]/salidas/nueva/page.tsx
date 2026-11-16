@@ -10,7 +10,7 @@ type NewRouteSchedulePageProps = {
 };
 
 export default async function NewRouteSchedulePage({ params, searchParams }: NewRouteSchedulePageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const { id } = await params;
   const query = await searchParams;
   const { routes, vehicles } = await getScheduleFormData();
@@ -19,7 +19,7 @@ export default async function NewRouteSchedulePage({ params, searchParams }: New
     : undefined;
 
   return (
-    <AdminShell title="Agregar salida" eyebrow="Salidas de la ruta">
+    <AdminShell role={sessionUser.role} title="Agregar salida" eyebrow="Salidas de la ruta">
       <section className="plain-card admin-section">
         <h2>Nueva salida</h2>
         <ScheduleForm

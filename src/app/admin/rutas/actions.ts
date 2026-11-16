@@ -6,6 +6,7 @@ import type { Prisma } from "@prisma/client";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { getStopFares } from "@/lib/booking/stop-fares";
 import { prisma } from "@/lib/db/prisma";
+import { recordEntityAudit } from "@/lib/audit/entity";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
 function value(formData: FormData, key: string) {
@@ -118,6 +119,10 @@ function routeData(formData: FormData) {
   };
 }
 
+function routeLabel(route: { from: string; to: string }) {
+  return `${route.from} → ${route.to}`;
+}
+
 function routeErrorState(error: unknown) {
   if (error instanceof FormValidationError) {
     return errorState(error.message, error.fieldErrors);
@@ -151,12 +156,15 @@ function revalidateRoutePaths(slug?: string) {
 }
 
 export async function createRouteAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   let data: ReturnType<typeof routeData>;
   try {
     data = routeData(formData);
-    await prisma.travelRoute.create({ data });
+    await prisma.$transaction(async (tx) => {
+      const route = await tx.travelRoute.create({ data });
+      await recordEntityAudit(tx, { actor, entity: "ROUTE", entityId: route.id, entityLabel: routeLabel(route), summary: "Ruta creada.", after: route, json: ["stops"] });
+    });
   } catch (error) {
     return routeErrorState(error);
   }
@@ -166,7 +174,7 @@ export async function createRouteAction(_state: AdminFormState, formData: FormDa
 }
 
 export async function updateRouteAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   if (!id) {
@@ -177,7 +185,11 @@ export async function updateRouteAction(_state: AdminFormState, formData: FormDa
   let data: ReturnType<typeof routeData>;
   try {
     data = routeData(formData);
-    await prisma.travelRoute.update({ where: { id }, data });
+    await prisma.$transaction(async (tx) => {
+      const before = await tx.travelRoute.findUnique({ where: { id } });
+      const route = await tx.travelRoute.update({ where: { id }, data });
+      await recordEntityAudit(tx, { actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(route), summary: "Ruta editada.", before, after: route, json: ["stops"] });
+    });
   } catch (error) {
     return routeErrorState(error);
   }
@@ -188,24 +200,28 @@ export async function updateRouteAction(_state: AdminFormState, formData: FormDa
 }
 
 export async function setRouteActiveAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   const isActive = value(formData, "isActive") === "true";
-  const route = await prisma.travelRoute.update({
-    where: { id },
-    data: { isActive },
-    select: { slug: true }
+  const route = await prisma.$transaction(async (tx) => {
+    const before = await tx.travelRoute.findUnique({ where: { id }, select: { isActive: true } });
+    const updated = await tx.travelRoute.update({ where: { id }, data: { isActive } });
+    await recordEntityAudit(tx, {
+      actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(updated),
+      summary: isActive ? "Ruta activada." : "Ruta inactivada.", before, after: { isActive: updated.isActive }
+    });
+    return updated;
   });
   revalidateRoutePaths(route.slug);
   redirect(`/admin/rutas?notice=${encodeURIComponent(isActive ? "Ruta activada con exito." : "Ruta inactivada con exito.")}`);
 }
 
 export async function deleteRouteAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
-  const route = await prisma.travelRoute.findUnique({ where: { id }, select: { slug: true } });
+  const route = await prisma.travelRoute.findUnique({ where: { id } });
   if (!route) {
     return;
   }
@@ -220,13 +236,23 @@ export async function deleteRouteAction(formData: FormData) {
 
   let notice = "Ruta borrada con exito.";
   if (reservations > 0) {
-    await prisma.$transaction([
-      prisma.travelRoute.update({ where: { id }, data: { isActive: false } }),
-      prisma.schedule.updateMany({ where: { routeId: id }, data: { status: "CLOSED" } })
-    ]);
+    await prisma.$transaction(async (tx) => {
+      await tx.travelRoute.update({ where: { id }, data: { isActive: false } });
+      const closed = await tx.schedule.updateMany({ where: { routeId: id, status: { not: "CLOSED" } }, data: { status: "CLOSED" } });
+      await recordEntityAudit(tx, {
+        actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(route), action: "UPDATE",
+        summary: `Ruta archivada porque ya tenía reservas; se cerraron ${closed.count} salidas.`,
+        before: { isActive: route.isActive }, after: { isActive: false },
+        // Aunque la ruta ya estuviera inactiva, cerrar sus salidas es un cambio y tiene que quedar.
+        extra: closed.count ? { closedSchedules: { before: 0, after: closed.count } } : undefined
+      });
+    });
     notice = "Ruta archivada con exito porque ya tenia reservas.";
   } else {
-    await prisma.travelRoute.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.travelRoute.delete({ where: { id } });
+      await recordEntityAudit(tx, { actor, entity: "ROUTE", entityId: id, entityLabel: routeLabel(route), summary: "Ruta borrada.", before: route, json: ["stops"] });
+    });
   }
 
   revalidateRoutePaths(route.slug);

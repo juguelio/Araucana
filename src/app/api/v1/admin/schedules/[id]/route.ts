@@ -21,7 +21,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const user = await requireAdminApi(request);
     const { id } = await context.params;
-    return NextResponse.json({ schedule: await patchAdminApiSchedule(id, await readJsonBody(request), user.id) });
+    return NextResponse.json({ schedule: await patchAdminApiSchedule(id, await readJsonBody(request), user) });
   } catch (error) {
     return handleApiError(error);
   }
@@ -29,9 +29,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 export async function DELETE(request: Request, context: RouteContext) {
   try {
-    await requireAdminApi(request);
+    const actor = await requireAdminApi(request);
     const { id } = await context.params;
-    return NextResponse.json(await deleteAdminApiSchedule(id));
+    return NextResponse.json(await deleteAdminApiSchedule(id, actor));
   } catch (error) {
     return handleApiError(error);
   }

@@ -7,6 +7,8 @@ import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { vehicleConflictNotice } from "@/lib/booking/schedule-vehicle";
 import { fleetConflicts, lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
 import { prisma } from "@/lib/db/prisma";
+import { recordScheduleAudit } from "@/lib/audit/schedule";
+import type { AuditActor } from "@/lib/audit/record";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 
 const scheduleStatuses = new Set(["OPEN", "DOCUMENTATION", "CLOSED"]);
@@ -120,8 +122,27 @@ function revalidateSchedulePaths(routeSlug?: string, routeId?: string) {
   }
 }
 
-async function saveSchedule(data: Awaited<ReturnType<typeof scheduleData>>["data"], form: FormData, userId: string, id?: string) {
-  const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, userId, value(form, "confirmation"), id));
+/** Guarda la salida y, si se guardó, deja la auditoría en la misma transacción. */
+async function saveAudited(
+  actor: AuditActor & { id: string },
+  summary: string,
+  data: Parameters<typeof savePublicSchedule>[1],
+  confirmation: string,
+  id?: string,
+  statusOnly = false
+) {
+  return prisma.$transaction(async (tx) => {
+    const before = id ? await tx.schedule.findUnique({ where: { id } }) : null;
+    const result = await savePublicSchedule(tx, data, actor.id, confirmation, id, statusOnly);
+    if ("id" in result && result.id) {
+      await recordScheduleAudit(tx, actor, summary, before, await tx.schedule.findUnique({ where: { id: result.id } }));
+    }
+    return result;
+  });
+}
+
+async function saveSchedule(data: Awaited<ReturnType<typeof scheduleData>>["data"], form: FormData, actor: AuditActor & { id: string }, id?: string) {
+  const result = await saveAudited(actor, id ? "Salida editada." : "Salida creada.", data, value(form, "confirmation"), id);
   if (result.conflicts) return { ...errorState("La nave ya tiene un viaje especial en ese horario."), ...result };
   return null;
 }
@@ -132,7 +153,7 @@ export async function createScheduleAction(_state: AdminFormState, formData: For
   let schedule: Awaited<ReturnType<typeof scheduleData>>;
   try {
     schedule = await scheduleData(formData);
-    const warning = await saveSchedule(schedule.data, formData, user.id);
+    const warning = await saveSchedule(schedule.data, formData, user);
     if (warning) return warning;
   } catch (error) {
     return scheduleErrorState(error);
@@ -164,7 +185,7 @@ export async function updateScheduleAction(_state: AdminFormState, formData: For
   let schedule: Awaited<ReturnType<typeof scheduleData>>;
   try {
     schedule = await scheduleData(formData);
-    const warning = await saveSchedule(schedule.data, formData, user.id, id);
+    const warning = await saveSchedule(schedule.data, formData, user, id);
     if (warning) return warning;
   } catch (error) {
     return scheduleErrorState(error);
@@ -193,7 +214,7 @@ export async function setScheduleStatusAction(formData: FormData) {
   const current = await prisma.schedule.findUniqueOrThrow({ where: { id }, include: { route: { select: { slug: true } } } });
   const { routeId, vehicleId, departureAt, arrivalAt } = current;
   const data = { routeId, vehicleId, departureAt, arrivalAt, status };
-  const result = await prisma.$transaction((tx) => savePublicSchedule(tx, data, user.id, "", id, true));
+  const result = await saveAudited(user, "Estado de la salida cambiado.", data, "", id, true);
   if (result.conflicts) {
     const notice = "La nave ya tiene un viaje especial. Revisá el estado y confirmá desde el formulario.";
     redirect(`/admin/rutas/${routeId}/salidas/${id}/editar?status=${status}&notice=${encodeURIComponent(notice)}`);
@@ -203,7 +224,7 @@ export async function setScheduleStatusAction(formData: FormData) {
 }
 
 export async function deleteScheduleAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   const schedule = await prisma.schedule.findUnique({
@@ -225,12 +246,18 @@ export async function deleteScheduleAction(formData: FormData) {
   const reservations = await prisma.reservation.count({ where: { scheduleId: id } });
 
   let notice = "Salida borrada con exito.";
-  if (reservations > 0) {
-    await prisma.schedule.update({ where: { id }, data: { status: "CLOSED" } });
-    notice = "Salida cerrada con exito porque ya tenia reservas.";
-  } else {
-    await prisma.schedule.delete({ where: { id } });
-  }
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.schedule.findUnique({ where: { id } });
+    if (reservations > 0) {
+      const closed = await tx.schedule.update({ where: { id }, data: { status: "CLOSED" } });
+      await recordScheduleAudit(tx, actor, "Salida cerrada porque ya tenía reservas.", before, closed);
+    } else {
+      // La etiqueta se arma antes de borrar: después la salida ya no existe para nombrarla.
+      await recordScheduleAudit(tx, actor, "Salida borrada.", before, null);
+      await tx.schedule.delete({ where: { id } });
+    }
+  });
+  if (reservations > 0) notice = "Salida cerrada con exito porque ya tenia reservas.";
 
   revalidateSchedulePaths(schedule.route.slug, schedule.route.id);
   redirect(`/admin/rutas/${schedule.route.id}/salidas?notice=${encodeURIComponent(notice)}`);
@@ -244,7 +271,7 @@ export async function deleteScheduleAction(formData: FormData) {
  * chequeo para no chocar consigo misma.
  */
 export async function setScheduleVehicleAction(formData: FormData) {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   const id = value(formData, "id");
   const vehicleId = value(formData, "vehicleId");
@@ -296,7 +323,9 @@ export async function setScheduleVehicleAction(formData: FormData) {
       return { conflicts };
     }
 
-    await tx.schedule.update({ where: { id: current.id }, data: { vehicleId } });
+    const before = await tx.schedule.findUnique({ where: { id: current.id } });
+    const updated = await tx.schedule.update({ where: { id: current.id }, data: { vehicleId } });
+    await recordScheduleAudit(tx, actor, "Nave de la salida cambiada.", before, updated);
     return { conflicts: [] };
   });
 

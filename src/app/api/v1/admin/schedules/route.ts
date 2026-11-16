@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireAdminApi(request);
-    const schedule = await createAdminApiSchedule(await readJsonBody(request), user.id);
+    const schedule = await createAdminApiSchedule(await readJsonBody(request), user);
     return NextResponse.json({ schedule }, { status: 201 });
   } catch (error) {
     return handleApiError(error);

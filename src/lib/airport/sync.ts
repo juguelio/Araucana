@@ -9,6 +9,7 @@ import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { prisma } from "@/lib/db/prisma";
 import { reconciliarReservasDeVuelosPasados } from "@/lib/airport/reservation-cleanup";
 import { getAirLabsKey } from "@/lib/settings/app-settings";
+import { recordAuditBestEffort, type AuditActor } from "@/lib/audit/record";
 
 /**
  * Trae los vuelos de AirLabs y los guarda en `Flight`, registrando en `FlightEvent` cada
@@ -280,7 +281,7 @@ export async function limpiarProyectadosQueYaNoCorresponden(
   return borrados;
 }
 
-export async function syncAirportFlights(opts: { days?: number } = {}): Promise<SyncSummary> {
+export async function syncAirportFlights(opts: { days?: number; actor?: AuditActor | null } = {}): Promise<SyncSummary> {
   const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, realineados: 0, estadosFuturosLimpiados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
@@ -609,6 +610,22 @@ export async function syncAirportFlights(opts: { days?: number } = {}): Promise<
     resumen.repetidosConReservas.push(
       `reservas cerradas: ${reservas.confirmadas} confirmadas (pago aprobado), ${reservas.canceladas} canceladas (vuelo pasado sin pago)`
     );
+  }
+
+  // Una fila por sincronización que tocó algo (o que alguien pidió a mano): qué creó, cambió y borró.
+  const cambios = {
+    creados: resumen.creados, actualizados: resumen.actualizados, eventos: resumen.eventos, proyectados: resumen.proyectados,
+    limpiados: resumen.limpiados, proyectadosLimpiados: resumen.proyectadosLimpiados, realineados: resumen.realineados,
+    estadosFuturosLimpiados: resumen.estadosFuturosLimpiados, jetSmartUnificados: resumen.jetSmartUnificados
+  };
+  const tocados = Object.entries(cambios).filter(([, cantidad]) => cantidad > 0);
+  if (tocados.length > 0 || opts.actor) {
+    await recordAuditBestEffort(prisma, {
+      actor: opts.actor ?? null, action: "UPDATE", entity: "AIRPORT", entityLabel: "Sincronización de vuelos",
+      summary: `${opts.actor ? "Sincronización de vuelos pedida a mano" : "Sincronización automática de vuelos"}: ${
+        tocados.length ? tocados.map(([nombre, cantidad]) => `${cantidad} ${nombre}`).join(", ") : "sin cambios"
+      }${resumen.errores.length ? `. Errores: ${resumen.errores.length}` : ""}.`
+    });
   }
 
   return resumen;

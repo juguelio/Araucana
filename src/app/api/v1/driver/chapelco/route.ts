@@ -46,7 +46,7 @@ export async function PATCH(request: Request) {
       return jsonError("STOP_NOT_FOUND", "Parada no encontrada", 404);
     }
 
-    const updated = await updateChapelcoStopStatus({ stopId, status });
+    const updated = await updateChapelcoStopStatus({ stopId, status }, user);
     return NextResponse.json({ stop: updated });
   } catch (error) {
     if (error instanceof AuthorizationError) {

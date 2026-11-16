@@ -1,9 +1,13 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), save: vi.fn(), current: vi.fn(), add: vi.fn(), remove: vi.fn(), cover: vi.fn(), delete: vi.fn(), store: vi.fn(), cleanup: vi.fn(), refresh: vi.fn(), redirect: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), save: vi.fn(), current: vi.fn(), add: vi.fn(), remove: vi.fn(), cover: vi.fn(), delete: vi.fn(), store: vi.fn(), cleanup: vi.fn(), refresh: vi.fn(), redirect: vi.fn(), audit: vi.fn() }));
 vi.mock("@/lib/auth/admin", () => ({ getCurrentReservationsUserOrRedirect: mocks.auth }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.refresh }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/excursions/repository", () => ({ saveExcursionRecord: mocks.save, getAdminExcursion: mocks.current, addExcursionPhoto: mocks.add, removeExcursionPhotoRecord: mocks.remove, makeExcursionCoverRecord: mocks.cover, deleteExcursionRecord: mocks.delete }));
+// La acción audita con el cliente real: acá se reemplaza para que la prueba nunca toque una base.
+vi.mock("@/lib/db/prisma", () => ({
+  prisma: { excursion: { findUnique: async () => null }, auditLog: { create: mocks.audit } }
+}));
 vi.mock("@/lib/excursions/storage", () => ({ storeExcursionPhoto: mocks.store, deleteExcursionBlobs: mocks.cleanup }));
 import { deleteExcursion, makeExcursionCover, removeExcursionPhoto, saveExcursion, uploadExcursionPhoto } from "./actions";
 import { initialAdminFormState } from "../form-state";

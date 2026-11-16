@@ -17,7 +17,7 @@ type AdminVehiclesPageProps = {
 const TIPO_LABEL: Record<string, string> = { CAMIONETA: "Camioneta", BUS: "Bus", UTILITARIO: "Utilitario" };
 
 export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesPageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const hoy = new Date();
   const vehicles = await prisma.vehicle.findMany({
@@ -47,7 +47,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
   const nombreUnidad = (vehicle: (typeof vehicles)[number]) => (vehicle.internalNumber ? `Interno ${vehicle.internalNumber}` : vehicle.name);
 
   return (
-    <AdminShell
+    <AdminShell role={sessionUser.role}
       title="Naves"
       notice={params?.notice}
       action={<Link className="button" href="/admin/naves/nueva">Agregar nave</Link>}

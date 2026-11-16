@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
+import { recordAudit } from "@/lib/audit/record";
 import { localInput } from "@/lib/special-trips/data";
 import { previewHistory, readWorkbook, sourceVersion, type ImportSource } from "@/lib/special-trips/import";
 
@@ -21,7 +22,7 @@ export type ImportState = {
 };
 
 export async function importHistory(_state: ImportState, form: FormData): Promise<ImportState> {
-  await getCurrentReservationsUserOrRedirect();
+  const importer = await getCurrentReservationsUserOrRedirect();
   const file = form.get("file");
   if (!(file instanceof File) || !file.name.toLowerCase().endsWith(".xlsx") || file.size < 1 || file.size > 850_000) {
     return { error: "Elegí la exportación completa de Google Sheets en formato .xlsx (hasta 850 KB)." };
@@ -99,6 +100,13 @@ export async function importHistory(_state: ImportState, form: FormData): Promis
       }
       const notes = skipped.filter((source) => !alreadyProcessed(source) && !movedRow(source));
       if (notes.length) await tx.specialTripSource.createMany({ data: notes.map(sourceData) });
+      // Una fila por importación (no una por viaje): quién importó y cuánto entró.
+      if (created || archived + notes.length) {
+        await recordAudit(tx, {
+          actor: importer, action: "IMPORT", entity: "SPECIAL_TRIP", entityLabel: "Importación de historial",
+          summary: `Importación del historial: ${created} viajes creados y ${archived + notes.length} filas archivadas para revisión.`
+        });
+      }
       return { created, archived: archived + notes.length };
     }, { timeout: 45_000 });
     if (!result) return { error: "El historial cambió durante la revisión. Volvé a generar la vista previa." };

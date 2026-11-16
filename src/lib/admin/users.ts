@@ -1,9 +1,10 @@
 import type { AppRole } from "@/lib/auth/roles";
 
-export const managedUserRoles = ["ADMIN", "SECRETARY", "DRIVER", "USER"] as const satisfies readonly AppRole[];
+export const managedUserRoles = ["SUPERADMIN", "ADMIN", "SECRETARY", "DRIVER", "USER"] as const satisfies readonly AppRole[];
 export type ManagedUserRole = (typeof managedUserRoles)[number];
 
 const roleNames: Record<ManagedUserRole, string> = {
+  SUPERADMIN: "Super administrador",
   ADMIN: "Administrador",
   SECRETARY: "Secretaria",
   DRIVER: "Chofer",

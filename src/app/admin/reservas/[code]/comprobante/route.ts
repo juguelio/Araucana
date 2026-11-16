@@ -2,6 +2,8 @@ import { get } from "@vercel/blob";
 import { AuthorizationError, requireReservationsUser } from "@/lib/auth/service";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { getReservationByCode } from "@/lib/booking/repository";
+import { isAdminRole } from "@/lib/auth/roles";
+import { recordDownload } from "@/lib/audit/download";
 
 type ReceiptRouteContext = {
   params: Promise<{
@@ -32,7 +34,7 @@ export async function GET(request: Request, context: ReceiptRouteContext) {
 
   const { code } = await context.params;
   const reservation = await getReservationByCode(code.toUpperCase());
-  if (reservation?.payment?.provider === DISABILITY_DOCUMENT_PROVIDER && user.role !== "ADMIN") {
+  if (reservation?.payment?.provider === DISABILITY_DOCUMENT_PROVIDER && !isAdminRole(user.role)) {
     return new Response("No autorizado", { status: 403 });
   }
   const pathname = reservation?.payment?.receiptBlobPathname;
@@ -59,6 +61,13 @@ export async function GET(request: Request, context: ReceiptRouteContext) {
       }
     });
   }
+
+  // Sólo cuando el archivo sale de verdad (un 304 es el navegador revalidando lo que ya tenía).
+  const disability = reservation?.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
+  await recordDownload(request, user, {
+    view: true, entity: "RESERVATION", entityId: reservation?.id, entityLabel: code.toUpperCase(),
+    summary: disability ? "Documentación de discapacidad consultada." : "Comprobante de pago consultado."
+  });
 
   return new Response(result.stream, {
     headers: {

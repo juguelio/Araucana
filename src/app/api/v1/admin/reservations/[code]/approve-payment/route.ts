@@ -10,9 +10,9 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    await requireAdminApi(request);
+    const actor = await requireAdminApi(request);
     const { code } = await context.params;
-    return NextResponse.json({ reservation: await approveAdminApiReservationPayment(code) });
+    return NextResponse.json({ reservation: await approveAdminApiReservationPayment(code, actor) });
   } catch (error) {
     if (error instanceof BookingError) {
       const status = ["RESERVATION_NOT_FOUND", "PAYMENT_NOT_FOUND"].includes(error.code) ? 404 : 409;

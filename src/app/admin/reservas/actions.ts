@@ -72,11 +72,11 @@ export async function createAdminReservationAction(formData: FormData) {
 }
 
 async function reviewPaymentAction(formData: FormData, decision: "approve" | "reject") {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
   const code = value(formData, "code").toUpperCase();
   if (!code) redirect(`/admin/reservas?notice=${encodeURIComponent("Falta el código de reserva.")}`);
   try {
-    await (decision === "approve" ? approveManualPayment(code) : rejectManualPayment(code));
+    await (decision === "approve" ? approveManualPayment(code, actor) : rejectManualPayment(code, actor));
   } catch (error) {
     if (error instanceof BookingError) {
       redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
@@ -92,10 +92,10 @@ async function reviewPaymentAction(formData: FormData, decision: "approve" | "re
 }
 
 async function reviewDisabilityDocumentAction(formData: FormData, decision: "APPROVED" | "REJECTED") {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
   const code = value(formData, "code");
   try {
-    await reviewDisabilityDocument(code, decision, value(formData, "receiptVersion"));
+    await reviewDisabilityDocument(code, decision, value(formData, "receiptVersion"), actor);
   } catch (error) {
     if (error instanceof BookingError) redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
     throw error;
@@ -125,7 +125,7 @@ export async function rejectManualPaymentAction(formData: FormData) {
 }
 
 export async function updateReservationAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentReservationsUserOrRedirect();
+  const actor = await getCurrentReservationsUserOrRedirect();
   const code = value(formData, "code").toUpperCase();
   if (!/^ARC-[A-Z0-9-]+$/.test(code)) return errorState("No encontramos la reserva.");
 
@@ -167,7 +167,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   }
 
   try {
-    await manageReservation(code, command.data);
+    await manageReservation(code, command.data, actor);
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
     return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
@@ -217,7 +217,8 @@ export async function manageReservationAction(formData: FormData) {
         ? { ...command.data, cancelledBy: user.name?.trim() || user.email }
         : command.data.operation === "restore"
           ? { ...command.data, restoredBy: user.name?.trim() || user.email }
-          : command.data
+          : command.data,
+      user
     );
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos actualizar la reserva. Intentalo de nuevo.";

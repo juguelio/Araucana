@@ -9,6 +9,8 @@ import {
   argentina, assignmentSchema, billingModes, dateOnly, legSchema, localDateTime, parseMoney, paymentSchema, statuses
 } from "@/lib/special-trips/data";
 import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
+import { listChange, recordEntityAudit } from "@/lib/audit/entity";
+import { formatAuditDate } from "@/lib/audit/labels";
 
 export type TripFormResult = { error?: string; conflicts?: FleetConflict[]; confirmation?: string };
 
@@ -59,10 +61,12 @@ export async function saveTrip(id: string | null, version: string | null, _state
     const result = await prisma.$transaction(async (tx) => {
       const assignedVehicles = new Set<string>();
       const assignedDrivers = new Set<string>();
+      let previous: Awaited<ReturnType<typeof tx.specialTrip.findUnique>> & { assignments?: typeof assignments } | null = null;
       if (id) {
         await tx.$queryRaw`SELECT id FROM "SpecialTrip" WHERE id = ${id} FOR UPDATE`;
         const current = await tx.specialTrip.findUnique({ where: { id }, include: { assignments: true } });
         if (!current || current.updatedAt.toISOString() !== version) throw new TripError("El viaje cambió. Volvé a abrirlo antes de guardar.");
+        previous = current;
         current.assignments.forEach((a) => {
           assignedVehicles.add(a.vehicleId);
           if (a.driverId) assignedDrivers.add(a.driverId);
@@ -94,6 +98,25 @@ export async function saveTrip(id: string | null, version: string | null, _state
         ? await tx.specialTrip.update({ where: { id }, data: { ...data, assignments: { deleteMany: {}, createMany: { data: assignments } } } })
         : await tx.specialTrip.create({ data: { ...data, assignments: { createMany: { data: assignments } } } });
       await recordAcceptance(tx, "SPECIAL", trip.id, user.id, unique);
+
+      // Auditoría en la misma transacción. Las ocupaciones se guardan legibles: nave, chofer y horario.
+      const involved = [...(previous?.assignments ?? []), ...assignments];
+      const [vehicleNames, driverNames] = await Promise.all([
+        tx.vehicle.findMany({ where: { id: { in: involved.map((a) => a.vehicleId) } }, select: { id: true, name: true } }),
+        tx.user.findMany({ where: { id: { in: involved.flatMap((a) => a.driverId ?? []) } }, select: { id: true, name: true, email: true } })
+      ]);
+      const describe = (a: { vehicleId: string; driverId: string | null; startsAt: Date; endsAt: Date }) => {
+        const vehicle = vehicleNames.find((v) => v.id === a.vehicleId)?.name ?? a.vehicleId;
+        const driver = driverNames.find((d) => d.id === a.driverId);
+        return `${vehicle}${driver ? ` (${driver.name ?? driver.email})` : ""} ${formatAuditDate(a.startsAt)} a ${formatAuditDate(a.endsAt)}`;
+      };
+      const assignmentChange = listChange(previous ? (previous.assignments ?? []).map(describe) : null, assignments.map(describe));
+      await recordEntityAudit(tx, {
+        actor: user, entity: "SPECIAL_TRIP", entityId: trip.id, entityLabel: trip.client.slice(0, 120),
+        summary: id ? "Viaje especial editado." : "Viaje especial creado.",
+        before: previous, after: trip, json: ["legs", "payments"],
+        extra: assignmentChange ? { assignments: assignmentChange } : undefined
+      });
       return { id: trip.id };
     });
     if (!result.id) return result;

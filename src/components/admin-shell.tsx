@@ -1,5 +1,5 @@
 import { AdminToast } from "@/app/admin/form-ui";
-import { AppRole } from "@/lib/auth/roles";
+import { roleCanAccess, type AppRole } from "@/lib/auth/roles";
 import { AdminNav } from "./admin-nav";
 import { BrandMark } from "./brand-mark";
 
@@ -24,11 +24,13 @@ const links: Array<{ href: string; label: string; roles: AppRole[] }> = [
   { href: "/admin/reservas", label: "Reservas", roles: ["ADMIN", "SECRETARY"] },
   { href: "/admin/contabilidad", label: "Contabilidad", roles: ["ADMIN"] },
   { href: "/admin/reportes", label: "Reportes", roles: ["ADMIN"] },
+  { href: "/admin/auditoria", label: "Auditoría", roles: ["SUPERADMIN"] },
   { href: "/", label: "Web publica", roles: ["ADMIN", "SECRETARY"] }
 ];
 
 export function AdminShell({ children, title, eyebrow = "Operacion", action, notice, role = "ADMIN" }: AdminShellProps) {
-  const visibleLinks = links.filter((link) => link.roles.includes(role));
+  // `roleCanAccess` y no `includes`: el super administrador ve todo lo del administrador.
+  const visibleLinks = links.filter((link) => roleCanAccess(role, link.roles));
 
   return (
     <main className="admin-layout">

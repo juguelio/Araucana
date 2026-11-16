@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
+import { recordAuditBestEffort } from "@/lib/audit/record";
+import { withShortCode } from "@/lib/audit/reservation";
 
 /**
  * Cierra las reservas de aeropuerto que quedaron abiertas cuando el vuelo ya pasó.
@@ -37,6 +39,8 @@ export async function reconciliarReservasDeVuelosPasados(
     },
     select: {
       id: true,
+      code: true,
+      shortCode: true,
       airportDetails: { select: { flight: { select: { scheduledAt: true } } } },
       payment: { select: { status: true } }
     }
@@ -45,6 +49,7 @@ export async function reconciliarReservasDeVuelosPasados(
   const limite = new Date(ahora.getTime() - HORAS_DE_GRACIA * 3600000);
   const confirmar: string[] = [];
   const cancelar: string[] = [];
+  const porId = new Map(abiertas.map((reserva) => [reserva.id, reserva]));
 
   for (const reserva of abiertas) {
     if (reserva.payment?.status === "APPROVED") {
@@ -67,6 +72,20 @@ export async function reconciliarReservasDeVuelosPasados(
       data: { status: "CANCELLED" }
     });
   }
+
+  // Lo hace el sistema sin que nadie lo pida: cada reserva que cambió de estado queda con su fila.
+  const anotar = async (ids: string[], action: "CONFIRM" | "CANCEL", status: string, summary: string) => {
+    for (const id of ids) {
+      const reserva = porId.get(id);
+      await recordAuditBestEffort(prisma, {
+        actor: null, action, entity: "RESERVATION", entityId: id, entityLabel: reserva?.code,
+        summary: withShortCode(summary, reserva?.shortCode),
+        changes: { status: { before: "PENDING_PAYMENT", after: status } }
+      });
+    }
+  };
+  await anotar(confirmar, "CONFIRM", "CONFIRMED", "Reserva confirmada automáticamente: el pago ya estaba aprobado.");
+  await anotar(cancelar, "CANCEL", "CANCELLED", "Reserva cancelada automáticamente: el vuelo ya pasó y no tenía pago.");
 
   return { confirmadas: confirmar.length, canceladas: cancelar.length };
 }
