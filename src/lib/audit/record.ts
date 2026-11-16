@@ -22,7 +22,7 @@ export type AuditEntity = (typeof auditEntities)[number];
 
 export const auditActions = [
   "LOGIN", "LOGIN_FAILED", "LOGOUT", "REGISTER",
-  "CREATE", "UPDATE", "DELETE", "IMPORT",
+  "CREATE", "UPDATE", "DELETE", "IMPORT", "EXPORT", "VIEW",
   "CANCEL", "RESTORE", "CONFIRM",
   "PAYMENT_REGISTERED", "PAYMENT_APPROVED", "PAYMENT_REJECTED",
   "DOCUMENT_APPROVED", "DOCUMENT_REJECTED"

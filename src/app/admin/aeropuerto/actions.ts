@@ -269,8 +269,8 @@ export async function deleteFlightAction(formData: FormData) {
  * y lo dice. Una combi no puede depender de un servicio externo.
  */
 export async function refreshFlightsAction() {
-  await getCurrentReservationsUserOrRedirect();
-  const r = await syncAirportFlights();
+  const actor = await getCurrentReservationsUserOrRedirect();
+  const r = await syncAirportFlights({ actor });
   revalidatePath("/admin/aeropuerto");
   // Un solo aviso con todo: el modo degradado no puede esconder la intervención manual pendiente.
   notice(mensajeDeRefresco(r));
@@ -299,7 +299,7 @@ export async function saveAirLabsKeyAction(formData: FormData) {
   await setSetting(AIRLABS_KEY_SETTING, apiKey, usuario.email);
   // Sólo el hecho: la clave no se copia a la auditoría.
   await auditAirport({ actor: usuario, action: "UPDATE", entityLabel: "Clave de AirLabs", summary: "Clave de AirLabs guardada." });
-  const r = await syncAirportFlights();
+  const r = await syncAirportFlights({ actor: usuario });
   revalidatePath("/admin/aeropuerto");
 
   if (r.errores.length > 0) {

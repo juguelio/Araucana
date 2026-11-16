@@ -3,6 +3,7 @@ import { exportFileName } from "@/lib/accounting/export-rows";
 import { createMonthPeriod, createRangePeriod, getAccountingReport } from "@/lib/accounting/service";
 import { AuthorizationError, requireAdminUser } from "@/lib/auth/service";
 import { prisma } from "@/lib/db/prisma";
+import { recordDownload } from "@/lib/audit/download";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +12,9 @@ const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 /** Descarga del reporte contable con los mismos filtros de la pantalla. Sólo ADMIN. */
 export async function GET(request: Request) {
+  let downloader;
   try {
-    await requireAdminUser(request);
+    downloader = await requireAdminUser(request);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return new Response("No autorizado", { status: 401 });
@@ -42,6 +44,11 @@ export async function GET(request: Request) {
   };
 
   const workbook = await buildAccountingWorkbook(report, meta);
+
+  await recordDownload(request, downloader, {
+    entity: "ACCOUNTING_ENTRY", entityLabel: `Reporte contable · ${period.label}${vehicle ? ` · ${vehicle.name}` : ""}`,
+    summary: "Reporte contable descargado en Excel."
+  });
 
   return new Response(new Uint8Array(workbook), {
     headers: {

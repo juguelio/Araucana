@@ -1,6 +1,7 @@
 import { AuthorizationError, requireReservationsUser } from "@/lib/auth/service";
 import { buildRouteSheet, buildRouteSheetWorkbook, routeSheetFileName } from "@/lib/driver/route-sheet";
 import { getRouteSheetInput } from "@/lib/driver/route-sheet-repository";
+import { recordDownload } from "@/lib/audit/download";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +13,9 @@ const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
  * pantalla — las dos salen del mismo `buildRouteSheet`.
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string; scheduleId: string }> }) {
+  let downloader;
   try {
-    await requireReservationsUser(request);
+    downloader = await requireReservationsUser(request);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return new Response("No autorizado", { status: 401 });
@@ -30,6 +32,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const sheet = buildRouteSheet(input);
   const workbook = await buildRouteSheetWorkbook(sheet, { generatedAt: new Date() });
+
+  await recordDownload(request, downloader, {
+    entity: "SCHEDULE", entityId: scheduleId, entityLabel: routeSheetFileName(sheet),
+    summary: "Planilla de pasajeros de la salida descargada."
+  });
 
   return new Response(new Uint8Array(workbook), {
     headers: {

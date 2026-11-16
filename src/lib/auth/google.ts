@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import passport from "passport";
 import GoogleStrategy from "passport-google-oidc";
 import { prisma } from "@/lib/db/prisma";
+import { recordAuditBestEffort } from "@/lib/audit/record";
 
 const GOOGLE_STATE_COOKIE = "araucana_google_state";
 const GOOGLE_ISSUER = "https://accounts.google.com";
@@ -156,16 +157,24 @@ async function findOrCreateGoogleUser(issuer: string, profile: GoogleProfile): P
     if (existing.googleSub && existing.googleSub !== profile.id) {
       throw new Error("Este email ya está vinculado a otra cuenta de Google.");
     }
-    return prisma.user.update({
+    const linked = await prisma.user.update({
       where: { id: existing.id },
       data: {
         googleSub: profile.id,
         name: existing.name ?? profile.displayName ?? null
       }
     });
+    // Vincular Google a una cuenta que ya existía abre una puerta nueva de entrada: queda registrado.
+    if (!existing.googleSub) {
+      await recordAuditBestEffort(prisma, {
+        actor: linked, action: "UPDATE", entity: "USER", entityId: linked.id, entityLabel: linked.email,
+        summary: "Cuenta de Google vinculada a una cuenta existente (primer ingreso con Google)."
+      });
+    }
+    return linked;
   }
 
-  return prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       email,
       googleSub: profile.id,
@@ -174,6 +183,11 @@ async function findOrCreateGoogleUser(issuer: string, profile: GoogleProfile): P
       isActive: false
     }
   });
+  await recordAuditBestEffort(prisma, {
+    actor: created, action: "REGISTER", entity: "USER", entityId: created.id, entityLabel: created.email,
+    summary: "Cuenta creada al ingresar con Google por primera vez (queda pendiente de aprobación)."
+  });
+  return created;
 }
 
 class GoogleOidcStrategy extends GoogleStrategy {
