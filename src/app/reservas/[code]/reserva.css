@@ -1,0 +1,101 @@
+/* === Página privada de la reserva (la que recibe el pasajero) ===
+   Antes: «Reserva recibida» repetido, título gigante, estado de pago en inglés, una tarjeta de ticket
+   casi vacía y el selector de archivo sin estilo. Estilos propios de esta pantalla. */
+.reserva-pasajero { display: grid; gap: 18px; }
+.reserva-pasajero > .plain-card { margin: 0; }
+
+/* Cabecera: estado, código y lo esencial. */
+.rp-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 320px); gap: 28px; align-items: start; }
+.rp-hero-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 10px; }
+.rp-hero-top .eyebrow { margin: 0; }
+.rp-hero .pill-estado { background: var(--surface); }
+.rp-title { font-size: clamp(30px, 4vw, 46px); }
+.rp-lead { max-width: 60ch; margin: 12px 0 0; font-size: 17px; }
+.rp-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0 0; }
+.rp-facts > div { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(245, 241, 234, 0.6); }
+.rp-facts dt { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.rp-facts dd { margin: 4px 0 0; color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.3; }
+.rp-hero-cta { margin-top: 18px; }
+.rp-code { margin: 0; }
+.rp-code strong { letter-spacing: 0.02em; }
+.rp-link-code { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); overflow-wrap: anywhere; opacity: 0.8; }
+
+.pill-estado[data-tono="grave"] { color: var(--accent); border-color: var(--accent); background: #fbecea; }
+.rp-hero .pill-estado[data-tono="atencion"],
+.rp-card .pill-estado[data-tono="atencion"] { background: #fdf3e7; color: #9a5a12; border-color: #e7c08a; }
+.rp-hero .pill-estado[data-tono="ok"],
+.rp-card .pill-estado[data-tono="ok"] { background: #ecf4ee; border-color: #b9d3c1; }
+
+/* Voucher: un renglón. */
+.rp-voucher { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; }
+.rp-voucher > div:first-child { flex: 1 1 360px; }
+.rp-voucher p:not(.eyebrow) { margin: 6px 0 0; }
+.rp-voucher .form-actions { margin: 0; }
+
+/* Detalle en dos tarjetas. */
+.rp-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.rp-card { margin: 0; }
+.rp-card .route-title { margin: 6px 0 14px; font-size: clamp(22px, 2.4vw, 30px); }
+.rp-list { display: grid; margin: 0; }
+.rp-list > div { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); gap: 4px 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.rp-list dt { color: var(--ink-muted); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 2px; }
+.rp-list dd { grid-column: 2; margin: 0; color: var(--ink); font-weight: 700; line-height: 1.35; }
+.rp-break { overflow-wrap: anywhere; }
+.rp-map { margin-top: 6px; min-height: 34px; padding: 0 14px; font-size: 13px; }
+
+.rp-pickup { display: grid; gap: 4px; margin-top: 14px; padding: 14px 16px; border-radius: 14px; background: #eef4f0; border: 1px solid #c9dccf; }
+.rp-pickup span { color: var(--primary); font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.rp-pickup strong { color: var(--ink); font-size: 18px; }
+.rp-pickup p { margin: 4px 0 0; color: var(--ink-soft); font-size: 14px; line-height: 1.45; }
+
+.rp-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-top: 4px; padding-top: 14px; border-top: 2px solid var(--ink); }
+.rp-total span { color: var(--ink-muted); font-size: 12px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.rp-total strong { color: var(--ink); font-size: 26px; }
+.rp-note { margin: 10px 0 0; font-size: 13px; }
+
+/* Ticket: sólo si existe. */
+.rp-ticket { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: center; }
+.rp-ticket .route-title { margin: 6px 0 0; }
+.rp-ticket details.qr-payload { margin: 0; }
+.rp-ticket details.qr-payload summary { cursor: pointer; color: var(--primary); font-size: 13px; font-weight: 700; }
+.rp-ticket details.qr-payload code { display: block; margin-top: 8px; overflow-wrap: anywhere; }
+
+/* Pago: el botón «Coordinar el pago» y el selector de archivo con el estilo del sitio. */
+.rp-pago { scroll-margin-top: 110px; }
+.rp-pago .manual-payment-panel { margin: 0; }
+.rp-pago .manual-payment-panel > .ghost-button { justify-self: start; }
+.rp-pago .receipt-form { max-width: 560px; }
+.rp-pago .receipt-form input[type="file"] { padding: 10px; font-size: 14px; }
+.rp-pago .receipt-form input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 9px 16px;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rp-pago .receipt-form .button { width: auto; justify-self: start; padding-inline: 28px; }
+.reserva-pasajero > .error { margin: 0; }
+
+@media (max-width: 900px) {
+  .rp-hero { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .rp-layout { grid-template-columns: minmax(0, 1fr); }
+  .rp-ticket { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 560px) {
+  .reserva-pasajero { gap: 12px; }
+  .rp-title { font-size: 30px; }
+  .rp-lead { font-size: 15px; }
+  .rp-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rp-facts > div:first-child { grid-column: 1 / -1; }
+  .rp-hero-cta, .rp-voucher .form-actions > *, .rp-pago .receipt-form .button { width: 100%; justify-content: center; }
+  .rp-voucher .form-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .rp-list > div { grid-template-columns: minmax(0, 1fr); }
+  .rp-list dd { grid-column: 1; }
+  .rp-total strong { font-size: 22px; }
+}
+.reserva-pasajero.section { padding-top: 28px; }
