@@ -32,8 +32,11 @@
 }
 
 .voucher-logo {
-  width: 64px;
+  width: 112px;
   height: auto;
+  /* El logo del sitio es blanco porque va sobre el hero oscuro. En el voucher el papel es blanco y
+     desaparece: aca se fuerza a tinta negra respetando la transparencia. */
+  filter: brightness(0);
 }
 
 .voucher-marca p {
