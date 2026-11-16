@@ -7,6 +7,8 @@ import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getAdminReservationByCode } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
+import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
+import { siteOrigin } from "@/lib/site-origin";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
 import {
@@ -82,6 +84,16 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
     ? [pickupDetails.pickupLatitude, pickupDetails.pickupLongitude] : null;
   const detailPath = `/admin/reservas/${reservation.code}`;
   const whatsappUrl = whatsappHref(reservation.passenger.phone);
+  // El voucher se comparte fuera de la app, así que el link del mensaje tiene que ser absoluto.
+  const voucherHref = voucherPath(reservation.code);
+  const voucherWa = whatsappShareUrl(
+    reservation.passenger.phone,
+    voucherMessage({
+      firstName: reservation.passenger.firstName,
+      shortCode: formatShortCode(reservation.shortCode),
+      url: absoluteUrl(voucherHref, await siteOrigin())
+    })
+  );
   const hasReceipt = Boolean(payment?.receiptBlobPathname);
   const canViewReceipt = !disability || user.role === "ADMIN";
   // Las mismas condiciones que usa el listado para ofrecer «Validar pago» / «Aprobar documentación».
@@ -108,6 +120,10 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
           ) : null}
         </div>
         <div className="detalle-contacto">
+          <a className="ghost-button" href={voucherHref} target="_blank" rel="noopener noreferrer">Voucher</a>
+          {voucherWa ? (
+            <a className="ghost-button detalle-whatsapp" href={voucherWa} target="_blank" rel="noopener noreferrer">Enviar voucher por WhatsApp</a>
+          ) : null}
           {whatsappUrl ? (
             <a className="ghost-button detalle-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp al pasajero</a>
           ) : null}
