@@ -10,7 +10,7 @@ import {
   buildVoucher,
   estadoDelVoucher
 } from "@/lib/booking/voucher";
-import { formatPrice } from "../presentation";
+import { importeDelVoucher } from "@/lib/booking/voucher";
 import { PrintButton } from "./print-button";
 
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -126,9 +126,9 @@ export default async function VoucherPage({ params }: VoucherPageProps) {
               <p className="voucher-sin-cargo">Sin cargo · tarifa por discapacidad</p>
             ) : (
               <dl>
-                <div><dt>Valor total</dt><dd>{formatPrice(voucher.totalCents, voucher.currency)}</dd></div>
-                <div><dt>Pago registrado</dt><dd>{formatPrice(voucher.paidCents, voucher.currency)}</dd></div>
-                <div className="voucher-saldo"><dt>Saldo</dt><dd>{formatPrice(voucher.balanceCents, voucher.currency)}</dd></div>
+                <div><dt>Valor total</dt><dd>{importeDelVoucher(voucher.totalCents, voucher.currency)}</dd></div>
+                <div><dt>Pago registrado</dt><dd>{importeDelVoucher(voucher.paidCents, voucher.currency)}</dd></div>
+                <div className="voucher-saldo"><dt>Saldo</dt><dd>{importeDelVoucher(voucher.balanceCents, voucher.currency)}</dd></div>
               </dl>
             )}
           </section>

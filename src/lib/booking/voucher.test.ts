@@ -6,6 +6,7 @@ import {
   buildVoucher,
   diaCalendario,
   estadoDelVoucher,
+  importeDelVoucher,
   voucherMessage,
   voucherPath,
   whatsappShareUrl
@@ -223,5 +224,28 @@ describe("formato de fechas del voucher", () => {
     expect(estadoDelVoucher("CONFIRMED")).toBe("Confirmada");
     expect(estadoDelVoucher("CANCELLED")).toBe("Cancelada");
     expect(estadoDelVoucher("RARO")).toBe("RARO");
+  });
+});
+
+// `Intl` separa el símbolo del número con un espacio duro (U+00A0): en el assert se normaliza para
+// que el test hable de lo que importa —el código de moneda— y no del tipo de espacio.
+const plano = (valor: string) => valor.replace(/\u00A0/g, " ");
+
+describe("importeDelVoucher", () => {
+  it("dice la moneda además del símbolo: el voucher circula fuera de la app", () => {
+    expect(plano(importeDelVoucher(1200000, "ARS"))).toBe("$ 12.000 ARS");
+  });
+
+  it("no inventa el código cuando la reserva no lo trae", () => {
+    expect(plano(importeDelVoucher(500000, ""))).toBe("$ 5.000 ARS");
+    expect(plano(importeDelVoucher(500000, "pesos"))).toBe("$ 5.000 ARS");
+  });
+
+  it("respeta otra moneda si la reserva la tiene", () => {
+    expect(importeDelVoucher(90000, "USD")).toContain("USD");
+  });
+
+  it("muestra el saldo en cero sin decimales de más", () => {
+    expect(plano(importeDelVoucher(0, "ARS"))).toBe("$ 0 ARS");
   });
 });
