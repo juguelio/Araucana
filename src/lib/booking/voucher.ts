@@ -178,6 +178,22 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
   };
 }
 
+/**
+ * Importe del voucher con el código de moneda. El comprobante circula fuera de la app —se manda por
+ * WhatsApp y se imprime— y `$ 12.000` no dice en qué moneda está: el símbolo `$` se lee igual en
+ * Argentina, Chile y México, y el voucher viaja a pasajeros extranjeros.
+ */
+export function importeDelVoucher(cents: number, currency: string) {
+  const codigo = /^[A-Z]{3}$/.test(currency) ? currency : "ARS";
+  const numero = new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: codigo,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  }).format(cents / 100);
+  return `${numero} ${codigo}`;
+}
+
 /** Ruta del voucher: se abre con el mismo `code` privado que la reserva. */
 export function voucherPath(code: string) {
   return `/reservas/${code}/voucher`;
