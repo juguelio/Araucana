@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({
   findMany: vi.fn(),
-  updateMany: vi.fn()
+  updateMany: vi.fn(),
+  audit: vi.fn()
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
-    reservation: { findMany: m.findMany, updateMany: m.updateMany }
+    reservation: { findMany: m.findMany, updateMany: m.updateMany },
+    auditLog: { create: m.audit }
   }
 }));
 
@@ -31,6 +33,23 @@ describe("reconciliarReservasDeVuelosPasados", () => {
   beforeEach(() => {
     m.findMany.mockReset();
     m.updateMany.mockReset().mockResolvedValue({ count: 0 });
+    m.audit.mockReset();
+  });
+
+  it("deja en la auditoría, como hecho por el sistema, cada reserva que cierra sola", async () => {
+    m.findMany.mockResolvedValue([
+      { ...reserva("pagada", "APPROVED", hace3Dias), code: "ARC-1", shortCode: "AAAA-1111" },
+      { ...reserva("impaga", "PENDING", hace3Dias), code: "ARC-2", shortCode: "BBBB-2222" },
+      { ...reserva("futura", "PENDING", en3Dias), code: "ARC-3", shortCode: "CCCC-3333" }
+    ]);
+
+    await reconciliarReservasDeVuelosPasados(ahora);
+
+    expect(m.audit.mock.calls.map(([row]) => [row.data.action, row.data.actorRole, row.data.entityLabel, row.data.changes.status.after])).toEqual([
+      ["CONFIRM", "SYSTEM", "ARC-1", "CONFIRMED"],
+      ["CANCEL", "SYSTEM", "ARC-2", "CANCELLED"]
+    ]);
+    expect(m.audit.mock.calls[0]?.[0].data.summary).toContain("AAAA-1111");
   });
 
   it("confirma la reserva cuando el pago está aprobado, aunque el vuelo ya haya pasado", async () => {

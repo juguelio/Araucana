@@ -1,6 +1,7 @@
 import { AuthorizationError, requireReservationsUser } from "@/lib/auth/service";
 import { getExcursionBookingsForDay } from "@/lib/excursions/booking-repository";
 import { buildExcursionSheetBlocks, buildExcursionSheetWorkbook, excursionSheetFileName } from "@/lib/excursions/sheet";
+import { recordDownload } from "@/lib/audit/download";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,8 +16,9 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * - `?date=…&excursion=<id>` — sólo una excursión.
  */
 export async function GET(request: Request) {
+  let downloader;
   try {
-    await requireReservationsUser(request);
+    downloader = await requireReservationsUser(request);
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return new Response("No autorizado", { status: 401 });
@@ -34,6 +36,11 @@ export async function GET(request: Request) {
 
   const blocks = buildExcursionSheetBlocks(await getExcursionBookingsForDay(date, excursionId));
   const workbook = await buildExcursionSheetWorkbook({ date, generatedAt: new Date() }, blocks);
+
+  await recordDownload(request, downloader, {
+    entity: "EXCURSION", entityId: excursionId, entityLabel: `Planilla de excursiones ${date}`,
+    summary: "Planilla de excursiones descargada."
+  });
 
   return new Response(new Uint8Array(workbook), {
     headers: {

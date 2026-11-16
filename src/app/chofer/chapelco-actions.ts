@@ -5,6 +5,7 @@ import { getCurrentDriverOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { reorderChapelcoStops, updateChapelcoStopStatus } from "@/lib/chapelco/repository";
 import type { ChapelcoManifestStatus } from "@/lib/chapelco/constants";
+import { recordEntityAuditAfterCommit } from "@/lib/audit/entity";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -73,5 +74,10 @@ export async function moveDriverStopAction(formData: FormData) {
 
   [ids[index], ids[swapWith]] = [ids[swapWith], ids[index]];
   await reorderChapelcoStops(runId, ids);
+  await recordEntityAuditAfterCommit(prisma, {
+    actor: driver, entity: "CHAPELCO", entityId: runId, entityLabel: "Recorrido de Chapelco", action: "UPDATE",
+    summary: `El chofer cambió el orden de las paradas (movió una ${direction === "up" ? "hacia arriba" : "hacia abajo"}).`,
+    extra: { stopOrder: { before: index + 1, after: swapWith + 1 } }
+  });
   revalidatePath("/chofer");
 }

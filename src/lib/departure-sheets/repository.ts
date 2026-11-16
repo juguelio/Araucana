@@ -3,6 +3,8 @@ import { isDepartureSheetToken, createDepartureSheetToken } from "./codes";
 import { parseTripLegs, planillaKindsForSpecialTrip, planillaNotApplicableReason } from "./applicability";
 import type { DeparturePassengerInput } from "./validation";
 import type { DepartureSheetKind } from "./types";
+import { recordEntityAudit } from "@/lib/audit/entity";
+import { guestActor } from "@/lib/audit/record";
 
 export class DepartureSheetError extends Error {
   constructor(public readonly code: "NOT_FOUND" | "CLOSED" | "NOT_APPLICABLE") {
@@ -101,6 +103,15 @@ export async function removeDepartureSheetPassenger(id: string) {
   return prisma.departureSheetPassenger.delete({ where: { id } });
 }
 
+/** Los datos del pasajero que entran a la auditoría (sin posición ni ids). */
+function passengerPicture(passenger: {
+  firstName: string; lastName: string; documentType: string; documentNumber: string; sex: string;
+  birthDate: Date; nationality: string; occupation: string | null; residenceCountry: string | null;
+}) {
+  const { firstName, lastName, documentType, documentNumber, sex, birthDate, nationality, occupation, residenceCountry } = passenger;
+  return { firstName, lastName, documentType, documentNumber, sex, birthDate, nationality, occupation, residenceCountry };
+}
+
 /**
  * Alta desde el link público.
  *
@@ -149,6 +160,11 @@ export async function submitDepartureSheetPassenger(token: string, passenger: De
           residenceCountry: passenger.residenceCountry
         }
       });
+      await recordEntityAudit(tx, {
+        actor: guestActor, entity: "DEPARTURE_SHEET", entityId: sheet.id, entityLabel: `${sheet.kind} · planilla`,
+        summary: `Un pasajero corrigió sus datos en la planilla desde el enlace: ${updated.firstName} ${updated.lastName}.`,
+        before: passengerPicture(existing), after: passengerPicture(updated)
+      });
       return { passenger: updated, updated: true };
     }
 
@@ -173,6 +189,11 @@ export async function submitDepartureSheetPassenger(token: string, passenger: De
       }
     });
 
+    await recordEntityAudit(tx, {
+      actor: guestActor, entity: "DEPARTURE_SHEET", entityId: sheet.id, entityLabel: `${sheet.kind} · planilla`,
+      summary: `Un pasajero se cargó en la planilla desde el enlace: ${created.firstName} ${created.lastName}.`,
+      after: passengerPicture(created)
+    });
     return { passenger: created, updated: false };
   });
 }

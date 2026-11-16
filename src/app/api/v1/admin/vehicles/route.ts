@@ -14,8 +14,8 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAdminApi(request);
-    const vehicle = await createAdminApiVehicle(await readJsonBody(request));
+    const actor = await requireAdminApi(request);
+    const vehicle = await createAdminApiVehicle(await readJsonBody(request), actor);
     return NextResponse.json({ vehicle }, { status: 201 });
   } catch (error) {
     return handleApiError(error);
