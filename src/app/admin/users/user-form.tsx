@@ -22,9 +22,13 @@ type ManagedUserFormProps = {
   action: UserFormAction;
   /** Sin `user`, el formulario da de alta una cuenta nueva. */
   user?: ManagedUserFormData;
+  /** Sólo un super administrador puede elegir ese rol; al resto no se le ofrece. */
+  canAssignSuperAdmin?: boolean;
 };
 
-export function ManagedUserForm({ action, user }: ManagedUserFormProps) {
+export function ManagedUserForm({ action, user, canAssignSuperAdmin = false }: ManagedUserFormProps) {
+  // Si la cuenta ya es de un super administrador el rol se muestra igual, para no cambiarlo sin querer.
+  const roles = managedUserRoles.filter((role) => role !== "SUPERADMIN" || canAssignSuperAdmin || user?.role === "SUPERADMIN");
   const [state, formAction] = useActionState(action, initialAdminFormState);
   const [password, setPassword] = useState("");
   const errors = state.fieldErrors;
@@ -83,7 +87,7 @@ export function ManagedUserForm({ action, user }: ManagedUserFormProps) {
       <label>
         Rol
         <select name="role" defaultValue={user?.role ?? "SECRETARY"}>
-          {managedUserRoles.map((role) => <option value={role} key={role}>{getManagedUserRoleName(role)}</option>)}
+          {roles.map((role) => <option value={role} key={role}>{getManagedUserRoleName(role)}</option>)}
         </select>
         <FieldError id="role-error" message={errors.role} />
       </label>

@@ -1,3 +1,4 @@
+import type { AuditActor } from "@/lib/audit/record";
 import { lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
 import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
@@ -484,11 +485,11 @@ export async function getAdminApiReservation(code: string) {
   return reservation;
 }
 
-export async function patchAdminApiReservation(code: string, payload: unknown) {
+export async function patchAdminApiReservation(code: string, payload: unknown, actor?: AuditActor | null) {
   const input = parseAdminPayload(adminReservationPassengerUpdateSchema, payload);
-  return updatePassengerForReservation(normalizeReservationCode(code), input.passenger);
+  return updatePassengerForReservation(normalizeReservationCode(code), input.passenger, actor);
 }
 
-export async function approveAdminApiReservationPayment(code: string) {
-  return approveManualPayment(normalizeReservationCode(code));
+export async function approveAdminApiReservationPayment(code: string, actor?: AuditActor | null) {
+  return approveManualPayment(normalizeReservationCode(code), actor);
 }

@@ -6,6 +6,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword, verifyPassword } from "./password";
 import { extractBearerToken, SESSION_COOKIE_NAME, toPublicUser } from "./session";
+import { isAdminRole, isOfficeRole } from "./roles";
 
 const JWT_ISSUER = "araucana";
 const JWT_AUDIENCE = "araucana-api";
@@ -203,13 +204,13 @@ export async function requireAuthenticatedUser(request: Request) {
 
 export async function requireAdminUser(request: Request) {
   const user = await requireAuthenticatedUser(request);
-  if (user.role !== "ADMIN") throw new AuthorizationError("Se requiere un usuario administrador");
+  if (!isAdminRole(user.role)) throw new AuthorizationError("Se requiere un usuario administrador");
   return user;
 }
 
 export async function requireReservationsUser(request: Request) {
   const user = await requireAuthenticatedUser(request);
-  if (user.role !== "ADMIN" && user.role !== "SECRETARY") throw new AuthorizationError("Se requiere acceso a reservas");
+  if (!isOfficeRole(user.role)) throw new AuthorizationError("Se requiere acceso a reservas");
   return user;
 }
 
@@ -231,7 +232,7 @@ export async function bootstrapAdminPassword(input: { email: string; password: s
 
   const passwordHash = await hashPassword(input.password);
   await prisma.$transaction(async (tx) => {
-    const initialized = await tx.user.count({ where: { role: "ADMIN", passwordHash: { not: null } } });
+    const initialized = await tx.user.count({ where: { role: { in: ["ADMIN", "SUPERADMIN"] }, passwordHash: { not: null } } });
     if (initialized > 0) throw new AuthorizationError("El administrador inicial ya fue configurado.");
     const account = await tx.user.findUnique({ where: { email: input.email.trim().toLowerCase() } });
     if (!account || account.role !== "ADMIN" || account.passwordHash) {

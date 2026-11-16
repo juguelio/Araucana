@@ -44,7 +44,7 @@ function ReportGroup({ title, empty, groups }: ReportGroupProps) {
 }
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const period = params?.from && params?.to ? createRangePeriod(params.from, params.to) : createMonthPeriod(params?.month);
   const vehicles = await prisma.vehicle.findMany({
@@ -75,7 +75,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const monedas = porMoneda.map((fila) => fila.currency);
 
   return (
-    <AdminShell title="Reportes" eyebrow={period.label} notice={params?.notice}>
+    <AdminShell role={sessionUser.role} title="Reportes" eyebrow={period.label} notice={params?.notice}>
       <form className="filter-bar" action="/admin/reportes">
         <label>
           Mes

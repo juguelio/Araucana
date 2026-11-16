@@ -2,6 +2,7 @@ import { get } from "@vercel/blob";
 import { AuthorizationError, requireReservationsUser } from "@/lib/auth/service";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { getReservationByCode } from "@/lib/booking/repository";
+import { isAdminRole } from "@/lib/auth/roles";
 
 type ReceiptRouteContext = {
   params: Promise<{
@@ -32,7 +33,7 @@ export async function GET(request: Request, context: ReceiptRouteContext) {
 
   const { code } = await context.params;
   const reservation = await getReservationByCode(code.toUpperCase());
-  if (reservation?.payment?.provider === DISABILITY_DOCUMENT_PROVIDER && user.role !== "ADMIN") {
+  if (reservation?.payment?.provider === DISABILITY_DOCUMENT_PROVIDER && !isAdminRole(user.role)) {
     return new Response("No autorizado", { status: 403 });
   }
   const pathname = reservation?.payment?.receiptBlobPathname;

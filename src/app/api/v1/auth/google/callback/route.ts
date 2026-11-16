@@ -8,6 +8,8 @@ import {
 } from "@/lib/auth/google";
 import { createSessionForUser } from "@/lib/auth/service";
 import { getDefaultPathForRole, toPublicRole } from "@/lib/auth/roles";
+import { recordAuditBestEffort, requestOrigin } from "@/lib/audit/record";
+import { prisma } from "@/lib/db/prisma";
 
 export const runtime = "nodejs";
 
@@ -51,6 +53,15 @@ export async function GET(request: Request) {
 
     stage = "session_creation";
     const session = await createSessionForUser(user);
+    await recordAuditBestEffort(prisma, {
+      actor: session.user,
+      action: "LOGIN",
+      entity: "SESSION",
+      entityId: user.id,
+      entityLabel: user.email,
+      summary: user.isActive ? "Inicio de sesión con Google." : "Inicio de sesión con Google (cuenta pendiente de aprobación).",
+      ...requestOrigin(request)
+    });
     const destination = user.isActive ? getDefaultPathForRole(toPublicRole(user.role)) : "/acceso-pendiente";
     const response = NextResponse.redirect(new URL(destination, googleRequestBaseUrl(request)), 302);
     setSessionCookie(response, session.token, session.expiresAt);
@@ -67,6 +78,14 @@ export async function GET(request: Request) {
       stage,
       errorName: getSafeErrorName(error),
       errorCode: getSafeErrorCode(error)
+    });
+    // Google no nos dice qué cuenta se intentó cuando falla: queda la etapa y el motivo.
+    await recordAuditBestEffort(prisma, {
+      actor: { role: "GUEST" },
+      action: "LOGIN_FAILED",
+      entity: "SESSION",
+      summary: `Inicio de sesión con Google fallido (${stage}: ${getSafeErrorCode(error)}).`,
+      ...requestOrigin(request)
     });
     const response = redirectToLogin(request);
     response.cookies.set(getGoogleStateCookieName(), "", {

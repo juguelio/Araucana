@@ -13,7 +13,7 @@ type EditRoutePageProps = {
 };
 
 export default async function EditRoutePage({ params }: EditRoutePageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const { id } = await params;
   const route = await prisma.travelRoute.findUnique({ where: { id } });
 
@@ -22,7 +22,7 @@ export default async function EditRoutePage({ params }: EditRoutePageProps) {
   }
 
   return (
-    <AdminShell
+    <AdminShell role={sessionUser.role}
       title="Editar ruta"
       action={
         <div className="inline-actions">

@@ -1,0 +1,20 @@
+/* Auditoría: una tabla densa de sólo lectura. Usa los tokens del panel. */
+.audit-count { margin: 0 0 12px; font-size: 13px; }
+.audit-scroll { max-width: 100%; overflow-x: auto; }
+.audit-table { min-width: 1040px; font-size: 14px; table-layout: fixed; }
+.audit-table td { vertical-align: top; overflow-wrap: break-word; }
+.audit-table th:nth-child(1) { width: 140px; }
+.audit-table th:nth-child(2) { width: 200px; }
+.audit-table th:nth-child(3) { width: 170px; }
+.audit-table th:nth-child(4) { width: 210px; }
+/* Códigos de reserva y emails no tienen dónde cortar: se parten donde haga falta. */
+.audit-table td:nth-child(4), .audit-table .audit-sub { overflow-wrap: anywhere; }
+.audit-table tr[data-alerta="true"] td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.audit-when { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.audit-sub { display: block; color: var(--ink-muted); font-size: 12px; font-weight: 400; }
+.audit-action { font-weight: 700; }
+.audit-changes { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.audit-field { color: var(--ink-muted); }
+.audit-before { color: var(--ink-muted); text-decoration: line-through; }
+.audit-after { font-weight: 700; }
+.audit-pager { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }

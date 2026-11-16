@@ -21,7 +21,7 @@ function formatDate(date: Date) {
 }
 
 export default async function AccountingPage({ searchParams }: AccountingPageProps) {
-  await getCurrentAdminOrRedirect();
+  const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const period = createMonthPeriod(params?.month);
   const [report, vehicles, salaryUsers] = await Promise.all([
@@ -53,7 +53,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   ]);
 
   return (
-    <AdminShell title="Contabilidad" eyebrow={period.label} notice={params?.notice}>
+    <AdminShell role={sessionUser.role} title="Contabilidad" eyebrow={period.label} notice={params?.notice}>
       <form className="filter-bar" action="/admin/contabilidad">
         <label>
           Mes

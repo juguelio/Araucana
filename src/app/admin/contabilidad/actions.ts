@@ -23,7 +23,7 @@ function noticeRedirect(path: string, notice: string): never {
 }
 
 export async function createExpenseAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   try {
     const input = parseAccountingEntryInput({
@@ -34,7 +34,7 @@ export async function createExpenseAction(_state: AdminFormState, formData: Form
       notes: value(formData, "notes")
     });
 
-    await createAccountingEntry(input);
+    await createAccountingEntry(input, actor);
   } catch (error) {
     return errorState(error instanceof Error ? error.message : "No pudimos guardar el egreso.");
   }
@@ -44,7 +44,7 @@ export async function createExpenseAction(_state: AdminFormState, formData: Form
 }
 
 export async function createSalaryPaymentAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
 
   try {
     const userId = value(formData, "userId");
@@ -75,7 +75,7 @@ export async function createSalaryPaymentAction(_state: AdminFormState, formData
       notes: value(formData, "notes")
     });
 
-    await createAccountingEntry(input);
+    await createAccountingEntry(input, actor);
   } catch (error) {
     return errorState(error instanceof Error ? error.message : "No pudimos registrar el pago.");
   }

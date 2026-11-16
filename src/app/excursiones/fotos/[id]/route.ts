@@ -1,3 +1,4 @@
+import { isOfficeRole } from "@/lib/auth/roles";
 import { get } from "@vercel/blob";
 import { getAppUserFromToken, getTokenFromRequest } from "@/lib/auth/service";
 import { prisma } from "@/lib/db/prisma";
@@ -9,7 +10,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!photo) return new Response("Foto no encontrada", { status: 404 });
   if (!photo.excursion.isPublished) {
     const user = await getAppUserFromToken(getTokenFromRequest(request));
-    if (!user?.isActive || !["ADMIN", "SECRETARY"].includes(user.role)) return new Response("Foto no encontrada", { status: 404 });
+    if (!user?.isActive || !isOfficeRole(user.role)) return new Response("Foto no encontrada", { status: 404 });
   }
   try {
     const result = await get(photo.blobPathname, { access: "private" });

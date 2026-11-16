@@ -8,7 +8,8 @@ const tx = vi.hoisted(() => ({
   chapelcoReservationDetails: { update: vi.fn(), findUnique: vi.fn() },
   chapelcoManifestStop: { deleteMany: vi.fn(), updateMany: vi.fn() },
   schedule: { findUnique: vi.fn() },
-  vehicle: { findMany: vi.fn() }
+  vehicle: { findMany: vi.fn() },
+  auditLog: { create: vi.fn() }
 }));
 
 vi.mock("@/lib/db/prisma", () => ({
@@ -103,6 +104,48 @@ describe("administración de reservas", () => {
         cancelledAt: expect.any(Date),
         cancelledByName: null
       }
+    });
+  });
+
+  it("deja en la auditoría quién hizo la operación y sólo los campos que cambiaron", async () => {
+    const actor = { id: "user-1", name: "Vale", email: "vale@example.com", role: "SECRETARY" };
+    const before = { ...pending, shortCode: "2WGS-TTT7", status: "CONFIRMED", seatNumber: "04", passenger: { firstName: "Ana", lastName: "Paz" } };
+    tx.reservation.findUnique
+      .mockResolvedValueOnce(before)
+      .mockResolvedValueOnce({ ...before, status: "CANCELLED", seatNumber: null, cancellationReason: "Se reprogramó", cancelledByName: "Vale" });
+    await manageReservation(code, { operation: "cancel", reason: "Se reprogramó", cancelledBy: "Vale" }, actor);
+    expect(tx.auditLog.create).toHaveBeenCalledTimes(1);
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: "user-1", actorName: "Vale", actorEmail: "vale@example.com", actorRole: "SECRETARY",
+        action: "CANCEL", entity: "RESERVATION", entityId: pending.id, entityLabel: code,
+        summary: "Reserva cancelada. Código corto 2WGS-TTT7.",
+        changes: {
+          status: { before: "CONFIRMED", after: "CANCELLED" },
+          seatNumber: { before: "04", after: null },
+          cancellationReason: { before: null, after: "Se reprogramó" },
+          cancelledByName: { before: null, after: "Vale" }
+        }
+      })
+    });
+  });
+
+  it("una operación que no cambia nada no deja fila, y un borrado deja la foto de lo borrado", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, status: "CANCELLED" });
+    await manageReservation(code, { operation: "cancel", reason: "Ya estaba cancelada" });
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, passenger: { firstName: "Ana", lastName: "Paz" } });
+    await manageReservation(code, { operation: "delete" }, { id: "admin-1", role: "ADMIN" });
+    expect(tx.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        actorId: "admin-1", action: "DELETE", summary: "Reserva borrada (pasajero Ana Paz).",
+        changes: expect.objectContaining({
+          status: { before: "PENDING_PAYMENT", after: null },
+          totalCents: { before: 1200000, after: null },
+          "passenger.firstName": { before: "Ana", after: null }
+        })
+      })
     });
   });
 

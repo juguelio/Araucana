@@ -14,6 +14,9 @@ import { fareCounts, reservationTotalCents, seatsFromFares } from "./passenger-f
 import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type AdminReservationInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
+import { diffRecords, hasChanges } from "@/lib/audit/diff";
+import { guestActor, recordAudit, type AuditActor, type AuditClient } from "@/lib/audit/record";
+import { recordReservationCreated, withShortCode } from "@/lib/audit/reservation";
 import { reservationCreatorData, reservationCreatorLabel, type ReservationCreationContext } from "./reservation-creator";
 import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
@@ -193,6 +196,8 @@ type BookingTransactionClient = {
   ticket: {
     create(args: unknown): Promise<TicketRecord>;
   };
+  /** Opcional: los clientes falsos de las pruebas no lo traen (ver `recordAudit`). */
+  auditLog?: AuditClient["auditLog"];
 };
 
 export type BookingClient = BookingTransactionClient & {
@@ -585,7 +590,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     });
   }
 
-  async function reviewReceipt(code: string, decision: "APPROVED" | "REJECTED", provider = "MANUAL", receiptVersion?: string) {
+  async function reviewReceipt(code: string, decision: "APPROVED" | "REJECTED", provider = "MANUAL", receiptVersion?: string, actor?: AuditActor | null) {
     const normalizedCode = code.trim().toUpperCase();
     for (let attempt = 1; ; attempt += 1) {
       try {
@@ -611,10 +616,27 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               await issueScheduleTicket(tx, reservation.id, reservation.scheduleId, reservation.passengerCount);
             }
           }
+          // La foto de antes se toma antes de escribir: no depende de que `reservation` siga intacto.
+          const beforeReview = { status: reservation.status, "payment.status": reservation.payment.status };
           await tx.payment.update({ where: { reservationId: reservation.id }, data: { status: decision } });
+          const nextStatus = decision === "APPROVED" ? "CONFIRMED" : pendingStatus;
           await tx.reservation.update({
             where: { id: reservation.id },
-            data: { status: decision === "APPROVED" ? "CONFIRMED" : pendingStatus }
+            data: { status: nextStatus }
+          });
+          const disability = provider === DISABILITY_DOCUMENT_PROVIDER;
+          await recordAudit(tx, {
+            actor,
+            action: disability
+              ? (decision === "APPROVED" ? "DOCUMENT_APPROVED" : "DOCUMENT_REJECTED")
+              : (decision === "APPROVED" ? "PAYMENT_APPROVED" : "PAYMENT_REJECTED"),
+            entity: "RESERVATION",
+            entityId: reservation.id,
+            entityLabel: normalizedCode,
+            summary: withShortCode(disability
+              ? (decision === "APPROVED" ? "Documentación aprobada: reserva sin cargo confirmada." : "Documentación rechazada.")
+              : (decision === "APPROVED" ? "Comprobante de pago validado." : "Comprobante de pago rechazado."), reservation.shortCode),
+            changes: diffRecords(beforeReview, { status: nextStatus, "payment.status": decision })
           });
           const detail = await getReservationByCodeWithClient(tx, normalizedCode);
           if (!detail) throw new BookingError("RESERVATION_NOT_FOUND", "Reserva no encontrada.");
@@ -836,6 +858,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             });
 
             if (!disabilityFare) await issueScheduleTicket(tx, reservation.id, schedule.id, requestedSeats);
+            await recordReservationCreated(tx, reservation, creator, "salida regular");
 
             const detail = await getReservationByCodeWithClient(tx, code);
 
@@ -908,7 +931,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       };
     },
 
-    async updatePassengerForReservation(code: string, input: PassengerInput) {
+    async updatePassengerForReservation(code: string, input: PassengerInput, actor?: AuditActor | null) {
       const normalizedCode = code.toUpperCase();
       const parsed = normalizePassengerInput(adminPassengerSchema.parse(input));
 
@@ -922,10 +945,28 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           throw new BookingError("RESERVATION_NOT_FOUND", "Reservation not found");
         }
 
+        const previous = reservation.passenger as unknown as Record<string, unknown>;
+        const beforeEdit = Object.fromEntries(Object.keys(parsed).map((field) => [`passenger.${field}`, previous?.[field]]));
         await tx.passenger.update({
           where: { id: reservation.passengerId },
           data: parsed
         });
+
+        const changes = diffRecords(
+          beforeEdit,
+          Object.fromEntries(Object.entries(parsed).map(([field, value]) => [`passenger.${field}`, value]))
+        );
+        if (hasChanges(changes)) {
+          await recordAudit(tx, {
+            actor,
+            action: "UPDATE",
+            entity: "RESERVATION",
+            entityId: reservation.id,
+            entityLabel: normalizedCode,
+            summary: withShortCode("Datos del pasajero editados.", reservation.shortCode),
+            changes
+          });
+        }
 
         const detail = await getReservationByCodeWithClient(tx, normalizedCode);
 
@@ -971,6 +1012,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             }
 
             const replacedBlobPathname = reservation.payment.receiptBlobPathname ?? null;
+            const beforeUpload = { "payment.status": reservation.payment.status, "payment.receiptFileName": reservation.payment.receiptFileName ?? null };
             await tx.payment.update({
               where: { reservationId: reservation.id },
               data: {
@@ -982,6 +1024,16 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 receiptSize: receipt.size,
                 receiptUploadedAt: receipt.uploadedAt
               }
+            });
+            // Lo sube el pasajero desde su enlace, sin sesión. Queda el nombre del archivo, no el archivo.
+            await recordAudit(tx, {
+              actor: guestActor,
+              action: "UPDATE",
+              entity: "RESERVATION",
+              entityId: reservation.id,
+              entityLabel: normalizedCode,
+              summary: withShortCode(replacedBlobPathname ? "Comprobante reemplazado por el pasajero." : "Comprobante subido por el pasajero.", reservation.shortCode),
+              changes: diffRecords(beforeUpload, { "payment.status": "PENDING", "payment.receiptFileName": receipt.fileName })
             });
 
             const detail = await getReservationByCodeWithClient(tx, normalizedCode);
@@ -1003,10 +1055,10 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       }
     },
 
-    approveManualPayment: (code: string) => reviewReceipt(code, "APPROVED"),
-    rejectManualPayment: (code: string) => reviewReceipt(code, "REJECTED"),
-    reviewDisabilityDocument: (code: string, decision: "APPROVED" | "REJECTED", version: string) =>
-      reviewReceipt(code, decision, DISABILITY_DOCUMENT_PROVIDER, version),
+    approveManualPayment: (code: string, actor?: AuditActor | null) => reviewReceipt(code, "APPROVED", undefined, undefined, actor),
+    rejectManualPayment: (code: string, actor?: AuditActor | null) => reviewReceipt(code, "REJECTED", undefined, undefined, actor),
+    reviewDisabilityDocument: (code: string, decision: "APPROVED" | "REJECTED", version: string, actor?: AuditActor | null) =>
+      reviewReceipt(code, decision, DISABILITY_DOCUMENT_PROVIDER, version, actor),
 
     async listAdminSchedules(filters: AdminScheduleFilters = {}): Promise<AdminScheduleRowDto[]> {
       const schedules = (await client.schedule.findMany({

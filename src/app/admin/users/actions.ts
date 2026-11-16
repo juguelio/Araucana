@@ -9,7 +9,14 @@ import { hashPassword, isValidPassword } from "@/lib/auth/password";
 import { parseMonthlySalaryCents } from "@/lib/admin/salary";
 import { getManagedUserPath, isManagedUserRole, type ManagedUserRole } from "@/lib/admin/users";
 import { validateManagedUserDraft } from "@/lib/admin/user-draft";
+import { diffRecords, hasChanges, HIDDEN_VALUE } from "@/lib/audit/diff";
+import { recordAudit } from "@/lib/audit/record";
+import { isAdminRole, isSuperAdminRole } from "@/lib/auth/roles";
+import { canAssignRole, canManageAccount, PROTECTED_ACCOUNT_MESSAGE, SUPERADMIN_ROLE_MESSAGE } from "@/lib/auth/super-admin";
 import { errorState, type AdminFormState } from "../form-state";
+
+/** Los datos de una cuenta que entran a la auditoría. La contraseña nunca: sólo que cambió. */
+const auditedUserFields = { email: true, name: true, role: true, isActive: true, monthlySalaryCents: true } as const;
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -34,16 +41,28 @@ function refreshUsers() {
   revalidatePath("/admin/choferes");
 }
 
-async function ensureAdminRemains(tx: Prisma.TransactionClient, userId: string, nextRole: ManagedUserRole, nextActive: boolean) {
+const adminRoles = ["ADMIN", "SUPERADMIN"];
+
+/**
+ * Nunca se queda el sistema sin quien lo administre: tiene que seguir habiendo un administrador
+ * activo (el super administrador cuenta) y, si ya hay super administradores, uno activo — si no,
+ * nadie podría volver a asignar ese rol ni ver la auditoría. `nextRole` en `null` es un borrado.
+ */
+async function ensureAdminRemains(tx: Prisma.TransactionClient, userId: string, nextRole: ManagedUserRole | null, nextActive: boolean) {
   const target = await tx.user.findUnique({ where: { id: userId }, select: { role: true, isActive: true } });
-  if (!target || target.role !== "ADMIN" || (nextRole === "ADMIN" && nextActive)) return;
-  const activeAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true } });
-  const activeAdminsAfterChange = activeAdmins - (target.isActive ? 1 : 0);
-  if (activeAdminsAfterChange < 1) throw new Error("No se puede quitar o desactivar al último administrador activo.");
+  if (!target || !target.isActive) return;
+  if (isAdminRole(target.role) && !(isAdminRole(nextRole) && nextActive)) {
+    const activeAdmins = await tx.user.count({ where: { role: { in: adminRoles }, isActive: true } });
+    if (activeAdmins - 1 < 1) throw new Error("No se puede quitar o desactivar al último administrador activo.");
+  }
+  if (isSuperAdminRole(target.role) && !(isSuperAdminRole(nextRole) && nextActive)) {
+    const activeSuperAdmins = await tx.user.count({ where: { role: "SUPERADMIN", isActive: true } });
+    if (activeSuperAdmins - 1 < 1) throw new Error("No se puede quitar o desactivar al último super administrador activo.");
+  }
 }
 
 export async function createManagedUserAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  await getCurrentAdminOrRedirect();
+  const actor = await getCurrentAdminOrRedirect();
   const passwordValue = formData.get("password");
 
   const validated = validateManagedUserDraft({
@@ -60,17 +79,28 @@ export async function createManagedUserAction(_state: AdminFormState, formData: 
   }
 
   const { draft } = validated;
+  if (!canAssignRole(actor, draft.role)) return errorState(SUPERADMIN_ROLE_MESSAGE, { role: SUPERADMIN_ROLE_MESSAGE });
   try {
-    await prisma.user.create({
-      data: {
-        email: draft.email,
-        name: draft.name,
-        role: draft.role,
-        isActive: draft.isActive,
-        monthlySalaryCents: draft.monthlySalaryCents,
-        salaryCurrency: "ARS",
-        passwordHash: await hashPassword(draft.password)
-      }
+    const passwordHash = await hashPassword(draft.password);
+    await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: draft.email,
+          name: draft.name,
+          role: draft.role,
+          isActive: draft.isActive,
+          monthlySalaryCents: draft.monthlySalaryCents,
+          salaryCurrency: "ARS",
+          passwordHash
+        },
+        select: { id: true, ...auditedUserFields }
+      });
+      const { id, ...fields } = created;
+      await recordAudit(tx, {
+        actor, action: "CREATE", entity: "USER", entityId: id, entityLabel: created.email,
+        summary: "Cuenta creada desde el panel.",
+        changes: diffRecords(null, fields)
+      });
     });
   } catch (error) {
     return reportError(error);
@@ -91,7 +121,8 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
 
   if (!id || !isManagedUserRole(roleInput)) return errorState("Revisa los datos de la cuenta.");
   const role: ManagedUserRole = roleInput;
-  if (id === actor.id && (role !== "ADMIN" || !isActive)) {
+  if (!canAssignRole(actor, role)) return errorState(SUPERADMIN_ROLE_MESSAGE, { role: SUPERADMIN_ROLE_MESSAGE });
+  if (id === actor.id && (!isAdminRole(role) || !isActive)) {
     return errorState("No podés quitarte el rol de administrador ni desactivar tu propia cuenta.");
   }
 
@@ -102,8 +133,11 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
       ? parseMonthlySalaryCents(value(formData, "monthlySalary"))
       : null;
     await prisma.$transaction(async (tx) => {
+      const before = await tx.user.findUnique({ where: { id }, select: auditedUserFields });
+      if (!before) throw new Error("La cuenta ya no existe.");
+      if (!canManageAccount(actor, before)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
       await ensureAdminRemains(tx, id, role, isActive);
-      await tx.user.update({
+      const after = await tx.user.update({
         where: { id },
         data: {
           name: name || null,
@@ -112,9 +146,21 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
           monthlySalaryCents,
           salaryCurrency: "ARS",
           ...(password ? { passwordHash: await hashPassword(password) } : {})
-        }
+        },
+        select: auditedUserFields
       });
       if (password) await tx.session.deleteMany({ where: { userId: id } });
+      const changes = {
+        ...diffRecords(before, after),
+        ...(password ? { password: { before: HIDDEN_VALUE, after: HIDDEN_VALUE } } : {})
+      };
+      if (hasChanges(changes)) {
+        await recordAudit(tx, {
+          actor, action: "UPDATE", entity: "USER", entityId: id, entityLabel: before.email,
+          summary: password ? "Cuenta actualizada: se cambió la contraseña y se cerraron sus sesiones." : "Cuenta actualizada.",
+          changes
+        });
+      }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     return reportError(error);
@@ -131,11 +177,20 @@ export async function setManagedUserActiveAction(formData: FormData) {
   if (actor.id === id && !isActive) notice("No podés desactivar tu propia cuenta.");
   try {
     await prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id }, select: { role: true, isActive: true } });
+      const target = await tx.user.findUnique({ where: { id }, select: { email: true, role: true, isActive: true } });
       if (!target) throw new Error("La cuenta ya no existe.");
+      if (!canManageAccount(actor, target)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
       const role = isManagedUserRole(target.role) ? target.role : "USER";
       await ensureAdminRemains(tx, id, role, isActive);
       await tx.user.update({ where: { id }, data: { isActive } });
+      const changes = diffRecords({ isActive: target.isActive }, { isActive });
+      if (hasChanges(changes)) {
+        await recordAudit(tx, {
+          actor, action: "UPDATE", entity: "USER", entityId: id, entityLabel: target.email,
+          summary: isActive ? "Cuenta activada." : "Cuenta desactivada.",
+          changes
+        });
+      }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     notice(error instanceof Error ? error.message : "No pudimos cambiar el estado.");
@@ -151,14 +206,16 @@ export async function deleteManagedUserAction(formData: FormData) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const target = await tx.user.findUnique({ where: { id }, select: { role: true, isActive: true } });
+      const target = await tx.user.findUnique({ where: { id }, select: auditedUserFields });
       if (!target) throw new Error("La cuenta ya no existe.");
-      if (target.role === "ADMIN") {
-        const activeAdmins = await tx.user.count({ where: { role: "ADMIN", isActive: true } });
-        const adminsAfterDelete = activeAdmins - (target.isActive ? 1 : 0);
-        if (adminsAfterDelete < 1) throw new Error("No se puede eliminar al último administrador activo.");
-      }
+      if (!canManageAccount(actor, target)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
+      await ensureAdminRemains(tx, id, null, false);
       await tx.user.delete({ where: { id } });
+      await recordAudit(tx, {
+        actor, action: "DELETE", entity: "USER", entityId: id, entityLabel: target.email,
+        summary: "Cuenta eliminada y acceso revocado.",
+        changes: diffRecords(target, null)
+      });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
     notice(error instanceof Error ? error.message : "No pudimos eliminar la cuenta.");

@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
+import { diffRecords } from "@/lib/audit/diff";
+import { recordAudit, type AuditActor } from "@/lib/audit/record";
 import { createMonthPeriod, createRangePeriod, isWithinPeriod } from "./period";
 import {
   ACCOUNTING_CATEGORIES,
@@ -196,9 +198,30 @@ export function parseAccountingEntryInput(input: {
   return parsed;
 }
 
-export async function createAccountingEntry(input: AccountingEntryInput) {
-  return prisma.accountingEntry.create({
-    data: input
+export async function createAccountingEntry(input: AccountingEntryInput, actor?: AuditActor | null) {
+  // El movimiento y su auditoría van juntos: no queda un egreso sin saber quién lo cargó.
+  return prisma.$transaction(async (tx) => {
+    const entry = await tx.accountingEntry.create({ data: input });
+    const label = ACCOUNTING_CATEGORY_LABELS[entry.category as AccountingCategory] ?? entry.category;
+    await recordAudit(tx, {
+      actor,
+      action: "CREATE",
+      entity: "ACCOUNTING_ENTRY",
+      entityId: entry.id,
+      entityLabel: label,
+      summary: SALARY_CATEGORIES.has(entry.category as AccountingCategory) ? "Pago de sueldo registrado." : "Egreso registrado.",
+      changes: diffRecords(null, {
+        category: entry.category,
+        amountCents: entry.amountCents,
+        currency: entry.currency,
+        occurredAt: entry.occurredAt,
+        vehicleId: entry.vehicleId,
+        userId: entry.userId,
+        salaryPeriod: entry.salaryPeriod,
+        notes: entry.notes
+      })
+    });
+    return entry;
   });
 }
 
