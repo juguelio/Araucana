@@ -339,6 +339,13 @@ model Reservation {
   // Código corto para dictar, imprimir y buscar en el panel (issue #75). No es una capability:
   // la reserva se abre sólo con `code`, y este código lo resuelve el buscador con sesión de staff.
   shortCode   String     @unique
+  // Idempotencia del alta (#139): la clave la genera el formulario y el servidor la usa para
+  // devolver la reserva ya creada en vez de crear otra cuando el pasajero reintenta (se le cortó
+  // la red, apretó dos veces, recargó). Nullable: las reservas históricas y las altas sin clave
+  // no la tienen, y un índice único acepta varios NULL. En el ida y vuelta cada tramo lleva la
+  // misma clave con su sentido de sufijo (`<clave>:arrival` / `<clave>:departure`), porque el
+  // viaje se crea en una sola transacción y sus dos reservas son filas distintas.
+  idempotencyKey String? @unique
   scheduleId  String?
   // Restrict a propósito: la base real ya lo tiene así y no queremos que borrar una salida
   // con reservas deje huérfanas a las reservas (el esquema declaraba SetNull por deriva vieja).

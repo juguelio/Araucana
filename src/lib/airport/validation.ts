@@ -25,6 +25,19 @@ export const privateFlightSchema = z.object({
 
 export const airportPickupPointSchema = z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]);
 
+/**
+ * Idempotencia del alta (#139): la clave la genera el formulario del pasajero (`crypto.randomUUID()`)
+ * y es la misma mientras dure ese intento. El servidor, si ya existe una reserva con esa clave,
+ * devuelve **esa** en vez de crear otra y ocupar un segundo lugar. Opcional: cualquier cliente que
+ * no la mande se comporta como antes.
+ */
+export const idempotencyKeySchema = z
+  .string()
+  .trim()
+  .min(8, "La clave de idempotencia es demasiado corta.")
+  .max(80, "La clave de idempotencia es demasiado larga.")
+  .regex(/^[A-Za-z0-9._:-]+$/, "La clave de idempotencia tiene caracteres inválidos.");
+
 /** Dónde se busca o se deja al pasajero. Compartido por el tramo único y por cada tramo del ida y vuelta. */
 const airportPickupFields = {
   pickupName: z.string().max(120).optional(),
@@ -56,6 +69,8 @@ const airportReservationFields = z.object({
   sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
   passenger: passengerSchema,
   ...airportPickupFields,
+  /** Clave del intento de alta, para no duplicar la reserva si el pasajero reintenta (#139). */
+  idempotencyKey: idempotencyKeySchema.optional(),
   /** Cuando viene, el vuelo no se busca: se reutiliza el del mismo número o se crea. */
   privateFlight: privateFlightSchema.optional()
 });
@@ -104,6 +119,8 @@ const airportRoundTripFields = z.object({
   freeFareCount: z.number().int().min(0).max(24).optional(),
   sportsLuggageCount: z.number().int().min(0, "Cantidad inválida.").max(24, "Máximo 24 bultos por reserva.").optional(),
   passenger: passengerSchema,
+  /** Clave del intento de alta: los dos tramos se crean juntos, la clave es del viaje (#139). */
+  idempotencyKey: idempotencyKeySchema.optional(),
   arrival: airportLegFields,
   departure: airportLegFields
 });
