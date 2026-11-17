@@ -51,7 +51,8 @@ test("una fecha futura muestra los vuelos estimados en el panel", async ({ page 
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
   await page.goto(`/admin/aeropuerto?date=${futureDate}`);
   await expect(page.getByText(`No hay vuelos cargados para ${futureDate}.`)).toHaveCount(0);
-  await expect(page.getByText(/Ningún vuelo de este día está confirmado todavía/)).toBeVisible();
+  // Las proyecciones se ven con su rótulo en cada tarjeta, sin el aviso largo arriba.
+  await expect(page.getByText(/Ningún vuelo de este día está confirmado todavía/)).toHaveCount(0);
   for (const id of futureIds) {
     await expect(page.locator(`#vuelo-${id}`).getByText(/Proyección histórica/)).toBeVisible();
   }
