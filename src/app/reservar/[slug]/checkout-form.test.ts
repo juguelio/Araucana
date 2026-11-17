@@ -126,6 +126,10 @@ describe("checkout passenger validation", () => {
     expect(validateCheckoutPassenger({ ...validPassenger, documentId: "", firstName: "" }, false, true)).toMatchObject({
       firstName: expect.any(String)
     });
+    // Opcional no es «cualquier cosa»: un DNI cargado mal se marca en el campo, antes de enviar.
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "12" }, false, true)).toEqual({
+      documentId: "Ingresá un DNI de 7 u 8 dígitos."
+    });
   });
 
   it("combines the mandatory country code with the local phone number", () => {

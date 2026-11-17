@@ -68,7 +68,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   return (
     <form className="admin-form-grid reservation-edit-form" action={formAction} noValidate>
       <h3 className="reservation-edit-wide">Pasajero</h3>
-      <PassengerFields passenger={draft} errors={state.fieldErrors} disabled={pending}
+      <PassengerFields passenger={draft} errors={state.fieldErrors} disabled={pending} optionalDocument={Boolean(transfer?.airport)}
         onChange={(field, value) => setDraft((current) => ({ ...current, [field]: value }))} />
       {transfer ? (
         <>
