@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { airlineName } from "@/lib/airport/airlines";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
+import { AirportTripOptions } from "./airport-trip-options";
 import { statusLabel } from "@/lib/airport/flights";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
@@ -86,25 +87,14 @@ type AirportCheckoutFormProps = {
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   fromAdmin?: boolean;
+  /** A dónde lleva «Ida y vuelta»: la pantalla pública o la del panel. */
+  roundTripHref?: string;
+  /** Entra directo a elegir el vuelo (vino de la tarjeta «Llegada» o «Salida» de otra pantalla). */
+  startAtFlights?: boolean;
 };
 
 const PASOS = ["Llegada o salida", "Tu vuelo", "Tus datos"];
 
-/** Los dos sentidos, como opciones claras del primer paso. */
-const SENTIDOS = [
-  {
-    code: "ARRIVAL" as const,
-    title: "Llegada a Chapelco",
-    subtitle: "Aeropuerto Chapelco (CPC) → San Martín de los Andes",
-    ayuda: "Me espera una combi cuando aterrizo."
-  },
-  {
-    code: "DEPARTURE" as const,
-    title: "Salida desde San Martín",
-    subtitle: "San Martín de los Andes → Aeropuerto Chapelco (CPC)",
-    ayuda: "Me pasan a buscar para tomar mi vuelo."
-  }
-];
 
 const sentidoTexto = (d: "ARRIVAL" | "DEPARTURE") => (d === "ARRIVAL" ? "Llegada" : "Salida");
 
@@ -145,9 +135,9 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false }: AirportCheckoutFormProps) {
   const router = useRouter();
-  const [paso, setPaso] = useState<1 | 2 | 3>(1);
+  const [paso, setPaso] = useState<1 | 2 | 3>(startAtFlights && fares[initialDirection] ? 2 : 1);
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
   const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(
@@ -528,49 +518,28 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   con el estado que informa la aerolínea.
                 </p>
               </div>
-              <div className="wizard-options">
-                {SENTIDOS.map((s) => (
-                  <button
-                    type="button"
-                    key={s.code}
-                    className="wizard-option"
-                    data-selected={sentido === s.code}
-                    disabled={!fares[s.code]}
-                    onClick={() => {
-                      if (s.code !== sentido) {
+              {/* Las tres opciones, iguales en todas las pantallas que reservan aeropuerto. Llegada y salida
+                  siguen en este formulario; ida y vuelta tiene su propia pantalla. */}
+              <AirportTripOptions
+                fares={fares}
+                selected={sentido}
+                onSelect={Object.fromEntries(
+                  (["ARRIVAL", "DEPARTURE"] as const).map((code) => [
+                    code,
+                    () => {
+                      if (code !== sentido) {
                         useAddress();
                         setPickupAddress("");
                       }
-                      setSentido(s.code);
+                      setSentido(code);
                       setSelectedId("");
                       setError("");
                       setPaso(2);
-                    }}
-                  >
-                    <b>{s.title}</b>
-                    <span className="wizard-option-route">{s.subtitle}</span>
-                    <span className="muted">{fares[s.code] ? `${s.ayuda} · ${formatPrice(fares[s.code]!.priceCents, fares[s.code]!.currency)} por persona` : "Sin tarifa activa para este sentido."}</span>
-                  </button>
-                ))}
-                {/* Tercera opción (#34/#36): los dos tramos en una sola reserva enlazada. Va como link
-                    y no como botón porque el flujo de ida y vuelta tiene su propia pantalla. */}
-                {!fromAdmin && fares.ARRIVAL && fares.DEPARTURE ? (
-                  <Link
-                    className="wizard-option wizard-option-round-trip"
-                    href={`/reservar/${route.slug}/ida-y-vuelta?date=${date}`}
-                  >
-                    <b>
-                      Ida y vuelta <span className="wizard-option-badge">2 tramos</span>
-                    </b>
-                    <span className="wizard-option-route">San Martín de los Andes ⇄ Aeropuerto Chapelco (CPC)</span>
-                    <span className="muted">
-                      Elegís el vuelo de llegada y el de salida, con los datos cargados una sola vez
-                      {" · "}
-                      {formatPrice(fares.ARRIVAL.priceCents + fares.DEPARTURE.priceCents, fares.ARRIVAL.currency)} por persona
-                    </span>
-                  </Link>
-                ) : null}
-              </div>
+                    }
+                  ])
+                )}
+                hrefs={{ ROUND_TRIP: roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta?date=${date}` }}
+              />
             </>
           ) : null}
 

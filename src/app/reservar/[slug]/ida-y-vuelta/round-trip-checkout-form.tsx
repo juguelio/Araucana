@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { AirportTripOptions } from "../airport-trip-options";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
@@ -80,6 +81,8 @@ type RoundTripCheckoutFormProps = {
   extras: { sportsLuggageCents: number; zoneExtraCents: number };
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
+  /** A dónde llevan las tarjetas «Llegada» y «Salida»: la reserva de un tramo, con ese sentido elegido. */
+  singleHrefs?: { ARRIVAL: string; DEPARTURE: string };
   /** Alta desde el panel: identidad opcional, sin freno por IP y vuelve a la reserva del panel. */
   fromAdmin?: boolean;
 };
@@ -149,7 +152,7 @@ function descripcionVuelo(vuelo: FlightOption) {
   return partes.join(" · ");
 }
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false }: RoundTripCheckoutFormProps) {
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs }: RoundTripCheckoutFormProps) {
   /**
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
@@ -680,6 +683,20 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           </ol>
 
           {error ? <p className="error" role="alert" ref={errorRef}>{error}</p> : null}
+
+          {/* Las mismas tres opciones que la reserva de un tramo, con «Ida y vuelta» marcada: llegada o
+              salida llevan a la reserva de un tramo con ese sentido ya elegido. */}
+          <div>
+            <h2 className="route-title">¿Llegás o te vas?</h2>
+          </div>
+          <AirportTripOptions
+            fares={fares}
+            selected="ROUND_TRIP"
+            hrefs={{
+              ARRIVAL: singleHrefs?.ARRIVAL ?? `/reservar/${route.slug}?date=${initialDate}&sentido=ARRIVAL`,
+              DEPARTURE: singleHrefs?.DEPARTURE ?? `/reservar/${route.slug}?date=${initialDate}&sentido=DEPARTURE`
+            }}
+          />
 
           <>
               <div>
