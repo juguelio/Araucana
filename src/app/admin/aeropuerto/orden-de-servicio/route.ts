@@ -3,6 +3,8 @@ import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-
 import {
   buildServiceOrderBlocks,
   buildServiceOrderWorkbook,
+  filtrarPorNave,
+  naveDeLaOrden,
   serviceOrderFileName
 } from "@/lib/airport/service-order";
 import { recordDownload } from "@/lib/audit/download";
@@ -24,6 +26,8 @@ function diaDeHoy() {
  *
  * - `?date=YYYY-MM-DD` — el día completo, con un bloque por vuelo (la hoja del turno).
  * - `?date=…&flight=<id>` — sólo ese vuelo, para entregar una hoja por servicio.
+ * - `?date=…&flight=<id>&vehicle=<asignación|sin-nave>` — la orden de una sola nave, cuando el vuelo
+ *   sale con más de una.
  *
  * Mismo permiso que el resto de la operación.
  */
@@ -41,6 +45,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const date = params.get("date") ?? diaDeHoy();
   const flightId = params.get("flight") || null;
+  const vehicle = (flightId && params.get("vehicle")) || null;
 
   if (!DATE_PATTERN.test(date)) {
     return new Response("Fecha inválida: se espera YYYY-MM-DD", { status: 400 });
@@ -48,13 +53,15 @@ export async function GET(request: Request) {
 
   const generatedAt = new Date();
   const reservas = await getAirportServiceOrderReservations(date, flightId);
-  const blocks = buildServiceOrderBlocks(reservas);
+  const blocks = filtrarPorNave(buildServiceOrderBlocks(reservas), vehicle);
   const workbook = await buildServiceOrderWorkbook({ date, generatedAt }, blocks);
-  const referencia = flightId ? (blocks[0]?.flightNumber ?? flightId) : null;
+  const nave = vehicle && blocks[0] ? naveDeLaOrden(blocks[0]) : null;
+  const referencia = flightId ? [blocks[0]?.flightNumber ?? flightId, nave].filter(Boolean).join(" ") : null;
+  const pasajeros = blocks.reduce((total, block) => total + block.passengers.length, 0);
 
   await recordDownload(request, downloader, {
     entity: "AIRPORT", entityId: flightId, entityLabel: `Orden de servicio ${date}${referencia ? ` · ${referencia}` : ""}`,
-    summary: `Orden de servicio del aeropuerto descargada (${reservas.length} reservas).`
+    summary: `Orden de servicio del aeropuerto descargada (${pasajeros} reservas).`
   });
 
   return new Response(new Uint8Array(workbook), {

@@ -18,13 +18,30 @@ describe("link de la orden para el chofer (issue #118)", () => {
     const token = crearTokenDeOrden({ date: "2026-11-13", flight: null, exp: vencimientoDelLink("2026-11-13") });
     const leido = leerTokenDeOrden(token, ahora);
 
-    expect(leido).toEqual({ date: "2026-11-13", flight: null, exp: expect.any(Number) });
+    expect(leido).toEqual({ date: "2026-11-13", flight: null, exp: expect.any(Number), vehicle: null });
   });
 
   it("conserva el vuelo cuando la orden es de un solo vuelo", () => {
     const token = crearTokenDeOrden({ date: "2026-11-13", flight: "vuelo-1671", exp: vencimientoDelLink("2026-11-13") });
 
     expect(leerTokenDeOrden(token, ahora)?.flight).toBe("vuelo-1671");
+  });
+
+  it("la orden de una nave lleva la nave firmada; los links viejos abren el vuelo entero", () => {
+    const ahora = new Date("2026-11-13T12:00:00Z");
+    const deNave = linkDeLaOrden("https://araucana.vercel.app", "2026-11-13", "vuelo-1", "asig-b").split("/orden/")[1];
+    expect(leerTokenDeOrden(deNave, ahora)?.vehicle).toBe("asig-b");
+
+    const viejo = crearTokenDeOrden({ date: "2026-11-13", flight: "vuelo-1", exp: vencimientoDelLink("2026-11-13") });
+    expect(leerTokenDeOrden(viejo, ahora)).toMatchObject({ flight: "vuelo-1", vehicle: null });
+  });
+
+  it("no se puede cambiar la nave sin romper la firma", () => {
+    const token = linkDeLaOrden("https://x", "2026-11-13", "vuelo-1", "asig-a").split("/orden/")[1];
+    const [cuerpo, firma] = token.split(".");
+    const datos = JSON.parse(Buffer.from(cuerpo, "base64url").toString("utf8"));
+    const otro = Buffer.from(JSON.stringify({ ...datos, vehicle: "asig-b" }), "utf8").toString("base64url");
+    expect(leerTokenDeOrden(`${otro}.${firma}`, new Date("2026-11-13T12:00:00Z"))).toBeNull();
   });
 
   it("rechaza un token manipulado: cambiar la fecha rompe la firma", () => {
