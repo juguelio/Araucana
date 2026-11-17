@@ -188,6 +188,14 @@
   color: var(--primary-deep);
 }
 
+/* Ida y vuelta (#205): aclara que el viaje tiene otro tramo con su propio voucher. */
+.voucher-otro-tramo {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
 .voucher-politicas ul {
   margin: 0;
   padding-left: 18px;

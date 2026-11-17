@@ -202,6 +202,119 @@ describe("documento del pasajero en el voucher (#170)", () => {
   });
 });
 
+describe("ida y vuelta en el voucher (#205)", () => {
+  /** Una reserva de aeropuerto del viaje: el voucher sólo lee estos campos. */
+  function tramo(overrides: {
+    direction: "ARRIVAL" | "DEPARTURE";
+    scheduledAt: string;
+    flightNumber: string;
+    code: string;
+    shortCode: string;
+    status?: string;
+    totalCents?: number;
+  }): ReservationDetailDto {
+    return reserva({
+      code: overrides.code,
+      shortCode: overrides.shortCode,
+      bookingMode: "AIRPORT",
+      status: overrides.status ?? "CONFIRMED",
+      totalCents: overrides.totalCents ?? 2400000,
+      roundTripId: "19cbd714-0000-4000-8000-000000000000",
+      airportDetails: {
+        flightNumber: overrides.flightNumber,
+        direction: overrides.direction,
+        serviceDate: new Date(overrides.scheduledAt),
+        pickupName: "Patagonia Plaza Hotel",
+        pickupAddress: "Los Notros 123",
+        flight: { scheduledAt: new Date(overrides.scheduledAt), estimatedAt: null, status: "SCHEDULED" }
+      }
+    });
+  }
+
+  const llegada = tramo({
+    direction: "ARRIVAL",
+    scheduledAt: "2026-11-18T19:05:00.000Z",
+    flightNumber: "AR1658",
+    code: "ARC-2611-479F2E07FE953CB7959469B1FC01D899",
+    shortCode: "4ZQHGRKE",
+    totalCents: 1200000
+  });
+
+  const salida = tramo({
+    direction: "DEPARTURE",
+    scheduledAt: "2026-11-20T16:50:00.000Z",
+    flightNumber: "JA3184",
+    code: "ARC-2611-1AA0C833E2BD0FAE73E4945A669E108E",
+    shortCode: "KSRAMDMZ",
+    totalCents: 1350000
+  });
+
+  it("imprime los dos tramos, ordenados por fecha, con llegada y salida", () => {
+    const voucher = buildVoucher(llegada, { partner: salida });
+
+    expect(voucher.rows).toHaveLength(2);
+    expect(voucher.rows[0].tramo).toBe("Llegada");
+    expect(voucher.rows[0].fecha).toBe("18/11/2026");
+    expect(voucher.rows[0].horario).toBe("16:05");
+    expect(voucher.rows[0].observaciones).toContain("Vuelo AR1658");
+
+    expect(voucher.rows[1].tramo).toBe("Salida");
+    expect(voucher.rows[1].fecha).toBe("20/11/2026");
+    expect(voucher.rows[1].horario).toBe("13:50");
+    expect(voucher.rows[1].observaciones).toContain("Vuelo JA3184");
+    // El renglón del otro tramo dice de qué reserva es: es el dato que le falta al pasajero.
+    expect(voucher.rows[1].observaciones).toContain("Reserva KSRAMDMZ");
+  });
+
+  it("ordena igual cuando el voucher abierto es el de la vuelta", () => {
+    const voucher = buildVoucher(salida, { partner: llegada });
+
+    expect(voucher.rows.map((row) => row.tramo)).toEqual(["Llegada", "Salida"]);
+    expect(voucher.rows[0].observaciones).toContain("Reserva 4ZQHGRKE");
+    // El renglón propio no se rotula con su propio código.
+    expect(voucher.rows[1].observaciones).not.toContain("Reserva KSRAMDMZ");
+  });
+
+  it("mantiene los importes de la reserva abierta y avisa del otro tramo", () => {
+    const voucher = buildVoucher(llegada, { partner: salida });
+
+    expect(voucher.code).toBe(llegada.code);
+    expect(voucher.totalCents).toBe(1200000);
+    expect(voucher.roundTrip).toEqual({ code: salida.code, shortCode: "KSRAMDMZ", estado: "Confirmada" });
+  });
+
+  it("marca el tramo cancelado del viaje", () => {
+    const cancelada = tramo({
+      direction: "DEPARTURE",
+      scheduledAt: "2026-11-20T16:50:00.000Z",
+      flightNumber: "JA3184",
+      code: salida.code,
+      shortCode: salida.shortCode,
+      status: "CANCELLED"
+    });
+    const voucher = buildVoucher(llegada, { partner: cancelada });
+
+    expect(voucher.rows[1].observaciones).toContain("Cancelado");
+    expect(voucher.roundTrip?.estado).toBe("Cancelada");
+  });
+
+  it("un tramo suelto sigue imprimiendo un solo renglón", () => {
+    const voucher = buildVoucher(llegada);
+
+    expect(voucher.rows).toHaveLength(1);
+    expect(voucher.roundTrip).toBeNull();
+    // En la reserva suelta no hay «otro tramo» que aclarar.
+    expect(voucher.rows[0].observaciones).not.toContain("Reserva");
+  });
+
+  it("los servicios que no son del aeropuerto no llevan llegada ni salida", () => {
+    const voucher = buildVoucher(reserva());
+
+    expect(voucher.rows[0].tramo).toBeNull();
+    expect(voucher.roundTrip).toBeNull();
+  });
+});
+
 describe("link y mensaje del voucher", () => {
   it("arma el path con el código privado", () => {
     expect(voucherPath("ARC-2611-AAAA")).toBe("/reservas/ARC-2611-AAAA/voucher");

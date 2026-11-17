@@ -71,11 +71,21 @@ export function horaArgentina(valor: Date | string) {
 }
 
 export type VoucherRow = {
+  /** «Llegada» / «Salida» en el traslado de aeropuerto; `null` en los demás servicios. */
+  tramo?: "Llegada" | "Salida" | null;
   fecha: string;
   horario: string;
   inicio: string;
   fin: string;
   observaciones: string;
+};
+
+/** El otro tramo del ida y vuelta: lo que el pasajero necesita para saber que existe y cómo abrirlo. */
+export type VoucherRoundTrip = {
+  code: string;
+  shortCode: string;
+  /** Estado del otro tramo, ya en el idioma del comprobante («Confirmada», «Cancelada»…). */
+  estado: string;
 };
 
 export type VoucherData = {
@@ -88,6 +98,8 @@ export type VoucherData = {
   code: string;
   shortCode: string;
   rows: VoucherRow[];
+  /** Ida y vuelta (#205): el otro tramo del viaje, cuando la reserva tiene compañero. */
+  roundTrip: VoucherRoundTrip | null;
   totalCents: number;
   paidCents: number;
   balanceCents: number;
@@ -114,49 +126,28 @@ export function documentoDelPasajero(passenger: { documentType: string; document
 const PROVEEDOR_SIN_CARGO = "disability_document";
 
 /**
- * Arma el voucher desde la reserva. Un solo renglón de servicio: cada reserva es un traslado (los viajes
- * de varios tramos se reservan por tramo), así que repetir la tabla del Excel no aplica.
+ * Arma el voucher desde la reserva. Un renglón de servicio por tramo: en el ida y vuelta del
+ * aeropuerto son **dos** reservas que comparten `roundTripId` (#36), y el voucher de una mostraba
+ * sólo su mitad — el pasajero de ida no veía la vuelta (#205). Cuando llega el compañero del viaje,
+ * van las dos filas ordenadas por fecha y hora, y los importes siguen siendo los de la reserva
+ * abierta (cada tramo se abona y se cancela por separado).
  */
-export function buildVoucher(reservation: ReservationDetailDto, now = new Date()): VoucherData {
-  const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails ?? null : null;
-  const chapelco = reservation.bookingMode === "CHAPELCO" ? reservation.chapelcoDetails ?? null : null;
+export function buildVoucher(
+  reservation: ReservationDetailDto,
+  options: { partner?: ReservationDetailDto | null; now?: Date } = {}
+): VoucherData {
+  const propio = filaDelServicio(reservation);
+  const otro = options.partner ? filaDelServicio(options.partner) : null;
 
-  let fecha: string;
-  let horario: string;
-  let inicio: string;
-  let fin: string;
-  const notas: string[] = [];
-
-  if (airport) {
-    const vuelo = airport.flight ?? null;
-    if (vuelo?.scheduledAt) {
-      fecha = fechaArgentina(vuelo.scheduledAt);
-      horario = horaArgentina(vuelo.scheduledAt);
-    } else {
-      fecha = diaCalendario(airport.serviceDate);
-      horario = "A confirmar";
-    }
-    const direccion = airport.pickupAddress ?? null;
-    const saleDelAeropuerto = airport.direction === "ARRIVAL";
-    inicio = saleDelAeropuerto ? AEROPUERTO : direccion ?? AEROPUERTO;
-    fin = saleDelAeropuerto ? direccion ?? "San Martín de los Andes" : AEROPUERTO;
-    notas.push(`Vuelo ${airport.flightNumber}`);
-    if (airport.pickupName) notas.push(airport.pickupName);
-    if (airport.pickupNotes) notas.push(airport.pickupNotes);
-  } else if (chapelco) {
-    fecha = diaCalendario(chapelco.serviceDate);
-    horario = chapelco.ascentSlot;
-    inicio = `${chapelco.pickupName} — ${chapelco.pickupAddress}`;
-    fin = CERRO;
-    notas.push(`Regreso incluido desde las 17:00`);
-    if (chapelco.pickupNotes) notas.push(chapelco.pickupNotes);
-  } else {
-    const salida = reservation.schedule.departureAt;
-    fecha = salida ? fechaArgentina(salida) : "A confirmar";
-    horario = salida ? horaArgentina(salida) : "A confirmar";
-    inicio = reservation.route.from;
-    fin = reservation.dropoffStop ?? reservation.route.to;
+  if (otro && options.partner) {
+    // El renglón del otro tramo dice de qué reserva es: el pasajero necesita su código para abrir
+    // ese voucher (o pedirlo) sin confundirlo con el que tiene en la mano.
+    otro.fila.observaciones = [otro.fila.observaciones, `Reserva ${options.partner.shortCode}`]
+      .filter(Boolean)
+      .join(" · ");
   }
+
+  const filas = otro ? [propio, otro].sort((a, b) => a.orden - b.orden) : [propio];
 
   const noCharge = reservation.payment?.provider === PROVEEDOR_SIN_CARGO;
   const pagado = reservation.payment?.status === "APPROVED" ? reservation.payment.amountCents : 0;
@@ -171,22 +162,85 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     referredBy: reservation.referredBy ?? null,
     code: reservation.code,
     shortCode: reservation.shortCode,
-    rows: [
-      {
-        fecha,
-        horario,
-        inicio,
-        fin,
-        observaciones: notas.filter(Boolean).join(" · ")
-      }
-    ],
+    rows: filas.map(({ fila }) => fila),
+    roundTrip: options.partner
+      ? {
+          code: options.partner.code,
+          shortCode: options.partner.shortCode,
+          estado: estadoDelVoucher(options.partner.status)
+        }
+      : null,
     totalCents,
     paidCents,
     balanceCents: Math.max(totalCents - paidCents, 0),
     currency: reservation.currency,
     status: reservation.status,
-    issuedAt: now,
+    issuedAt: options.now ?? new Date(),
     noCharge
+  };
+}
+
+type FilaArmada = {
+  fila: VoucherRow;
+  /** Instante del servicio: ordena los tramos del viaje (no la fecha en que se cargó la reserva). */
+  orden: number;
+};
+
+/** Un renglón de servicio de UNA reserva: fecha, horario, dónde empieza y dónde termina. */
+function filaDelServicio(reservation: ReservationDetailDto): FilaArmada {
+  const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails ?? null : null;
+  const chapelco = reservation.bookingMode === "CHAPELCO" ? reservation.chapelcoDetails ?? null : null;
+
+  let fecha: string;
+  let horario: string;
+  let inicio: string;
+  let fin: string;
+  let tramo: VoucherRow["tramo"] = null;
+  let orden: number;
+  const notas: string[] = [];
+
+  if (airport) {
+    const vuelo = airport.flight ?? null;
+    if (vuelo?.scheduledAt) {
+      fecha = fechaArgentina(vuelo.scheduledAt);
+      horario = horaArgentina(vuelo.scheduledAt);
+      orden = new Date(vuelo.scheduledAt).getTime();
+    } else {
+      fecha = diaCalendario(airport.serviceDate);
+      horario = "A confirmar";
+      orden = new Date(airport.serviceDate).getTime();
+    }
+    tramo = airport.direction === "ARRIVAL" ? "Llegada" : "Salida";
+    const direccion = airport.pickupAddress ?? null;
+    const saleDelAeropuerto = airport.direction === "ARRIVAL";
+    inicio = saleDelAeropuerto ? AEROPUERTO : direccion ?? AEROPUERTO;
+    fin = saleDelAeropuerto ? direccion ?? "San Martín de los Andes" : AEROPUERTO;
+    notas.push(tramo);
+    notas.push(`Vuelo ${airport.flightNumber}`);
+    if (airport.pickupName) notas.push(airport.pickupName);
+    if (airport.pickupNotes) notas.push(airport.pickupNotes);
+  } else if (chapelco) {
+    fecha = diaCalendario(chapelco.serviceDate);
+    horario = chapelco.ascentSlot;
+    inicio = `${chapelco.pickupName} — ${chapelco.pickupAddress}`;
+    fin = CERRO;
+    orden = new Date(chapelco.serviceDate).getTime();
+    notas.push(`Regreso incluido desde las 17:00`);
+    if (chapelco.pickupNotes) notas.push(chapelco.pickupNotes);
+  } else {
+    const salida = reservation.schedule.departureAt;
+    fecha = salida ? fechaArgentina(salida) : "A confirmar";
+    horario = salida ? horaArgentina(salida) : "A confirmar";
+    inicio = reservation.route.from;
+    fin = reservation.dropoffStop ?? reservation.route.to;
+    orden = salida ? new Date(salida).getTime() : new Date(reservation.createdAt).getTime();
+  }
+
+  if (reservation.status === "CANCELLED") notas.push("Cancelado");
+
+  return {
+    fila: { tramo, fecha, horario, inicio, fin, observaciones: notas.filter(Boolean).join(" · ") },
+    orden
   };
 }
 

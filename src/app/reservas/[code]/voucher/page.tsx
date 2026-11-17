@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { AuthorizationError } from "@/lib/auth/service";
 import { requireReservationAccess } from "@/lib/booking/access";
 import { formatShortCode } from "@/lib/booking/codes";
-import { getReservationByCode } from "@/lib/booking/repository";
+import { getReservationByCode, getRoundTripCompanionByCode } from "@/lib/booking/repository";
 import {
   AGENCY_VOUCHER,
   CANCELLATION_POLICY,
@@ -46,7 +46,10 @@ export default async function VoucherPage({ params }: VoucherPageProps) {
   const reservation = await getReservationByCode(normalized);
   if (!reservation) notFound();
 
-  const voucher = buildVoucher(reservation);
+  // Ida y vuelta (#205): el voucher muestra los dos tramos del viaje. El compañero se busca por
+  // `roundTripId` y mismo pasajero; si no hay, el comprobante queda como siempre (un solo renglón).
+  const companion = await getRoundTripCompanionByCode(normalized);
+  const voucher = buildVoucher(reservation, { partner: companion });
   const emitido = new Intl.DateTimeFormat("es-AR", {
     dateStyle: "short",
     timeStyle: "short",
@@ -131,6 +134,13 @@ export default async function VoucherPage({ params }: VoucherPageProps) {
                 <div className="voucher-saldo"><dt>Saldo</dt><dd>{importeDelVoucher(voucher.balanceCents, voucher.currency)}</dd></div>
               </dl>
             )}
+            {voucher.roundTrip ? (
+              <p className="voucher-otro-tramo">
+                Este viaje tiene dos tramos. El otro ({formatShortCode(voucher.roundTrip.shortCode)}) figura
+                como «{voucher.roundTrip.estado}» y tiene su propio voucher e importe: se abona y se cancela
+                por separado.
+              </p>
+            ) : null}
           </section>
 
           <section className="voucher-politicas">

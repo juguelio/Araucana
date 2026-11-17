@@ -917,6 +917,32 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       return getReservationByCodeWithClient(client, code);
     },
 
+    /**
+     * El otro tramo del ida y vuelta, para el voucher (#205). Se filtra por `roundTripId` **y** por el
+     * mismo pasajero: el voucher se abre con el `code` de un tramo (esa es la capability) y del otro
+     * sólo se imprime su fila de servicio, nunca sus datos personales.
+     */
+    async getRoundTripCompanionByCode(code: string) {
+      const normalizedCode = code.trim().toUpperCase();
+      const reservation = await client.reservation.findUnique({
+        where: { code: normalizedCode },
+        select: { id: true, roundTripId: true, passengerId: true }
+      });
+
+      if (!reservation?.roundTripId) return null;
+
+      const socio = await client.reservation.findFirst({
+        where: {
+          roundTripId: reservation.roundTripId,
+          passengerId: reservation.passengerId,
+          id: { not: reservation.id }
+        },
+        include: reservationInclude()
+      });
+
+      return socio ? mapReservation(socio) : null;
+    },
+
     async getAdminReservationByCode(code: string) {
       const reservation = await findReservationByCode(client, code);
       if (!reservation) return null;
@@ -1202,6 +1228,7 @@ export const getSeatMap = defaultRepository.getSeatMap;
 export const createWebReservation = defaultRepository.createWebReservation;
 export const getAdminReservationByCode = defaultRepository.getAdminReservationByCode;
 export const getReservationByCode = defaultRepository.getReservationByCode;
+export const getRoundTripCompanionByCode = defaultRepository.getRoundTripCompanionByCode;
 export const updatePassengerForReservation = defaultRepository.updatePassengerForReservation;
 export const attachManualPaymentReceipt = defaultRepository.attachManualPaymentReceipt;
 export const rejectManualPayment = defaultRepository.rejectManualPayment;
