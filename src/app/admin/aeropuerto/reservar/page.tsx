@@ -10,9 +10,10 @@ import { getAirportOfficePickup, officePickupReady } from "@/lib/airport/office-
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 
-export default async function NewAirportReservationPage({ searchParams }: { searchParams: Promise<{ date?: string; tramos?: string }> }) {
+export default async function NewAirportReservationPage({ searchParams }: { searchParams: Promise<{ date?: string; tramos?: string; sentido?: string }> }) {
   const user = await getCurrentReservationsUserOrRedirect();
-  const { date, tramos } = await searchParams;
+  const { date, tramos, sentido } = await searchParams;
+  const sentidoPedido = sentido === "ARRIVAL" || sentido === "DEPARTURE" ? sentido : null;
   const idaYVuelta = tramos === "ida-y-vuelta";
   const today = argentinaDateKey(new Date());
   const initialDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today ? date : today;
@@ -29,21 +30,13 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
       role={user.role}
       action={<Link className="ghost-button" href="/admin/aeropuerto">Volver a aeropuerto</Link>}
     >
-      <nav className="admin-tabs" aria-label="Tramos de la reserva">
-        <Link className="ghost-button" data-active={!idaYVuelta} href={`/admin/aeropuerto/reservar?date=${initialDate}`}>
-          Un tramo
-        </Link>
-        <Link
-          className="ghost-button"
-          data-active={idaYVuelta}
-          href={`/admin/aeropuerto/reservar?date=${initialDate}&tramos=ida-y-vuelta`}
-        >
-          Ida y vuelta
-        </Link>
-      </nav>
       {route && checkout && idaYVuelta ? (
         <RoundTripCheckoutForm
           fromAdmin
+          singleHrefs={{
+            ARRIVAL: `/admin/aeropuerto/reservar?date=${initialDate}&sentido=ARRIVAL`,
+            DEPARTURE: `/admin/aeropuerto/reservar?date=${initialDate}&sentido=DEPARTURE`
+          }}
           route={route}
           fares={fares}
           initialDate={initialDate}
@@ -57,7 +50,10 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
           fromAdmin
           route={route}
           fares={fares}
-          initialDirection={fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE"}
+          initialDirection={sentidoPedido ?? (fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE")}
+          startAtFlights={Boolean(sentidoPedido)}
+          // Las tres opciones como en la web: «Ida y vuelta» lleva al alta de ida y vuelta del panel.
+          roundTripHref={`/admin/aeropuerto/reservar?date=${initialDate}&tramos=ida-y-vuelta`}
           initialDate={initialDate}
           initialFlights={checkout.flights}
           coverage={checkout.coverage}

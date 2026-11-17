@@ -23,6 +23,8 @@ type ReservationPageProps = {
     scheduleId?: string;
     /** Día elegido (YYYY-MM-DD) para el flujo del aeropuerto: permite linkear "vuelos del 20/10". */
     date?: string;
+    /** Llegada o salida elegida en la tarjeta de otra pantalla (ida y vuelta): entra directo al vuelo. */
+    sentido?: string;
   }>;
 };
 
@@ -97,6 +99,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
     const [vuelos, tarifas, coverage, extras, officePickup] = await Promise.all([
       loadAirportCheckoutFlights(fecha), getAirportFares(), getAirportCoverage(), getAirportExtras(), getAirportOfficePickup()
     ]);
+    const sentidoPedido = query?.sentido === "ARRIVAL" || query?.sentido === "DEPARTURE" ? query.sentido : null;
     const iguales = tarifas.ARRIVAL && tarifas.DEPARTURE && tarifas.ARRIVAL.priceCents === tarifas.DEPARTURE.priceCents;
 
     return (
@@ -123,20 +126,9 @@ export default async function ReservationPage({ params, searchParams }: Reservat
               )}
             </div>
           </div>
-          <section className="plain-card admin-section">
-            <h2 className="route-title">¿Vas y volvés?</h2>
-            <p className="muted">
-              Reservá la llegada y la vuelta en una sola operación: cargás los datos del pasajero una
-              vez y cada tramo queda con su propio código y su pago.
-            </p>
-            <div className="form-actions">
-              <Link className="button" href={`/reservar/${route.slug}/ida-y-vuelta?date=${fecha}`}>
-                Reservar ida y vuelta
-              </Link>
-            </div>
-          </section>
           <AirportCheckoutForm
-            initialDirection={route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL"}
+            initialDirection={sentidoPedido ?? (route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL")}
+            startAtFlights={Boolean(sentidoPedido)}
             fares={tarifas}
             route={{
               slug: route.slug,

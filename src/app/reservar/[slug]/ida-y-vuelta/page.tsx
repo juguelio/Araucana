@@ -116,13 +116,6 @@ export default async function AirportRoundTripPage({ params, searchParams }: Rut
           </section>
         )}
 
-        <p className="muted">
-          ¿Necesitás un solo tramo o un vuelo privado?{" "}
-          <Link className="table-link" href={`/reservar/${route.slug}?date=${fecha}`}>
-            Reservá un tramo
-          </Link>
-          .
-        </p>
       </main>
       <SiteFooter />
     </>
