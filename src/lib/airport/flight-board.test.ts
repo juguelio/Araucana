@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esProyeccion, horaDeReferencia, MARGEN_SIN_CONFIRMAR_MIN, MARGEN_TERMINADO_MIN, separarVuelosDelTablero, vueloTerminado } from "./flight-board";
+import { esProyeccion, horaDeReferencia, MARGEN_SIN_CONFIRMAR_MIN, MARGEN_TERMINADO_MIN, separarVuelosDelTablero, vueloTerminado, vuelosParaElTablero } from "./flight-board";
 
 const ahora = new Date("2026-11-12T18:00:00.000Z");
 const enMinutos = (min: number) => new Date(ahora.getTime() + min * 60000);
@@ -125,5 +125,43 @@ describe("vuelos proyectados", () => {
     const original = [proyectado(), vuelo()];
     separarVuelosDelTablero(original, ahora);
     expect(original).toHaveLength(2);
+  });
+});
+
+describe("qué vuelos van al tablero del panel", () => {
+  const confirmado = (id: string) => ({ id, source: "API", lastCheckedAt: ahora });
+  const estimado = (id: string) => ({ id, source: "ESTIMADO", lastCheckedAt: null });
+
+  it("en un día con vuelos confirmados, la proyección queda afuera (vuelo fantasma)", () => {
+    const r = vuelosParaElTablero([confirmado("JA3181"), estimado("AR1653"), confirmado("AR1656")]);
+    expect(r.tablero.map((v) => v.id)).toEqual(["JA3181", "AR1656"]);
+    expect(r.fantasma.map((v) => v.id)).toEqual(["AR1653"]);
+    expect(r.soloProyecciones).toBe(false);
+  });
+
+  it("en un día futuro, sin ningún vuelo confirmado, se muestran las proyecciones", () => {
+    const r = vuelosParaElTablero([estimado("JA3181"), estimado("AR1654"), estimado("AR1658")]);
+    expect(r.tablero.map((v) => v.id)).toEqual(["JA3181", "AR1654", "AR1658"]);
+    expect(r.fantasma).toEqual([]);
+    expect(r.soloProyecciones).toBe(true);
+  });
+
+  it("una proyección que alguna fuente ya verificó cuenta como confirmada", () => {
+    const r = vuelosParaElTablero([{ id: "AR1654", source: "ESTIMADO", lastCheckedAt: ahora }, estimado("AR1658")]);
+    expect(r.tablero.map((v) => v.id)).toEqual(["AR1654"]);
+    expect(r.fantasma.map((v) => v.id)).toEqual(["AR1658"]);
+  });
+
+  it("un día sin vuelos no es un día de proyecciones", () => {
+    expect(vuelosParaElTablero([])).toEqual({ tablero: [], fantasma: [], soloProyecciones: false });
+  });
+
+  it("las proyecciones de un día futuro salen ordenadas por horario en la columna", () => {
+    const tarde = { ...vuelo({ scheduledAt: enMinutos(24 * 60 + 240) }), source: "ESTIMADO", lastCheckedAt: null };
+    const temprano = { ...vuelo({ scheduledAt: enMinutos(24 * 60 + 60) }), source: "ESTIMADO", lastCheckedAt: null };
+    const { tablero } = vuelosParaElTablero([tarde, temprano]);
+    const { enJuego, proyectados } = separarVuelosDelTablero(tablero, ahora);
+    expect(enJuego).toEqual([]);
+    expect(proyectados).toEqual([temprano, tarde]);
   });
 });
