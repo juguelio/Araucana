@@ -93,22 +93,28 @@ test("si el DNI viene cargado, sigue validándose", async ({ request }) => {
 /** Completa el checkout de un tramo (llegada) dejando el documento vacío y devuelve la respuesta del alta. */
 async function reservarUnTramoSinDni(page: import("@playwright/test").Page, url: string, endpoint: string) {
   await page.goto(url);
-  // Paso 1: las tres tarjetas de «AirportTripOptions»; la llegada lleva al paso del vuelo.
+  // Las tres tarjetas de «AirportTripOptions» están siempre a la vista; la llegada fija el sentido
+  // del único tramo. No hay pasos ni botón «Continuar»: las secciones se abren solas.
   await page.locator(".wizard-option").filter({ hasText: "Llegada a Chapelco" }).click();
-  await expect(page.getByText(/Paso 2 de 3 · Llegada/)).toBeVisible();
-  // Paso 2: la barra estilo Kiwi con un solo tramo (el día ya viene en el link, `?date=`).
-  // Se abre el panel del tramo y se elige el vuelo de la lista; no hay botón de invertir.
+  // La barra estilo Kiwi con un solo tramo (el día ya viene en el link, `?date=`): se abre el panel
+  // del tramo y se elige el vuelo de la lista; no hay botón de invertir.
   await page.locator(".trip-search-leg").click();
   await page.locator(".trip-search-flight").filter({ hasText: numbers.arrival }).click();
   await expect(page.getByRole("button", { name: "Invertir: cambiar desde y hacia" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Siguiente →" }).click();
+  await expect(page.getByRole("button", { name: /Continuar|Siguiente|Completar datos/ })).toHaveCount(0);
+  // Con el vuelo elegido aparece sola la sección de los lugares, con el buscador de dirección.
+  const lugares = page.locator("section.pickup-flow").filter({ hasText: "Los lugares" });
+  await expect(lugares).toBeVisible();
+  await expect(lugares.getByLabel("Hotel, cabaña o dirección")).toBeVisible();
+  await lugares.getByRole("button", { name: "Ir a Sucursal prueba" }).click();
+  // Y con el lugar confirmado, los datos del pasajero, sin apretar nada en el medio.
+  await expect(page.getByLabel("Nombre")).toBeVisible();
   await page.getByLabel("Nombre").fill("Sin");
   await page.getByLabel("Apellido").fill("Documento");
   await page.getByLabel("Email").fill("sin-dni-ui@example.com");
   await page.getByLabel("Codigo de pais").selectOption("+54");
   await page.getByLabel("Telefono").fill("9 294 400 0000");
   await expect(page.getByLabel(/^Documento/)).toHaveValue("");
-  await page.getByRole("button", { name: "Ir a Sucursal prueba" }).click();
   const respuesta = page.waitForResponse((r) => r.url().includes(endpoint) && r.request().method() === "POST");
   await page.locator(".checkout-panel").getByRole("button", { name: "Reservar", exact: true }).click();
   return respuesta;

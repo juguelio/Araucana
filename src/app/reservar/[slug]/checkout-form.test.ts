@@ -9,7 +9,12 @@ import {
   getNationalityOptions,
   validateCheckoutPassenger
 } from "./checkout-form";
-import { AirportCheckoutForm } from "./airport-checkout-form";
+import {
+  AirportCheckoutForm,
+  ETAPAS_DEL_CHECKOUT,
+  seccionesDelCheckoutUnTramo,
+  textoDelLugarDe
+} from "./airport-checkout-form";
 import type { PublicRouteDto, ScheduleOptionDto, SeatMapDto } from "@/lib/booking/types";
 
 // El formulario usa el router para volver a la reserva creada; en el test no hay navegación.
@@ -158,10 +163,16 @@ describe("checkout nationality helpers", () => {
 });
 
 /**
- * La reserva de un solo tramo, en el orden que ve el pasajero: las tres tarjetas de
- * `AirportTripOptions` en el paso 1 y, en el paso del vuelo, la barra estilo Kiwi con **un solo
- * tramo** (día y vuelo en el mismo panel), sin el botón de invertir que sólo tiene sentido en ida y
- * vuelta.
+ * El alta de un tramo, en el orden que ve el pasajero: las tres tarjetas de `AirportTripOptions`
+ * siempre a la vista, la barra estilo Kiwi con **un solo tramo** (día y vuelo en el mismo panel,
+ * sin el botón de invertir que sólo tiene sentido en ida y vuelta) y, debajo, las secciones que se
+ * abren solas —«Los lugares» y después los datos— **sin botón «Continuar»** en el medio (17-nov).
+ *
+ * La suite corre en node, sin DOM: del formulario se fija el marcado del estado inicial con
+ * `renderToStaticMarkup` y el avance de las secciones con el modelo puro
+ * `seccionesDelCheckoutUnTramo`, que es el que usa el componente. El recorrido real —elegir el
+ * vuelo, ver el buscador de dirección, confirmar el lugar y recién ahí los datos— lo cubre
+ * `tests/e2e/airport-sin-dni.spec.ts`.
  */
 describe("checkout de un solo tramo del aeropuerto", () => {
   const dia = "2026-11-20";
@@ -200,7 +211,7 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     return html.split(fragmento).length - 1;
   }
 
-  it("el paso 1 sigue mostrando las tres opciones de AirportTripOptions", () => {
+  it("las tres tarjetas y la barra del vuelo están a la vista, sin pasos ni botón «Continuar»", () => {
     const html = renderToStaticMarkup(createElement(AirportCheckoutForm, props));
     // Tres tarjetas: llegada y salida como botones (aria-pressed) e ida y vuelta como link.
     expect(veces(html, 'aria-pressed="')).toBe(2);
@@ -208,20 +219,64 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     expect(html).toContain("Llegada a Chapelco");
     expect(html).toContain("Salida desde San Martín");
     expect(html).toContain("Ida y vuelta");
-    expect(html).toContain("Paso 1 de 3");
-    // Las tarjetas son el selector del paso 1: la barra todavía no aparece.
-    expect(html).not.toContain("trip-search-leg");
+    // Una sola página que se despliega sola: no quedan los «Paso N de 3» ni los botones de avance.
+    expect(html).not.toContain("Paso 1 de 3");
+    expect(html).not.toContain("Paso 2 de 3");
+    expect(html).not.toContain("Paso 3 de 3");
+    expect(html).not.toMatch(/Continuar|Siguiente →|Completar datos|Elegir vuelo →/);
+    // El indicador es el mismo del ida y vuelta y arranca en la primera etapa.
+    expect(html).toContain('class="wizard-steps checkout-progress"');
+    expect(veces(html, "<li")).toBe(3);
+    expect(veces(html, 'data-active="true"')).toBe(1);
+    expect(veces(html, 'data-done="true"')).toBe(0);
+    // Todavía no hay vuelo elegido: ni la sección de los lugares ni los datos están abiertos, y el
+    // buscador de dirección vive adentro de esa sección (no se muestra antes de elegir el vuelo).
+    expect(html).not.toContain('class="pickup-flow"');
+    expect(html).not.toContain("pickup-flow-titulo");
+    expect(html).not.toContain("Hotel, cabaña o dirección");
+    expect(html).not.toContain("¿Quiénes viajan?");
+    // El botón del resumen dice qué falta y no deja seguir de largo.
+    expect(html).toContain("Elegí tu vuelo");
+    expect(html).not.toContain("Reservar</button>");
   });
 
-  it("el paso del vuelo usa la barra con un solo tramo y sin botón de invertir", () => {
-    // `startAtFlights` es el camino real de la tarjeta «Llegada»/«Salida»: entra directo al vuelo.
+  it("el vuelo usa la barra con un solo tramo y sin botón de invertir", () => {
+    // `startAtFlights` es el camino real de la tarjeta «Llegada»/«Salida»: entra con el sentido ya
+    // elegido y la barra a la vista.
     const html = renderToStaticMarkup(createElement(AirportCheckoutForm, { ...props, startAtFlights: true }));
-    expect(html).toContain("Paso 2 de 3 · Llegada");
+    expect(html).toContain("Tu vuelo · Llegada");
     expect(veces(html, "trip-search-leg")).toBe(1);
     expect(html).not.toContain("Invertir");
-    // Desde/Hacia se muestran fijos: el sentido lo eligió la tarjeta del paso 1.
+    // Desde/Hacia se muestran fijos: el sentido lo eligió la tarjeta de arriba.
     expect(veces(html, 'data-fijo="true"')).toBe(2);
     // La lista suelta de vuelos del paso 2 ya no está.
     expect(html).not.toContain("flight-options");
+  });
+
+  it("con el vuelo elegido se abre «Los lugares» y con el lugar, los datos", () => {
+    // El modelo es el que decide qué sección se muestra: no hay estado «paso» que avanzar a mano.
+    expect(seccionesDelCheckoutUnTramo({ vueloListo: false, lugarListo: false })).toMatchObject({
+      etapas: ETAPAS_DEL_CHECKOUT,
+      lugares: false,
+      datos: false,
+      activa: 0
+    });
+    const conVuelo = seccionesDelCheckoutUnTramo({ vueloListo: true, lugarListo: false });
+    expect(conVuelo).toMatchObject({ lugares: true, datos: false, activa: 1 });
+    expect(conVuelo.hechas).toEqual([true, false, false]);
+    const conLugar = seccionesDelCheckoutUnTramo({ vueloListo: true, lugarListo: true });
+    expect(conLugar).toMatchObject({ lugares: true, datos: true, activa: 2 });
+    expect(conLugar.hechas).toEqual([true, true, false]);
+    expect(ETAPAS_DEL_CHECKOUT).toEqual(["Tu vuelo", "Los lugares", "Tus datos"]);
+  });
+
+  it("el único lugar es el destino en la llegada y el punto de búsqueda en la salida", () => {
+    // Mismo criterio que `textosLugar` del ida y vuelta, con una sola pata: sin pregunta de «mismo lugar».
+    expect(textoDelLugarDe("ARRIVAL").lugar).toBe("Punto de destino");
+    expect(textoDelLugarDe("ARRIVAL").titulo).toMatch(/te llevamos/);
+    expect(textoDelLugarDe("ARRIVAL").ayuda).toMatch(/alojamiento/);
+    expect(textoDelLugarDe("DEPARTURE").lugar).toBe("Punto de búsqueda");
+    expect(textoDelLugarDe("DEPARTURE").titulo).toMatch(/pasamos a buscar/);
+    expect(textoDelLugarDe("DEPARTURE").ayuda).toMatch(/aeropuerto/);
   });
 });

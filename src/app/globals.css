@@ -701,6 +701,18 @@ svg {
   align-items: start;
 }
 
+/* Los títulos del checkout, más chicos: el nombre de la ruta ocupaba dos líneas enormes
+   y empujaba el formulario abajo del pliegue. Acotado a la reserva; el resto del sitio
+   conserva el tamaño de siempre. */
+.checkout-head .section-title {
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1.08;
+}
+
+.checkout-layout .route-title {
+  font-size: 22px;
+}
+
 .checkout-main {
   display: grid;
   gap: 18px;
