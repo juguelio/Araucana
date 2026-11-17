@@ -6,7 +6,10 @@ import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { canCorrectManualPayment, canEditReservationTotal } from "@/lib/booking/admin-price";
 import { getReservationByCode } from "@/lib/booking/repository";
-import { updateReservationAction } from "../../actions";
+import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { isAdminRole } from "@/lib/auth/roles";
+import { manageReservationAction, updateReservationAction } from "../../actions";
+import { ConfirmReservationButton } from "../confirm-reservation-button";
 import { ReservationEditForm } from "../reservation-edit-form";
 import "../../reservas.css";
 
@@ -24,6 +27,10 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
   const detailPath = `/admin/reservas/${reservation.code}`;
+  // Borrar vive acá y no en el listado: misma regla de siempre, sólo administración y nunca una
+  // reserva con el pago aprobado (las sin cargo sí, porque no tienen plata detrás).
+  const disability = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER || reservation.status === "DOCUMENTATION_PENDING";
+  const canDelete = isAdminRole(user.role) && (reservation.payment?.status !== "APPROVED" || disability);
 
   return (
     <AdminShell title="Editar reserva" eyebrow={reservation.code} role={user.role}
@@ -43,6 +50,16 @@ export default async function EditReservationPage({ params }: { params: Promise<
             reference: reservation.payment?.externalRef ?? ""
           } : undefined} />
       </section>
+      {canDelete ? (
+        <section className="plain-card admin-section" aria-labelledby="borrar-reserva">
+          <h2 id="borrar-reserva">Borrar reserva</h2>
+          <p className="muted">Borra la reserva y su comprobante. No se puede deshacer; para dejar registro, cancelala.</p>
+          <form action={manageReservationAction}>
+            <input type="hidden" name="code" value={reservation.code} />
+            <ConfirmReservationButton operation="delete" />
+          </form>
+        </section>
+      ) : null}
     </AdminShell>
   );
 }
