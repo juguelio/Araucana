@@ -12,8 +12,8 @@ import { localInput } from "@/lib/special-trips/data";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
-import { airLabsKeyState } from "@/lib/settings/app-settings";
-import { assignVehicleAction, confirmFlightAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
+import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
+import { assignVehicleAction, confirmFlightAction, createFlightAction, deleteFlightAction, removeAssignmentAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -62,6 +62,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const { desde, hasta } = rangoDelDia(fecha);
   const ahora = new Date();
 
+  // Los vuelos de hoy se refrescan solos al abrir la pantalla, con los mismos topes que la web pública
+  // (cada 30 minutos como mínimo y 12 veces por día, ver `freshness`). Reemplaza al botón «Actualizar
+  // ahora». Nunca rompe: si AirLabs falla, se muestra lo que hay en la base.
+  await asegurarVuelosRealesDelDia(fecha, ahora);
+
   const vuelos = await prisma.flight.findMany({
     where: {
       scheduledAt: { gte: desde, lt: hasta },
@@ -86,8 +91,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
     take: 8,
     include: { flight: { select: { number: true } } }
   });
-
-  const clave = await airLabsKeyState();
 
   // Cómo viene el día, de un vistazo: lo mismo que dice cada tarjeta, sumado.
   const resumen = vuelosDelTablero.reduce(
@@ -273,9 +276,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
               <FlightForm action={createFlightAction} />
             </div>
           </RowModal>
-          <form action={refreshFlightsAction}>
-            <button className="ghost-button" type="submit">Actualizar ahora</button>
-          </form>
         </div>
       }
     >
@@ -431,51 +431,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </section>
       ) : null}
 
-      <details className="plain-card admin-section key-box" open={clave.source === "none"}>
-        <summary>
-          <span>
-            <strong>Clave de AirLabs</strong>
-            <small className="muted">
-              {clave.source === "none"
-                ? "sin configurar — los vuelos no se pueden actualizar"
-                : `configurada (${clave.masked})${clave.source === "env" ? " · variables del servidor" : " · desde este panel"}`}
-            </small>
-          </span>
-          <span className="key-box-open muted">{clave.source === "none" ? "Configurar" : "Cambiar"}</span>
-        </summary>
-        <p className="muted">
-          Los horarios y los estados de los vuelos los publica AirLabs; el tablero del aeropuerto cubre las aerolíneas
-          que AirLabs no publica. Los vuelos se refrescan con &quot;Actualizar ahora&quot;.
-        </p>
-        <p>
-          Estado:{" "}
-          <strong>{clave.source === "none" ? "sin configurar" : `configurada (${clave.masked})`}</strong>
-          {clave.source === "env"
-            ? " — se toma de las variables del servidor"
-            : clave.source === "panel"
-              ? " — cargada desde este panel"
-              : ""}
-        </p>
-        {isAdminRole(usuario.role) ? (
-          <form action={saveAirLabsKeyAction} className="checkout-fields">
-            <label>
-              {clave.source === "panel" ? "Reemplazar la clave" : "Pegar la clave"}
-              <input name="apiKey" type="password" autoComplete="off" placeholder="Clave de AirLabs" />
-            </label>
-            <div className="inline-actions">
-              <button className="button" type="submit">Guardar y probar</button>
-              {clave.source === "panel" ? (
-                <button className="ghost-button" type="submit" name="borrar" value="1">Borrar</button>
-              ) : null}
-            </div>
-            <small className="quantity-help">
-              Se guarda en la base y se prueba al instante trayendo los vuelos de hoy. La clave no se muestra entera.
-            </small>
-          </form>
-        ) : (
-          <p className="muted">Sólo un administrador puede cambiarla.</p>
-        )}
-      </details>
     </AdminShell>
   );
 }
