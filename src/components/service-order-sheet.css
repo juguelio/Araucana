@@ -554,3 +554,42 @@
     flex-wrap: wrap;
   }
 }
+
+/* La hora de inicio de la recorrida, remarcada: es la cita del chofer y no se puede leer de pasada. */
+.orden-bloque-titulo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.orden-inicio-recorrida {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: #ffe58a;
+  color: #233024;
+  letter-spacing: 0.02em;
+}
+
+.orden-inicio-rotulo {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.orden-inicio-recorrida strong {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .orden-inicio-recorrida {
+    background: #fff !important;
+    border: 2px solid #000;
+    padding: 2px 8px;
+  }
+}

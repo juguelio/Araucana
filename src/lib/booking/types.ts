@@ -105,6 +105,10 @@ export type ReservationDetailDto = {
   roundTripPartner?: {
     code: string;
     shortCode: string;
+    /** Estado, importe y pago del otro tramo: el voucher del ida y vuelta suma los dos. */
+    status?: string;
+    totalCents?: number;
+    payment?: { status: string; amountCents: number; provider: string } | null;
     direction: string | null;
     /** Datos del tramo compañero que imprime el voucher. `null` si no es un traslado al aeropuerto. */
     airport?: {
