@@ -98,6 +98,18 @@ export type VoucherData = {
   noCharge: boolean;
 };
 
+/**
+ * Documento del pasajero para el comprobante. Las reservas cargadas antes de que el DNI fuera
+ * obligatorio (13/11/2026) lo tienen vacío: imprimir la etiqueta sola («DNI») se lee como un dato
+ * truncado, no como un dato faltante, así que va «—» (#170).
+ */
+export function documentoDelPasajero(passenger: { documentType: string; documentId: string }) {
+  const id = (passenger.documentId ?? "").trim();
+  if (!id) return "—";
+  const tipo = (passenger.documentType ?? "").trim();
+  return tipo ? `${tipo} ${id}` : id;
+}
+
 /** Prefijo del proveedor de pago que representa la tarifa sin cargo por discapacidad. */
 const PROVEEDOR_SIN_CARGO = "disability_document";
 
@@ -154,7 +166,7 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
   return {
     passengerName: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`.trim(),
     passengerPhone: reservation.passenger.phone,
-    document: `${reservation.passenger.documentType} ${reservation.passenger.documentId}`.trim(),
+    document: documentoDelPasajero(reservation.passenger),
     passengerCount: reservation.passengerCount,
     referredBy: reservation.referredBy ?? null,
     code: reservation.code,
