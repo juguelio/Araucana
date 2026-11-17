@@ -5,14 +5,15 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
-import { separarVuelosDelTablero } from "@/lib/airport/flight-board";
+import { horaDeReferencia, separarVuelosDelTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
+import { localInput } from "@/lib/special-trips/data";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { airLabsKeyState } from "@/lib/settings/app-settings";
-import { assignVehicleAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
+import { assignVehicleAction, confirmFlightAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import "./aeropuerto.css";
@@ -110,6 +111,12 @@ export default async function AirportPage({ searchParams }: PageProps) {
     const faltanCombis = ocupados > capacidad;
     const estima = snapshot.estimatedAt && hhmm(snapshot.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(snapshot.estimatedAt) : null;
     const extra = flightSourceLabel(v.source);
+    // Sin confirmación de la fuente: el vuelo ya pasó su hora y nadie dijo que aterrizó o salió.
+    // En el pie tiene que verse —si no parece que aterrizó y nadie lo chequeó— y mientras siga así
+    // el operador puede confirmarlo él.
+    const confirmado = v.status === "LANDED" || (v.direction === "DEPARTURE" && v.status === "EN_ROUTE");
+    const sinConfirmar = pasado && !confirmado;
+    const puedeConfirmar = !confirmado && horaDeReferencia(snapshot) <= ahora;
     const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart({ ...v, estimatedAt: snapshot.estimatedAt });
 
     return (
@@ -130,7 +137,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             </span>
           </div>
           <span className="pill pill-estado" data-tono={tonoDelEstado(snapshot)}>
-            {evidenceWarning ? "A verificar" : v.source === "ESTIMADO" ? "Sin confirmar" : v.source === "MANUAL" && v.status === "SCHEDULED" ? "Sin estado en vivo" : statusDetail(snapshot)}
+            {sinConfirmar ? "Pasó · sin confirmar" : evidenceWarning ? "A verificar" : v.source === "ESTIMADO" ? "Sin confirmar" : v.source === "MANUAL" && v.status === "SCHEDULED" ? "Sin estado en vivo" : statusDetail(snapshot)}
           </span>
           <span className="flight-pax">
             <strong>{ocupados}</strong>
@@ -162,6 +169,18 @@ export default async function AirportPage({ searchParams }: PageProps) {
           <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>
           </div>
           <div className="flight-card-actions">
+          {/* La fuente no siempre confirma: Chapelco en temporada baja no aparece en AirLabs. El
+              operador lo vio llegar, así que lo confirma él y el tablero se actualiza. */}
+          {!puedeConfirmar ? null : (
+            <form action={confirmFlightAction} className="flight-confirmar">
+              <input type="hidden" name="id" value={v.id} />
+              <label>
+                <span className="muted">{v.direction === "ARRIVAL" ? "Aterrizó a las" : "Salió a las"}</span>
+                <input type="datetime-local" name="actualAt" defaultValue={localInput(snapshot.estimatedAt ?? v.scheduledAt)} required />
+              </label>
+              <button className="button" type="submit">{v.direction === "ARRIVAL" ? "Confirmar aterrizaje" : "Confirmar salida"}</button>
+            </form>
+          )}
           {ocupados > 0 ? (
             <>
               <Link
@@ -307,6 +326,9 @@ export default async function AirportPage({ searchParams }: PageProps) {
           // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
           const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(lista, ahora);
           // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
+          const terminadosSinConfirmar = terminados.filter(
+            (v) => v.status !== "LANDED" && !(v.direction === "DEPARTURE" && v.status === "EN_ROUTE")
+          ).length;
           const pasadosConImprevisto = terminados.some((v) =>
             needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: v.estimatedAt })
           );
@@ -328,7 +350,8 @@ export default async function AirportPage({ searchParams }: PageProps) {
               {terminados.length ? (
                 <details className="flights-pasados" open={pasadosConImprevisto}>
                   <summary>
-                    {terminados.length} con finalización informada
+                    {terminados.length} {terminados.length === 1 ? "vuelo pasado" : "vuelos pasados"}
+                    {terminadosSinConfirmar ? ` · ${terminadosSinConfirmar} sin confirmar` : ""}
                     {pasadosConImprevisto ? " · con imprevisto" : ""}
                   </summary>
                   <div className="flights-list">
