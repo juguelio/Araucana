@@ -71,7 +71,11 @@ export function filterNationalityOptions(query: string) {
   return getNationalityOptions().filter((option) => normalizeSearchValue(option).includes(normalizedQuery));
 }
 
-export function validateCheckoutPassenger(passenger: PassengerForm, optionalIdentity = false): PassengerFieldErrors {
+export function validateCheckoutPassenger(
+  passenger: PassengerForm,
+  optionalIdentity = false,
+  optionalDocument = false
+): PassengerFieldErrors {
   const errors: PassengerFieldErrors = {};
 
   if (passenger.firstName.trim().length < 2) {
@@ -98,8 +102,12 @@ export function validateCheckoutPassenger(passenger: PassengerForm, optionalIden
 
   // El documento es obligatorio siempre, también cuando la reserva la carga el panel (#122): sin esto
   // la orden de servicio del chofer salía con «—» en la mayoría de las ventas cargadas a mano.
-  const documentError = passengerDocumentError(passenger.documentType, passenger.documentId);
-  if (documentError) errors.documentId = documentError;
+  // En el ida y vuelta se pide sin documento (17-nov): el pasajero suele cargar los dos tramos de
+  // apuro y el chofer igual lo tiene por nombre y teléfono.
+  if (!optionalDocument) {
+    const documentError = passengerDocumentError(passenger.documentType, passenger.documentId);
+    if (documentError) errors.documentId = documentError;
+  }
 
   return errors;
 }
@@ -121,11 +129,13 @@ type PassengerFieldsProps = {
   fieldErrors: PassengerFieldErrors;
   disabled?: boolean;
   optionalIdentity?: boolean;
+  /** El ida y vuelta no pide documento: el campo queda visible pero sin `required`. */
+  optionalDocument?: boolean;
   onChange: (field: keyof PassengerForm, value: string) => void;
 };
 
 /** Los campos del pasajero. El combobox de nacionalidad maneja su propia búsqueda. */
-export function PassengerFields({ passenger, fieldErrors, disabled = false, optionalIdentity = false, onChange }: PassengerFieldsProps) {
+export function PassengerFields({ passenger, fieldErrors, disabled = false, optionalIdentity = false, optionalDocument = false, onChange }: PassengerFieldsProps) {
   const [nationalitySearch, setNationalitySearch] = useState("");
   const [isNationalityListOpen, setIsNationalityListOpen] = useState(false);
   const nationalityOptions = useMemo(() => getNationalityOptions(), []);
@@ -288,7 +298,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
         ) : null}
       </label>
       <label>
-        Documento
+        Documento{optionalDocument ? " (opcional)" : ""}
         <input
           name="documentId"
           inputMode={passenger.documentType === "DNI" ? "numeric" : "text"}
@@ -298,7 +308,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
           disabled={disabled}
           aria-invalid={Boolean(fieldErrors.documentId)}
           aria-describedby={fieldErrors.documentId ? "documentId-error" : undefined}
-          required
+          required={!optionalDocument}
         />
         {fieldErrors.documentId ? (
           <span className="field-error" id="documentId-error">
