@@ -19,16 +19,21 @@ type PassengerFieldsProps = {
   errors: AdminFieldErrors;
   disabled: boolean;
   onChange: (name: keyof PassengerDraft, value: string) => void;
+  /** Reservas del aeropuerto: se reservan sin documento (#206, #208), así que puede quedar vacío. */
+  optionalDocument?: boolean;
 };
 
-export function PassengerFields({ passenger, errors, disabled, onChange }: PassengerFieldsProps) {
-  return fields.map(({ name, label, type, ...attributes }) => (
+export function PassengerFields({ passenger, errors, disabled, onChange, optionalDocument = false }: PassengerFieldsProps) {
+  return fields.map(({ name, label, type, ...attributes }) => {
+    const opcional = optionalDocument && name === "documentId";
+    return (
     <label key={name}>
-      {label}
-      <input name={name} type={type} {...attributes} value={passenger[name]} disabled={disabled}
+      {opcional ? `${label} (opcional)` : label}
+      <input name={name} type={type} {...attributes} {...(opcional ? { required: false } : {})} value={passenger[name]} disabled={disabled}
         aria-invalid={Boolean(errors[name])} aria-describedby={errors[name] ? `${name}-error` : undefined}
         onChange={(event) => onChange(name, event.target.value)} />
       <FieldError id={`${name}-error`} message={errors[name]} />
     </label>
-  ));
+    );
+  });
 }

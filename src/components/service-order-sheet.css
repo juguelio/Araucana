@@ -368,23 +368,189 @@
   text-align: center;
 }
 
-/* El contacto del chofer es un link de WhatsApp (pedido del cliente). */
-.orden-whatsapp {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 2px;
+/* El contacto lleva el mismo botón verde «W» del listado de reservas (`.whatsapp-link`), más chico. */
+.orden-contacto {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
-.orden-whatsapp-icono {
-  font-size: 0.75em;
-  letter-spacing: 0.02em;
-  opacity: 0.75;
+.orden-whatsapp-boton {
+  width: 26px;
+  min-height: 26px;
+  font-size: 12px;
+  flex: none;
 }
 
 @media print {
-  .orden-whatsapp-icono {
+  .orden-whatsapp-boton {
     display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Una orden por vuelo (o por nave): cada una con sus botones y su recorrida editable en el panel.
+   --------------------------------------------------------------------------------------------- */
+.orden-ayuda {
+  max-width: 1100px;
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #6b6455;
+}
+
+.orden-bloque-cabeza {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.orden-bloque-cabeza .orden-bloque-titulo {
+  flex: 1 1 360px;
+  margin: 0;
+}
+
+.orden-bloque-acciones {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.orden-bloque-acciones .ghost-button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.orden-parada-numero {
+  color: var(--orden-gris);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.orden-parada {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.orden-arrastre {
+  cursor: grab;
+  color: #b3aca0;
+  user-select: none;
+}
+
+.orden-recorrida tr[draggable="true"] {
+  cursor: grab;
+}
+
+.orden-recorrida tr[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.orden-recorrida-guardando {
+  opacity: 0.6;
+}
+
+.orden-recorrida tr.orden-recorrida-sobre td {
+  box-shadow: inset 0 3px 0 var(--orden-verde);
+}
+
+.orden-recorrida tr.orden-recorrida-sobre-abajo td {
+  box-shadow: inset 0 -3px 0 var(--orden-verde);
+}
+
+.orden-recorrida-vacia td {
+  padding: 18px 10px;
+  text-align: center;
+  color: var(--orden-gris);
+  border: 2px dashed var(--orden-borde);
+}
+
+.orden-recorrida-vacia.orden-recorrida-sobre td {
+  border-color: var(--orden-verde);
+  background: #eef4f1;
+}
+
+.orden-recorrida-controles {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orden-flecha {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--orden-borde);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--orden-tinta);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.orden-flecha:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.orden-nave-select {
+  max-width: 150px;
+  padding: 4px 6px;
+  border: 1px solid var(--orden-borde);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 12px;
+}
+
+.orden-recorrida-estado td {
+  border-bottom: none;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.orden-recorrida-ok {
+  font-size: 12px;
+  color: var(--orden-verde, #1f5b4f);
+}
+
+.orden-recorrida-error {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a32a1f;
+}
+
+/* Imprimir una sola orden: el botón marca la orden y en papel se esconden las demás y el total del día. */
+@media print {
+  html[data-imprimir-una] .orden-bloque:not([data-imprimir]),
+  html[data-imprimir-una] .orden-total,
+  html[data-imprimir-una] .orden-fecha-alcance {
+    display: none !important;
+  }
+
+  html[data-imprimir-una] .orden-bloque[data-imprimir] {
+    margin-top: 0;
+  }
+
+  .orden-arrastre {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .orden-bloque-acciones {
+    width: 100%;
+  }
+
+  .orden-recorrida tr[draggable="true"] {
+    cursor: default;
+  }
+
+  .orden-recorrida-controles {
+    flex-wrap: wrap;
   }
 }

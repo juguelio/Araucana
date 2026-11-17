@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
@@ -12,6 +12,7 @@ import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, t
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
+import { TripSearchBar, type TramoDeLaBarra } from "./trip-search-bar";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -21,8 +22,6 @@ import {
   type PassengerFieldErrors,
   type PassengerForm
 } from "../passenger-fields";
-import { TripOrderOptions } from "./trip-order-options";
-import { cambiarOrdenDeViaje, type OrdenDeViaje } from "./trip-order";
 
 /**
  * Checkout de ida y vuelta del aeropuerto (#36): **los dos vuelos, los dos pickups y los datos del
@@ -91,9 +90,12 @@ type LugarPickup = {
   precision: PickupPrecision | null;
   approximate: boolean;
   elegido: boolean;
+  /** Cómo se eligió: la ubicación del teléfono no tiene dirección escrita; la sucursal va con su nombre. */
+  origen: "busqueda" | "ubicacion" | "sucursal";
 };
 
-const lugarVacio: LugarPickup = { label: "", point: null, precision: null, approximate: false, elegido: false };
+const lugarVacio: LugarPickup = { label: "", point: null, precision: null, approximate: false, elegido: false, origen: "busqueda" };
+type Sentido = "ARRIVAL" | "DEPARTURE";
 
 type TramoCreado = {
   code: string;
@@ -105,14 +107,19 @@ type TramoCreado = {
   serviceDate: string | null;
 };
 
-const PASOS = ["Ida y vuelta", "Los pickups", "Tus datos"];
+// Una sola página que se va abriendo sola: al elegir el último vuelo aparecen los lugares, y al
+// elegir el último lugar aparecen los datos del pasajero. Sin «Continuar» en el medio (pedidos de
+// Jugue, 17-nov). Arriba queda un indicador de por dónde va.
+const ETAPAS = ["Vuelos", "Lugares", "Tus datos"];
 
 /**
  * Las dos patas del viaje. Los sentidos son fijos (la llegada siempre es CPC → SMA, la salida
  * siempre SMA → CPC); el orden elegido decide cuál va primero en el calendario.
  */
-const PATA_LLEGADA = { etiqueta: "Llegada", ruta: "CPC → SMA" };
-const PATA_SALIDA = { etiqueta: "Salida", ruta: "SMA → CPC" };
+// Con los nombres de los lugares, no sólo los códigos: «SMA → CPC» no le dice nada a quien no viaja
+// seguido (pedido de Jugue, 17-nov: «para una persona de 70 años»).
+const PATA_LLEGADA = { etiqueta: "Llegada", ruta: "CPC → SMA", desde: "Aeropuerto Chapelco", hacia: "San Martín" };
+const PATA_SALIDA = { etiqueta: "Salida", ruta: "SMA → CPC", desde: "San Martín", hacia: "Aeropuerto Chapelco" };
 
 function hhmm(iso: string) {
   return new Date(new Date(iso).getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
@@ -143,14 +150,11 @@ function descripcionVuelo(vuelo: FlightOption) {
 }
 
 export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false }: RoundTripCheckoutFormProps) {
-  const [paso, setPaso] = useState<1 | 2 | 3>(1);
   /**
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
    */
-  const [orden, setOrden] = useState<OrdenDeViaje>("ARRIVAL");
-  /** Aviso del cambio de orden (fechas invertidas y vuelos soltados), no es un error del formulario. */
-  const [avisoOrden, setAvisoOrden] = useState("");
+  const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">("ARRIVAL");
   const [redirecting, setRedirecting] = useState(false);
   const router = useRouter();
   const [fechaLlegada, setFechaLlegada] = useState(initialDate);
@@ -164,8 +168,16 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
   const [pickupLlegada, setPickupLlegada] = useState<LugarPickup>(lugarVacio);
   const [pickupVuelta, setPickupVuelta] = useState<LugarPickup>(lugarVacio);
-  // Por defecto los dos tramos se eligen por separado: la vuelta suele salir de otro lado (17-nov).
-  const [mismoLugar, setMismoLugar] = useState(false);
+  /** «¿La vuelta es en el mismo lugar?»: se contesta con dos botones; hasta entonces se copia el primero. */
+  const [respuestaMismo, setRespuestaMismo] = useState<"si" | "no" | null>(null);
+  const mismoLugar = respuestaMismo !== "no";
+  const lugaresRef = useRef<HTMLElement>(null);
+  const datosRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  /** «Usar mi ubicación actual»: qué tarjeta está esperando al GPS y el error de cada una. */
+  const [ubicando, setUbicando] = useState<Sentido | null>(null);
+  const [errorUbicacion, setErrorUbicacion] = useState<Partial<Record<Sentido, string>>>({});
+  const preguntaRef = useRef<HTMLDivElement>(null);
 
   const [fullFareCount, setFullFareCount] = useState(1);
   const [halfFareCount, setHalfFareCount] = useState(0);
@@ -195,34 +207,47 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const opcionesLlegada = reservablesDe(vuelosLlegada, "ARRIVAL");
   const opcionesVuelta = reservablesDe(vuelosVuelta, "DEPARTURE");
   /**
-   * Elige el orden del viaje (#189). Los vuelos ya cargados se conservan: el orden no cambia a qué
-   * tramo pertenece cada vuelo. Sólo se sueltan si el orden obliga a dar vuelta las fechas, y en ese
-   * caso se avisa en pantalla — la flecha anterior los borraba en silencio.
+   * Los dos tramos en el orden que eligió el pasajero. El segundo lleva `minimo` con la fecha del
+   * primero: el que va después no puede ser anterior en el calendario.
    */
-  function elegirOrden(nuevo: OrdenDeViaje) {
-    if (nuevo === orden) return;
-    const cambio = cambiarOrdenDeViaje(orden, nuevo, { llegada: fechaLlegada, vuelta: fechaVuelta });
-    setOrden(cambio.orden);
+
+  /**
+   * La vuelta nunca queda antes que la ida: si al invertir o al mover el día de ida la vuelta queda
+   * atrás, se corre al mismo día de la ida y se buscan sus vuelos (antes mostraba una fecha imposible).
+   */
+  useEffect(() => {
+    const [fechaIda, fechaSegunda, sentidoSegundo] = orden === "ARRIVAL"
+      ? [fechaLlegada, fechaVuelta, "DEPARTURE" as const]
+      : [fechaVuelta, fechaLlegada, "ARRIVAL" as const];
+    if (!fechaIda || !fechaSegunda || fechaSegunda >= fechaIda) return;
+    if (sentidoSegundo === "DEPARTURE") { setFechaVuelta(fechaIda); setVueltaId(""); }
+    else { setFechaLlegada(fechaIda); setLlegadaId(""); }
+    void cargarVuelos(fechaIda, sentidoSegundo);
+    // cargarVuelos sólo usa setters y el slug: no hace falta en las dependencias.
+  }, [orden, fechaLlegada, fechaVuelta]);
+
+  /**
+   * Invierte el orden del viaje (#189) y **conserva los vuelos ya elegidos**. Cada vuelo pertenece a su
+   * tramo —el de llegada sigue siendo el de llegada— así que invertir cuál va primero en el calendario
+   * no invalida ninguna elección. Antes se borraban los dos y el pasajero tenía que buscarlos de nuevo.
+   */
+  function cambiarOrden() {
+    setOrden(orden === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL");
     setError("");
-    setAvisoOrden(cambio.aviso);
-    if (cambio.fechas.llegada !== fechaLlegada) {
-      setFechaLlegada(cambio.fechas.llegada);
-      void cargarVuelos(cambio.fechas.llegada, "ARRIVAL");
-    }
-    if (cambio.fechas.vuelta !== fechaVuelta) {
-      setFechaVuelta(cambio.fechas.vuelta);
-      void cargarVuelos(cambio.fechas.vuelta, "DEPARTURE");
-    }
-    if (cambio.limpiarVuelos) {
-      setLlegadaId("");
-      setVueltaId("");
-    }
   }
+
+  /** «Desde/Hacia» o la flecha de invertir: cambia el orden y no se pierde nada, así que no pregunta. */
+  function pedirOrden(nuevo: "ARRIVAL" | "DEPARTURE") {
+    if (nuevo === orden) return;
+    cambiarOrden();
+  }
+  const fraseOrden = orden === "ARRIVAL" ? "Primero llega y después se va" : "Primero se va y después vuelve";
 
   const bloqueLlegada = {
     sentido: "ARRIVAL" as const,
     titulo: "Llegada a Chapelco",
     ayuda: "El vuelo en el que aterrizás.",
+    pregunta: "¿Qué día aterriza en Chapelco y en qué vuelo?",
     fecha: fechaLlegada,
     opciones: opcionesLlegada,
     elegido: llegadaId,
@@ -233,6 +258,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     sentido: "DEPARTURE" as const,
     titulo: "Salida desde San Martín",
     ayuda: "El vuelo con el que te vas.",
+    pregunta: "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
     fecha: fechaVuelta,
     opciones: opcionesVuelta,
     elegido: vueltaId,
@@ -249,29 +275,14 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
         { ...bloqueLlegada, etapa: "2º tramo (vuelta)", minimo: fechaVuelta }
       ];
 
-  /**
-   * El primer tramo del viaje es el ancla: cuando «mismo lugar» está tildado, el segundo copia su
-   * dirección. Con «primero me voy» el ancla es la salida, no la llegada.
-   */
-  const tramoAncla = orden;
-
-  /**
-   * Los pickups siguen el mismo orden que los vuelos. Los dos tramos se pueden editar siempre: si el
-   * segundo venía copiando el lugar del primero, tocarlo suelta la copia (antes quedaba deshabilitado
-   * y parecía que la vuelta estaba clavada en la primera dirección).
-   */
-  const bloquesDePickup = orden === "ARRIVAL"
-    ? [
-        { sentido: "ARRIVAL" as const, titulo: "Lugar de la llegada", lugar: pickupLlegada, copia: false },
-        { sentido: "DEPARTURE" as const, titulo: "Lugar de la vuelta", lugar: pickupVuelta, copia: mismoLugar }
-      ]
-    : [
-        { sentido: "DEPARTURE" as const, titulo: "Lugar de la salida", lugar: pickupVuelta, copia: false },
-        { sentido: "ARRIVAL" as const, titulo: "Lugar de la vuelta", lugar: pickupLlegada, copia: mismoLugar }
-      ];
   const passengerCount = fullFareCount + halfFareCount + freeFareCount;
 
-  /** Mientras «mismo lugar» está tildado, el segundo tramo copia la dirección del primero. */
+  /**
+   * El primer tramo del viaje manda el lugar; el segundo lo copia cuando el pasajero lo pide (caso
+   * normal). Con «primero me voy» el ancla es la salida, no la llegada: si no, el bloque habilitado
+   * escribía en el tramo que no correspondía.
+   */
+  const tramoAncla = orden;
   useEffect(() => {
     if (!mismoLugar) return;
     if (tramoAncla === "ARRIVAL") setPickupVuelta(pickupLlegada);
@@ -280,6 +291,138 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
   const pickupLlegadaListo = Boolean(pickupLlegada.elegido) && Boolean(pickupLlegada.point);
   const pickupVueltaListo = Boolean(pickupVuelta.elegido) && Boolean(pickupVuelta.point);
+  /** Los lugares siguen el orden del viaje: el primero manda y el segundo lo copia o se elige aparte. */
+  const segundoSentido = orden === "ARRIVAL" ? ("DEPARTURE" as const) : ("ARRIVAL" as const);
+  const lugarAncla = orden === "ARRIVAL" ? pickupLlegada : pickupVuelta;
+  const primerLugarListo = orden === "ARRIVAL" ? pickupLlegadaListo : pickupVueltaListo;
+  const lugaresListos = primerLugarListo && respuestaMismo !== null && pickupLlegadaListo && pickupVueltaListo;
+  const textosLugar = orden === "ARRIVAL"
+    ? {
+        titulo: "¿Adónde lo llevamos y dónde lo buscamos?",
+        ayuda: "Cuando llega lo dejamos en su alojamiento; para irse lo pasamos a buscar.",
+        primero: "¿Adónde lo llevamos cuando llega?",
+        pregunta: "Para irse, ¿lo buscamos en el mismo lugar?",
+        segundo: "¿Dónde lo buscamos para ir al aeropuerto?"
+      }
+    : {
+        titulo: "¿Dónde lo buscamos y adónde lo llevamos?",
+        ayuda: "Para irse lo pasamos a buscar; cuando vuelve lo dejamos en su alojamiento.",
+        primero: "¿Dónde lo buscamos para ir al aeropuerto?",
+        pregunta: "Cuando vuelve, ¿lo llevamos al mismo lugar?",
+        segundo: "¿Adónde lo llevamos cuando vuelve?"
+      };
+
+  // Al elegir el último vuelo, la pantalla baja sola a los lugares (y el foco va al título, para el
+  // lector de pantalla). Sólo cuando aparecen, no en cada cambio.
+  const vuelosListos = Boolean(llegada && vuelta);
+  // Una vez que una sección apareció, se queda: si después cambia un vuelo o un lugar, no se le
+  // borra de la pantalla lo que ya estaba cargando.
+  const [lugaresAbiertos, setLugaresAbiertos] = useState(false);
+  const [datosAbiertos, setDatosAbiertos] = useState(false);
+  if (vuelosListos && !lugaresAbiertos) setLugaresAbiertos(true);
+  if (lugaresListos && !datosAbiertos) setDatosAbiertos(true);
+  const vuelosListosAntes = useRef(vuelosListos);
+  useEffect(() => {
+    if (vuelosListos && !vuelosListosAntes.current) {
+      const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      lugaresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+      lugaresRef.current?.querySelector<HTMLElement>("#pickup-flow-titulo")?.focus({ preventScroll: true });
+    }
+    vuelosListosAntes.current = vuelosListos;
+  }, [vuelosListos]);
+  // Y con los datos del pasajero, cuando queda elegido el último lugar.
+  const lugaresListosAntes = useRef(lugaresListos);
+  useEffect(() => {
+    if (lugaresListos && !lugaresListosAntes.current) {
+      const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      datosRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+      datosRef.current?.querySelector<HTMLElement>("#datos-titulo")?.focus({ preventScroll: true });
+    }
+    lugaresListosAntes.current = lugaresListos;
+  }, [lugaresListos]);
+  // Lo mismo con la pregunta del mismo lugar: aparece y queda a la vista.
+  useEffect(() => {
+    if (primerLugarListo && respuestaMismo === null) preguntaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [primerLugarListo, respuestaMismo]);
+
+  /** Una tarjeta de lugar: atajo de la sucursal, buscador, dirección elegida y mapa con el pin. */
+  function tarjetaLugar(sentido: "ARRIVAL" | "DEPARTURE", titulo: string, numero: number, deshabilitado: boolean) {
+    const lugar = sentido === "ARRIVAL" ? pickupLlegada : pickupVuelta;
+    return (
+      <section key={sentido} className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={deshabilitado}>
+        <header className="leg-head">
+          <span className="leg-badge" aria-hidden="true">{numero}</span>
+          <div className="leg-head-text">
+            <span className="leg-kicker">{numero === 1 ? "Ida" : "Vuelta"}</span>
+            <h3 className="leg-title">{titulo}</h3>
+          </div>
+          {lugar.elegido && lugar.point ? <span className="leg-check" aria-label="Lugar confirmado">✓</span> : null}
+        </header>
+        {/* Los atajos primero, en botones grandes; escribir la dirección queda como tercera opción. */}
+        <div className="place-shortcuts">
+          <button type="button" className="place-shortcut" disabled={deshabilitado || ubicando === sentido}
+            aria-pressed={lugar.elegido && lugar.origen === "ubicacion"} onClick={() => usarMiUbicacion(sentido)}>
+            <span className="place-shortcut-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" /><circle cx="12" cy="12" r="7.5" /><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" /></svg>
+            </span>
+            <span className="place-shortcut-text">
+              <b>{ubicando === sentido ? "Buscando dónde estás…" : "Usar mi ubicación actual"}</b>
+              <small>Si ya está en el lugar</small>
+            </span>
+          </button>
+          {officePickup ? (
+            <button type="button" className="place-shortcut" disabled={deshabilitado}
+              aria-pressed={lugar.elegido && lugar.origen === "sucursal"} onClick={() => usarSucursal(sentido)}>
+              <span className="place-shortcut-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 21V9l8-5 8 5v12" /><path d="M9 21v-6h6v6M3 21h18" /></svg>
+              </span>
+              <span className="place-shortcut-text">
+                <b>{sentido === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Desde ${officePickup.label}`}</b>
+                <small>{officePickup.address}</small>
+              </span>
+            </button>
+          ) : null}
+        </div>
+        {errorUbicacion[sentido] ? <p className="field-error" role="alert">{errorUbicacion[sentido]}</p> : null}
+        <p className="place-or">o escribí la dirección:</p>
+        <AirportPlaceSearch
+          coverage={coverage}
+          useGoogle={googlePickupConfigured}
+          disabled={deshabilitado}
+          onChange={() => (sentido === "ARRIVAL" ? setPickupLlegada(lugarVacio) : setPickupVuelta(lugarVacio))}
+          onSelect={(place) => elegirLugar(sentido, place)}
+        />
+        {lugar.elegido ? (
+          <p className="muted">
+            <strong>{lugar.label || "Punto elegido en el mapa"}</strong>
+            {lugar.approximate ? " · referencia (no encontramos la altura exacta)" : ""}
+          </p>
+        ) : null}
+        {lugar.point ? (
+          <AirportDraggableMap
+            point={lugar.point}
+            approximate={lugar.approximate}
+            precision={lugar.precision}
+            disabled={deshabilitado}
+            onMove={(point) => {
+              // Mover el pin de la sucursal ya no es la sucursal: queda como un punto elegido a mano.
+              const actualizado = { ...lugar, point, elegido: true, origen: lugar.origen === "sucursal" ? "busqueda" as const : lugar.origen };
+              if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
+              else setPickupVuelta(actualizado);
+              return true;
+            }}
+            onSelect={(point) => {
+              const actualizado = { ...lugar, point, elegido: true, origen: lugar.origen === "sucursal" ? "busqueda" as const : lugar.origen };
+              if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
+              else setPickupVuelta(actualizado);
+            }}
+          />
+        ) : null}
+        {/* El mapa ya dice «Arrastrá el marcador…»: no se repite abajo. */}
+      </section>
+    );
+  }
+
   const fueraDeZona = Boolean(
     coverage.enabled && ((pickupLlegada.point && !isInsideAirportPickupZone(pickupLlegada.point, coverage)) ||
       (pickupVuelta.point && !isInsideAirportPickupZone(pickupVuelta.point, coverage)))
@@ -316,27 +459,49 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     setCargando(false);
   }
 
-  /**
-   * El usuario está eligiendo el lugar de este tramo. Si el tramo venía copiando el del primero, la
-   * copia se suelta: manda lo que eligió acá y el efecto de sincronización deja de pisarlo.
-   */
-  function soltarCopia(sentido: "ARRIVAL" | "DEPARTURE") {
-    if (sentido !== tramoAncla && mismoLugar) {
-      setMismoLugar(false);
-    }
-  }
-
   function elegirLugar(sentido: "ARRIVAL" | "DEPARTURE", place: AirportSelectedPlace) {
     const lugar: LugarPickup = {
       label: place.label.slice(0, 160),
       point: place.point,
       precision: place.precision,
       approximate: place.approximate,
-      elegido: true
+      elegido: true,
+      origen: "busqueda"
     };
-    soltarCopia(sentido);
-    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
-    else setPickupVuelta(lugar);
+    ponerLugar(sentido, lugar);
+  }
+
+  /** Con «mismo lugar» sólo escribe el primer tramo; el otro se copia solo. */
+  function ponerLugar(sentido: Sentido, lugar: LugarPickup) {
+    setErrorUbicacion((actual) => ({ ...actual, [sentido]: undefined }));
+    if (!mismoLugar || sentido === tramoAncla) {
+      if (sentido === "ARRIVAL") setPickupLlegada(lugar);
+      else setPickupVuelta(lugar);
+    }
+  }
+
+  /** «Usar mi ubicación actual»: el punto del teléfono, sin dirección escrita (el chofer ve el pin). */
+  function usarMiUbicacion(sentido: Sentido) {
+    if (!("geolocation" in navigator)) {
+      setErrorUbicacion((actual) => ({ ...actual, [sentido]: "Este navegador no da la ubicación. Buscá la dirección abajo." }));
+      return;
+    }
+    setUbicando(sentido);
+    setErrorUbicacion((actual) => ({ ...actual, [sentido]: undefined }));
+    navigator.geolocation.getCurrentPosition(({ coords }) => {
+      setUbicando(null);
+      ponerLugar(sentido, {
+        label: "Tu ubicación actual",
+        point: [coords.latitude, coords.longitude],
+        precision: "exact",
+        approximate: false,
+        elegido: true,
+        origen: "ubicacion"
+      });
+    }, () => {
+      setUbicando(null);
+      setErrorUbicacion((actual) => ({ ...actual, [sentido]: "No pudimos saber dónde estás. Revisá el permiso de ubicación o buscá la dirección abajo." }));
+    }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 });
   }
 
   /** Atajo de la sucursal: deja la dirección y el punto de la oficina en ese tramo. */
@@ -347,11 +512,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       point: officePickup.point,
       precision: "exact",
       approximate: false,
-      elegido: true
+      elegido: true,
+      origen: "sucursal"
     };
-    soltarCopia(sentido);
-    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
-    else setPickupVuelta(lugar);
+    ponerLugar(sentido, lugar);
   }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
@@ -375,36 +539,48 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   }
 
   function validarPaso2() {
+    const primeroListo = orden === "ARRIVAL" ? pickupLlegadaListo : pickupVueltaListo;
+    if (!primeroListo) return orden === "ARRIVAL" ? "Elegí adónde lo llevamos cuando llega." : "Elegí dónde lo buscamos para ir al aeropuerto.";
+    if (respuestaMismo === null) return "Contanos si la vuelta es en el mismo lugar.";
     if (!pickupLlegadaListo) return "Confirmá el lugar del traslado de la llegada.";
     if (!pickupVueltaListo) return "Confirmá el lugar del traslado de la vuelta.";
     if (fueraDeZona) return OUTSIDE_PICKUP_ZONE;
     return "";
   }
 
+  /** Muestra el problema arriba del formulario y lo deja a la vista (puede estar lejos de donde está la persona). */
+  function mostrarProblema(problema: string) {
+    setError(problema);
+    requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
+  }
+
+  /** El botón del resumen antes de tener todo: dice qué falta y lo muestra. */
   function avanzar() {
-    const problema = paso === 1 ? validarPaso1() : validarPaso2();
-    if (problema) {
-      setError(problema);
-      return;
-    }
-    setError("");
-    setPaso((actual) => (actual === 1 ? 2 : 3));
+    const problema = validarPaso1() || validarPaso2();
+    if (problema) mostrarProblema(problema);
+    else datosRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  /** Lo que viaja a la API por cada tramo: la ubicación del teléfono va sólo como punto. */
+  function pickupDelPedido(lugar: LugarPickup) {
+    return {
+      pickupName: lugar.origen === "sucursal" && officePickup ? officePickup.label : undefined,
+      pickupAddress: lugar.origen === "ubicacion" ? undefined : lugar.label || undefined,
+      pickupPoint: lugar.point ?? undefined
+    };
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const problemaVuelos = validarPaso1();
-    if (problemaVuelos) { setError(problemaVuelos); setPaso(1); return; }
+    if (problemaVuelos) { mostrarProblema(problemaVuelos); return; }
     const problemaPickups = validarPaso2();
-    if (problemaPickups) {
-      setError(problemaPickups);
-      setPaso(2);
-      return;
-    }
+    if (problemaPickups) { mostrarProblema(problemaPickups); return; }
+    // El documento es opcional en el ida y vuelta (#206; el servidor lo acepta desde el fix del 17-nov).
     const erroresPasajero = validateCheckoutPassenger(passenger, fromAdmin, true);
     if (Object.keys(erroresPasajero).length > 0) {
       setFieldErrors(erroresPasajero);
-      setError("Revisá los datos del pasajero.");
+      mostrarProblema("Revisá los datos del pasajero.");
       return;
     }
 
@@ -430,14 +606,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           arrival: {
             flightNumber: llegada!.number,
             serviceDate: fechaLlegada,
-            pickupAddress: pickupLlegada.label,
-            pickupPoint: pickupLlegada.point ?? undefined
+            ...pickupDelPedido(pickupLlegada)
           },
           departure: {
             flightNumber: vuelta!.number,
             serviceDate: fechaVuelta,
-            pickupAddress: pickupVuelta.label,
-            pickupPoint: pickupVuelta.point ?? undefined
+            ...pickupDelPedido(pickupVuelta)
           }
         })
       });
@@ -489,225 +663,144 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     <form className="checkout-layout" onSubmit={handleSubmit} noValidate>
       <div className="checkout-main">
         <section className="form-panel checkout-panel">
-          <ol className="wizard-steps">
-            {PASOS.map((titulo, i) => (
-              <li key={titulo} data-active={paso === i + 1} data-done={paso > i + 1}>
-                {/* Un paso ya hecho se puede volver a abrir desde acá, igual que con «← Volver». */}
-                {paso > i + 1 ? (
-                  <button type="button" onClick={() => setPaso((i + 1) as 1 | 2)}>
-                    <span>{i + 1}</span>
-                    {titulo}
-                  </button>
-                ) : (
-                  <>
-                    <span>{i + 1}</span>
-                    {titulo}
-                  </>
-                )}
-              </li>
-            ))}
+          {/* Indicador de por dónde va: se completa solo, no hay que tocarlo. */}
+          <ol className="wizard-steps checkout-progress" aria-label="Pasos de la reserva">
+            {ETAPAS.map((titulo, i) => {
+              const hecha = [vuelosListos, lugaresListos, false][i];
+              const activa = i === (lugaresListos ? 2 : vuelosListos ? 1 : 0);
+              return (
+                <li key={titulo} data-active={activa} data-done={hecha} aria-current={activa ? "step" : undefined}>
+                  <span>{hecha ? "✓" : i + 1}</span>
+                  {titulo}
+                </li>
+              );
+            })}
           </ol>
 
-          {error ? <p className="error" role="alert">{error}</p> : null}
+          {error ? <p className="error" role="alert" ref={errorRef}>{error}</p> : null}
 
-          {paso === 1 ? (
-            <>
+          <>
               <div>
-                <p className="eyebrow">Paso 1 de 3</p>
+                <p className="eyebrow">Los vuelos</p>
                 <h2 className="route-title">Tus dos vuelos</h2>
                 <p className="muted">
-                  Elegí el orden del viaje: si primero aterrizás en Chapelco y después te vas, o si
-                  primero te vas y volvés otro día.
+                  Tocá cada recuadro para elegir: desde dónde sale, adónde va, y el día y el vuelo de la ida
+                  y de la vuelta. La vuelta puede ser otro día.
                 </p>
               </div>
 
-              {/* Las dos opciones del orden, visibles al mismo tiempo (#189). */}
-              <TripOrderOptions orden={orden} onElegir={elegirOrden} aviso={avisoOrden} />
+              {/* Barra al estilo de los buscadores de vuelos (pedido de Jugue, 17-nov: «como en Kiwi»):
+                  cada campo abre su panel con los lugares, o con los días y los vuelos para tocar. */}
+              <TripSearchBar
+                orden={orden}
+                tramos={bloquesDelViaje.map((bloque, i): TramoDeLaBarra => ({
+                  sentido: bloque.sentido,
+                  etapa: i === 0 ? "Ida" : "Vuelta",
+                  titulo: bloque.titulo,
+                  pregunta: bloque.pregunta,
+                  fecha: bloque.fecha,
+                  // En la web no se reserva para días que ya pasaron; el panel puede cargar atrasados.
+                  minimo: bloque.minimo || (fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10)),
+                  opciones: bloque.opciones,
+                  elegido: bloque.elegido,
+                  cargando: bloque.cargando
+                })) as [TramoDeLaBarra, TramoDeLaBarra]}
+                routeSlug={route.slug}
+                onPedirOrden={pedirOrden}
+                onFecha={(sentido, fecha) => {
+                  if (sentido === "ARRIVAL") { setFechaLlegada(fecha); setLlegadaId(""); }
+                  else { setFechaVuelta(fecha); setVueltaId(""); }
+                  void cargarVuelos(fecha, sentido);
+                }}
+                onVuelo={(sentido, vueloId) => {
+                  if (sentido === "ARRIVAL") setLlegadaId(vueloId);
+                  else setVueltaId(vueloId);
+                  setError("");
+                }}
+              />
+              <p className="trip-search-hint"><strong>{fraseOrden}.</strong></p>
+              {/* Con el vuelo de salida elegido, a qué hora pasa la camioneta (#206): 2 h 30 antes. */}
+              {(() => {
+                const inicio = vuelta ? inicioDeRecorrida(vuelta) : null;
+                return inicio ? (
+                  <p className="trip-search-hint trip-search-pickup-time">
+                    <strong>Lo pasamos a buscar el {airportPickupDateTime.format(inicio)} h</strong>{" "}
+                    — la camioneta sale 2 h 30 antes del vuelo de salida.
+                  </p>
+                ) : null;
+              })()}
+              <p className="sr-only" aria-live="polite">{fraseOrden}</p>
 
-              {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }, i) => {
-                const vueloElegido = opciones.find((opcion) => opcion.id === elegido) ?? null;
-                const inicioRecorrida = vueloElegido ? inicioDeRecorrida(vueloElegido) : null;
-                return (
-                <section key={sentido} className="leg-card" data-done={Boolean(vueloElegido)}>
-                  <header className="leg-head">
-                    <span className="leg-badge" aria-hidden="true">{i + 1}</span>
-                    <div className="leg-head-text">
-                      <span className="leg-kicker">{etapa}</span>
-                      <h3 className="leg-title">{titulo}</h3>
-                      <p className="muted leg-help">{vueloElegido ? `${descripcionVuelo(vueloElegido)} · ${fechaCorta(fecha)}` : ayuda}</p>
-                    </div>
-                    {vueloElegido ? <span className="leg-check" aria-label="Vuelo elegido">✓</span> : null}
-                  </header>
-                  <div className="checkout-fields">
-                    <label>
-                      Día
-                      <input
-                        type="date"
-                        value={fecha}
-                        min={minimo || undefined}
-                        onChange={(e) => {
-                          if (sentido === "ARRIVAL") setFechaLlegada(e.target.value);
-                          else setFechaVuelta(e.target.value);
-                          setElegido("");
-                          void cargarVuelos(e.target.value, sentido);
-                        }}
-                      />
-                    </label>
-                    <label>
-                      Vuelo
-                      <select value={elegido} onChange={(e) => setElegido(e.target.value)} disabled={cargando || opciones.length === 0}>
-                        <option value="">{cargando ? "Buscando vuelos…" : opciones.length ? "Elegí tu vuelo" : "Sin vuelos para reservar ese día"}</option>
-                        {opciones.map((opcion) => (
-                          <option key={opcion.id} value={opcion.id}>
-                            {descripcionVuelo(opcion)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+              {/* Con los dos vuelos elegidos aparecen los lugares, sin apretar «Continuar». */}
+              {lugaresAbiertos ? (
+                <section className="pickup-flow" ref={lugaresRef} aria-labelledby="pickup-flow-titulo">
+                  <div>
+                    <p className="eyebrow">Los lugares</p>
+                    <h2 className="route-title" id="pickup-flow-titulo" tabIndex={-1}>{textosLugar.titulo}</h2>
+                    <p className="muted">{textosLugar.ayuda}</p>
                   </div>
-                  {opciones.length === 0 && !cargando ? (
-                    <p className="muted">
-                      Si tu vuelo no figura, reservá ese tramo solo desde{" "}
-                      <Link className="table-link" href={`/reservar/${route.slug}?date=${fecha}`}>
-                        la reserva de un tramo
-                      </Link>
-                      .
-                    </p>
-                  ) : null}
-                  {inicioRecorrida ? (
-                    <p className="muted leg-help">
-                      <strong>Inicio estimado de recorrida: {airportPickupDateTime.format(inicioRecorrida)}</strong>{" "}
-                      — la camioneta pasa a buscarte 2 h 30 antes de la salida del vuelo.
-                    </p>
-                  ) : null}
-                </section>
-                );
-              })}
 
-            </>
-          ) : null}
+                  {tarjetaLugar(orden, textosLugar.primero, 1, false)}
 
-          {paso === 2 ? (
-            <>
-              <div>
-                <p className="eyebrow">Paso 2 de 3</p>
-                <h2 className="route-title">¿Dónde te buscamos?</h2>
-                <p className="muted">
-                  En la llegada te dejamos en el domicilio; en la vuelta te pasamos a buscar. Podés usar
-                  el mismo lugar o cambiar uno de los dos.
-                </p>
-              </div>
-
-              {bloquesDePickup.map(({ sentido, titulo, lugar, copia }, i) => (
-                <Fragment key={sentido}>
-                <section className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={copia}>
-                  <header className="leg-head">
-                    <span className="leg-badge" aria-hidden="true">{i + 1}</span>
-                    <div className="leg-head-text">
-                      <span className="leg-kicker">{i === 0 ? "1º tramo" : "2º tramo"}</span>
-                      <h3 className="leg-title">{titulo}</h3>
-                      {copia ? <p className="muted leg-help">Está usando el lugar del primer tramo. Cambialo acá si es otro.</p> : null}
-                    </div>
-                    {lugar.elegido && lugar.point ? <span className="leg-check" aria-label="Lugar confirmado">✓</span> : null}
-                  </header>
-                  {officePickup ? (
-                    <div className="form-actions">
-                      <button className="ghost-button" type="button" onClick={() => usarSucursal(sentido)}>
-                        {sentido === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}
-                      </button>
+                  {primerLugarListo ? (
+                    <div className="same-place" ref={preguntaRef} role="group" aria-labelledby="same-place-pregunta">
+                      <p className="same-place-question" id="same-place-pregunta">{textosLugar.pregunta}</p>
+                      <div className="same-place-options">
+                        <button type="button" className="same-place-option" aria-pressed={respuestaMismo === "si"}
+                          onClick={() => setRespuestaMismo("si")}>
+                          <b>Sí, el mismo lugar</b>
+                          <small>{lugarAncla.label || "El punto elegido en el mapa"}</small>
+                        </button>
+                        <button type="button" className="same-place-option" aria-pressed={respuestaMismo === "no"}
+                          onClick={() => {
+                            // Arranca vacío: si no, quedaría la copia del primero y parecería ya elegido.
+                            if (respuestaMismo !== "no") {
+                              if (orden === "ARRIVAL") setPickupVuelta(lugarVacio);
+                              else setPickupLlegada(lugarVacio);
+                            }
+                            setRespuestaMismo("no");
+                          }}>
+                          <b>No, es otro lugar</b>
+                          <small>Lo elijo ahora</small>
+                        </button>
+                      </div>
                     </div>
                   ) : null}
-                  <AirportPlaceSearch
-                    coverage={coverage}
-                    useGoogle={googlePickupConfigured}
-                    disabled={false}
-                    onChange={() => {
-                      soltarCopia(sentido);
-                      if (sentido === "ARRIVAL") setPickupLlegada(lugarVacio);
-                      else setPickupVuelta(lugarVacio);
-                    }}
-                    onSelect={(place) => elegirLugar(sentido, place)}
-                  />
-                  {lugar.elegido ? (
-                    <p className="muted">
-                      <strong>{lugar.label || "Punto elegido en el mapa"}</strong>
-                      {lugar.approximate ? " · referencia (no encontramos la altura exacta)" : ""}
-                    </p>
-                  ) : null}
-                  {lugar.point ? (
-                    <AirportDraggableMap
-                      point={lugar.point}
-                      approximate={lugar.approximate}
-                      precision={lugar.precision}
-                      disabled={false}
-                      onMove={(point) => {
-                        soltarCopia(sentido);
-                        const actualizado = { ...lugar, point, elegido: true };
-                        if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
-                        else setPickupVuelta(actualizado);
-                        return true;
-                      }}
-                      onSelect={(point) => {
-                        soltarCopia(sentido);
-                        const actualizado = { ...lugar, point, elegido: true };
-                        if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
-                        else setPickupVuelta(actualizado);
-                      }}
-                    />
-                  ) : null}
-                  {lugar.point ? (
-                    <p className="muted">Arrastrá el pin si el punto no es el exacto.</p>
-                  ) : null}
+
+                  {primerLugarListo && respuestaMismo === "no" ? tarjetaLugar(segundoSentido, textosLugar.segundo, 2, false) : null}
+
                 </section>
-                {/* El atajo va debajo del primer mapa: primero se elige el lugar de la ida y
-                    después se decide si la vuelta sale de ahí o de otro lado. */}
-                {i === 0 ? (
-                  <label className="checkout-checkbox">
-                    <input type="checkbox" checked={mismoLugar} onChange={(e) => setMismoLugar(e.target.checked)} />
-                    Usar el mismo lugar para la vuelta
-                  </label>
-                ) : null}
-                </Fragment>
-              ))}
+              ) : null}
+          </>
 
-              <div className="form-actions">
-                <button className="ghost-button" type="button" onClick={() => setPaso(1)}>
-                  ← Volver
-                </button>
-              </div>
-            </>
-          ) : null}
-
-          {paso === 3 ? (
-            <>
+          {/* Con los lugares listos aparecen los datos del pasajero, sin apretar «Continuar». */}
+          {datosAbiertos ? (
+            <section className="pickup-flow" ref={datosRef} aria-labelledby="datos-titulo">
               <div>
-                <p className="eyebrow">Paso 3 de 3</p>
-                <h2 className="route-title">Tus datos</h2>
+                <p className="eyebrow">Tus datos</p>
+                <h2 className="route-title" id="datos-titulo" tabIndex={-1}>¿Quiénes viajan?</h2>
                 <p className="muted">Los cargás una sola vez y valen para los dos tramos.</p>
               </div>
 
               <div className="checkout-fields">
-                <label>
-                  Adultos
+                {/* Un solo rótulo por contador: antes se leía «Adultos» dos veces (label adentro de label). */}
+                <div>
                   <QuantityPicker label="Adultos" value={fullFareCount} min={1} max={24} onChange={setFullFareCount} />
-                </label>
-                <label>
-                  Menores de 4 a 8 años (media tarifa)
-                  <QuantityPicker label="Menores con media tarifa" value={halfFareCount} min={0} max={23} onChange={setHalfFareCount} />
-                </label>
-                <label>
-                  Menores de 4 años (sin cargo)
-                  <QuantityPicker label="Menores sin cargo" value={freeFareCount} min={0} max={23} onChange={setFreeFareCount} />
-                </label>
-                <label>
-                  Equipaje deportivo (esquí, snowboard, bici)
-                  <QuantityPicker label="Bultos de equipaje deportivo" value={sportsLuggageCount} min={0} max={24} onChange={setSportsLuggageCount} />
+                </div>
+                <div>
+                  <QuantityPicker label="Menores de 4 a 8 años (media tarifa)" value={halfFareCount} min={0} max={23} onChange={setHalfFareCount} />
+                </div>
+                <div>
+                  <QuantityPicker label="Menores de 4 años (sin cargo)" value={freeFareCount} min={0} max={23} onChange={setFreeFareCount} />
+                </div>
+                <div>
+                  <QuantityPicker label="Equipaje deportivo (esquí, snowboard, bici)" value={sportsLuggageCount} min={0} max={24} onChange={setSportsLuggageCount} />
                   <span className="muted">
                     {extras.sportsLuggageCents > 0
                       ? `${formatPrice(extras.sportsLuggageCents, moneda)} por bulto, en cada tramo`
                       : "Sin cargo"}
                   </span>
-                </label>
+                </div>
               </div>
 
               <PassengerFields
@@ -749,12 +842,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 </div>
               </div>
 
-              <div className="form-actions">
-                <button className="ghost-button" type="button" onClick={() => setPaso(2)}>
-                  ← Volver
-                </button>
-              </div>
-            </>
+              <button className="button pickup-flow-next" type="submit" disabled={isSubmitting || fueraDeZona}>
+                {isSubmitting ? "Reservando…" : "Reservar ida y vuelta"}
+              </button>
+            </section>
           ) : null}
         </section>
       </div>
@@ -779,7 +870,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               {(() => {
                 const primero = orden === "ARRIVAL" ? pickupLlegada : pickupVuelta;
                 const segundo = orden === "ARRIVAL" ? pickupVuelta : pickupLlegada;
-                if (!primero.elegido && !segundo.elegido) return paso === 1 ? "Se elige en el paso 2" : "Sin confirmar todavía";
+                if (!primero.elegido && !segundo.elegido) return llegada && vuelta ? "Sin confirmar todavía" : "Se elige después de los vuelos";
                 const nombre = (lugar: LugarPickup) => (lugar.elegido ? lugar.label || "punto elegido en el mapa" : "sin confirmar");
                 return mismoLugar ? `${nombre(primero)} (mismo lugar en los dos tramos)` : `${nombre(primero)} · vuelta: ${nombre(segundo)}`;
               })()}
@@ -803,12 +894,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
           <p className="muted" key={label}>{label}: incluye recargo de zona {formatPrice(value.quote.extras.zoneExtraCents, value.quote.currency)}</p>
         ))}
         <strong className="price">{totalTexto}</strong>
-        {paso < 3 ? (
+        {!lugaresListos ? (
           <button className="button checkout-submit" type="button" onClick={avanzar}>
-            {paso === 1 ? "Continuar con los pickups →" : "Continuar con tus datos →"}
+            {vuelosListos ? "Falta elegir los lugares" : "Elegí los dos vuelos"}
           </button>
         ) : (
-          <button className="primary-button checkout-submit" type="submit" disabled={isSubmitting || fueraDeZona}>
+          <button className="button checkout-submit" type="submit" disabled={isSubmitting || fueraDeZona}>
             {isSubmitting ? "Reservando…" : "Reservar ida y vuelta"}
           </button>
         )}

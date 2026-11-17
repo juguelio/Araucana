@@ -5,21 +5,8 @@ import {
   type RouteSheet
 } from "@/lib/driver/route-sheet";
 import { fechaDeLaOrden, plata } from "@/lib/airport/service-order";
-import { whatsappLink } from "@/lib/airport/route-order";
+import { CeldaDeLaOrden } from "./service-order-cells";
 import "./service-order-sheet.css";
-
-/** El contacto abre el WhatsApp del pasajero con un click; el resto de las celdas es texto. */
-function celdaContenido(celda: string, columna: string) {
-  if (columna !== "Contacto") return celda;
-  const whatsapp = whatsappLink(celda);
-  if (!whatsapp) return celda;
-  return (
-    <a className="orden-whatsapp" href={whatsapp} target="_blank" rel="noopener noreferrer">
-      {celda}
-      <span className="orden-whatsapp-icono" aria-hidden="true"> · WhatsApp</span>
-    </a>
-  );
-}
 
 /**
  * La planilla del chofer de una salida de ruta como documento (issue #136): misma hoja de estilos,
@@ -59,7 +46,7 @@ export function RouteSheetDocument({ sheet }: { sheet: RouteSheet }) {
                 <tr key={`${pasajero.code}-${pasajero.name}`}>
                   {routeSheetRow(pasajero).map((celda, indice) => (
                     <td key={`${pasajero.code}-${indice}`} data-columna={ROUTE_SHEET_COLUMNS[indice]}>
-                      {celda ? celdaContenido(celda, ROUTE_SHEET_COLUMNS[indice]) : <span className="orden-vacio">—</span>}
+                      <CeldaDeLaOrden celda={celda} columna={ROUTE_SHEET_COLUMNS[indice]} />
                     </td>
                   ))}
                 </tr>

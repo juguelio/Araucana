@@ -1,7 +1,12 @@
 import { reservationPriceCents } from "@/lib/booking/admin-price";
 import { z } from "zod";
 import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
-import { adminPassengerSchema, passengerSchema, referredBySchema } from "@/lib/booking/validation";
+// El aeropuerto no exige documento (#206, #208): el checkout lo marca «(opcional)».
+import {
+  adminOptionalDocumentPassengerSchema as adminPassengerSchema,
+  optionalDocumentPassengerSchema as passengerSchema,
+  referredBySchema
+} from "@/lib/booking/validation";
 
 /**
  * Vuelo privado: el pasajero lo carga porque no figura en la lista del día (charter, avión

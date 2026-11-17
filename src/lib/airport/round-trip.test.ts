@@ -208,7 +208,8 @@ describe("ida y vuelta del aeropuerto", () => {
     expect(parsed.success ? parsed.data.firstLeg : "").toBe("ARRIVAL");
   });
 
-  it("el alta del panel exige el documento igual que el flujo público (issue #122)", () => {
+  it("el documento es opcional en el aeropuerto, desde el panel y desde la web (#206, #208)", () => {
+    // #122 lo había hecho obligatorio; el 17/11 el cliente pidió reservar el aeropuerto sin DNI.
     const sinDocumento = {
       ...pedido,
       firstLeg: "DEPARTURE" as const,
@@ -216,8 +217,12 @@ describe("ida y vuelta del aeropuerto", () => {
       departure: { ...pedido.departure, serviceDate: "2030-01-01" },
       arrival: { ...pedido.arrival, serviceDate: "2030-01-08" }
     };
-    expect(adminAirportRoundTripSchema.safeParse(sinDocumento).success).toBe(false);
-    expect(airportRoundTripSchema.safeParse(sinDocumento).success).toBe(false);
+    expect(adminAirportRoundTripSchema.safeParse(sinDocumento).success).toBe(true);
+    expect(airportRoundTripSchema.safeParse(sinDocumento).success).toBe(true);
+    // Un documento cargado mal se sigue rechazando.
+    const malCargado = { ...sinDocumento, passenger: { ...pasajero, documentId: "12" } };
+    expect(adminAirportRoundTripSchema.safeParse(malCargado).success).toBe(false);
+    expect(airportRoundTripSchema.safeParse(malCargado).success).toBe(false);
     // Con el documento cargado, el alta del panel acepta los dos órdenes.
     expect(
       adminAirportRoundTripSchema.safeParse({

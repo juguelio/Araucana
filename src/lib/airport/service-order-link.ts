@@ -9,6 +9,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *
  * Formato: `<cuerpo>.<firma>`, las dos partes en base64url.
  *   cuerpo = {"date":"2026-11-13","flight":null,"exp":1763268000}
+ *   (con `"vehicle":"<asignación>"` cuando la orden es de una sola nave de un vuelo con varias)
  *   firma  = HMAC-SHA256(secreto, "orden-servicio:" + cuerpo)
  */
 
@@ -24,6 +25,11 @@ export type ServiceOrderLinkPayload = {
   flight: string | null;
   /** Vencimiento en segundos desde epoch. */
   exp: number;
+  /**
+   * La nave, cuando el vuelo sale con más de una: el id de la asignación o `sin-nave`. Los links que
+   * ya se mandaron no lo traen y siguen abriendo el vuelo entero.
+   */
+  vehicle?: string | null;
 };
 
 function secreto() {
@@ -83,8 +89,9 @@ export function leerTokenDeOrden(
   if (payload.flight !== null && typeof payload.flight !== "string") return null;
   if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return null;
   if (payload.exp <= Math.floor(ahora.getTime() / 1000)) return null;
+  if (payload.vehicle !== undefined && payload.vehicle !== null && typeof payload.vehicle !== "string") return null;
 
-  return { date: payload.date, flight: payload.flight, exp: payload.exp };
+  return { date: payload.date, flight: payload.flight, exp: payload.exp, vehicle: payload.vehicle ?? null };
 }
 
 /**
@@ -94,13 +101,17 @@ export function leerTokenDeOrden(
  * fecha y el vuelo del token son exactamente los que el operador está mirando: no se puede cambiar
  * uno sin que la firma deje de cerrar.
  */
-export function rutaDeLaOrden(date: string, flight: string | null) {
-  return `/orden/${crearTokenDeOrden({ date, flight, exp: vencimientoDelLink(date) })}`;
+export function rutaDeLaOrden(date: string, flight: string | null, vehicle: string | null = null) {
+  // Sin nave el cuerpo queda igual que antes: el token del vuelo entero no cambia de forma.
+  const payload: ServiceOrderLinkPayload = vehicle
+    ? { date, flight, exp: vencimientoDelLink(date), vehicle }
+    : { date, flight, exp: vencimientoDelLink(date) };
+  return `/orden/${crearTokenDeOrden(payload)}`;
 }
 
 /** El link completo para el chofer, a partir del origen del request. */
-export function linkDeLaOrden(origen: string, date: string, flight: string | null) {
-  return `${origen.replace(/\/$/, "")}${rutaDeLaOrden(date, flight)}`;
+export function linkDeLaOrden(origen: string, date: string, flight: string | null, vehicle: string | null = null) {
+  return `${origen.replace(/\/$/, "")}${rutaDeLaOrden(date, flight, vehicle)}`;
 }
 
 /**

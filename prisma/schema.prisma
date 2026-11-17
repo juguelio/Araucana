@@ -351,11 +351,18 @@ model AirportReservationDetails {
   sportsLuggageUnitCents Int @default(0)
   /// Recargo por zona (segundo límite del mapa) cobrado al reservar.
   zoneExtraCents         Int @default(0)
+  /// Nave en la que va el pasajero cuando el vuelo tiene más de una (orden de servicio por nave).
+  /// `null` = la reparte la orden según la capacidad. Se ignora si la asignación es de otro vuelo.
+  assignmentId  String?
+  assignment    AirportVehicleAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+  /// Lugar en la recorrida, ordenado a mano desde la orden de servicio. `null` = orden sugerido.
+  routePosition Int?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   @@index([serviceDate, direction])
   @@index([flightNumber])
+  @@index([assignmentId])
 }
 
 model AirportVehicleAssignment {
@@ -370,6 +377,7 @@ model AirportVehicleAssignment {
   createdBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  passengers AirportReservationDetails[]
 
   @@unique([flightId, vehicleId])
   @@index([flightId])

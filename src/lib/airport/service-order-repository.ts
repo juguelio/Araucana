@@ -38,7 +38,16 @@ export async function getAirportServiceOrderReservations(
               direction: true,
               scheduledAt: true,
               estimatedAt: true,
-              pickupStartOverrideAt: true
+              pickupStartOverrideAt: true,
+              // Las naves del vuelo: con dos o más, la orden se parte por nave.
+              assignments: {
+                orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+                select: {
+                  id: true,
+                  vehicle: { select: { id: true, name: true, _count: { select: { seats: true } } } },
+                  driver: { select: { name: true, email: true } }
+                }
+              }
             }
           }
         }
@@ -66,6 +75,8 @@ export async function getAirportServiceOrderReservations(
         pickupNotes: detalle.pickupNotes,
         pickupLatitude: detalle.pickupLatitude,
         pickupLongitude: detalle.pickupLongitude,
+        assignmentId: detalle.assignmentId,
+        routePosition: detalle.routePosition,
         passenger: {
           firstName: reserva.passenger.firstName,
           lastName: reserva.passenger.lastName,
@@ -81,7 +92,14 @@ export async function getAirportServiceOrderReservations(
               direction: detalle.flight.direction,
               scheduledAt: detalle.flight.scheduledAt,
               estimatedAt: detalle.flight.estimatedAt,
-              pickupStartOverrideAt: detalle.flight.pickupStartOverrideAt
+              pickupStartOverrideAt: detalle.flight.pickupStartOverrideAt,
+              vehicles: detalle.flight.assignments.map((asignacion) => ({
+                assignmentId: asignacion.id,
+                vehicleId: asignacion.vehicle.id,
+                name: asignacion.vehicle.name,
+                seats: asignacion.vehicle._count.seats,
+                driver: asignacion.driver ? (asignacion.driver.name ?? asignacion.driver.email) : null
+              }))
             }
           : null
       }
