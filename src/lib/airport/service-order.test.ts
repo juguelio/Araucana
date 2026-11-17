@@ -4,6 +4,10 @@ import {
   blockTimeLabel,
   buildServiceOrderBlocks,
   buildServiceOrderWorkbook,
+  filtrarPorNave,
+  referenciaDeLaOrden,
+  SIN_NAVE,
+  tituloDelTotal,
   lineasDeTexto,
   serviceOrderFileName,
   documentoDelPasajero,
@@ -338,6 +342,101 @@ describe("orden de servicio del aeropuerto", () => {
       const indice = SERVICE_ORDER_COLUMNS.indexOf("Derivado por" as (typeof SERVICE_ORDER_COLUMNS)[number]);
 
       expect(fila[indice]).toBe("");
+    });
+  });
+
+  describe("una orden por nave", () => {
+    const naves = [
+      { assignmentId: "asig-a", vehicleId: "nave-a", name: "Sprinter 1910", seats: 4, driver: "Juan" },
+      { assignmentId: "asig-b", vehicleId: "nave-b", name: "Master 243", seats: 4, driver: null }
+    ];
+    // Del aeropuerto hacia el centro: la ARA-1 queda más cerca que la ARA-2, y ésta más que la ARA-3.
+    const cerca = { pickupLatitude: -40.08, pickupLongitude: -71.15 };
+    const medio = { pickupLatitude: -40.12, pickupLongitude: -71.3 };
+    const lejos = { pickupLatitude: -40.157, pickupLongitude: -71.353 };
+    const conNaves = (extra: Partial<ServiceOrderReservationInput>) =>
+      reserva({ flight: vuelo({ vehicles: naves }), ...extra });
+
+    it("con una sola nave el vuelo sigue siendo una orden y lleva la nave en el rótulo", () => {
+      const blocks = buildServiceOrderBlocks([reserva({ flight: vuelo({ vehicles: [naves[0]] }) })]);
+
+      expect(blocks).toHaveLength(1);
+      expect(blocks[0].vehicle?.name).toBe("Sprinter 1910");
+      expect(blockTimeLabel(blocks[0])).toContain("Sprinter 1910 · Juan");
+      expect(referenciaDeLaOrden(blocks[0])).toEqual({ flight: "vuelo-1671", vehicle: null });
+    });
+
+    it("con dos naves reparte por capacidad en el orden de la recorrida, sin partir reservas", () => {
+      const blocks = buildServiceOrderBlocks([
+        conNaves({ code: "ARA-3", passengerCount: 2, ...lejos }),
+        conNaves({ code: "ARA-1", passengerCount: 3, ...cerca }),
+        conNaves({ code: "ARA-2", passengerCount: 2, ...medio })
+      ]);
+
+      expect(blocks.map((block) => block.vehicle?.name)).toEqual(["Sprinter 1910", "Master 243"]);
+      // La ARA-2 no entra en los 4 lugares de la primera (3 + 2): pasa entera a la segunda.
+      expect(blocks[0].passengers.map((p) => p.code)).toEqual(["ARA-1"]);
+      expect(blocks[1].passengers.map((p) => p.code)).toEqual(["ARA-2", "ARA-3"]);
+      expect(blocks[0].totalCents + blocks[1].totalCents).toBe(3 * 475000);
+      expect(tituloDelTotal(blocks[1])).toBe("Total OUT 1671 · Master 243");
+    });
+
+    it("lo que no entra en ninguna nave queda en una orden «sin nave», no se pierde", () => {
+      const blocks = buildServiceOrderBlocks([
+        conNaves({ code: "ARA-1", passengerCount: 4, ...cerca }),
+        conNaves({ code: "ARA-2", passengerCount: 4, ...medio }),
+        conNaves({ code: "ARA-3", passengerCount: 1, ...lejos })
+      ]);
+
+      expect(blocks).toHaveLength(3);
+      expect(blocks[2].vehicle).toBeNull();
+      expect(blocks[2].passengers.map((p) => p.code)).toEqual(["ARA-3"]);
+      expect(blockTimeLabel(blocks[2])).toContain("sin nave asignada");
+      expect(referenciaDeLaOrden(blocks[2])).toEqual({ flight: "vuelo-1671", vehicle: SIN_NAVE });
+    });
+
+    it("respeta la nave y el orden elegidos a mano, y lo nuevo cae al final", () => {
+      const blocks = buildServiceOrderBlocks([
+        conNaves({ code: "ARA-1", passengerCount: 1, ...cerca, assignmentId: "asig-b", routePosition: 1 }),
+        conNaves({ code: "ARA-3", passengerCount: 1, ...lejos, assignmentId: "asig-b", routePosition: 0 }),
+        conNaves({ code: "ARA-2", passengerCount: 1, ...medio }),
+        conNaves({ code: "ARA-4", passengerCount: 1, ...cerca })
+      ]);
+
+      const [primera, segunda] = blocks;
+      expect(primera.vehicle?.assignmentId).toBe("asig-a");
+      expect(primera.passengers.map((p) => p.code)).toEqual(["ARA-4", "ARA-2"]);
+      expect(primera.manualOrder).toBe(false);
+      expect(segunda.passengers.map((p) => p.code)).toEqual(["ARA-3", "ARA-1"]);
+      expect(segunda.manualOrder).toBe(true);
+    });
+
+    it("ignora la nave guardada si ya no es del vuelo", () => {
+      const blocks = buildServiceOrderBlocks([conNaves({ code: "ARA-1", passengerCount: 1, assignmentId: "de-otro-vuelo" })]);
+
+      expect(blocks[0].vehicle?.assignmentId).toBe("asig-a");
+      expect(blocks[0].passengers.map((p) => p.code)).toEqual(["ARA-1"]);
+    });
+
+    it("las naves vacías sólo aparecen cuando se piden (el panel las usa para soltar gente)", () => {
+      const reservas = [conNaves({ code: "ARA-1", passengerCount: 1 })];
+
+      expect(buildServiceOrderBlocks(reservas)).toHaveLength(1);
+      expect(buildServiceOrderBlocks(reservas, { incluirVacias: true }).map((b) => b.vehicle?.name)).toEqual([
+        "Sprinter 1910",
+        "Master 243"
+      ]);
+    });
+
+    it("filtra la orden de una nave para la descarga y el link del chofer", () => {
+      const blocks = buildServiceOrderBlocks([
+        conNaves({ code: "ARA-1", passengerCount: 4 }),
+        conNaves({ code: "ARA-2", passengerCount: 4 })
+      ]);
+
+      expect(filtrarPorNave(blocks, null)).toHaveLength(2);
+      expect(filtrarPorNave(blocks, "asig-b").map((b) => b.passengers[0].code)).toEqual(["ARA-2"]);
+      expect(filtrarPorNave(blocks, "otra")).toEqual([]);
     });
   });
 });

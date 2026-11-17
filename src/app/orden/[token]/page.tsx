@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ImprimirButton } from "@/components/imprimir-button";
 import { ServiceOrderSheet } from "@/components/service-order-sheet";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
-import { buildServiceOrderBlocks } from "@/lib/airport/service-order";
+import { buildServiceOrderBlocks, filtrarPorNave } from "@/lib/airport/service-order";
 import { leerTokenDeOrden } from "@/lib/airport/service-order-link";
 import "@/components/service-order-sheet.css";
 
@@ -20,7 +20,8 @@ type PageProps = { params: Promise<{ token: string }> };
 /**
  * Orden de servicio pública para el chofer (issue #118, parte 2).
  *
- * Se abre sin usuario con un token firmado en la URL: sólo muestra la hoja de ese día (o de ese vuelo),
+ * Se abre sin usuario con un token firmado en la URL: sólo muestra la hoja de ese día (o de ese vuelo, o
+ * de una nave de ese vuelo),
  * no da acceso a ninguna otra cosa, no se indexa y vence al día siguiente del servicio. Pensada para el
  * celular: la tabla se lee sin zoom horizontal y también se puede imprimir desde el navegador.
  */
@@ -32,7 +33,10 @@ export default async function OrdenPublicaPage({ params }: PageProps) {
     notFound();
   }
 
-  const blocks = buildServiceOrderBlocks(await getAirportServiceOrderReservations(payload.date, payload.flight));
+  const blocks = filtrarPorNave(
+    buildServiceOrderBlocks(await getAirportServiceOrderReservations(payload.date, payload.flight)),
+    payload.flight ? (payload.vehicle ?? null) : null
+  );
 
   return (
     <main className="page-shell section orden-publica">

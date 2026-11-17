@@ -42,6 +42,10 @@ export type ServiceOrderReservationInput = {
   /** Coordenadas del retiro; sin ellas el pasajero va al final del recorrido. */
   pickupLatitude?: number | null;
   pickupLongitude?: number | null;
+  /** Nave elegida a mano (id de la asignación del vuelo). `null` = la reparte la orden. */
+  assignmentId?: string | null;
+  /** Lugar en la recorrida ordenado a mano. `null` = orden sugerido. */
+  routePosition?: number | null;
   passenger: {
     firstName: string;
     lastName: string;
@@ -57,8 +61,24 @@ export type ServiceOrderReservationInput = {
     scheduledAt: Date;
     estimatedAt: Date | null;
     pickupStartOverrideAt: Date | null;
+    /** Naves asignadas al vuelo, en el orden en que se asignaron. */
+    vehicles?: ServiceOrderVehicle[];
   } | null;
 };
+
+/** Una nave asignada a un vuelo: lo que la orden necesita para repartir y rotular. */
+export type ServiceOrderVehicle = {
+  /** Id de la asignación nave↔vuelo: identifica la orden de esa nave. */
+  assignmentId: string;
+  vehicleId: string;
+  name: string;
+  /** Asientos de la nave. 0 = sin plano cargado: no se sabe la capacidad. */
+  seats: number;
+  driver: string | null;
+};
+
+/** Rótulo de la orden de los pasajeros que no entraron en ninguna nave del vuelo. */
+export const SIN_NAVE = "sin-nave";
 
 export type ServiceOrderPassenger = {
   code: string;
@@ -75,10 +95,23 @@ export type ServiceOrderPassenger = {
   contact: string;
   /** Punto de retiro, para ordenar la recorrida del día. */
   pickup: { latitude: number; longitude: number } | null;
+  /** Lugar ordenado a mano en la recorrida; `null` si sigue el orden sugerido. */
+  routePosition: number | null;
+  /** Nave elegida a mano; `null` si la repartió la orden. */
+  assignmentId: string | null;
 };
 
 export type ServiceOrderBlock = {
+  /** Vuelo + nave: una orden por nave cuando el vuelo sale con más de una. */
   key: string;
+  /** Id del vuelo cargado; `null` cuando la reserva no está atada a un vuelo del sistema. */
+  flightId: string | null;
+  /** La nave de esta orden. `null` = el vuelo no tiene nave, o es el sobrante que no entró en ninguna. */
+  vehicle: ServiceOrderVehicle | null;
+  /** Cuántas naves tiene el vuelo: con dos o más, la orden se parte por nave. */
+  vehicleCount: number;
+  /** Algún pasajero de la orden tiene el lugar fijado a mano. */
+  manualOrder: boolean;
   direction: ServiceOrderDirection;
   flightNumber: string;
   airline: string | null;
@@ -200,16 +233,81 @@ export function alojamientoDelPasajero(pickupName: string | null, pickupAddress:
 const direccionDelVuelo = (value: string): ServiceOrderDirection =>
   value === "ARRIVAL" ? "ARRIVAL" : "DEPARTURE";
 
+type GrupoDeVuelo = Omit<ServiceOrderBlock, "key" | "vehicle" | "manualOrder"> & {
+  flightKey: string;
+  vehicles: ServiceOrderVehicle[];
+};
+
+const lugaresDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.seats, 0);
+const totalDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.amountCents, 0);
+
 /**
- * Agrupa las reservas del día en un bloque por vuelo, en el orden en que los atiende la camioneta:
- * primero la recorrida de las partidas y después los arribos.
+ * El orden de la recorrida de un vuelo: primero los que el operador ordenó a mano, en ese orden; después
+ * el resto en el orden sugerido desde el aeropuerto (`ordenarPorRecorrido`). Así una reserva nueva cae al
+ * final de lo que ya se acomodó, en vez de desarmarlo.
  */
-export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInput[]): ServiceOrderBlock[] {
-  const bloques = new Map<string, ServiceOrderBlock>();
+export function ordenDeLaRecorrida(pasajeros: ServiceOrderPassenger[]) {
+  const fijados = pasajeros
+    .map((pasajero, indice) => ({ pasajero, indice }))
+    .filter(({ pasajero }) => pasajero.routePosition !== null)
+    .sort((a, b) => (a.pasajero.routePosition as number) - (b.pasajero.routePosition as number) || a.indice - b.indice)
+    .map(({ pasajero }) => pasajero);
+  const sugeridos = ordenarPorRecorrido(
+    pasajeros.filter((pasajero) => pasajero.routePosition === null),
+    (pasajero) => pasajero.pickup
+  );
+  return [...fijados, ...sugeridos];
+}
+
+/**
+ * Reparte los pasajeros de un vuelo entre sus naves. Los que tienen nave elegida a mano van ahí; el
+ * resto llena las naves en el orden de la recorrida, sin partir una reserva entre dos naves. Lo que no
+ * entra en ninguna queda en la orden «sin nave»: nunca se cae un pasajero de la hoja.
+ */
+export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: ServiceOrderVehicle[]) {
+  const porNave = new Map<string, ServiceOrderPassenger[]>(naves.map((nave) => [nave.assignmentId, []]));
+  const sinNave: ServiceOrderPassenger[] = [];
+  const libres = new Map(naves.map((nave) => [nave.assignmentId, nave.seats > 0 ? nave.seats : Number.POSITIVE_INFINITY]));
+
+  for (const pasajero of pasajeros) {
+    if (pasajero.assignmentId && porNave.has(pasajero.assignmentId)) {
+      libres.set(pasajero.assignmentId, (libres.get(pasajero.assignmentId) ?? 0) - pasajero.seats);
+    }
+  }
+
+  for (const pasajero of pasajeros) {
+    if (pasajero.assignmentId && porNave.has(pasajero.assignmentId)) {
+      porNave.get(pasajero.assignmentId)?.push(pasajero);
+      continue;
+    }
+    const nave = naves.find((candidata) => (libres.get(candidata.assignmentId) ?? 0) >= pasajero.seats);
+    if (!nave) {
+      sinNave.push(pasajero);
+      continue;
+    }
+    libres.set(nave.assignmentId, (libres.get(nave.assignmentId) ?? 0) - pasajero.seats);
+    porNave.get(nave.assignmentId)?.push(pasajero);
+  }
+
+  return { porNave, sinNave };
+}
+
+/**
+ * Agrupa las reservas del día en una orden por vuelo —o por nave, si el vuelo sale con más de una—, en
+ * el orden en que los atiende la camioneta: primero la recorrida de las partidas y después los arribos.
+ *
+ * `incluirVacias` deja las naves que quedaron sin pasajeros: el panel las muestra para poder arrastrar
+ * gente hacia ellas; el Excel y el link del chofer no.
+ */
+export function buildServiceOrderBlocks(
+  reservations: ServiceOrderReservationInput[],
+  { incluirVacias = false }: { incluirVacias?: boolean } = {}
+): ServiceOrderBlock[] {
+  const grupos = new Map<string, GrupoDeVuelo>();
 
   for (const reserva of reservations) {
     const direction = direccionDelVuelo(reserva.flight?.direction ?? reserva.direction);
-    const key = reserva.flight?.id ?? `sin-vuelo:${direction}:${reserva.flightNumber}`;
+    const flightKey = reserva.flight?.id ?? `sin-vuelo:${direction}:${reserva.flightNumber}`;
     const scheduledAt = reserva.flight?.scheduledAt ?? null;
     const estimatedAt = reserva.flight?.estimatedAt ?? null;
     // La hora del vuelo sale de la misma función que el corte de venta (issue #140).
@@ -241,18 +339,23 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
       pickup:
         typeof reserva.pickupLatitude === "number" && typeof reserva.pickupLongitude === "number"
           ? { latitude: reserva.pickupLatitude, longitude: reserva.pickupLongitude }
-          : null
+          : null,
+      routePosition: typeof reserva.routePosition === "number" ? reserva.routePosition : null,
+      assignmentId: reserva.assignmentId ?? null
     };
 
-    const existente = bloques.get(key);
+    const existente = grupos.get(flightKey);
     if (existente) {
       existente.passengers.push(pasajero);
-      existente.totalCents += pasajero.amountCents;
       continue;
     }
 
-    bloques.set(key, {
-      key,
+    const vehicles = reserva.flight?.vehicles ?? [];
+    grupos.set(flightKey, {
+      flightKey,
+      flightId: reserva.flight?.id ?? null,
+      vehicles,
+      vehicleCount: vehicles.length,
       direction,
       flightNumber: reserva.flight?.number ?? reserva.flightNumber,
       airline: reserva.flight?.airline ?? null,
@@ -262,18 +365,70 @@ export function buildServiceOrderBlocks(reservations: ServiceOrderReservationInp
       flightAt: vueloAt ?? operationAt,
       estimatedAt,
       passengers: [pasajero],
-      totalCents: pasajero.amountCents
+      totalCents: 0
     });
   }
 
-  return [...bloques.values()]
-    .map((bloque) => ({
-      ...bloque,
-      // La recorrida sale del aeropuerto y encadena el retiro más cercano: el chofer no cruza la ciudad
-      // y vuelve. Los pasajeros sin ubicación en el mapa quedan al final (ver `ordenarPorRecorrido`).
-      passengers: ordenarPorRecorrido(bloque.passengers, (pasajero) => pasajero.pickup)
-    }))
-    .sort((a, b) => a.operationAt.getTime() - b.operationAt.getTime());
+  const ordenes: ServiceOrderBlock[] = [];
+  for (const { flightKey, vehicles, ...grupo } of grupos.values()) {
+    // La recorrida sale del aeropuerto y encadena el retiro más cercano, salvo lo que el operador ya
+    // ordenó a mano. Los pasajeros sin ubicación en el mapa quedan al final (ver `ordenarPorRecorrido`).
+    const recorrida = ordenDeLaRecorrida(grupo.passengers);
+    const orden = (vehicle: ServiceOrderVehicle | null, passengers: ServiceOrderPassenger[]): ServiceOrderBlock => ({
+      ...grupo,
+      key: `${flightKey}:${vehicle?.assignmentId ?? SIN_NAVE}`,
+      vehicle,
+      passengers,
+      totalCents: totalDe(passengers),
+      manualOrder: passengers.some((pasajero) => pasajero.routePosition !== null)
+    });
+
+    if (vehicles.length <= 1) {
+      ordenes.push(orden(vehicles[0] ?? null, recorrida));
+      continue;
+    }
+
+    const { porNave, sinNave } = repartirEnNaves(recorrida, vehicles);
+    for (const nave of vehicles) {
+      const pasajeros = porNave.get(nave.assignmentId) ?? [];
+      if (pasajeros.length || incluirVacias) ordenes.push(orden(nave, pasajeros));
+    }
+    if (sinNave.length) ordenes.push(orden(null, sinNave));
+  }
+
+  // `sort` es estable: las naves de un mismo vuelo quedan en el orden en que se asignaron.
+  return ordenes.sort((a, b) => a.operationAt.getTime() - b.operationAt.getTime());
+}
+
+/** Lugares ocupados en una orden. */
+export const lugaresDeLaOrden = (block: ServiceOrderBlock) => lugaresDe(block.passengers);
+
+/**
+ * Cómo se pide una orden puntual por URL (descarga, link del chofer): el vuelo y, si el vuelo se parte
+ * por nave, la asignación de esa nave o `sin-nave`. `null` en `vehicle` = el vuelo entero.
+ */
+export function referenciaDeLaOrden(block: ServiceOrderBlock) {
+  return {
+    flight: block.flightId,
+    vehicle: block.vehicleCount > 1 ? (block.vehicle?.assignmentId ?? SIN_NAVE) : null
+  };
+}
+
+/** Deja sólo la orden de esa nave; sin nave pedida devuelve todas. */
+export function filtrarPorNave(blocks: ServiceOrderBlock[], vehicle: string | null) {
+  if (!vehicle) return blocks;
+  return blocks.filter((block) => referenciaDeLaOrden(block).vehicle === vehicle);
+}
+
+/** «Sprinter 1910 · Juan»: la nave y el chofer, para el rótulo y el nombre del archivo. */
+export function naveDeLaOrden(block: ServiceOrderBlock) {
+  if (block.vehicle) return [block.vehicle.name, block.vehicle.driver].filter(Boolean).join(" · ");
+  return block.vehicleCount > 1 ? "sin nave asignada" : null;
+}
+
+function conNave(block: ServiceOrderBlock) {
+  const nave = naveDeLaOrden(block);
+  return nave ? ` · ${nave}` : "";
 }
 
 /** Renglón de horario del bloque: lo que va en la banda gris sobre los pasajeros. */
@@ -284,14 +439,14 @@ export function blockTimeLabel(block: ServiceOrderBlock) {
     // Si la aerolínea movió el vuelo, el chofer ve la hora vigente y la programada entre paréntesis:
     // el papel no puede esconder la hora a la que estaba citado (issue #140).
     const corrido = despegue !== programado ? ` (programado ${programado})` : "";
-    return `${block.heading} ${block.flightNumber} · recorrida ${horaEnSalta(block.operationAt)} · despegue ${despegue}${corrido}`;
+    return `${block.heading} ${block.flightNumber} · recorrida ${horaEnSalta(block.operationAt)} · despegue ${despegue}${corrido}${conNave(block)}`;
   }
 
   const llega = horaEnSalta(block.flightAt);
   const programado = horaEnSalta(block.scheduledAt);
   const demorado = llega !== programado ? ` (programado ${programado})` : "";
 
-  return `${block.heading} ${block.flightNumber} · llega ${llega}${demorado}`;
+  return `${block.heading} ${block.flightNumber} · llega ${llega}${demorado}${conNave(block)}`;
 }
 
 export const SERVICE_ORDER_COLUMNS = [
@@ -323,6 +478,12 @@ export function serviceOrderRow(pasajero: ServiceOrderPassenger): string[] {
     pasajero.payment,
     pasajero.contact
   ];
+}
+
+/** «Total OUT 1671 · Sprinter 1910»: el pie de cada orden. */
+export function tituloDelTotal(block: ServiceOrderBlock) {
+  const nave = block.vehicle?.name ?? (block.vehicleCount > 1 ? "sin nave" : null);
+  return `Total ${block.heading} ${block.flightNumber}${nave ? ` · ${nave}` : ""}`;
 }
 
 export function serviceOrderFileName(date: string, flightReference?: string | null) {
@@ -504,7 +665,8 @@ export async function buildServiceOrderWorkbook(
   );
   sheet.mergeCells("F3:G3");
   const resumen = sheet.getCell("F3");
-  resumen.value = `${blocks.length} ${blocks.length === 1 ? "vuelo" : "vuelos"} · ${pasajerosDelDia} pasajeros`;
+  const ordenesDelDia = blocks.length;
+  resumen.value = `${ordenesDelDia} ${ordenesDelDia === 1 ? "orden" : "órdenes"} · ${pasajerosDelDia} pasajeros`;
   resumen.font = { size: 8, color: { argb: "FF9BB8AF" } };
   resumen.alignment = { horizontal: "right", vertical: "top" };
 
@@ -627,7 +789,7 @@ export async function buildServiceOrderWorkbook(
     const subtotal = sheet.getRow(fila);
     sheet.mergeCells(`A${fila}:E${fila}`);
     const etiquetaSubtotal = subtotal.getCell(1);
-    etiquetaSubtotal.value = `Total ${block.heading} ${block.flightNumber}`;
+    etiquetaSubtotal.value = tituloDelTotal(block);
     etiquetaSubtotal.font = { bold: true, size: 9.5, color: { argb: GRIS } };
     etiquetaSubtotal.alignment = { horizontal: "right", vertical: "middle" };
     const montoSubtotal = subtotal.getCell(6);
@@ -653,7 +815,7 @@ export async function buildServiceOrderWorkbook(
     const total = sheet.getRow(fila);
     sheet.mergeCells(`A${fila}:E${fila}`);
     const etiquetaTotal = total.getCell(1);
-    etiquetaTotal.value = "TOTAL DEL DÍA";
+    etiquetaTotal.value = blocks.length === 1 ? "TOTAL DE LA ORDEN" : "TOTAL DEL DÍA";
     etiquetaTotal.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
     etiquetaTotal.alignment = { horizontal: "right", vertical: "middle" };
     const montoTotal = total.getCell(6);
