@@ -399,9 +399,36 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         include: { _count: { select: { reservations: true, assignments: true } } }
       });
 
-      // El tablero no tiene fecha de vuelo: complementa, no reemplaza la API con fecha
-      // consultada en esta misma jornada. Evita mezclar estado/horario de fuentes distintas.
-      if (candidatos.some((v) => v.source === "API" && v.lastCheckedAt && fechaLocal(v.lastCheckedAt) === fecha)) continue;
+      // El tablero no tiene fecha de vuelo: complementa el HORARIO de la API consultada en esta
+      // misma jornada, pero **no su estado**. Antes se salteaba entero, y como AirLabs trae los
+      // vuelos de CPC con su horario y despues nunca los confirma (arr_iata=CPC devuelve 0 vuelos),
+      // el tablero mostraba «Programado» vuelos que el aeropuerto ya daba por aterrizados hacia horas.
+      // El FIDS es el tablero oficial del aeropuerto: si dice que aterrizo, aterrizo.
+      const deLaApi = candidatos.find(
+        (v) => v.source === "API" && v.lastCheckedAt && fechaLocal(v.lastCheckedAt) === fecha
+      );
+      if (deLaApi) {
+        const peso: Record<string, number> = { SCHEDULED: 0, DELAYED: 0, EN_ROUTE: 1, LANDED: 2, DIVERTED: 2, CANCELLED: 2 };
+        // Nunca retroceder: un LANDED no vuelve a EN_ROUTE porque el tablero tarde en refrescar.
+        if (estado !== deLaApi.status && (peso[estado] ?? 0) >= (peso[deLaApi.status] ?? 0)) {
+          const cambio = detectFlightChange(
+            { status: deLaApi.status, scheduledAt: deLaApi.scheduledAt, estimatedAt: deLaApi.estimatedAt },
+            { status: estado, scheduledAt: deLaApi.scheduledAt, estimatedAt: deLaApi.estimatedAt }
+          );
+          await prisma.flight.update({
+            where: { id: deLaApi.id },
+            data: {
+              status: estado,
+              lastCheckedAt: new Date(),
+              ...(cambio
+                ? { events: { create: { kind: cambio.kind, fromValue: cambio.fromValue, toValue: cambio.toValue } } }
+                : {})
+            }
+          });
+          resumen.eventos += cambio ? 1 : 0;
+        }
+        continue;
+      }
 
       // Autocorrección: si el mismo vuelo quedó repetido ese día (por ejemplo una fila con el
       // horario viejo de la API y otra con el del tablero), se conserva la más parecida al tablero
