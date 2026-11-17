@@ -29,7 +29,9 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb"
-    }
+    },
+    // El upgrade de Next lo corre un agente: sin esto el CLI frena el build pidiendo confirmación.
+    agentUpgrade: "security"
   },
   turbopack: {
     root: projectRoot
