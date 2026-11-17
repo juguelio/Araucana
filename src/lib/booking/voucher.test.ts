@@ -270,3 +270,71 @@ describe("importeDelVoucher", () => {
     expect(plano(importeDelVoucher(0, "ARS"))).toBe("$ 0 ARS");
   });
 });
+
+describe("buildVoucher en el ida y vuelta", () => {
+  const tramo = (direction: "ARRIVAL" | "DEPARTURE", flightNumber: string, scheduledAt: string, pickupAddress: string) => ({
+    flightNumber,
+    direction,
+    serviceDate: new Date("2026-12-15T00:00:00.000Z"),
+    pickupAddress,
+    pickupName: null,
+    pickupNotes: null,
+    flight: { scheduledAt: new Date(scheduledAt), estimatedAt: null, status: "SCHEDULED", pickupStartOverrideAt: null }
+  });
+
+  it("imprime la ida y la vuelta en la misma tabla", () => {
+    // #166: el pasajero tiene que ver los dos servicios en el comprobante, no sólo el tramo que abrió.
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "AIRPORT",
+        airportDetails: tramo("ARRIVAL", "AR1654", "2026-12-15T15:20:00.000Z", "Mariano Moreno 829"),
+        roundTripPartner: {
+          code: "ARC-2611-VUELTA",
+          shortCode: "VUEL1234",
+          direction: "DEPARTURE",
+          airport: tramo("DEPARTURE", "AR1655", "2026-12-18T18:10:00.000Z", "Los Notros 120")
+        }
+      })
+    );
+
+    expect(voucher.rows).toHaveLength(2);
+    // ARRIVAL es el vuelo que llega: el pasajero sale del aeropuerto y va al domicilio.
+    expect(voucher.rows[0].inicio).toContain("Chapelco");
+    expect(voucher.rows[0].fin).toBe("Mariano Moreno 829");
+    expect(voucher.rows[0].observaciones).toContain("AR1654");
+    // DEPARTURE es la vuelta: sale del domicilio y termina en el aeropuerto.
+    expect(voucher.rows[1].inicio).toBe("Los Notros 120");
+    expect(voucher.rows[1].fin).toContain("Chapelco");
+    expect(voucher.rows[1].observaciones).toContain("AR1655");
+  });
+
+  it("ordena la ida antes de la vuelta aunque se abra el voucher de la vuelta", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "AIRPORT",
+        airportDetails: tramo("DEPARTURE", "AR1655", "2026-12-18T18:10:00.000Z", "Los Notros 120"),
+        roundTripPartner: {
+          code: "ARC-2611-IDA",
+          shortCode: "IDA12345",
+          direction: "ARRIVAL",
+          airport: tramo("ARRIVAL", "AR1654", "2026-12-15T15:20:00.000Z", "Mariano Moreno 829")
+        }
+      })
+    );
+
+    expect(voucher.rows).toHaveLength(2);
+    expect(voucher.rows[0].observaciones).toContain("AR1654");
+    expect(voucher.rows[1].observaciones).toContain("AR1655");
+  });
+
+  it("sigue mostrando un solo renglón cuando la reserva no es ida y vuelta", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "AIRPORT",
+        airportDetails: tramo("ARRIVAL", "AR1654", "2026-12-15T15:20:00.000Z", "Mariano Moreno 829")
+      })
+    );
+
+    expect(voucher.rows).toHaveLength(1);
+  });
+});
