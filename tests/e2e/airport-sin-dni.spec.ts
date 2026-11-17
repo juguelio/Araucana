@@ -93,11 +93,15 @@ test("si el DNI viene cargado, sigue validándose", async ({ request }) => {
 /** Completa el checkout de un tramo (llegada) dejando el documento vacío y devuelve la respuesta del alta. */
 async function reservarUnTramoSinDni(page: import("@playwright/test").Page, url: string, endpoint: string) {
   await page.goto(url);
-  await page.getByRole("button", { name: "Elegir vuelo →" }).click();
-  await page.getByLabel("Día").fill(day);
-  const vuelo = await db.flight.findFirstOrThrow({ where: { number: numbers.arrival } });
-  await page.locator(`input[type="radio"][value="${vuelo.id}"]`).check();
-  await page.getByRole("button", { name: "Completar datos →" }).click();
+  // Paso 1: las tres tarjetas de «AirportTripOptions»; la llegada lleva al paso del vuelo.
+  await page.locator(".wizard-option").filter({ hasText: "Llegada a Chapelco" }).click();
+  await expect(page.getByText(/Paso 2 de 3 · Llegada/)).toBeVisible();
+  // Paso 2: la barra estilo Kiwi con un solo tramo (el día ya viene en el link, `?date=`).
+  // Se abre el panel del tramo y se elige el vuelo de la lista; no hay botón de invertir.
+  await page.locator(".trip-search-leg").click();
+  await page.locator(".trip-search-flight").filter({ hasText: numbers.arrival }).click();
+  await expect(page.getByRole("button", { name: "Invertir: cambiar desde y hacia" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Siguiente →" }).click();
   await page.getByLabel("Nombre").fill("Sin");
   await page.getByLabel("Apellido").fill("Documento");
   await page.getByLabel("Email").fill("sin-dni-ui@example.com");

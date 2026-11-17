@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildPassengerPayload,
   filterBookableSchedules,
@@ -7,7 +9,11 @@ import {
   getNationalityOptions,
   validateCheckoutPassenger
 } from "./checkout-form";
+import { AirportCheckoutForm } from "./airport-checkout-form";
 import type { PublicRouteDto, ScheduleOptionDto, SeatMapDto } from "@/lib/booking/types";
+
+// El formulario usa el router para volver a la reserva creada; en el test no hay navegación.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
 
 const route: PublicRouteDto = {
   id: "route-1",
@@ -148,5 +154,74 @@ describe("checkout nationality helpers", () => {
 
   it("filters nationality options without caring about accents or case", () => {
     expect(filterNationalityOptions("espana")).toContain("España");
+  });
+});
+
+/**
+ * La reserva de un solo tramo, en el orden que ve el pasajero: las tres tarjetas de
+ * `AirportTripOptions` en el paso 1 y, en el paso del vuelo, la barra estilo Kiwi con **un solo
+ * tramo** (día y vuelo en el mismo panel), sin el botón de invertir que sólo tiene sentido en ida y
+ * vuelta.
+ */
+describe("checkout de un solo tramo del aeropuerto", () => {
+  const dia = "2026-11-20";
+
+  const vuelo = (id: string, direction: "ARRIVAL" | "DEPARTURE", number: string) => ({
+    id,
+    number,
+    direction,
+    airline: "AR",
+    origin: "Aeroparque",
+    scheduledAt: `${dia}T15:00:00.000Z`,
+    estimatedAt: null,
+    status: "SCHEDULED",
+    available: 10,
+    bookable: true,
+    reason: null
+  });
+
+  const props = {
+    route: { slug: "aeropuerto-chapelco-sma", priceCents: 1000000, currency: "ARS" },
+    fares: {
+      ARRIVAL: { priceCents: 1000000, currency: "ARS" },
+      DEPARTURE: { priceCents: 1000000, currency: "ARS" }
+    },
+    initialDirection: "ARRIVAL" as const,
+    initialDate: dia,
+    initialFlights: [
+      vuelo("vuelo-llegada", "ARRIVAL", "AR1656"),
+      vuelo("vuelo-salida", "DEPARTURE", "AR1657")
+    ],
+    coverage: { enabled: false, boundary: [], exclusions: [] },
+    extras: { zoneExtraCents: 0, sportsLuggageCents: 0 }
+  };
+
+  function veces(html: string, fragmento: string) {
+    return html.split(fragmento).length - 1;
+  }
+
+  it("el paso 1 sigue mostrando las tres opciones de AirportTripOptions", () => {
+    const html = renderToStaticMarkup(createElement(AirportCheckoutForm, props));
+    // Tres tarjetas: llegada y salida como botones (aria-pressed) e ida y vuelta como link.
+    expect(veces(html, 'aria-pressed="')).toBe(2);
+    expect(veces(html, "wizard-option-route")).toBe(3);
+    expect(html).toContain("Llegada a Chapelco");
+    expect(html).toContain("Salida desde San Martín");
+    expect(html).toContain("Ida y vuelta");
+    expect(html).toContain("Paso 1 de 3");
+    // Las tarjetas son el selector del paso 1: la barra todavía no aparece.
+    expect(html).not.toContain("trip-search-leg");
+  });
+
+  it("el paso del vuelo usa la barra con un solo tramo y sin botón de invertir", () => {
+    // `startAtFlights` es el camino real de la tarjeta «Llegada»/«Salida»: entra directo al vuelo.
+    const html = renderToStaticMarkup(createElement(AirportCheckoutForm, { ...props, startAtFlights: true }));
+    expect(html).toContain("Paso 2 de 3 · Llegada");
+    expect(veces(html, "trip-search-leg")).toBe(1);
+    expect(html).not.toContain("Invertir");
+    // Desde/Hacia se muestran fijos: el sentido lo eligió la tarjeta del paso 1.
+    expect(veces(html, 'data-fijo="true"')).toBe(2);
+    // La lista suelta de vuelos del paso 2 ya no está.
+    expect(html).not.toContain("flight-options");
   });
 });

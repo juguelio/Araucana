@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { airlineName } from "@/lib/airport/airlines";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { AirportTripOptions } from "./airport-trip-options";
 import { statusLabel } from "@/lib/airport/flights";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
-import { AirlineBadge } from "@/components/airline-badge";
+import { TripSearchBar, type TramoDeLaBarra } from "./ida-y-vuelta/trip-search-bar";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
@@ -41,9 +40,10 @@ type AirportFieldErrors = PassengerFieldErrors & {
 };
 
 /**
- * Checkout del aeropuerto, **en pasos**: primero el pasajero elige llegada o salida —y con eso se
- * filtran los vuelos—, después el día y su vuelo (con el estado que informa la aerolínea), y al
- * final sus datos. El aeropuerto no tiene salidas propias: sus salidas son los vuelos.
+ * Checkout del aeropuerto, **en pasos**: primero el pasajero elige llegada o salida con las tres
+ * tarjetas (`AirportTripOptions`), después el día y su vuelo en la barra estilo Kiwi del ida y
+ * vuelta pero con **un solo tramo**, y al final sus datos. El aeropuerto no tiene salidas propias:
+ * sus salidas son los vuelos.
  */
 
 type AirportRouteProps = {
@@ -144,7 +144,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     // Si el sentido con el que entra la página no tiene tarifa activa, se arranca por el otro.
     fares[initialDirection] ? initialDirection : fares.DEPARTURE ? "DEPARTURE" : "ARRIVAL"
   );
-  const [flightNumber, setFlightNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
@@ -194,13 +193,34 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     claveDeIdempotencia.current = "";
   }, [selectedId, date, sentido, esPrivado, privadoNumero, privadoHora]);
 
-  // La lista se filtra por el sentido elegido en el paso 1; el vuelo elegido manda en la reserva.
-  // Los que ya no se pueden reservar van aparte (plegados, con su motivo) para no mezclarlos.
-  const { reservables, noReservables } = useMemo(
+  // La barra muestra los vuelos del sentido elegido en el paso 1 que hoy se pueden reservar; el
+  // vuelo elegido manda en la reserva. Los que ya no se pueden reservar tienen su motivo y quedan
+  // afuera de la barra: para eso está el vuelo privado o el panel.
+  const { reservables } = useMemo(
     () => separarVuelosDelSelector(flights, sentido),
     [flights, sentido]
   );
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
+
+  /**
+   * El único tramo de la barra (pedido de Jugue, 17-nov: «el mismo wizard de ida y vuelta, para un
+   * tramo»). Se arma con el sentido elegido en las tarjetas del paso 1, el día y los vuelos, igual
+   * que el ida y vuelta arma los suyos. `minimo` usa la misma fórmula que allá: en la web no se
+   * reserva para días que ya pasaron y el panel puede cargar atrasados.
+   */
+  const tramoDeLaBarra: TramoDeLaBarra = {
+    sentido,
+    etapa: "Tu vuelo",
+    titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín",
+    pregunta: sentido === "ARRIVAL"
+      ? "¿Qué día aterriza en Chapelco y en qué vuelo?"
+      : "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
+    fecha: date,
+    minimo: fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10),
+    opciones: reservables,
+    elegido: selectedId,
+    cargando: cargandoVuelos
+  };
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
   const pickupStart = esPrivado && privadoListo
@@ -344,65 +364,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setCargandoVuelos(false);
   }
 
-  /** El pasajero puede escribir el número de vuelo: lo buscamos entre los del día y lo seleccionamos. */
-  function buscarPorNumero(valor: string) {
-    const buscado = valor.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!buscado) return;
-    // Si el mismo número aparece más de una vez (cargado a mano y traído de la API),
-    // preferimos uno reservable: elegir uno que ya salió sería un callejón sin salida.
-    const candidatos = flights.filter(
-      (f) => f.number.toUpperCase().replace(/[^A-Z0-9]/g, "") === buscado && f.direction === sentido
-    );
-    const encontrado = candidatos.find((f) => f.bookable) ?? candidatos[0];
-    if (encontrado) {
-      setSelectedId(encontrado.id);
-      setError(encontrado.bookable ? "" : `El vuelo ${encontrado.number} no se puede reservar: ${encontrado.reason}`);
-    } else {
-      setSelectedId("");
-      setError(`No encontramos el vuelo ${valor.toUpperCase()} para el ${date} en ese sentido.`);
-    }
-  }
-
-  function listaDeVuelos(lista: FlightOption[]) {
-    return (
-      <div className="flight-options">
-        {lista.map((f) => {
-          const tramo = tramoDeVuelo({ direction: f.direction, origin: f.origin });
-          return (
-            <label
-              key={f.id}
-              className="flight-option"
-              data-selected={selectedId === f.id}
-              data-disabled={!f.bookable}
-            >
-              <input
-                type="radio"
-                name="flight"
-                value={f.id}
-                checked={selectedId === f.id}
-                disabled={!f.bookable}
-                onChange={() => { setSelectedId(f.id); setError(""); }}
-              />
-              <AirlineBadge code={f.airline} />
-              <span className="flight-when">
-                <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
-                <span className="muted">
-                  {f.number}
-                  {f.airline ? ` · ${airlineName(f.airline)}` : ""}
-                  {f.source === "PASAJERO" ? " · privado" : ""}
-                </span>
-                {tramo ? <span className="flight-route">{tramo}</span> : null}
-              </span>
-              <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
-                {estadoDe(f)}
-              </span>
-              <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
-            </label>
-          );
-        })}
-      </div>
-    );
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -414,7 +375,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     if (esPrivado) {
       if (!privadoListo) errors.flight = "Completá el número o matrícula y la hora de tu vuelo privado.";
     } else if (!selected) {
-      errors.flight = "Elegí un vuelo de la lista (o escribí el número de vuelo).";
+      errors.flight = "Elegí tu vuelo en la barra de arriba.";
     } else if (!selected.bookable) {
       errors.flight = selected.reason ?? "Ese vuelo no se puede reservar.";
     }
@@ -550,52 +511,21 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 <h2 className="route-title">Tu vuelo</h2>
                 <p className="muted">
                   {sentido === "ARRIVAL"
-                    ? "Elegí el día y tu vuelo de llegada a Chapelco (CPC)."
-                    : "Elegí el día y tu vuelo de salida desde Chapelco (CPC)."}
+                    ? "Tocá el recuadro «Tu vuelo» para elegir el día y el vuelo de llegada a Chapelco (CPC)."
+                    : "Tocá el recuadro «Tu vuelo» para elegir el día y el vuelo de salida desde Chapelco (CPC)."}
                 </p>
               </div>
 
-              <div className="checkout-fields">
-                <label>
-                  Día
-                  <input type="date" value={date} onChange={(e) => { setDate(e.target.value); void cargarVuelos(e.target.value); }} />
-                </label>
-                <label>
-                  Número de vuelo (opcional)
-                  <input
-                    value={flightNumber}
-                    placeholder="Ej. AR1656"
-                    onChange={(e) => setFlightNumber(e.target.value)}
-                    onBlur={(e) => buscarPorNumero(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              {cargandoVuelos ? <p className="muted">Buscando vuelos…</p> : null}
-
-              {reservables.length === 0 && !cargandoVuelos ? (
-                <p className="muted">
-                  {noReservables.length > 0
-                    ? `No quedan vuelos ${sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para reservar ese día.`
-                    : `No hay vuelos ${sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para ese día.`}{" "}
-                  Probá otra fecha o cargá tu vuelo privado acá abajo.
-                </p>
-              ) : null}
-              {reservables.length > 0 ? listaDeVuelos(reservables) : null}
-              {noReservables.length > 0 ? (
-                // Plegados: siguen a mano (con su motivo) para quien busca un vuelo puntual, pero no
-                // se mezclan con los que se pueden reservar. Se abren solos si se eligió uno de estos
-                // escribiendo el número.
-                <details className="flight-unavailable" open={Boolean(selected && !selected.bookable)}>
-                  <summary>
-                    {noReservables.length === 1
-                      ? "1 vuelo de ese día ya no se puede reservar"
-                      : `${noReservables.length} vuelos de ese día ya no se pueden reservar`}
-                  </summary>
-                  {listaDeVuelos(noReservables)}
-                </details>
-              ) : null}
-              {fieldErrors.flight ? <p className="field-error">{fieldErrors.flight}</p> : null}
+              {/* El día y el vuelo se eligen en la misma barra que el ida y vuelta (pedido de Jugue,
+                  17-nov), con un solo tramo. El sentido ya viene de la tarjeta del paso 1: Desde/Hacia
+                  se muestran fijos, sin botón de invertir. */}
+              <TripSearchBar
+                tramos={[tramoDeLaBarra]}
+                routeSlug={route.slug}
+                onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
+                onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
+              />
+              {fieldErrors.flight ? <p className="field-error" role="alert">{fieldErrors.flight}</p> : null}
 
               <div className="private-flight" data-open={esPrivado}>
                 <button
