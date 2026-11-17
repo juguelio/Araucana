@@ -57,6 +57,12 @@ export function VehicleForm({ action, vehicle, submitLabel }: VehicleFormProps) 
   const modelValue = selectedTemplate?.model ?? vehicle?.model ?? "";
   const seatKey = `${templateKey}-${vehicle?.id ?? "new"}`;
   const layoutMarkers = Array.isArray(vehicle?.layoutMarkers) ? (vehicle.layoutMarkers as VehicleLayoutMarker[]) : [];
+  // En edición mandan los asientos guardados. Antes la plantilla los pisaba: agregar un asiento y
+  // reabrir la ficha mostraba la capacidad del template, y guardar cualquier otro campo lo borraba.
+  const cambioDePlantilla = Boolean(vehicle) && templateKey !== (vehicle?.templateKey ?? "");
+  const asientosGuardados = vehicle?.seats?.length ? vehicle.seats : null;
+  const initialSeats = cambioDePlantilla ? selectedTemplate?.seats ?? [] : asientosGuardados ?? selectedTemplate?.seats ?? [];
+  const initialMarkers = cambioDePlantilla ? [] : asientosGuardados ? layoutMarkers : [];
 
   return (
     <form className="admin-form-grid" action={formAction}>
@@ -175,18 +181,14 @@ export function VehicleForm({ action, vehicle, submitLabel }: VehicleFormProps) 
         Notas de la unidad
         <input name="notes" defaultValue={vehicle?.notes ?? ""} placeholder="Vendida, fuera de servicio, observaciones…" />
       </label>
-      <label>
-        Capacidad
-        <input readOnly value={selectedTemplate?.capacity ?? vehicle?.seats?.length ?? 0} aria-label="Capacidad calculada" />
-      </label>
       <label className="checkbox-row">
         <input name="isActive" type="checkbox" defaultChecked={vehicle?.isActive ?? true} />
         Activa
       </label>
       <SeatLayoutEditor
         key={seatKey}
-        initialSeats={selectedTemplate?.seats ?? vehicle?.seats ?? []}
-        initialLayoutMarkers={selectedTemplate ? [] : layoutMarkers}
+        initialSeats={initialSeats}
+        initialLayoutMarkers={initialMarkers}
       />
       <FieldError id="seats-error" message={errors.seats} />
       <div className="form-actions span-2">
