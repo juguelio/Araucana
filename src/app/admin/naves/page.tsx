@@ -4,23 +4,48 @@ import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { VEHICLE_TEMPLATES } from "@/lib/vehicles/templates";
 import { complianceLabel, formatoFecha, peorVencimiento, resumenVencimientos, vencimientosOrdenados } from "@/lib/vehicles/compliance";
+import {
+  ariaSort,
+  hrefDeOrden,
+  hrefDePagina,
+  leerOrdenDelListado,
+  ordenarNaves,
+  paginarNaves,
+  type ColumnaNaves
+} from "@/lib/vehicles/fleet-table";
 import { deleteVehicleAction, setVehicleActiveAction } from "./actions";
 import { VencimientosDialog } from "./vencimientos-dialog";
 import "./naves.css";
+import "../reservas/pagination.css";
 
 type AdminVehiclesPageProps = {
   searchParams?: Promise<{
     notice?: string;
+    orden?: string;
+    dir?: string;
+    page?: string;
   }>;
 };
 
 const TIPO_LABEL: Record<string, string> = { CAMIONETA: "Camioneta", BUS: "Bus", UTILITARIO: "Utilitario" };
 
+/** Las columnas de la tabla, en orden. Todas se ordenan menos «Acciones». */
+const COLUMNAS: Array<{ columna: ColumnaNaves; titulo: string }> = [
+  { columna: "unidad", titulo: "Unidad" },
+  { columna: "vehiculo", titulo: "Marca / modelo · patente" },
+  { columna: "titular", titulo: "Titular" },
+  { columna: "seguro", titulo: "Seguro" },
+  { columna: "vencimientos", titulo: "Vencimientos" },
+  { columna: "capacidad", titulo: "Capacidad" },
+  { columna: "estado", titulo: "Estado" }
+];
+
 export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesPageProps) {
   const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const hoy = new Date();
-  const vehicles = await prisma.vehicle.findMany({
+  const orden = leerOrdenDelListado(params);
+  const flota = await prisma.vehicle.findMany({
     orderBy: [{ isActive: "desc" }, { internalNumber: "asc" }, { name: "asc" }],
     include: {
       _count: {
@@ -32,20 +57,15 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
       }
     }
   });
-  const activeVehicles = vehicles.filter((vehicle) => vehicle.isActive);
-  const publicos = vehicles.filter((vehicle) => vehicle.publicTransport);
-  const totalSeats = vehicles.reduce((total, vehicle) => total + vehicle._count.seats, 0);
-  const resumen = resumenVencimientos(vehicles, hoy);
-  // Las unidades con algún papel vencido o por vencer, de la más urgente a la menos (mismos datos
-  // que la columna «Vencimientos»; acá juntos para no recorrer la tabla buscándolos).
-  const urgentes = vehicles
-    .map((vehicle) => {
-      const papeles = vencimientosOrdenados(vehicle, hoy).filter((p) => p.level === "vencido" || p.level === "proximo");
-      return { vehicle, papeles, peor: papeles[0] ?? null };
-    })
-    .filter((u): u is typeof u & { peor: NonNullable<typeof u.peor> } => u.peor !== null)
-    .sort((a, b) => (a.peor.level === b.peor.level ? (a.peor.dias ?? 0) - (b.peor.dias ?? 0) : a.peor.level === "vencido" ? -1 : 1));
-  const nombreUnidad = (vehicle: (typeof vehicles)[number]) => (vehicle.internalNumber ? `Interno ${vehicle.internalNumber}` : vehicle.name);
+  const activeVehicles = flota.filter((vehicle) => vehicle.isActive);
+  const publicos = flota.filter((vehicle) => vehicle.publicTransport);
+  const totalSeats = flota.reduce((total, vehicle) => total + vehicle._count.seats, 0);
+  const resumen = resumenVencimientos(flota, hoy);
+  // Los vencimientos se ven por nave: el botón de cada fila abre su detalle. Ordenar por la
+  // columna «Vencimientos» deja arriba las unidades con papeles vencidos o por vencer.
+  const ordenadas = ordenarNaves(flota.map((vehicle) => ({ ...vehicle, asientos: vehicle._count.seats })), orden.orden, orden.dir, hoy);
+  const pagina = paginarNaves(ordenadas, orden.page);
+  const vehicles = pagina.items;
 
   return (
     <AdminShell role={sessionUser.role}
@@ -66,49 +86,56 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
           <span className="muted">Asientos cargados</span>
           <strong>{totalSeats}</strong>
         </div>
-        <a className="admin-card naves-stat-link" href="#vencimientos" data-alerta={resumen.vencidos > 0 || undefined}>
+        <Link
+          className="admin-card naves-stat-link"
+          href={hrefDeOrden({ orden: null, dir: "asc", page: 1 }, "vencimientos")}
+          data-alerta={resumen.vencidos > 0 || undefined}
+          title="Ordenar el listado por vencimientos"
+        >
           <span className="muted">Papeles vencidos / por vencer</span>
           <strong>
             {resumen.vencidos} / {resumen.proximos}
           </strong>
-        </a>
+        </Link>
       </section>
 
-      {urgentes.length > 0 ? (
-        <section className="plain-card admin-section naves-vencimientos" id="vencimientos">
-          <h2>Vencimientos de la flota</h2>
-          <p className="muted">Unidades con algún papel vencido o que vence en los próximos días, de la más urgente a la menos.</p>
-          <ul className="naves-urgentes">
-            {urgentes.map(({ vehicle, papeles, peor }) => (
-              <li key={vehicle.id} data-nivel={peor.level}>
-                <Link href={`/admin/naves/${vehicle.id}`} className="naves-urgente-unidad">
-                  <strong>{nombreUnidad(vehicle)}</strong>
-                  <span className="muted">{vehicle.licensePlate ?? "sin patente"} · {vehicle.brand} {vehicle.model}</span>
-                </Link>
-                <span className="naves-urgente-papeles">
-                  {papeles.map((papel) => (
-                    <span key={papel.tipo} className="pill pill-estado" data-tono={papel.level === "vencido" ? "grave" : "atencion"}>
-                      {papel.tipo}: {complianceLabel(papel.fecha, hoy)}
-                    </span>
-                  ))}
-                </span>
-              </li>
+      <form className="naves-orden-movil" method="get" action="/admin/naves" aria-label="Ordenar naves">
+        <label>
+          Ordenar por
+          <select name="orden" defaultValue={orden.orden ?? ""}>
+            <option value="">Activas primero</option>
+            {COLUMNAS.map(({ columna, titulo }) => (
+              <option key={columna} value={columna}>{titulo}</option>
             ))}
-          </ul>
-        </section>
-      ) : null}
+          </select>
+        </label>
+        <label>
+          Sentido
+          <select name="dir" defaultValue={orden.dir}>
+            <option value="asc">Ascendente</option>
+            <option value="desc">Descendente</option>
+          </select>
+        </label>
+        <button className="ghost-button" type="submit">Ordenar</button>
+      </form>
 
       <div className="table-scroll naves-tabla-scroll">
         <table className="data-table naves-tabla">
           <thead>
             <tr>
-              <th>Unidad</th>
-              <th>Marca / modelo · patente</th>
-              <th>Titular</th>
-              <th>Seguro</th>
-              <th>Vencimientos</th>
-              <th>Capacidad</th>
-              <th>Estado</th>
+              {COLUMNAS.map(({ columna, titulo }) => {
+                const sentido = ariaSort(orden, columna);
+                return (
+                  <th key={columna} aria-sort={sentido}>
+                    <Link className="naves-orden" href={hrefDeOrden(orden, columna)} data-activo={sentido !== "none" || undefined}>
+                      {titulo}
+                      <span aria-hidden="true" className="naves-orden-flecha">
+                        {sentido === "ascending" ? "▲" : sentido === "descending" ? "▼" : "↕"}
+                      </span>
+                    </Link>
+                  </th>
+                );
+              })}
               <th>Acciones</th>
             </tr>
           </thead>
@@ -203,6 +230,23 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
           </tbody>
         </table>
       </div>
+      {pagina.totalPages > 1 ? (
+        <nav className="pagination" aria-label="Paginación de naves">
+          {pagina.page > 1 ? (
+            <Link className="pagination-link" href={hrefDePagina(orden, pagina.page - 1)} rel="prev">← Anterior</Link>
+          ) : (
+            <span aria-disabled="true" className="pagination-link">← Anterior</span>
+          )}
+          <span className="pagination-status">
+            Mostrando {pagina.desde}–{pagina.hasta} de {pagina.total} · página {pagina.page} de {pagina.totalPages}
+          </span>
+          {pagina.page < pagina.totalPages ? (
+            <Link className="pagination-link" href={hrefDePagina(orden, pagina.page + 1)} rel="next">Siguiente →</Link>
+          ) : (
+            <span aria-disabled="true" className="pagination-link">Siguiente →</span>
+          )}
+        </nav>
+      ) : null}
       <p className="muted flights-note">
         {VEHICLE_TEMPLATES.length} plantillas de asientos disponibles. El titular, la técnica, el RTO y la póliza se
         cargan desde la ficha de cada unidad.
