@@ -2283,42 +2283,47 @@ a.wizard-option { text-decoration: none; }
 /* Alta manual de aeropuerto: un tramo o ida y vuelta (el switch es navegación, no estado local). */
 .admin-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .admin-tabs a[data-active="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-wash, transparent); }
-/* Ida y vuelta: el orden del viaje en una sola barra, con la flecha del medio para darlo vuelta. */
-.trip-order {
-  display: flex;
-  align-items: stretch;
+/* Ida y vuelta: el orden del viaje como dos opciones visibles al mismo tiempo (#189). Antes era una
+   sola barra con una flecha en el medio, que invertía el orden y vaciaba los vuelos ya elegidos. */
+.trip-order-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.trip-order-option {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 13px 16px 13px 42px;
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   background: var(--surface);
-  overflow: hidden;
-}
-.trip-order-half { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 11px 16px; }
-.trip-order-half-end { align-items: flex-end; text-align: right; }
-.trip-order-paso { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-muted); }
-.trip-order-etiqueta { font-size: 12px; color: var(--ink-muted); }
-.trip-order-ruta { font-family: var(--display); font-size: 20px; line-height: 1.1; color: var(--ink); letter-spacing: .01em; }
-.trip-order-swap {
-  flex: 0 0 auto;
-  width: 48px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-left: 1px solid var(--line);
-  border-right: 1px solid var(--line);
-  background: transparent;
-  color: var(--primary);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
   cursor: pointer;
 }
-.trip-order-swap svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform .18s ease; }
-.trip-order-swap:hover { background: rgba(51, 89, 78, 0.07); }
-.trip-order-swap:hover svg { transform: rotate(180deg); }
-.trip-order-swap:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.trip-order-hint { margin: 8px 2px 0; font-size: 13px; color: var(--ink-muted); }
+.trip-order-option:hover { border-color: var(--accent); }
+.trip-order-option[data-elegido="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.trip-order-option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.trip-order-option-marca {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1;
+  color: transparent;
+}
+.trip-order-option[data-elegido="true"] .trip-order-option-marca { border-color: var(--accent); background: var(--accent); color: #fff; }
+.trip-order-option-titulo { font-size: 15px; line-height: 1.25; }
+.trip-order-option-ruta { font-family: var(--display); font-size: 17px; line-height: 1.15; color: var(--ink); letter-spacing: .01em; }
+.trip-order-option-ayuda { font-size: 12.5px; line-height: 1.35; color: var(--ink-muted); }
+.trip-order-aviso { margin: 8px 2px 0; font-size: 13px; line-height: 1.4; color: var(--ink-muted); }
 @media (max-width: 560px) {
-  .trip-order-half { padding: 10px 12px; }
-  .trip-order-ruta { font-size: 17px; }
-  .trip-order-swap { width: 42px; }
+  .trip-order-options { grid-template-columns: 1fr; }
+  .trip-order-option-ruta { font-size: 16px; }
 }
 
 .flights-filters a span { background: var(--line); color: var(--ink); border-radius: 999px; padding: 1px 8px; font-size: 12px; }

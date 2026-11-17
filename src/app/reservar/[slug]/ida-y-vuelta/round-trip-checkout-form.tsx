@@ -21,6 +21,8 @@ import {
   type PassengerFieldErrors,
   type PassengerForm
 } from "../passenger-fields";
+import { TripOrderOptions } from "./trip-order-options";
+import { cambiarOrdenDeViaje, type OrdenDeViaje } from "./trip-order";
 
 /**
  * Checkout de ida y vuelta del aeropuerto (#36): **los dos vuelos, los dos pickups y los datos del
@@ -146,7 +148,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
    */
-  const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">("ARRIVAL");
+  const [orden, setOrden] = useState<OrdenDeViaje>("ARRIVAL");
+  /** Aviso del cambio de orden (fechas invertidas y vuelos soltados), no es un error del formulario. */
+  const [avisoOrden, setAvisoOrden] = useState("");
   const [redirecting, setRedirecting] = useState(false);
   const router = useRouter();
   const [fechaLlegada, setFechaLlegada] = useState(initialDate);
@@ -191,19 +195,28 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const opcionesLlegada = reservablesDe(vuelosLlegada, "ARRIVAL");
   const opcionesVuelta = reservablesDe(vuelosVuelta, "DEPARTURE");
   /**
-   * Los dos tramos en el orden que eligió el pasajero. El segundo lleva `minimo` con la fecha del
-   * primero: el que va después no puede ser anterior en el calendario.
+   * Elige el orden del viaje (#189). Los vuelos ya cargados se conservan: el orden no cambia a qué
+   * tramo pertenece cada vuelo. Sólo se sueltan si el orden obliga a dar vuelta las fechas, y en ese
+   * caso se avisa en pantalla — la flecha anterior los borraba en silencio.
    */
-  /** La barra muestra las dos patas en el orden elegido: el 1º tramo a la izquierda. */
-  const primerTramo = orden === "ARRIVAL" ? PATA_LLEGADA : PATA_SALIDA;
-  const segundoTramo = orden === "ARRIVAL" ? PATA_SALIDA : PATA_LLEGADA;
-
-  /** La flecha del medio: invierte el orden y limpia los vuelos ya elegidos. */
-  function cambiarOrden() {
-    setOrden(orden === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL");
-    setLlegadaId("");
-    setVueltaId("");
+  function elegirOrden(nuevo: OrdenDeViaje) {
+    if (nuevo === orden) return;
+    const cambio = cambiarOrdenDeViaje(orden, nuevo, { llegada: fechaLlegada, vuelta: fechaVuelta });
+    setOrden(cambio.orden);
     setError("");
+    setAvisoOrden(cambio.aviso);
+    if (cambio.fechas.llegada !== fechaLlegada) {
+      setFechaLlegada(cambio.fechas.llegada);
+      void cargarVuelos(cambio.fechas.llegada, "ARRIVAL");
+    }
+    if (cambio.fechas.vuelta !== fechaVuelta) {
+      setFechaVuelta(cambio.fechas.vuelta);
+      void cargarVuelos(cambio.fechas.vuelta, "DEPARTURE");
+    }
+    if (cambio.limpiarVuelos) {
+      setLlegadaId("");
+      setVueltaId("");
+    }
   }
 
   const bloqueLlegada = {
@@ -503,42 +516,13 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 <p className="eyebrow">Paso 1 de 3</p>
                 <h2 className="route-title">Tus dos vuelos</h2>
                 <p className="muted">
-                  Si el viaje arranca cuando aterrizás o cuando te vas, se cambia con la flecha del
-                  medio. Podés volver otro día.
+                  Elegí el orden del viaje: si primero aterrizás en Chapelco y después te vas, o si
+                  primero te vas y volvés otro día.
                 </p>
               </div>
 
-              {/* Una sola barra con el orden del viaje (estilo Kiwi): el primer tramo a la
-                  izquierda, el segundo a la derecha y la flecha del medio los da vuelta. */}
-              <div className="trip-order">
-                <div className="trip-order-half">
-                  <span className="trip-order-paso">1º tramo</span>
-                  <span className="trip-order-etiqueta">{primerTramo.etiqueta}</span>
-                  <b className="trip-order-ruta">{primerTramo.ruta}</b>
-                </div>
-                <button
-                  type="button"
-                  className="trip-order-swap"
-                  onClick={cambiarOrden}
-                  aria-label="Dar vuelta el orden del viaje"
-                  title="Dar vuelta el orden del viaje"
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M6 8h11" />
-                    <path d="m14 5 3 3-3 3" />
-                    <path d="M18 16H7" />
-                    <path d="m10 13-3 3 3 3" />
-                  </svg>
-                </button>
-                <div className="trip-order-half trip-order-half-end">
-                  <span className="trip-order-paso">2º tramo</span>
-                  <span className="trip-order-etiqueta">{segundoTramo.etiqueta}</span>
-                  <b className="trip-order-ruta">{segundoTramo.ruta}</b>
-                </div>
-              </div>
-              <p className="trip-order-hint">
-                {orden === "ARRIVAL" ? "Primero llego y después me voy" : "Primero me voy y después vuelvo"}
-              </p>
+              {/* Las dos opciones del orden, visibles al mismo tiempo (#189). */}
+              <TripOrderOptions orden={orden} onElegir={elegirOrden} aviso={avisoOrden} />
 
               {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }, i) => {
                 const vueloElegido = opciones.find((opcion) => opcion.id === elegido) ?? null;
