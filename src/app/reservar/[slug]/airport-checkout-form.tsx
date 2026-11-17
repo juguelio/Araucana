@@ -10,6 +10,7 @@ import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { AirlineBadge } from "@/components/airline-badge";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
+import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
@@ -192,6 +193,16 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [privadoOperador, setPrivadoOperador] = useState("");
   const [privadoOrigen, setPrivadoOrigen] = useState("");
   const [privadoHora, setPrivadoHora] = useState("");
+
+  /**
+   * Clave del intento de alta (#139): si la respuesta se pierde y el pasajero reintenta, el
+   * servidor devuelve la reserva que ya creó en vez de ocupar un segundo lugar. Se renueva
+   * cuando cambia el vuelo, el sentido o la fecha, porque eso ya es otro intento.
+   */
+  const claveDeIdempotencia = useRef("");
+  useEffect(() => {
+    claveDeIdempotencia.current = "";
+  }, [selectedId, date, sentido, esPrivado, privadoNumero, privadoHora]);
 
   // La lista se filtra por el sentido elegido en el paso 1; el vuelo elegido manda en la reserva.
   // Los que ya no se pueden reservar van aparte (plegados, con su motivo) para no mezclarlos.
@@ -434,10 +445,14 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
     setIsSubmitting(true);
     try {
+      // Una clave por intento: si el alta llegó al servidor y la respuesta no, el reintento con la
+      // misma clave devuelve la reserva existente en vez de crear otra (#139).
+      claveDeIdempotencia.current ||= nuevaClaveDeIdempotencia();
       const res = await fetch(fromAdmin ? "/api/v1/airport/reservations?source=admin" : "/api/v1/airport/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          idempotencyKey: claveDeIdempotencia.current,
           routeSlug: route.slug,
           flightNumber: esPrivado ? privadoNumero.trim().toUpperCase() : selected!.number,
           direction: esPrivado ? sentido : selected!.direction,

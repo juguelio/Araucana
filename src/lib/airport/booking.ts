@@ -372,8 +372,47 @@ type CrearTramoParams = {
   reglas: ReglasDeExtras;
   /** Las dos reservas de un ida y vuelta comparten este id; un tramo suelto va sin él. */
   roundTripId?: string;
+  /** Clave de idempotencia de esta fila (#139): en el ida y vuelta viene con el sufijo del tramo. */
+  idempotencyKey?: string | null;
   creator?: ReservationCreationContext["creator"];
 };
+
+/** Ida y vuelta (#139): la clave del viaje se guarda por tramo, con el sentido como sufijo. */
+export { claveDelTramo } from "@/lib/booking/idempotency";
+import { claveDelTramo } from "@/lib/booking/idempotency";
+
+type ReservaCreada = Awaited<ReturnType<typeof reservaPorClaveCruda>>;
+
+function reservaPorClaveCruda(clave: string) {
+  return prisma.reservation.findUnique({
+    where: { idempotencyKey: clave },
+    omit: omitReservationCreator,
+    include: { route: true, passenger: true, airportDetails: true }
+  });
+}
+
+/** La reserva que ya se creó con esa clave, con la misma forma que devuelve el alta (#139). */
+async function reservaPorClave(clave: string): Promise<ReservaCreada | null> {
+  return reservaPorClaveCruda(clave);
+}
+
+/** Los dos tramos ya creados con la clave de ese viaje, si el alta se reintentó (#139). */
+async function viajePorClave(clave: string) {
+  const tramos = await prisma.reservation.findMany({
+    where: { idempotencyKey: { in: [claveDelTramo(clave, "ARRIVAL"), claveDelTramo(clave, "DEPARTURE")] } },
+    omit: omitReservationCreator,
+    include: { route: true, passenger: true, airportDetails: true }
+  });
+  const arrival = tramos.find((tramo) => tramo.airportDetails?.direction === "ARRIVAL");
+  const departure = tramos.find((tramo) => tramo.airportDetails?.direction === "DEPARTURE");
+  if (!arrival || !departure) return null;
+  return { roundTripId: arrival.roundTripId ?? departure.roundTripId ?? "", arrival, departure };
+}
+
+/** Código de Prisma (`P2002` = choque con un índice único) sin depender de la clase del error. */
+function codigoDeError(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error ? (error as { code?: string }).code : undefined;
+}
 
 /** Crea UNA reserva atada a su vuelo, con el pago pendiente, dentro de la transacción del llamador. */
 async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<ReturnType<typeof buscarVueloDelTramo>>) {
@@ -411,6 +450,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
       code: createReservationCode(),
       shortCode: createReservationShortCode(),
       roundTripId: params.roundTripId ?? null,
+      idempotencyKey: params.idempotencyKey ?? null,
       ...reservationCreatorData(params.creator),
       routeId: rutaDelSentido.id,
       passengerId,
@@ -483,6 +523,13 @@ async function reglasDeExtras(sportsLuggageCount?: number): Promise<ReglasDeExtr
 /** Crea la reserva atada al vuelo, con control de cupo dentro de la misma transacción. */
 export async function createAirportReservation(input: AdminAirportReservationInput, { fromAdmin, creator }: ReservationCreationContext = {}) {
   const parsed: AdminAirportReservationInput = (fromAdmin ? adminAirportReservationSchema : airportReservationSchema).parse(input);
+  // Reintento del mismo intento de alta (#139): se devuelve la reserva que ya existe. Va antes que
+  // cualquier validación del vuelo porque el vuelo pudo llenarse o pasar entre el alta y el reintento,
+  // y el pasajero igual tiene su lugar.
+  if (parsed.idempotencyKey) {
+    const existente = await reservaPorClave(parsed.idempotencyKey);
+    if (existente) return existente;
+  }
   await rutaDelSlug(parsed.routeSlug);
   validarVueloPrivado({
     flightNumber: parsed.flightNumber,
@@ -514,10 +561,17 @@ export async function createAirportReservation(input: AdminAirportReservationInp
           overrideTotalCents: parsed.overrideTotalCents,
           referredBy: parsed.referredBy ?? null,
           reglas,
-          creator
+          creator,
+          idempotencyKey: parsed.idempotencyKey ?? null
         });
       }, { isolationLevel: "Serializable" });
     } catch (error) {
+      // Dos reintentos en paralelo con la misma clave: uno inserta y el otro choca con el índice
+      // único. No es un error para el pasajero: la reserva es la misma, se devuelve esa.
+      if (parsed.idempotencyKey && codigoDeError(error) === "P2002") {
+        const existente = await reservaPorClave(parsed.idempotencyKey);
+        if (existente) return existente;
+      }
       if (esReintentable(error)) {
         if (intento < MAX_INTENTOS) continue;
         throw new BookingError("BOOKING_BUSY", "El vuelo está recibiendo otras reservas. Intentalo nuevamente.");
@@ -541,11 +595,20 @@ export async function createAirportRoundTripReservation(input: AirportRoundTripI
   // El alta del panel acepta la identidad del pasajero como opcional y el origen de la venta; el
   // público no tiene ninguno de los dos campos.
   const parsed = (fromAdmin ? adminAirportRoundTripSchema : airportRoundTripSchema).parse(input) as AdminAirportRoundTripOutput;
+  // Reintento del mismo viaje (#139): si el alta ya se completó, se devuelven esos dos tramos.
+  if (parsed.idempotencyKey) {
+    const previo = await viajePorClave(parsed.idempotencyKey);
+    if (previo) return previo;
+  }
   await rutaDelSlug(parsed.routeSlug);
   validarVueloPrivado({ ...parsed.arrival, direction: "ARRIVAL" });
   validarVueloPrivado({ ...parsed.departure, direction: "DEPARTURE" });
   const reglas = await reglasDeExtras(parsed.sportsLuggageCount);
   const roundTripId = randomUUID();
+  // Cada tramo guarda la clave del viaje con su sentido: son dos filas y la columna es única.
+  const claves = parsed.idempotencyKey
+    ? { arrival: claveDelTramo(parsed.idempotencyKey, "ARRIVAL"), departure: claveDelTramo(parsed.idempotencyKey, "DEPARTURE") }
+    : null;
   const passengerCount = parsed.passengerCount;
   const halfFareCount = parsed.halfFareCount ?? 0;
   const freeFareCount = parsed.freeFareCount ?? 0;
@@ -562,12 +625,16 @@ export async function createAirportRoundTripReservation(input: AirportRoundTripI
         }
         const passenger = await tx.passenger.create({ data: parsed.passenger });
         const base = { passengerId: passenger.id, passengerCount, halfFareCount, freeFareCount, roundTripId, referredBy: parsed.referredBy ?? null, reglas, creator };
-        const arrival = await crearTramo(tx, { ...base, tramo: arrivalLeg }, arrivalFlight);
-        const departure = await crearTramo(tx, { ...base, tramo: departureLeg }, departureFlight);
+        const arrival = await crearTramo(tx, { ...base, tramo: arrivalLeg, idempotencyKey: claves?.arrival ?? null }, arrivalFlight);
+        const departure = await crearTramo(tx, { ...base, tramo: departureLeg, idempotencyKey: claves?.departure ?? null }, departureFlight);
 
         return { roundTripId, arrival, departure };
       }, { isolationLevel: "Serializable" });
     } catch (error) {
+      if (parsed.idempotencyKey && codigoDeError(error) === "P2002") {
+        const previo = await viajePorClave(parsed.idempotencyKey);
+        if (previo) return previo;
+      }
       if (esReintentable(error)) {
         if (intento < MAX_INTENTOS) continue;
         throw new BookingError("BOOKING_BUSY", "El vuelo está recibiendo otras reservas. Intentalo nuevamente.");

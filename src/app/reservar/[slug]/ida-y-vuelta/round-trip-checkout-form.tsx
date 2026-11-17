@@ -1,9 +1,10 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
+import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
@@ -174,6 +175,16 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [resultado, setResultado] = useState<{ id: string; arrival: TramoCreado; departure: TramoCreado } | null>(null);
+
+  /**
+   * Clave del intento de alta (#139). Vale para los dos tramos: el viaje se crea de una sola vez y,
+   * si la respuesta se pierde, el reintento devuelve esas mismas dos reservas. Se renueva cuando
+   * cambia el orden o alguno de los vuelos, porque eso ya es otro viaje.
+   */
+  const claveDeIdempotencia = useRef("");
+  useEffect(() => {
+    claveDeIdempotencia.current = "";
+  }, [orden, llegadaId, vueltaId, fechaLlegada, fechaVuelta]);
 
   const llegada = useMemo(() => vuelosLlegada.find((v) => v.id === llegadaId) ?? null, [vuelosLlegada, llegadaId]);
   const vuelta = useMemo(() => vuelosVuelta.find((v) => v.id === vueltaId) ?? null, [vuelosVuelta, vueltaId]);
@@ -387,10 +398,14 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     setIsSubmitting(true);
     setError("");
     try {
+      // Una clave por viaje: el reintento después de una respuesta perdida devuelve los dos tramos
+      // que ya existen en vez de crear otro viaje (#139).
+      claveDeIdempotencia.current ||= nuevaClaveDeIdempotencia();
       const res = await fetch(`/api/v1/airport/reservations/round-trip${fromAdmin ? "?source=admin" : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          idempotencyKey: claveDeIdempotencia.current,
           routeSlug: route.slug,
           firstLeg: orden,
           passengerCount,
