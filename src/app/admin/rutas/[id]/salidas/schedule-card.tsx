@@ -12,7 +12,7 @@ export type VehicleOption = {
 
 export type CalendarSchedule = Pick<
   AdminScheduleRowDto,
-  "id" | "vehicleId" | "vehicleName" | "vehiclePlate" | "vehicleInternalNumber" | "availableSeats" | "totalSeats" | "status"
+  "id" | "vehicleId" | "vehicleName" | "vehiclePlate" | "vehicleInternalNumber" | "extraVehicleNames" | "availableSeats" | "totalSeats" | "status"
 >;
 
 /**
@@ -68,6 +68,7 @@ export function ScheduleCard({ schedule, routeId, vehicles, timeLabel }: {
       <p className="calendar-schedule-vehicle">
         <strong>{schedule.vehicleName}</strong>
         {detalle ? <span>{detalle}</span> : null}
+        {schedule.extraVehicleNames?.length ? <span>+ {schedule.extraVehicleNames.join(" + ")}</span> : null}
       </p>
       <form action={setScheduleVehicleAction} className="calendar-schedule-vehicle-change">
         <input type="hidden" name="id" value={schedule.id} />
@@ -79,7 +80,7 @@ export function ScheduleCard({ schedule, routeId, vehicles, timeLabel }: {
         <button type="submit">Cambiar nave</button>
       </form>
       <div className="calendar-schedule-actions">
-        <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}`}>Reservas</Link>
+        <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}`}>Reservas y naves</Link>
         <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}/editar`}>Editar</Link>
         <form action={setScheduleStatusAction}>
           <input type="hidden" name="id" value={schedule.id} />

@@ -7,8 +7,10 @@ import { saveScheduleCrewAction, type CrewState } from "./actions";
 export type Option = { id: string; label: string };
 
 /** Nave y chofer de una salida de ruta en una fila: dos selectores y un botón. */
-export function ScheduleCrewForm({ scheduleId, dateKey, vehicleId, driverId, vehicles, drivers }: {
+export function ScheduleCrewForm({ scheduleId, unitKind = "PRIMARY", dateKey, vehicleId, driverId, vehicles, drivers }: {
+  /** La salida (nave principal) o la nave que se le sumó, según `unitKind`. */
   scheduleId: string;
+  unitKind?: "PRIMARY" | "EXTRA";
   dateKey: string;
   vehicleId: string;
   driverId: string | null;
@@ -24,6 +26,7 @@ export function ScheduleCrewForm({ scheduleId, dateKey, vehicleId, driverId, veh
       startTransition(() => dispatch(data));
     }}>
       <input type="hidden" name="id" value={scheduleId} />
+      <input type="hidden" name="kind" value={unitKind} />
       <input type="hidden" name="date" value={dateKey} />
       <label>
         <span>Nave</span>

@@ -262,9 +262,9 @@ export async function deleteVehicleAction(formData: FormData) {
   const archived = await prisma.$transaction(async (tx) => {
     await lockFleet(tx, [id]);
     const occupied = await tx.vehicle.findUnique({
-      where: { id }, include: { _count: { select: { schedules: true, specialTripAssignments: true } } }
+      where: { id }, include: { _count: { select: { schedules: true, scheduleUnits: true, specialTripAssignments: true } } }
     });
-    if (occupied && (occupied._count.schedules || occupied._count.specialTripAssignments)) {
+    if (occupied && (occupied._count.schedules || occupied._count.scheduleUnits || occupied._count.specialTripAssignments)) {
       await tx.vehicle.update({ where: { id }, data: { isActive: false } });
       await recordEntityAudit(tx, {
         actor, entity: "VEHICLE", entityId: id, entityLabel: occupied.name, action: "UPDATE",

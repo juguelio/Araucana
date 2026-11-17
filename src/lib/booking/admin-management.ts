@@ -7,6 +7,7 @@ import { airportPickupPointSchema } from "@/lib/airport/validation";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment, reservationPriceCents } from "./admin-price";
 import { BookingError, firstAvailableSeat } from "./repository";
+import { extraUnitsSeatsInclude, scheduleSeatPool } from "./schedule-units";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
 import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable } from "@/lib/airport/booking";
@@ -135,6 +136,7 @@ export async function manageReservation(code: string, command: ReservationOperat
                   include: {
                     route: { select: { isActive: true } },
                     vehicle: { select: { isActive: true, seats: true } },
+                    extraUnits: extraUnitsSeatsInclude,
                     reservations: { select: { id: true, status: true, passengerCount: true, seatId: true, seatNumber: true } }
                   }
                 })
@@ -147,7 +149,8 @@ export async function manageReservation(code: string, command: ReservationOperat
             }
             const vivas = schedule.reservations.filter((item) => item.id !== id && item.status !== "CANCELLED");
             const ocupados = vivas.reduce((total, item) => total + item.passengerCount, 0);
-            const capacidad = schedule.vehicle.seats.length;
+            const asientos = scheduleSeatPool(schedule);
+            const capacidad = asientos.length;
             if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
               throw new BookingError(
                 "CAPACITY_FULL",
@@ -155,7 +158,7 @@ export async function manageReservation(code: string, command: ReservationOperat
               );
             }
             const seat = firstAvailableSeat(
-              schedule.vehicle.seats,
+              asientos,
               new Set(vivas.map((item) => item.seatId)),
               new Set(vivas.map((item) => item.seatNumber))
             );

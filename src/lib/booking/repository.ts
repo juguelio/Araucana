@@ -1,3 +1,4 @@
+import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createReservationShortCode as defaultCreateReservationShortCode, createTicketCode } from "./codes";
@@ -65,6 +66,7 @@ type ScheduleRecord = {
     isActive?: boolean;
     seats: SeatRecord[];
   };
+  extraUnits?: Array<{ vehicle: { id: string; isActive?: boolean; seats: SeatRecord[] } }>;
   reservations?: Array<{
     id: string;
     seatId: string;
@@ -305,7 +307,7 @@ function mapRoute(route: RouteRecord): PublicRouteDto {
 }
 
 /** Lo mínimo para calcular el cupo de una salida en un listado (ver scheduleSummaryInclude). */
-type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations"> & {
+type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations" | "extraUnits"> & {
   vehicle: {
     id: string;
     isActive?: boolean;
@@ -315,11 +317,12 @@ type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations"> & 
     seats?: SeatRecord[];
     _count?: { seats: number };
   };
+  extraUnits?: Array<{ vehicle: { id: string; isActive?: boolean; name: string; _count?: { seats: number } } }>;
   reservations?: Array<{ status: string; passengerCount: number }>;
 };
 
 function mapSchedule(schedule: ScheduleSummaryRecord): ScheduleOptionDto {
-  const totalSeats = schedule.vehicle._count?.seats ?? schedule.vehicle.seats?.length ?? 0;
+  const totalSeats = scheduleSeatCount(schedule);
   const occupiedSeats = (schedule.reservations ?? [])
     .filter((reservation) => reservation.status !== "CANCELLED")
     .reduce((total, reservation) => total + reservation.passengerCount, 0);
@@ -516,6 +519,7 @@ function scheduleInclude() {
         seats: true
       }
     },
+    extraUnits: extraUnitsSeatsInclude,
     reservations: true
   };
 }
@@ -531,15 +535,16 @@ function scheduleSummaryInclude() {
     vehicle: {
       select: { id: true, isActive: true, name: true, licensePlate: true, internalNumber: true, _count: { select: { seats: true } } }
     },
+    extraUnits: extraUnitsCountInclude,
     reservations: { select: { status: true, passengerCount: true } }
   };
 }
 
-function compareSeats(left: SeatRecord, right: SeatRecord) {
-  return left.row - right.row || left.column - right.column || left.number.localeCompare(right.number);
+function compareSeats(left: SeatRecord & { unit?: number }, right: SeatRecord & { unit?: number }) {
+  return (left.unit ?? 1) - (right.unit ?? 1) || left.row - right.row || left.column - right.column || left.number.localeCompare(right.number);
 }
 
-function orderedSeats(seats: SeatRecord[]) {
+function orderedSeats<T extends SeatRecord & { unit?: number }>(seats: T[]): T[] {
   return [...seats].sort(compareSeats);
 }
 
@@ -552,8 +557,8 @@ function orderedSeats(seats: SeatRecord[]) {
  * Lo usa también la restitución de una reserva cancelada (#117): el asiento se libera al cancelar,
  * así que al volver hay que darle uno libre de la misma salida.
  */
-export function firstAvailableSeat(
-  seats: SeatRecord[],
+export function firstAvailableSeat<T extends SeatRecord & { unit?: number }>(
+  seats: T[],
   occupiedSeatIds: Set<string | null>,
   occupiedSeatNumbers: Set<string | null>
 ) {
@@ -707,7 +712,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       return {
         scheduleId: schedule.id,
         vehicleId: schedule.vehicle.id,
-        seats: orderedSeats(schedule.vehicle.seats)
+        seats: orderedSeats(scheduleSeatPool(schedule))
           .map((seat) => ({
             id: seat.id,
             number: seat.number,
@@ -765,18 +770,20 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             const totalCents = disabilityFare
               ? 0
               : parsed.overrideTotalCents ?? reservationTotalCents(stop?.priceCents ?? schedule.route.priceCents, fares);
-            const availableSeats = Math.max(schedule.vehicle.seats.length - occupiedSeats, 0);
+            // El cupo es el de todas las naves de la salida, no sólo el de la principal.
+            const seatPool = scheduleSeatPool(schedule);
+            const availableSeats = Math.max(seatPool.length - occupiedSeats, 0);
 
             if (requestedSeats > availableSeats) {
               throw new BookingError("CAPACITY_FULL", `Only ${availableSeats} seats are available for this schedule`);
             }
 
-            let seat: (typeof schedule.vehicle.seats)[number] | null = null;
+            let seat: (typeof seatPool)[number] | null = null;
             // El lugar asignado no se ata al vehículo: si el día de la salida mandan otra nave,
             // la reserva sigue siendo válida (el cupo manda, no el plano del coche).
             let seatIdForReservation: string | null = null;
             if (parsed.seatNumber) {
-              seat = schedule.vehicle.seats.find((item) => item.number === parsed.seatNumber) ?? null;
+              seat = seatPool.find((item) => item.number === parsed.seatNumber) ?? null;
 
               if (!seat) {
                 throw new BookingError("SEAT_NOT_FOUND", `Seat ${parsed.seatNumber} does not exist for this schedule`);
@@ -801,7 +808,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 (reservation) => reservation.status !== "CANCELLED"
               );
               seat = firstAvailableSeat(
-                schedule.vehicle.seats,
+                seatPool,
                 new Set(activeReservations.map((reservation) => reservation.seatId)),
                 new Set(activeReservations.map((reservation) => reservation.seatNumber))
               );
@@ -1076,6 +1083,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           vehicleName: schedule.vehicle.name,
           vehiclePlate: schedule.vehicle.licensePlate ?? null,
           vehicleInternalNumber: schedule.vehicle.internalNumber ?? null,
+          extraVehicleNames: (schedule.extraUnits ?? []).map((unit) => unit.vehicle.name),
           route: `${schedule.route.from} -> ${schedule.route.to}`,
           bookingMode: schedule.route.bookingMode,
           stopFares: schedule.route.bookingMode === "SEATED" ? getStopFares(schedule.route) : [],

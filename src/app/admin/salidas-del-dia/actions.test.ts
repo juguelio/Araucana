@@ -26,7 +26,13 @@ const mocks = vi.hoisted(() => ({
   createSpecialAssignment: vi.fn(),
   updateSpecialAssignment: vi.fn(),
   deleteSpecialAssignment: vi.fn(),
-  acceptance: vi.fn()
+  acceptance: vi.fn(),
+  findScheduleAtTime: vi.fn(),
+  countUnits: vi.fn(),
+  primaryProblem: vi.fn(),
+  addUnit: vi.fn(),
+  updateUnit: vi.fn(),
+  removeUnit: vi.fn()
 }));
 
 vi.mock("@/lib/auth/admin", () => ({ getCurrentAdminOrRedirect: mocks.admin, getCurrentReservationsUserOrRedirect: mocks.staff }));
@@ -35,7 +41,8 @@ vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/audit/entity", () => ({ recordEntityAudit: mocks.audit, recordEntityAuditAfterCommit: mocks.auditAfterCommit }));
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
-    schedule: { findUnique: mocks.findSchedule },
+    schedule: { findUnique: mocks.findSchedule, findFirst: mocks.findScheduleAtTime },
+    scheduleUnit: { count: mocks.countUnits },
     vehicle: { findUnique: mocks.findVehicle },
     travelRoute: { findUnique: mocks.findRoute },
     specialTrip: { findUnique: mocks.findTrip },
@@ -60,8 +67,15 @@ vi.mock("@/lib/special-trips/conflicts", () => ({
   conflictKey: (conflicts: Array<{ id: string }>, proposal: unknown) => JSON.stringify([proposal, conflicts.map((c) => c.id)])
 }));
 
+vi.mock("@/lib/booking/schedule-unit-service", () => ({
+  primaryVehicleProblem: mocks.primaryProblem,
+  addScheduleUnit: mocks.addUnit,
+  updateScheduleUnit: mocks.updateUnit,
+  removeScheduleUnit: mocks.removeUnit
+}));
+
 import {
-  addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction,
+  addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction,
   saveScheduleCrewAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction
 } from "./actions";
 
@@ -326,3 +340,65 @@ describe("salidas del día: posibles cruces se confirman, choques seguros no", (
   });
 });
 
+
+describe("salidas del día: varias naves en una misma salida", () => {
+  const listo = { ok: true as const, summary: "Nave sumada a la salida.", schedule: { id: "s1", routeId: "r1", departureAt: salida.departureAt, slug: "sma-villa-traful" } };
+
+  beforeEach(() => {
+    mocks.findRoute.mockResolvedValue({ id: "r1", slug: "sma-villa-traful", durationMin: 135, bookingMode: "REGULAR", isActive: true });
+    mocks.findScheduleAtTime.mockResolvedValue(null);
+    mocks.countUnits.mockResolvedValue(0);
+    mocks.primaryProblem.mockResolvedValue(null);
+  });
+
+  it("sumar nave la agrega a la misma salida, no crea otra", async () => {
+    mocks.addUnit.mockResolvedValue(listo);
+    const url = await redirectTo(addBoardUnitAction({}, form({ date: "2026-11-17", scheduleId: "s1", vehicleId: "v2", driverId: "d1" })));
+    expect(mocks.addUnit).toHaveBeenCalledWith(expect.objectContaining({ scheduleId: "s1", vehicleId: "v2", driverId: "d1" }));
+    expect(mocks.createSchedule).not.toHaveBeenCalled();
+    expect(url).toBe("redirect:/admin/salidas-del-dia?date=2026-11-17&notice=Nave sumada a la salida.");
+    expect(mocks.refresh).toHaveBeenCalledWith("/reservar/sma-villa-traful");
+  });
+
+  it("si la ruta ya tiene salida a esa hora, «crear salida» le suma la nave", async () => {
+    mocks.findScheduleAtTime.mockResolvedValue({ id: "s1" });
+    mocks.addUnit.mockResolvedValue(listo);
+    await redirectTo(createBoardScheduleAction({}, form({ date: "2026-11-17", routeId: "r1", time: "09:00", vehicleId: "v2" })));
+    expect(mocks.addUnit).toHaveBeenCalledWith(expect.objectContaining({ scheduleId: "s1", vehicleId: "v2" }));
+    expect(mocks.createSchedule).not.toHaveBeenCalled();
+  });
+
+  it("un choque o un error al sumar vuelve al formulario sin redirigir", async () => {
+    mocks.addUnit.mockResolvedValue({ conflicts: [{ id: "a", label: "Aeropuerto · AR1", href: "", possible: true }], confirmation: "k" });
+    const state = await addBoardUnitAction({}, form({ date: "2026-11-17", scheduleId: "s1", vehicleId: "v2" }));
+    expect(state).toMatchObject({ confirmation: "k" });
+    mocks.addUnit.mockResolvedValue({ error: "Esa nave ya está en la salida." });
+    expect((await addBoardUnitAction({}, form({ date: "2026-11-17", scheduleId: "s1", vehicleId: "v1" }))).error).toBe("Esa nave ya está en la salida.");
+  });
+
+  it("chofer de una nave sumada: se guarda en esa nave, no en la salida", async () => {
+    mocks.updateUnit.mockResolvedValue({ ...listo, summary: "Chofer asignado a una nave de la salida." });
+    await redirectTo(saveScheduleCrewAction({}, form({ id: "u1", kind: "EXTRA", date: "2026-11-17", vehicleId: "v2", driverId: "d1" })));
+    expect(mocks.updateUnit).toHaveBeenCalledWith(expect.objectContaining({ unitId: "u1", vehicleId: "v2", driverId: "d1" }));
+    expect(mocks.updateSchedule).not.toHaveBeenCalled();
+  });
+
+  it("quitar una nave sumada o la principal (con otras) no borra la salida", async () => {
+    mocks.removeUnit.mockResolvedValue({ ...listo, summary: "Nave quitada de la salida." });
+    await redirectTo(removeBoardScheduleAction(form({ id: "u1", kind: "EXTRA", date: "2026-11-17" })));
+    expect(mocks.removeUnit).toHaveBeenLastCalledWith(expect.objectContaining({ unitId: "u1" }));
+    mocks.countUnits.mockResolvedValue(1);
+    await redirectTo(removeBoardScheduleAction(form({ id: "s1", kind: "PRIMARY", date: "2026-11-17" })));
+    expect(mocks.removeUnit).toHaveBeenLastCalledWith(expect.objectContaining({ primaryOf: "s1" }));
+    expect(mocks.deleteSchedule).not.toHaveBeenCalled();
+    mocks.removeUnit.mockResolvedValue({ error: "No se quitó: con las naves que quedan no entran los 30 pasajeros reservados (quedarían 19 lugares)." });
+    expect(await redirectTo(removeBoardScheduleAction(form({ id: "u1", kind: "EXTRA", date: "2026-11-17" })))).toContain("no entran los 30 pasajeros");
+  });
+
+  it("cambiar la nave principal por una que ya está sumada no se guarda", async () => {
+    mocks.primaryProblem.mockResolvedValue("Esa nave ya está sumada a la salida: quitala de las otras naves o elegí otra.");
+    const state = await saveScheduleCrewAction({}, form({ id: "s1", date: "2026-11-17", vehicleId: "v2" }));
+    expect(state.error).toContain("ya está sumada");
+    expect(mocks.updateSchedule).not.toHaveBeenCalled();
+  });
+});
