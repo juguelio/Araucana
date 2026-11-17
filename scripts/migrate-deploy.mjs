@@ -26,6 +26,26 @@ function describir(url) {
   }
 }
 
+/**
+ * Neon expone dos hosts para el mismo endpoint: `ep-x-pooler...` (PgBouncer) y `ep-x...` (directo).
+ *
+ * Migrar por el pooler deja el advisory lock de `prisma migrate` pegado a la conexión del servidor de
+ * pgbouncer: cuando el cliente se desconecta, el lock no se libera porque la conexión sigue viva en el
+ * pool. El deploy siguiente muere con P1002 ("Timed out trying to acquire a postgres advisory lock")
+ * aunque no haya nada corriendo. Quitar `-pooler` del host da la conexión directa, que es la que
+ * corresponde para DDL.
+ */
+export function sinPooler(url) {
+  try {
+    const { hostname } = new URL(url);
+    if (!hostname.includes("-pooler")) return { url, cambiado: false };
+    // Reemplazo sobre el string original: un round-trip por URL volvería a codificar la password.
+    return { url: url.replace(hostname, hostname.replace("-pooler", "")), cambiado: true };
+  } catch {
+    return { url, cambiado: false };
+  }
+}
+
 export function decidir(env = process.env) {
   if (env.VERCEL !== "1") {
     return { correr: false, motivo: "no es un build de Vercel: las migraciones no se aplican desde local" };
@@ -33,11 +53,14 @@ export function decidir(env = process.env) {
   if (env.SKIP_MIGRATIONS === "1") {
     return { correr: false, motivo: "SKIP_MIGRATIONS=1" };
   }
-  const url = env.DIRECT_URL || env.DATABASE_URL;
-  if (!url) {
+  const elegida = env.DIRECT_URL || env.DATABASE_URL;
+  if (!elegida) {
     return { correr: false, error: "falta DIRECT_URL y DATABASE_URL: no hay base contra la cual migrar" };
   }
-  return { correr: true, url, motivo: `migrando ${describir(url)}${env.DIRECT_URL ? " (DIRECT_URL)" : " (DATABASE_URL)"}` };
+  const { url, cambiado } = sinPooler(elegida);
+  const origen = env.DIRECT_URL ? "DIRECT_URL" : "DATABASE_URL";
+  const aclaracion = cambiado ? " — se usa el host directo: migrar por el pooler deja el advisory lock tomado (P1002)" : "";
+  return { correr: true, url, motivo: `migrando ${describir(url)} (${origen})${aclaracion}` };
 }
 
 function main() {
