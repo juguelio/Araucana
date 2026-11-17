@@ -24,9 +24,15 @@ type ManagedUserFormProps = {
   user?: ManagedUserFormData;
   /** Sólo un super administrador puede elegir ese rol; al resto no se le ofrece. */
   canAssignSuperAdmin?: boolean;
+  /** Con un rol fijo no hay selector: es el alta de chofer, que la secretaría también puede hacer. */
+  fixedRole?: ManagedUserRole;
+  /** El sueldo es dato de administración: la secretaría no lo ve. */
+  showSalary?: boolean;
+  /** A dónde vuelve el botón de atrás: `/admin/usuarios` o `/admin/choferes`. */
+  backHref?: string;
 };
 
-export function ManagedUserForm({ action, user, canAssignSuperAdmin = false }: ManagedUserFormProps) {
+export function ManagedUserForm({ action, user, canAssignSuperAdmin = false, fixedRole, showSalary = true, backHref }: ManagedUserFormProps) {
   // Si la cuenta ya es de un super administrador el rol se muestra igual, para no cambiarlo sin querer.
   const roles = managedUserRoles.filter((role) => role !== "SUPERADMIN" || canAssignSuperAdmin || user?.role === "SUPERADMIN");
   const [state, formAction] = useActionState(action, initialAdminFormState);
@@ -84,13 +90,22 @@ export function ManagedUserForm({ action, user, canAssignSuperAdmin = false }: M
         </small>
         <FieldError id="password-error" message={errors.password} />
       </label>
-      <label>
-        Rol
-        <select name="role" defaultValue={user?.role ?? "SECRETARY"}>
-          {roles.map((role) => <option value={role} key={role}>{getManagedUserRoleName(role)}</option>)}
-        </select>
-        <FieldError id="role-error" message={errors.role} />
-      </label>
+      {fixedRole ? (
+        <label>
+          Rol
+          <input type="hidden" name="role" value={fixedRole} />
+          <span className="muted">{getManagedUserRoleName(fixedRole)}</span>
+          <FieldError id="role-error" message={errors.role} />
+        </label>
+      ) : (
+        <label>
+          Rol
+          <select name="role" defaultValue={user?.role ?? "SECRETARY"}>
+            {roles.map((role) => <option value={role} key={role}>{getManagedUserRoleName(role)}</option>)}
+          </select>
+          <FieldError id="role-error" message={errors.role} />
+        </label>
+      )}
       <label>
         Estado
         <select name="isActive" defaultValue={user ? (user.isActive ? "true" : "false") : "true"}>
@@ -98,21 +113,23 @@ export function ManagedUserForm({ action, user, canAssignSuperAdmin = false }: M
           <option value="true">Activo</option>
         </select>
       </label>
-      <label>
-        Sueldo mensual (solo Secretaría o Chofer)
-        <input
-          name="monthlySalary"
-          inputMode="decimal"
-          defaultValue={user?.monthlySalaryCents ? String(user.monthlySalaryCents / 100) : ""}
-          placeholder="Ej: 450000"
-          aria-invalid={Boolean(errors.monthlySalary)}
-          aria-describedby={errors.monthlySalary ? "monthlySalary-error" : undefined}
-        />
-        <FieldError id="monthlySalary-error" message={errors.monthlySalary} />
-      </label>
+      {showSalary && (
+        <label>
+          Sueldo mensual (solo Secretaría o Chofer)
+          <input
+            name="monthlySalary"
+            inputMode="decimal"
+            defaultValue={user?.monthlySalaryCents ? String(user.monthlySalaryCents / 100) : ""}
+            placeholder="Ej: 450000"
+            aria-invalid={Boolean(errors.monthlySalary)}
+            aria-describedby={errors.monthlySalary ? "monthlySalary-error" : undefined}
+          />
+          <FieldError id="monthlySalary-error" message={errors.monthlySalary} />
+        </label>
+      )}
       <div className="form-actions span-2">
         <AdminSubmitButton>{creando ? "Crear cuenta" : "Guardar cuenta"}</AdminSubmitButton>
-        <Link className="ghost-button" href={getManagedUserPath()}>Volver a usuarios</Link>
+        <Link className="ghost-button" href={backHref ?? getManagedUserPath()}>Volver</Link>
       </div>
     </form>
   );
