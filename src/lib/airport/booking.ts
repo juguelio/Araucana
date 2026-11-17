@@ -39,14 +39,30 @@ import {
 /** Capacidad que se asume mientras no hay ninguna combi asignada a ese vuelo. */
 export const CAPACIDAD_POR_VUELO = 24;
 
+/** Las unidades con menos butacas que esto pierden `BUTACAS_PARA_EQUIPAJE` en el aeropuerto. */
+export const UNIDAD_GRANDE_DESDE = 26;
+/** Butacas que una unidad chica deja libres para el equipaje en los traslados al aeropuerto. */
+export const BUTACAS_PARA_EQUIPAJE = 4;
+
+/**
+ * Butacas que una nave vende para el aeropuerto. Una unidad de menos de 26 butacas pierde 4 para el
+ * equipaje, pedido del cliente (17/11/2026). Los buses grandes tienen bodega y venden todas. Con 0
+ * butacas no hay plano cargado y no se sabe la capacidad: queda en 0.
+ */
+export function butacasParaAeropuerto(seats: number): number {
+  if (seats <= 0) return 0;
+  return seats < UNIDAD_GRANDE_DESDE ? Math.max(seats - BUTACAS_PARA_EQUIPAJE, 0) : seats;
+}
+
 /**
  * Las combis se asignan según la cantidad de reservas y se pueden cambiar hasta último momento,
- * así que el cupo del vuelo = suma de asientos de las combis asignadas; si no hay ninguna, se
- * asume una combi de referencia para que las reservas puedan entrar.
+ * así que el cupo del vuelo = suma de las butacas que cada combi vende para el aeropuerto
+ * (`butacasParaAeropuerto`). Si no hay ninguna, se asume una combi de referencia para que las
+ * reservas puedan entrar.
  */
 export function capacidadDeVuelo(combis: Array<{ seats: number }>): number {
   if (combis.length === 0) return CAPACIDAD_POR_VUELO;
-  return combis.reduce((total, c) => total + c.seats, 0);
+  return combis.reduce((total, c) => total + butacasParaAeropuerto(c.seats), 0);
 }
 
 /** Cuántas combis conviene tener: una por cada 24 reservas (redondeo hacia arriba). */
@@ -197,7 +213,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       vehicles: v.assignments.map((a) => ({
         id: a.id,
         name: a.vehicle.name,
-        seats: a.vehicle.seats.length,
+        seats: butacasParaAeropuerto(a.vehicle.seats.length),
         driver: a.driver?.name ?? a.driver?.email ?? null
       }))
     };

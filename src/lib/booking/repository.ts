@@ -584,6 +584,9 @@ async function tramoCompanero(client: BookingTransactionClient, roundTripId: str
     select: {
       code: true,
       shortCode: true,
+      status: true,
+      totalCents: true,
+      payment: { select: { status: true, amountCents: true, provider: true } },
       airportDetails: {
         select: {
           direction: true,
@@ -605,6 +608,9 @@ async function tramoCompanero(client: BookingTransactionClient, roundTripId: str
   return {
     code: socio.code,
     shortCode: socio.shortCode,
+    status: socio.status,
+    totalCents: socio.totalCents,
+    payment: socio.payment ?? null,
     direction: airport?.direction ?? null,
     airport: airport
       ? {

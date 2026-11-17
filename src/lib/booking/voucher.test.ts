@@ -337,4 +337,64 @@ describe("buildVoucher en el ida y vuelta", () => {
 
     expect(voucher.rows).toHaveLength(1);
   });
+
+  it("suma el valor y lo pagado de los dos tramos y muestra el código del otro", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "AIRPORT",
+        totalCents: 1200000,
+        payment: { provider: "manual_transfer", status: "APPROVED", amountCents: 1200000, amount: 12000, currency: "ARS" },
+        airportDetails: tramo("ARRIVAL", "JA3181", "2026-11-20T15:04:00.000Z", "Mariano Moreno 829"),
+        roundTripPartner: {
+          code: "ARC-2611-VUELTA",
+          shortCode: "VUEL1234",
+          status: "PENDING_PAYMENT",
+          totalCents: 1200000,
+          payment: { provider: "manual_transfer", status: "PENDING", amountCents: 1200000 },
+          direction: "DEPARTURE",
+          airport: tramo("DEPARTURE", "AR1655", "2026-11-25T16:45:00.000Z", "Los Notros 120")
+        }
+      })
+    );
+
+    expect(voucher.totalCents).toBe(2400000);
+    expect(voucher.paidCents).toBe(1200000);
+    expect(voucher.balanceCents).toBe(1200000);
+    expect(voucher.partnerShortCode).toBe("VUEL1234");
+  });
+
+  it("la vuelta sin dirección sale de San Martín de los Andes, no del aeropuerto", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "AIRPORT",
+        airportDetails: { ...tramo("DEPARTURE", "AR1655", "2026-11-25T16:45:00.000Z", ""), pickupAddress: null }
+      })
+    );
+
+    expect(voucher.rows[0].inicio).toBe("San Martín de los Andes");
+    expect(voucher.rows[0].fin).toContain("Chapelco");
+  });
+
+  it("si el otro tramo se canceló, el voucher es sólo de éste", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "AIRPORT",
+        totalCents: 1200000,
+        airportDetails: tramo("ARRIVAL", "JA3181", "2026-11-20T15:04:00.000Z", "Mariano Moreno 829"),
+        roundTripPartner: {
+          code: "ARC-2611-VUELTA",
+          shortCode: "VUEL1234",
+          status: "CANCELLED",
+          totalCents: 1200000,
+          payment: null,
+          direction: "DEPARTURE",
+          airport: tramo("DEPARTURE", "AR1655", "2026-11-25T16:45:00.000Z", "Los Notros 120")
+        }
+      })
+    );
+
+    expect(voucher.rows).toHaveLength(1);
+    expect(voucher.totalCents).toBe(1200000);
+    expect(voucher.partnerShortCode).toBeNull();
+  });
 });

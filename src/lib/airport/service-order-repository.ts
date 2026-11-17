@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { rangoDelDia } from "./booking";
+import { butacasParaAeropuerto, rangoDelDia } from "./booking";
 import type { ServiceOrderReservationInput } from "./service-order";
 
 /**
@@ -97,7 +97,8 @@ export async function getAirportServiceOrderReservations(
                 assignmentId: asignacion.id,
                 vehicleId: asignacion.vehicle.id,
                 name: asignacion.vehicle.name,
-                seats: asignacion.vehicle._count.seats,
+                // Lo que la nave vende para el aeropuerto: las chicas dejan 4 butacas para el equipaje.
+                seats: butacasParaAeropuerto(asignacion.vehicle._count.seats),
                 driver: asignacion.driver ? (asignacion.driver.name ?? asignacion.driver.email) : null
               }))
             }

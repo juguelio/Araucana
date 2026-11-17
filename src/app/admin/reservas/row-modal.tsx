@@ -9,6 +9,8 @@ type RowModalProps = {
   /** Texto accesible del disparador, para cuando la celda sólo muestra una etiqueta. */
   triggerLabel: string;
   triggerClassName?: string;
+  /** Clase extra del modal, para un formulario más ancho (por ejemplo, cargar un vuelo). */
+  modalClassName?: string;
   eyebrow: string;
   title: string;
   subtitle?: string;
@@ -21,7 +23,7 @@ type RowModalProps = {
  * botón que abre las opciones de esa reserva sin salir del listado. Los formularios de adentro son
  * los mismos server actions del detalle, con `listQuery` para volver al listado filtrado.
  */
-export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-celda-boton", eyebrow, title, subtitle, children }: RowModalProps) {
+export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-celda-boton", modalClassName, eyebrow, title, subtitle, children }: RowModalProps) {
   const [abierto, setAbierto] = useState(false);
   const tituloId = useId();
 
@@ -56,7 +58,7 @@ export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-c
         ? createPortal(
             <div className="fleet-docs-backdrop" role="presentation" onClick={() => setAbierto(false)}>
               <div
-                className="fleet-docs-modal reservas-modal"
+                className={`fleet-docs-modal reservas-modal${modalClassName ? ` ${modalClassName}` : ""}`}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={tituloId}

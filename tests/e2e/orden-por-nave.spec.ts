@@ -32,7 +32,7 @@ test.beforeAll(async () => {
   } });
   flightId = flight.id;
   for (const nave of Object.values(naves)) {
-    const vehicle = await db.vehicle.create({ data: { name: nave.name, seats: { create: Array.from({ length: 4 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } });
+    const vehicle = await db.vehicle.create({ data: { name: nave.name, seats: { create: Array.from({ length: 8 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } });
     nave.id = vehicle.id;
     nave.assignment = (await db.airportVehicleAssignment.create({ data: { flightId, vehicleId: vehicle.id } })).id;
   }
@@ -70,6 +70,8 @@ test("un vuelo con dos naves da una orden por nave, repartida por capacidad en e
   await abrir(page);
   expect(await nombres(page, naves.a.name)).toEqual(["Ana"]);
   expect(await nombres(page, naves.b.name)).toEqual(["Beto", "Ceci"]);
+  // Naves de 8 butacas venden 4 para el aeropuerto (las de menos de 26 dejan 4 para el equipaje).
+  await expect(orden(page, naves.a.name).locator(".orden-inicio-recorrida")).toContainText(/Inicio de recorrida\s*\d{2}:\d{2}/);
   await expect(orden(page, naves.b.name).locator("tfoot")).toContainText(`Total OUT`);
   await expect(orden(page, naves.b.name).locator("tfoot")).toContainText(naves.b.name);
 

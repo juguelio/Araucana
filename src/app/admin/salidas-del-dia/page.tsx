@@ -4,7 +4,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
-import { pasajerosOcupados } from "@/lib/airport/booking";
+import { butacasParaAeropuerto, pasajerosOcupados } from "@/lib/airport/booking";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
@@ -124,7 +124,8 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       passengers: pasajerosOcupados(flight.reservations.map((detail) => detail.reservation)),
       units: flight.assignments.map((assignment) => ({
         id: assignment.id,
-        vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: seatsOf(assignment.vehicle) },
+        // Aeropuerto: las unidades de menos de 26 butacas venden 4 menos (equipaje).
+        vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: butacasParaAeropuerto(seatsOf(assignment.vehicle)) },
         driver: assignment.driver
       }))
     })),

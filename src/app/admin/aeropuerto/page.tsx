@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
-import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
+import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
 import { horaDeReferencia, separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
@@ -15,6 +15,7 @@ import type { Prisma } from "@prisma/client";
 import { airLabsKeyState } from "@/lib/settings/app-settings";
 import { assignVehicleAction, confirmFlightAction, createFlightAction, deleteFlightAction, refreshFlightsAction, removeAssignmentAction, saveAirLabsKeyAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
+import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import "./aeropuerto.css";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -173,7 +174,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             )
           ) : (
             <span className="pill pill-combi" data-tono="ok">
-              {v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
+              {v.assignments.map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)})`).join(" · ")}
             </span>
           )}
           {pickupStart ? <span className="muted flight-info-recorrida">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
@@ -256,6 +257,22 @@ export default async function AirportPage({ searchParams }: PageProps) {
             Hoja del día
           </Link>
           <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
+          {/* El formulario de carga manual vive en un modal: se usa poco y ocupaba media pantalla. La `key`
+              con el aviso lo cierra solo cuando el vuelo se cargó (la acción redirige con `notice`). */}
+          <RowModal
+            key={params?.notice ?? "sin-aviso"}
+            trigger="Cargar vuelo a mano"
+            triggerLabel="Cargar vuelo a mano"
+            triggerClassName="ghost-button"
+            modalClassName="aero-carga-modal"
+            eyebrow="Aeropuerto"
+            title="Cargar vuelo a mano"
+            subtitle={`Para un vuelo que no trae AirLabs ni el tablero. Estados posibles: ${FLIGHT_STATUSES.map((s) => s.label).join(" · ")}.`}
+          >
+            <div className="aero-carga">
+              <FlightForm action={createFlightAction} />
+            </div>
+          </RowModal>
           <form action={refreshFlightsAction}>
             <button className="ghost-button" type="submit">Actualizar ahora</button>
           </form>
@@ -413,12 +430,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </ul>
         </section>
       ) : null}
-
-      <section className="plain-card admin-section aero-carga">
-        <h2>Cargar vuelo a mano</h2>
-        <p className="muted">Estados posibles: {FLIGHT_STATUSES.map((s) => s.label).join(" · ")}.</p>
-        <FlightForm action={createFlightAction} />
-      </section>
 
       <details className="plain-card admin-section key-box" open={clave.source === "none"}>
         <summary>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capacidadDeVuelo, combisSugeridas, motivoNoReservable, pasajerosOcupados, rangoDelDia } from "./booking";
+import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, motivoNoReservable, pasajerosOcupados, rangoDelDia } from "./booking";
 import { defaultAirportExtras } from "./extras";
 
 const vuelo = (status: string, iso = "2030-01-01T12:00:00Z") => ({ status, scheduledAt: new Date(iso) });
@@ -78,8 +78,19 @@ describe("reserva de aeropuerto", () => {
 
   it("el cupo sale de las combis asignadas (y asume una si no hay)", () => {
     expect(capacidadDeVuelo([])).toBe(24);
-    expect(capacidadDeVuelo([{ seats: 24 }])).toBe(24);
-    expect(capacidadDeVuelo([{ seats: 24 }, { seats: 15 }])).toBe(39);
+    // Las de menos de 26 butacas dejan 4 para el equipaje: 24 → 20 y 15 → 11.
+    expect(capacidadDeVuelo([{ seats: 24 }])).toBe(20);
+    expect(capacidadDeVuelo([{ seats: 24 }, { seats: 15 }])).toBe(31);
+    expect(capacidadDeVuelo([{ seats: 45 }, { seats: 19 }])).toBe(60);
+  });
+
+  it("las unidades de menos de 26 butacas pierden 4 para el aeropuerto", () => {
+    expect(butacasParaAeropuerto(25)).toBe(21);
+    expect(butacasParaAeropuerto(19)).toBe(15);
+    expect(butacasParaAeropuerto(26)).toBe(26);
+    expect(butacasParaAeropuerto(45)).toBe(45);
+    expect(butacasParaAeropuerto(3)).toBe(0);
+    expect(butacasParaAeropuerto(0)).toBe(0);
   });
 
   it("sugiere cuántas combis hacen falta según las reservas", () => {

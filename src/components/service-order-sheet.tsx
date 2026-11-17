@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   blockTimeLabel,
   fechaDeLaOrden,
+  inicioDeRecorrida,
   plata,
   SERVICE_ORDER_COLUMNS,
   serviceOrderRow,
@@ -57,10 +58,18 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
       ) : (
         blocks.map((block) => {
           const filasPropias = filasDeOrden?.(block);
+          const inicio = inicioDeRecorrida(block);
           return (
           <section className="orden-bloque" key={block.key} id={idDeLaOrden(block)}>
             <div className="orden-bloque-cabeza">
-              <h2 className="orden-bloque-titulo">{blockTimeLabel(block)}</h2>
+              <h2 className="orden-bloque-titulo">
+                {inicio ? (
+                  <span className="orden-inicio-recorrida">
+                    <span className="orden-inicio-rotulo">Inicio de recorrida</span> <strong>{inicio}</strong>
+                  </span>
+                ) : null}
+                <span>{blockTimeLabel(block, { sinRecorrida: Boolean(inicio) })}</span>
+              </h2>
               {accionesDeOrden ? accionesDeOrden(block) : null}
             </div>
             <table className="orden-tabla">

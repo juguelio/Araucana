@@ -72,6 +72,9 @@ export default async function VoucherPage({ params }: VoucherPageProps) {
               <span>Comprobante de servicios</span>
               <h1>VOUCHER</h1>
               <strong className="voucher-codigo">{formatShortCode(voucher.shortCode)}</strong>
+              {voucher.partnerShortCode ? (
+                <span className="voucher-ida-vuelta">Ida y vuelta · otro tramo {formatShortCode(voucher.partnerShortCode)}</span>
+              ) : null}
             </div>
           </header>
 
@@ -141,7 +144,10 @@ export default async function VoucherPage({ params }: VoucherPageProps) {
           </section>
 
           <footer className="voucher-pie">
-            <p>Voucher {formatShortCode(voucher.shortCode)} · Reserva {voucher.code}</p>
+            <p>
+              Voucher {formatShortCode(voucher.shortCode)}
+              {voucher.partnerShortCode ? ` y ${formatShortCode(voucher.partnerShortCode)} (ida y vuelta)` : ""} · Reserva {voucher.code}
+            </p>
             <p>{AGENCY_VOUCHER.name} · {AGENCY_VOUCHER.address} · {AGENCY_VOUCHER.city}</p>
           </footer>
         </article>
