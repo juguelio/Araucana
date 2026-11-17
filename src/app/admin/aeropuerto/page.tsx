@@ -102,6 +102,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
     { arribos: 0, partidas: 0, pasajeros: 0, sinCombi: 0 }
   );
   const partidasParaCoordinar = vuelos.filter((vuelo) => !esProyeccion(vuelo) && airportPickupStart(vuelo));
+  const proyectadosDelDia = vuelos.filter((v) => esProyeccion(v));
+  const proyectadosConPasajeros = proyectadosDelDia.filter(
+    (v) => pasajerosOcupados(v.reservations.map((r) => r.reservation)) > 0
+  ).length;
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
 
   // La tarjeta se usa dos veces: arriba lo que sigue en juego y abajo, plegado y en gris, lo que
@@ -324,16 +328,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </p>
         </section>
       ) : (
+        <>
         <div className="flights-board aero-tablero">
         {(["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
-          // Los que alguna fuente confirmo son los vuelos del dia; el resto son proyecciones del sistema.
+          // Los que alguna fuente confirmo son los vuelos del dia. Las proyecciones no van en la
+          // columna: si el encabezado dice 2 y abajo hay 3 tarjetas, el numero no cierra nunca.
           const confirmados = lista.filter((v) => !esProyeccion(v));
-          const proyectados = lista.filter((v) => esProyeccion(v));
-          const proyectadosConPasajeros = proyectados.filter(
-            (v) => pasajerosOcupados(v.reservations.map((r) => r.reservation)) > 0
-          ).length;
           // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
           const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(confirmados, ahora);
           // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
@@ -370,25 +372,28 @@ export default async function AirportPage({ searchParams }: PageProps) {
                   </div>
                 </details>
               ) : null}
-              {proyectados.length ? (
-                <details className="flights-pasados flights-proyectados" open={proyectadosConPasajeros > 0}>
-                  <summary>
-                    {proyectados.length} {proyectados.length === 1 ? "vuelo proyectado" : "vuelos proyectados"} · sin confirmar por la fuente
-                    {proyectadosConPasajeros ? ` · ${proyectadosConPasajeros} con pasajeros` : ""}
-                  </summary>
-                  <p className="muted">
-                    Los estimó el sistema a partir del histórico: ninguna fuente confirmó que existan. No cuentan en el
-                    total del día. Si tienen pasajeros, hay que pasarlos a un vuelo confirmado.
-                  </p>
-                  <div className="flights-list">
-                    {proyectados.map((v) => tarjeta(v))}
-                  </div>
-                </details>
-              ) : null}
             </section>
           );
         })}
         </div>
+        {/* Una proyeccion no es un vuelo del dia: va fuera de las columnas, donde no compite con
+            los contadores ni con el orden por horario. */}
+        {proyectadosDelDia.length ? (
+          <details className="flights-proyectados" open={proyectadosConPasajeros > 0}>
+            <summary>
+              {proyectadosDelDia.length} {proyectadosDelDia.length === 1 ? "vuelo proyectado" : "vuelos proyectados"} · sin confirmar por la fuente
+              {proyectadosConPasajeros ? ` · ${proyectadosConPasajeros} con pasajeros` : ""}
+            </summary>
+            <p className="muted">
+              Los estimó el sistema a partir del histórico: ninguna fuente confirmó que existan. No cuentan en el total
+              del día. Si tienen pasajeros, hay que pasarlos a un vuelo confirmado.
+            </p>
+            <div className="flights-list">
+              {proyectadosDelDia.map((v) => tarjeta(v))}
+            </div>
+          </details>
+        ) : null}
+        </>
       )}
 
       {conEvento.length > 0 ? (
