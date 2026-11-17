@@ -111,8 +111,7 @@
 .aero-coordinar > p, .aero-coordinar > form { margin: 12px 18px; }
 
 /* Cargar vuelo a mano: título del tamaño del resto y el botón del alto de los campos. */
-.aero-carga { margin-top: 24px; }
-.aero-carga h2 { font-size: 22px; }
+.aero-carga-modal { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
 .aero-carga .admin-form-grid { align-items: end; }
 .aero-carga .admin-form-grid > button { align-self: end; min-height: 46px; height: 46px; }
 
@@ -144,4 +143,11 @@
   .aero-tablero .flight-card-actions .flight-actions > summary { justify-content: center; width: 100%; min-height: 36px; padding: 0 8px; }
   .aero-tablero .flight-actions-body { width: min(280px, calc(100vw - 48px)); }
   .key-box .checkout-fields { grid-template-columns: minmax(0, 1fr); }
+}
+.aero-carga-modal .reservas-modal-body { margin-top: 16px; }
+.aero-carga-modal .admin-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.aero-carga-modal .admin-form-grid > :first-child:not(label),
+.aero-carga-modal .admin-form-grid > button { grid-column: 1 / -1; }
+@media (max-width: 560px) {
+  .aero-carga-modal .admin-form-grid { grid-template-columns: minmax(0, 1fr); }
 }
