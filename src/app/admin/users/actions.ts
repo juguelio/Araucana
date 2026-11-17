@@ -15,6 +15,7 @@ import { recordAudit } from "@/lib/audit/record";
 import { isAdminRole, isSuperAdminRole } from "@/lib/auth/roles";
 import { canAssignRole, canManageAccount, PROTECTED_ACCOUNT_MESSAGE, SUPERADMIN_ROLE_MESSAGE } from "@/lib/auth/super-admin";
 import { errorState, type AdminFormState } from "../form-state";
+import { driverDocumentsAudit, validateDriverDocuments, type DriverDocuments } from "@/lib/admin/driver-documents";
 
 /** Los datos de una cuenta que entran a la auditoría. La contraseña nunca: sólo que cambió. */
 const auditedUserFields = { email: true, name: true, role: true, isActive: true, monthlySalaryCents: true } as const;
@@ -23,6 +24,22 @@ function value(formData: FormData, key: string) {
   const entry = formData.get(key);
   return typeof entry === "string" ? entry.trim() : "";
 }
+
+/** DNI, licencia y antecedentes del formulario. Se piden siempre que la cuenta sea de chofer. */
+function readDriverDocuments(formData: FormData) {
+  return validateDriverDocuments({
+    documentNumber: value(formData, "documentNumber"),
+    cuil: value(formData, "cuil"),
+    licenseCategory: value(formData, "licenseCategory"),
+    licenseScope: value(formData, "licenseScope"),
+    licenseExpiresAt: value(formData, "licenseExpiresAt"),
+    criminalRecordExpiresAt: value(formData, "criminalRecordExpiresAt")
+  });
+}
+
+const driverDocumentFields = {
+  documentNumber: true, cuil: true, licenseCategory: true, licenseScope: true, licenseExpiresAt: true, criminalRecordExpiresAt: true
+} as const;
 
 function reportError(error: unknown) {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -77,8 +94,12 @@ export async function createManagedUserAction(_state: AdminFormState, formData: 
     monthlySalary: value(formData, "monthlySalary")
   });
 
-  if (!validated.ok) {
-    return errorState("Revisá los datos de la cuenta.", validated.errors);
+  const documents = role === "DRIVER" ? readDriverDocuments(formData) : null;
+  if (!validated.ok || (documents && !documents.ok)) {
+    return errorState(
+      documents && !documents.ok && validated.ok ? "Completá la documentación del chofer." : "Revisá los datos de la cuenta.",
+      { ...(validated.ok ? {} : validated.errors), ...(documents && !documents.ok ? documents.errors : {}) }
+    );
   }
 
   const { draft } = validated;
@@ -99,10 +120,12 @@ export async function createManagedUserAction(_state: AdminFormState, formData: 
         select: { id: true, ...auditedUserFields }
       });
       const { id, ...fields } = created;
+      const profile = documents?.ok ? documents.documents : null;
+      if (profile) await tx.driverProfile.create({ data: { userId: id, ...profile } });
       await recordAudit(tx, {
         actor, action: "CREATE", entity: "USER", entityId: id, entityLabel: created.email,
         summary: "Cuenta creada desde el panel.",
-        changes: diffRecords(null, fields)
+        changes: diffRecords(null, { ...fields, ...driverDocumentsAudit(profile) })
       });
     });
   } catch (error) {
@@ -137,6 +160,8 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
   }
 
   if (password && !isValidPassword(password)) return errorState("La contraseña debe tener al menos 12 caracteres y no superar 72 bytes UTF-8.");
+  const documents = role === "DRIVER" ? readDriverDocuments(formData) : null;
+  if (documents && !documents.ok) return errorState("Completá la documentación del chofer.", documents.errors);
   try {
     await prisma.$transaction(async (tx) => {
       const before = await tx.user.findUnique({ where: { id }, select: auditedUserFields });
@@ -164,8 +189,14 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
         select: auditedUserFields
       });
       if (password) await tx.session.deleteMany({ where: { userId: id } });
+      const profileBefore = await tx.driverProfile.findUnique({ where: { userId: id }, select: driverDocumentFields });
+      const profile = documents?.ok ? documents.documents : null;
+      if (profile) await tx.driverProfile.upsert({ where: { userId: id }, create: { userId: id, ...profile }, update: profile });
       const changes = {
-        ...diffRecords(before, after),
+        ...diffRecords(
+          { ...before, ...driverDocumentsAudit(profileBefore as DriverDocuments | null) },
+          { ...after, ...driverDocumentsAudit(profile ?? (profileBefore as DriverDocuments | null)) }
+        ),
         ...(password ? { password: { before: HIDDEN_VALUE, after: HIDDEN_VALUE } } : {})
       };
       if (hasChanges(changes)) {

@@ -129,7 +129,7 @@ export function DriverRouteSchedulesPanel({ routes, schedules }: DriverRouteSche
                 {routeSchedules.length === 0 ? <option value="">Sin salidas proximas</option> : null}
                 {routeSchedules.map((schedule) => (
                   <option key={schedule.id} value={schedule.id}>
-                    {formatDateTime(schedule.departureAt)} · {schedule.vehicle.name}
+                    {formatDateTime(schedule.departureAt)} · {[schedule.vehicle, ...schedule.extraVehicles].map((vehicle) => vehicle.name).join(" + ")}
                   </option>
                 ))}
               </select>
@@ -150,9 +150,14 @@ export function DriverRouteSchedulesPanel({ routes, schedules }: DriverRouteSche
                   <small>Llega {formatTime(selectedSchedule.arrivalAt)}</small>
                 </div>
                 <div>
-                  <span>Nave</span>
+                  <span>{selectedSchedule.extraVehicles.length ? "Naves" : "Nave"}</span>
                   <strong>{selectedSchedule.vehicle.name}</strong>
                   <small>{selectedSchedule.vehicle.licensePlate ?? "Sin patente"}</small>
+                  {selectedSchedule.extraVehicles.map((vehicle) => (
+                    <small key={vehicle.id}>
+                      + {vehicle.name} · {vehicle.licensePlate ?? "Sin patente"}{vehicle.driverName ? ` · ${vehicle.driverName}` : ""}
+                    </small>
+                  ))}
                 </div>
                 <div>
                   <span>Pasajeros</span>

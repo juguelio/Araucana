@@ -90,18 +90,34 @@ describe("salidas del día (issue #174)", () => {
     expect(isDateKey(undefined)).toBe(false);
   });
 
-  it("dos salidas de la misma ruta a la misma hora son una fila con dos unidades", () => {
+  it("salidas viejas de la misma ruta a la misma hora siguen juntas en una fila", () => {
     const sprinter = { id: "v2", name: "Sprinter 196", seats: 19 };
     const [row, otra] = scheduleRows([
       { id: "s1", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("08:00"), status: "OPEN", passengers: 15, reservations: 4, vehicle: combi, driver: chofer },
       { id: "s2", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("08:00"), status: "OPEN", passengers: 0, reservations: 0, vehicle: sprinter, driver: null },
       { id: "s3", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("14:30"), status: "CLOSED", passengers: 2, vehicle: combi, driver: null }
     ]);
-    expect(row).toMatchObject({ passengers: 15, capacity: 38, missingDriver: true, detail: "2 unidades", routeId: "r1", status: null });
+    expect(row).toMatchObject({ passengers: 15, capacity: 38, missingDriver: true, detail: "2 naves", routeId: "r1", status: null });
     expect(row.units.map((unit) => [unit.vehicleName, unit.passengers, unit.removable])).toEqual([["Combi 243", 15, false], ["Sprinter 196", 0, true]]);
     expect(row.units[1].editHref).toBe("/admin/rutas/r1/salidas/s2/editar");
     // Una salida sola, cerrada: el estado va en la fila. Sin el total de reservas, se mira el de pasajeros.
     expect(otra).toMatchObject({ status: "Cerrada", detail: null });
     expect(otra.units[0].removable).toBe(false);
+  });
+
+  it("una salida con varias naves es una fila: la principal y las sumadas, cada una con su chofer", () => {
+    const sprinter = { id: "v2", name: "Sprinter 196", seats: 15 };
+    const [row] = scheduleRows([{
+      id: "s1", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("08:00"), status: "OPEN",
+      passengers: 30, reservations: 6, vehicle: combi, driver: chofer,
+      extraUnits: [{ id: "u1", vehicle: sprinter, driver: null }]
+    }]);
+    expect(row).toMatchObject({ passengers: 30, capacity: 34, overbooked: false, missingDriver: true, detail: "2 naves", serviceId: "s1" });
+    expect(row.units.map((unit) => [unit.id, unit.unitKind, unit.scheduleId, unit.vehicleName, unit.removable])).toEqual([
+      ["s1", "PRIMARY", "s1", "Combi 243", true],
+      ["u1", "EXTRA", "s1", "Sprinter 196", true]
+    ]);
+    // Con una sola salida no se reparte la cuenta de pasajeros por nave: es de la salida entera.
+    expect(row.units[0].passengers).toBeUndefined();
   });
 });
