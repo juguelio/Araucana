@@ -13,7 +13,6 @@ import {
   paginarNaves,
   type ColumnaNaves
 } from "@/lib/vehicles/fleet-table";
-import { deleteVehicleAction, setVehicleActiveAction } from "./actions";
 import { VencimientosDialog } from "./vencimientos-dialog";
 import "./naves.css";
 import "../reservas/pagination.css";
@@ -207,21 +206,10 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                     </span>
                   </td>
                   <td data-label="Acciones">
+                    {/* Inactivar y borrar viven en la ficha de la nave, no en el listado: son
+                        cambios de fondo y conviene hacerlos mirando la unidad. */}
                     <div className="table-actions">
                       <Link className="ghost-button" href={`/admin/naves/${vehicle.id}`}>Editar</Link>
-                      <form action={setVehicleActiveAction}>
-                        <input type="hidden" name="id" value={vehicle.id} />
-                        <input type="hidden" name="isActive" value={vehicle.isActive ? "false" : "true"} />
-                        <button className="ghost-button" type="submit">
-                          {vehicle.isActive ? "Inactivar" : "Activar"}
-                        </button>
-                      </form>
-                      <form action={deleteVehicleAction}>
-                        <input type="hidden" name="id" value={vehicle.id} />
-                        <button className="danger-button" type="submit">
-                          {vehicle._count.schedules + vehicle._count.scheduleUnits > 0 ? "Archivar" : "Borrar"}
-                        </button>
-                      </form>
                     </div>
                   </td>
                 </tr>

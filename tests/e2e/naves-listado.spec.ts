@@ -122,3 +122,41 @@ test("en el celular se ordena con el selector", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: "/tmp/araucana-naves-mobile.png", fullPage: true });
 });
+
+test("el listado sólo ofrece Editar: inactivar y borrar están en la ficha", async ({ page }) => {
+  await page.goto("/admin/naves");
+  const acciones = filas(page).first().locator("td[data-label='Acciones']");
+  await expect(acciones.getByRole("link", { name: "Editar" })).toBeVisible();
+  await expect(page.locator(".naves-tabla").getByRole("button", { name: /Inactivar|Activar|Borrar|Archivar/ })).toHaveCount(0);
+});
+
+test("desde la ficha se inactiva, se reactiva y se borra con confirmación", async ({ page }) => {
+  const id = `nave-${suffix}-borrable`;
+  await db.vehicle.create({ data: { id, name: `Borrable ${suffix}`, internalNumber: `8${suffix.slice(0, 3)}` } });
+  await page.goto(`/admin/naves/${id}`);
+  const estado = page.getByRole("region", { name: "Estado de la nave" });
+  await expect(estado).toContainText("Activa:");
+
+  // Cancelar el diálogo no cambia nada.
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await estado.getByRole("button", { name: "Inactivar nave" }).click();
+  await expect.poll(async () => (await db.vehicle.findUniqueOrThrow({ where: { id } })).isActive).toBe(true);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await estado.getByRole("button", { name: "Inactivar nave" }).click();
+  await expect(page).toHaveURL(new RegExp(`/admin/naves/${id}\\?notice=`));
+  await expect(estado).toContainText("Inactiva:");
+  expect((await db.vehicle.findUniqueOrThrow({ where: { id } })).isActive).toBe(false);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await estado.getByRole("button", { name: "Activar nave" }).click();
+  await expect(estado).toContainText("Activa:");
+
+  page.once("dialog", (dialog) => {
+    expect(dialog.message()).toMatch(/No se puede deshacer/);
+    return dialog.accept();
+  });
+  await estado.getByRole("button", { name: "Borrar nave" }).click();
+  await expect(page).toHaveURL(/\/admin\/naves\?notice=/);
+  expect(await db.vehicle.findUnique({ where: { id } })).toBeNull();
+});

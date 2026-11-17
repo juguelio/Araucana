@@ -252,7 +252,8 @@ export async function setVehicleActiveAction(formData: FormData) {
   });
 
   revalidateVehiclePaths();
-  redirect(`/admin/naves?notice=${encodeURIComponent(isActive ? "Nave activada con exito." : "Nave inactivada con exito.")}`);
+  // Se activa o inactiva desde la ficha: se vuelve a la ficha, con el estado nuevo a la vista.
+  redirect(`/admin/naves/${id}?notice=${encodeURIComponent(isActive ? "Nave activada con exito." : "Nave inactivada con exito.")}`);
 }
 
 export async function deleteVehicleAction(formData: FormData) {
