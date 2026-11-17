@@ -116,6 +116,18 @@ describe("checkout passenger validation", () => {
     });
   });
 
+  it("el ida y vuelta se puede reservar sin documento", () => {
+    // 17-nov: en el checkout de ida y vuelta el documento es opcional (`optionalDocument`); el resto
+    // de los datos del pasajero se sigue exigiendo igual.
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "" }, false, true)).toEqual({});
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "", email: "" }, false, true)).toMatchObject({
+      email: expect.any(String)
+    });
+    expect(validateCheckoutPassenger({ ...validPassenger, documentId: "", firstName: "" }, false, true)).toMatchObject({
+      firstName: expect.any(String)
+    });
+  });
+
   it("combines the mandatory country code with the local phone number", () => {
     expect(buildPassengerPayload(validPassenger).phone).toBe("+5492944000000");
   });

@@ -6,6 +6,7 @@ import {
   getSeatCanvasSize,
   moveSeatToPosition,
   removeSeatAtIndex,
+  resizeSeatLayout,
   updateSeatNumber
 } from "@/lib/vehicles/seat-layout";
 import { toggleLayoutMarker, type VehicleLayoutMarker } from "@/lib/vehicles/layout-markers";
@@ -39,9 +40,27 @@ export function SeatLayoutEditor({ initialSeats, initialLayoutMarkers = [] }: Se
   const [draggedSeatIndex, setDraggedSeatIndex] = useState<number | null>(null);
   const [activeEmptyCell, setActiveEmptyCell] = useState<string | null>(null);
   const [layoutMarkers, setLayoutMarkers] = useState<VehicleLayoutMarker[]>(initialLayoutMarkers);
+  // Mientras se escribe la cantidad, el input manda; si no, muestra el total real del plano.
+  const [capacityDraft, setCapacityDraft] = useState<string | null>(null);
   const serializedSeats = useMemo(() => seatsToJson(seats), [seats]);
   const serializedLayoutMarkers = useMemo(() => markersToJson(layoutMarkers), [layoutMarkers]);
   const { rows, columns } = getSeatCanvasSize(seats);
+
+  function applyCapacity() {
+    if (capacityDraft === null) {
+      return;
+    }
+
+    const target = Number(capacityDraft);
+
+    if (!Number.isFinite(target) || target < 1) {
+      setCapacityDraft(null);
+      return;
+    }
+
+    setSeats((currentSeats) => resizeSeatLayout(currentSeats, target));
+    setCapacityDraft(null);
+  }
 
   function updateSeat(index: number, value: string) {
     setSeats((currentSeats) => updateSeatNumber(currentSeats, index, value));
@@ -105,6 +124,25 @@ export function SeatLayoutEditor({ initialSeats, initialLayoutMarkers = [] }: Se
           <strong>{seats.length} asientos</strong>
         </div>
         <div className="table-actions">
+          <label className="seat-capacity-field">
+            Cantidad de asientos
+            <input
+              aria-label="Cantidad de asientos"
+              inputMode="numeric"
+              max={60}
+              min={1}
+              type="number"
+              value={capacityDraft ?? String(seats.length)}
+              onBlur={applyCapacity}
+              onChange={(event) => setCapacityDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applyCapacity();
+                }
+              }}
+            />
+          </label>
           <button className="ghost-button" type="button" onClick={autoNumber}>
             Autonumerar
           </button>
