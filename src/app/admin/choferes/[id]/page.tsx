@@ -8,5 +8,5 @@ type EditDriverPageProps = {
 
 export default async function EditDriverPage({ params }: EditDriverPageProps) {
   const { id } = await params;
-  return <EditManagedUserPage id={id} />;
+  return <EditManagedUserPage id={id} driversOnly />;
 }
