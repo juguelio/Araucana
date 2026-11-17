@@ -25,6 +25,19 @@ export const MARGEN_SIN_CONFIRMAR_MIN = 240;
 
 export type VueloConHorario = FlightEvidence;
 
+/**
+ * ¿El vuelo lo inventó el sistema? Cuando ninguna fuente lo confirma, el sync lo fabrica a partir del
+ * historico y lo guarda con `source = "ESTIMADO"` y `lastCheckedAt` en null. El horario es plausible,
+ * asi que la tarjeta se cuela en la grilla como una mas, suma en el contador y hasta puede llevar
+ * pasajeros encima. No es un vuelo del dia: es una proyeccion.
+ *
+ * Si alguna fuente llego a verificarlo (`lastCheckedAt` con valor), deja de ser proyeccion y vuelve a
+ * contar: el dato ya no salio de una corazonada.
+ */
+export function esProyeccion(vuelo: Pick<VueloConHorario, "source" | "lastCheckedAt">): boolean {
+  return vuelo.source === "ESTIMADO" && !vuelo.lastCheckedAt;
+}
+
 /** El horario que manda: el estimado si lo hay, si no el programado. */
 export function horaDeReferencia(vuelo: VueloConHorario): Date {
   // La estima 00:00 del tablero no es medianoche: `reliableEstimate` la descarta y manda la programada.
@@ -49,13 +62,16 @@ export function separarVuelosDelTablero<T extends VueloConHorario>(
   ahora: Date,
   margenMin = MARGEN_TERMINADO_MIN,
   margenSinConfirmarMin = MARGEN_SIN_CONFIRMAR_MIN
-): { enJuego: T[]; terminados: T[]; porVerificar: T[] } {
+): { enJuego: T[]; terminados: T[]; porVerificar: T[]; proyectados: T[] } {
   const enJuego: T[] = [];
   const terminados: T[] = [];
   const porVerificar: T[] = [];
+  const proyectados: T[] = [];
 
   for (const vuelo of vuelos) {
-    if (flightEvidenceWarning(vuelo, ahora)) porVerificar.push(vuelo);
+    // Una proyeccion no es evidencia de nada: se aparta antes de clasificar por horario.
+    if (esProyeccion(vuelo)) proyectados.push(vuelo);
+    else if (flightEvidenceWarning(vuelo, ahora)) porVerificar.push(vuelo);
     else if (vueloTerminado(vuelo, ahora)) terminados.push(vuelo);
     else if (
       !["CANCELLED", "DIVERTED"].includes(vuelo.status) &&
@@ -70,7 +86,8 @@ export function separarVuelosDelTablero<T extends VueloConHorario>(
   const porHorario = (a: VueloConHorario, b: VueloConHorario) => horaDeReferencia(a).getTime() - horaDeReferencia(b).getTime();
   enJuego.sort(porHorario);
   terminados.sort(porHorario);
+  proyectados.sort(porHorario);
 
   porVerificar.sort(porHorario);
-  return { enJuego, terminados, porVerificar };
+  return { enJuego, terminados, porVerificar, proyectados };
 }

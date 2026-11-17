@@ -5,7 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
-import { horaDeReferencia, separarVuelosDelTablero } from "@/lib/airport/flight-board";
+import { esProyeccion, horaDeReferencia, separarVuelosDelTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -73,8 +73,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
   const naves = await prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 
-  const imprevistos = vuelos.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
-  const visibles = soloAlerta ? imprevistos : vuelos;
+  // Una proyeccion del sistema no es un vuelo del dia: no entra al tablero. Si tiene reservas
+  // encima se avisa abajo como reserva a reasignar, no como vuelo fantasma.
+  const vuelosDelTablero = vuelos.filter((v) => !esProyeccion(v));
+  const imprevistos = vuelosDelTablero.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
+  const visibles = soloAlerta ? imprevistos : vuelosDelTablero;
   const conEvento = await prisma.flightEvent.findMany({
     where: { flight: { scheduledAt: { gte: desde, lt: hasta } } },
     orderBy: { detectedAt: "desc" },
@@ -85,7 +88,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const clave = await airLabsKeyState();
 
   // Cómo viene el día, de un vistazo: lo mismo que dice cada tarjeta, sumado.
-  const resumen = vuelos.reduce(
+  const resumen = vuelosDelTablero.reduce(
     (acc, v) => {
       const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
       acc.pasajeros += ocupados;
@@ -96,7 +99,15 @@ export default async function AirportPage({ searchParams }: PageProps) {
     },
     { arribos: 0, partidas: 0, pasajeros: 0, sinCombi: 0 }
   );
-  const partidasParaCoordinar = vuelos.filter((vuelo) => airportPickupStart(vuelo));
+  const partidasParaCoordinar = vuelosDelTablero.filter((vuelo) => airportPickupStart(vuelo));
+  // Reservas que quedaron sobre un vuelo que nadie confirma: no se muestran como vuelo, pero
+  // tampoco se esconden, porque son personas que hay que pasar a un vuelo real.
+  const fantasma = vuelos.filter((v) => esProyeccion(v));
+  const reservasFantasma = fantasma.reduce((n, v) => n + v.reservations.length, 0);
+  const pasajerosFantasma = fantasma.reduce(
+    (n, v) => n + pasajerosOcupados(v.reservations.map((r) => r.reservation)),
+    0
+  );
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
 
   // La tarjeta se usa dos veces: arriba lo que sigue en juego y abajo, plegado y en gris, lo que
@@ -262,7 +273,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </form>
         <div className="flights-filters">
           <a href={link("")} data-active={!soloAlerta}>
-            Todos <span>{vuelos.length}</span>
+            Todos <span>{vuelosDelTablero.length}</span>
           </a>
           <a href={link("&solo=alerta")} data-active={soloAlerta}>
             Con imprevisto <span>{imprevistos.length}</span>
@@ -270,7 +281,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      {vuelos.length > 0 ? (
+      {vuelosDelTablero.length > 0 ? (
         <dl className="flights-summary" aria-label="Resumen del día">
           <div><dt>Arribos</dt><dd>{resumen.arribos}</dd></div>
           <div><dt>Partidas</dt><dd>{resumen.partidas}</dd></div>
@@ -319,12 +330,16 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </p>
         </section>
       ) : (
+        <>
         <div className="flights-board aero-tablero">
         {(["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
+          // Los que alguna fuente confirmo son los vuelos del dia. Las proyecciones no van en la
+          // columna: si el encabezado dice 2 y abajo hay 3 tarjetas, el numero no cierra nunca.
+          const confirmados = lista.filter((v) => !esProyeccion(v));
           // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
-          const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(lista, ahora);
+          const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(confirmados, ahora);
           // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
           const terminadosSinConfirmar = terminados.filter(
             (v) => v.status !== "LANDED" && !(v.direction === "DEPARTURE" && v.status === "EN_ROUTE")
@@ -335,7 +350,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           return (
             <section className="flights-group" key={dir}>
               <h2 className="flights-group-title">
-                {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{lista.length}</span>
+                {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{confirmados.length}</span>
               </h2>
               <div className="flights-list">
                 {enJuego.map((v) => tarjeta(v))}
@@ -363,7 +378,20 @@ export default async function AirportPage({ searchParams }: PageProps) {
           );
         })}
         </div>
+        {/* Un vuelo que ninguna fuente confirma no se muestra: si tiene reservas encima, el aviso
+            va como reserva a reasignar, sin numero de vuelo ni tarjeta. */}
+        </>
       )}
+
+      {reservasFantasma > 0 ? (
+        <p className="flights-aviso">
+          <strong>{reservasFantasma}</strong> {reservasFantasma === 1 ? "reserva" : "reservas"} ({pasajerosFantasma}{" "}
+          {pasajerosFantasma === 1 ? "pasajero" : "pasajeros"}) sobre {reservasFantasma === 1 ? "un vuelo" : "vuelos"} que
+          ninguna fuente confirma. No se {reservasFantasma === 1 ? "muestra" : "muestran"} en el tablero: reasigná{" "}
+          {reservasFantasma === 1 ? "esa reserva" : "esas reservas"} a un vuelo real desde{" "}
+          <a href="/admin/reservas">Reservas</a>.
+        </p>
+      ) : null}
 
       {conEvento.length > 0 ? (
         <section className="plain-card admin-section">

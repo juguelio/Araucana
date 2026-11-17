@@ -80,3 +80,58 @@ export function addSeatAtPosition(seats: VehicleSeat[], row: number, column: num
     }
   ];
 }
+
+/** Columnas que ya usa el plano: los asientos nuevos van en esas, para no deformar el dibujo. */
+function usedColumns(seats: VehicleSeat[]): number[] {
+  const columns = [...new Set(seats.map((seat) => seat.column))].sort((a, b) => a - b);
+  return columns.length ? columns : [1];
+}
+
+/** Primera posición libre del plano, recorriendo fila por fila las columnas que ya se usan. */
+function nextFreePosition(seats: VehicleSeat[]): { row: number; column: number } {
+  const columns = usedColumns(seats);
+  let row = 1;
+
+  for (;;) {
+    for (const column of columns) {
+      if (!seats.some((seat) => positionMatches(seat, row, column))) {
+        return { row, column };
+      }
+    }
+
+    row += 1;
+  }
+}
+
+/**
+ * Deja el plano con exactamente `target` asientos.
+ *
+ * La capacidad no es una columna: es la cantidad de filas de `Seat`. Antes el único camino era
+ * agregar y quitar de a uno en el dibujo, y el campo «Capacidad» del formulario era de sólo lectura
+ * (y mostraba la capacidad de la plantilla, no la real).
+ *
+ * Al agrandar, los asientos nuevos se numeran a continuación y ocupan los huecos del plano. Al
+ * achicar se van los últimos por posición; el servidor rechaza el guardado si alguno tiene reservas.
+ */
+export function resizeSeatLayout(seats: VehicleSeat[], target: number): VehicleSeat[] {
+  const total = Number.isFinite(target) ? Math.floor(target) : seats.length;
+  const wanted = Math.max(1, total);
+
+  if (wanted === seats.length) {
+    return seats;
+  }
+
+  if (wanted < seats.length) {
+    const ordered = [...seats].sort((a, b) => a.row - b.row || a.column - b.column || a.number.localeCompare(b.number));
+    return ordered.slice(0, wanted);
+  }
+
+  const next = [...seats];
+
+  while (next.length < wanted) {
+    const position = nextFreePosition(next);
+    next.push({ number: nextSeatNumber(next), ...position });
+  }
+
+  return next;
+}
