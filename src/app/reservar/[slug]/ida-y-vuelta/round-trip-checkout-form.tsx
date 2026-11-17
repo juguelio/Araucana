@@ -201,24 +201,29 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
         { ...bloqueLlegada, etapa: "2º tramo (vuelta)", minimo: fechaVuelta }
       ];
 
-  /** Los pickups siguen el mismo orden que los vuelos. */
+  /**
+   * El primer tramo del viaje es el ancla: cuando «mismo lugar» está tildado, el segundo copia su
+   * dirección. Con «primero me voy» el ancla es la salida, no la llegada.
+   */
+  const tramoAncla = orden;
+
+  /**
+   * Los pickups siguen el mismo orden que los vuelos. Los dos tramos se pueden editar siempre: si el
+   * segundo venía copiando el lugar del primero, tocarlo suelta la copia (antes quedaba deshabilitado
+   * y parecía que la vuelta estaba clavada en la primera dirección).
+   */
   const bloquesDePickup = orden === "ARRIVAL"
     ? [
-        { sentido: "ARRIVAL" as const, titulo: "Lugar de la llegada", lugar: pickupLlegada, deshabilitado: false },
-        { sentido: "DEPARTURE" as const, titulo: "Lugar de la vuelta", lugar: pickupVuelta, deshabilitado: mismoLugar }
+        { sentido: "ARRIVAL" as const, titulo: "Lugar de la llegada", lugar: pickupLlegada, copia: false },
+        { sentido: "DEPARTURE" as const, titulo: "Lugar de la vuelta", lugar: pickupVuelta, copia: mismoLugar }
       ]
     : [
-        { sentido: "DEPARTURE" as const, titulo: "Lugar de la salida", lugar: pickupVuelta, deshabilitado: false },
-        { sentido: "ARRIVAL" as const, titulo: "Lugar de la vuelta", lugar: pickupLlegada, deshabilitado: mismoLugar }
+        { sentido: "DEPARTURE" as const, titulo: "Lugar de la salida", lugar: pickupVuelta, copia: false },
+        { sentido: "ARRIVAL" as const, titulo: "Lugar de la vuelta", lugar: pickupLlegada, copia: mismoLugar }
       ];
   const passengerCount = fullFareCount + halfFareCount + freeFareCount;
 
-  /**
-   * El primer tramo del viaje manda el lugar; el segundo lo copia cuando el pasajero lo pide (caso
-   * normal). Con «primero me voy» el ancla es la salida, no la llegada: si no, el bloque habilitado
-   * escribía en el tramo que no correspondía.
-   */
-  const tramoAncla = orden;
+  /** Mientras «mismo lugar» está tildado, el segundo tramo copia la dirección del primero. */
   useEffect(() => {
     if (!mismoLugar) return;
     if (tramoAncla === "ARRIVAL") setPickupVuelta(pickupLlegada);
@@ -263,6 +268,16 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     setCargando(false);
   }
 
+  /**
+   * El usuario está eligiendo el lugar de este tramo. Si el tramo venía copiando el del primero, la
+   * copia se suelta: manda lo que eligió acá y el efecto de sincronización deja de pisarlo.
+   */
+  function soltarCopia(sentido: "ARRIVAL" | "DEPARTURE") {
+    if (sentido !== tramoAncla && mismoLugar) {
+      setMismoLugar(false);
+    }
+  }
+
   function elegirLugar(sentido: "ARRIVAL" | "DEPARTURE", place: AirportSelectedPlace) {
     const lugar: LugarPickup = {
       label: place.label.slice(0, 160),
@@ -271,11 +286,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       approximate: place.approximate,
       elegido: true
     };
-    // Con «mismo lugar» sólo escribe el primer tramo; el otro se copia solo.
-    if (!mismoLugar || sentido === tramoAncla) {
-      if (sentido === "ARRIVAL") setPickupLlegada(lugar);
-      else setPickupVuelta(lugar);
-    }
+    soltarCopia(sentido);
+    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
+    else setPickupVuelta(lugar);
   }
 
   /** Atajo de la sucursal: deja la dirección y el punto de la oficina en ese tramo. */
@@ -288,10 +301,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       approximate: false,
       elegido: true
     };
-    if (!mismoLugar || sentido === tramoAncla) {
-      if (sentido === "ARRIVAL") setPickupLlegada(lugar);
-      else setPickupVuelta(lugar);
-    }
+    soltarCopia(sentido);
+    if (sentido === "ARRIVAL") setPickupLlegada(lugar);
+    else setPickupVuelta(lugar);
   }
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
@@ -561,20 +573,20 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 Usar el mismo lugar para la vuelta
               </label>
 
-              {bloquesDePickup.map(({ sentido, titulo, lugar, deshabilitado }, i) => (
-                <section key={sentido} className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={deshabilitado}>
+              {bloquesDePickup.map(({ sentido, titulo, lugar, copia }, i) => (
+                <section key={sentido} className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={copia}>
                   <header className="leg-head">
                     <span className="leg-badge" aria-hidden="true">{i + 1}</span>
                     <div className="leg-head-text">
                       <span className="leg-kicker">{i === 0 ? "1º tramo" : "2º tramo"}</span>
                       <h3 className="leg-title">{titulo}</h3>
-                      {deshabilitado ? <p className="muted leg-help">Usa el mismo lugar que el primer tramo.</p> : null}
+                      {copia ? <p className="muted leg-help">Está usando el lugar del primer tramo. Cambialo acá si es otro.</p> : null}
                     </div>
                     {lugar.elegido && lugar.point ? <span className="leg-check" aria-label="Lugar confirmado">✓</span> : null}
                   </header>
                   {officePickup ? (
                     <div className="form-actions">
-                      <button className="ghost-button" type="button" disabled={deshabilitado} onClick={() => usarSucursal(sentido)}>
+                      <button className="ghost-button" type="button" onClick={() => usarSucursal(sentido)}>
                         {sentido === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}
                       </button>
                     </div>
@@ -582,8 +594,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   <AirportPlaceSearch
                     coverage={coverage}
                     useGoogle={googlePickupConfigured}
-                    disabled={deshabilitado}
-                    onChange={() => (sentido === "ARRIVAL" ? setPickupLlegada(lugarVacio) : setPickupVuelta(lugarVacio))}
+                    disabled={false}
+                    onChange={() => {
+                      soltarCopia(sentido);
+                      if (sentido === "ARRIVAL") setPickupLlegada(lugarVacio);
+                      else setPickupVuelta(lugarVacio);
+                    }}
                     onSelect={(place) => elegirLugar(sentido, place)}
                   />
                   {lugar.elegido ? (
@@ -597,14 +613,16 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                       point={lugar.point}
                       approximate={lugar.approximate}
                       precision={lugar.precision}
-                      disabled={deshabilitado}
+                      disabled={false}
                       onMove={(point) => {
+                        soltarCopia(sentido);
                         const actualizado = { ...lugar, point, elegido: true };
                         if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
                         else setPickupVuelta(actualizado);
                         return true;
                       }}
                       onSelect={(point) => {
+                        soltarCopia(sentido);
                         const actualizado = { ...lugar, point, elegido: true };
                         if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
                         else setPickupVuelta(actualizado);
