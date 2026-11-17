@@ -2302,6 +2302,8 @@ a.wizard-option { text-decoration: none; }
 .flights-pasados > summary::-webkit-details-marker { display: none; }
 .flights-pasados > summary::before { content: "▸"; font-size: 11px; transition: transform .15s ease; }
 .flights-pasados[open] > summary::before { transform: rotate(90deg); }
+.flights-proyectados > summary { color: var(--accent); }
+.flights-proyectados .flights-list { margin-top: 8px; }
 .flights-pasados .flights-list { margin-top: 8px; }
 .flight-card[data-pasado="true"] { filter: grayscale(1); opacity: .62; }
 .flight-card[data-pasado="true"]:hover, .flight-card[data-pasado="true"]:focus-within { opacity: 1; filter: none; }
