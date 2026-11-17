@@ -6,7 +6,8 @@ import { fechaLocal } from "@/lib/airport/projection";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { localInput } from "@/lib/special-trips/data";
-import { updateFlightAction } from "../../actions";
+import { deleteFlightAction, updateFlightAction } from "../../actions";
+import { ConfirmVehicleButton } from "../../../naves/[id]/confirm-vehicle-button";
 
 export default async function EditAirportFlightPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
@@ -14,7 +15,7 @@ export default async function EditAirportFlightPage({ params, searchParams }: {
 }) {
   const user = await getCurrentReservationsUserOrRedirect();
   const [{ id }, { notice }] = await Promise.all([params, searchParams]);
-  const flight = await prisma.flight.findUnique({ where: { id } });
+  const flight = await prisma.flight.findUnique({ where: { id }, include: { _count: { select: { reservations: true } } } });
   if (!flight) notFound();
 
   const back = `/admin/aeropuerto?date=${fechaLocal(flight.scheduledAt)}#vuelo-${id}`;
@@ -37,6 +38,22 @@ export default async function EditAirportFlightPage({ params, searchParams }: {
           <label>Nueva fecha y hora estimada (opcional)<input type="datetime-local" name="estimatedAt" /></label>
           <div className="form-actions"><button className="button" type="submit">Guardar cambios</button></div>
         </form>
+      </section>
+
+      {/* «Borrar vuelo» vivía en el menú «Gestionar vuelo» del tablero; ahora está acá, como en las naves. */}
+      <section className="plain-card admin-section" aria-labelledby="borrar-vuelo">
+        <h2 id="borrar-vuelo">Borrar vuelo</h2>
+        {flight._count.reservations > 0 ? (
+          <p className="muted">
+            Tiene {flight._count.reservations} {flight._count.reservations === 1 ? "reserva" : "reservas"}: pasalas a otro vuelo antes de
+            borrarlo, para que nadie quede sin traslado.
+          </p>
+        ) : (
+          <form action={deleteFlightAction}>
+            <input type="hidden" name="id" value={id} />
+            <ConfirmVehicleButton className="ghost-button" label="Borrar vuelo" pregunta={`¿Borrar el vuelo ${flight.number}? No se puede deshacer.`} />
+          </form>
+        )}
       </section>
     </AdminShell>
   );
