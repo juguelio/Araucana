@@ -216,6 +216,8 @@ export type AdminReservationRowDto = {
   status: string;
   paymentStatus: string | null;
   paymentProvider?: string | null;
+  /** Total a cobrar: el listado lo necesita para saber si la etiqueta puede llevar a registrar el pago (#210). */
+  totalCents: number;
   hasReceipt: boolean;
   receiptFileName: string | null;
   receiptUploadedAt: Date | null;

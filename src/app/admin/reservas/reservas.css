@@ -239,3 +239,11 @@
   .reservas-table-scroll .data-table td[data-label="Creada por"] { font-size: 12px; color: var(--ink-soft); }
   .reservas-table-scroll .data-table td[data-label="Ruta"] { max-width: 180px; }
 }
+
+/* La etiqueta «Pago pendiente» es la entrada a registrar el pago (#210): el cliente cobra por
+   transferencia y la columna Acciones no tiene lugar para otro botón. Se ve igual que la etiqueta
+   de texto —mismo tono, mismo tamaño— pero avisa que se puede tocar. */
+.reservas-pill-accion { text-decoration: none; transition: border-color .2s ease, background-color .2s ease; }
+.reservas-pill-accion:hover,
+.reservas-pill-accion:focus-visible { border-color: var(--accent); background: var(--surface); text-decoration: underline; }
+.reservas-pill-accion:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

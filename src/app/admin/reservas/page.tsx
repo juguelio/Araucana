@@ -8,6 +8,7 @@ import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTrav
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
+import { enlaceRegistrarPago } from "./payment-link";
 import "./pagination.css";
 import "./reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -152,6 +153,9 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
               const canDelete = isAdminRole(user.role) && (reservation.paymentStatus !== "APPROVED" || disabilityFare);
               const porValidar = reservation.hasReceipt && canViewReceipt && reservation.paymentStatus === "PENDING" &&
                 (disabilityFare ? reservation.status === DISABILITY_PENDING_STATUS : reservation.status === "PENDING_PAYMENT");
+              // #210: el cliente cobra por transferencia y pidió entrar a registrar el pago desde la
+              // etiqueta, porque en Acciones ya no le entran más botones.
+              const registrarPago = canViewReceipt && enlaceRegistrarPago(reservation);
 
               return (
                 <tr key={reservation.code} className={reservationRowClassName(reservation.status)} data-por-validar={porValidar || undefined}>
@@ -192,7 +196,19 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       : `${reservation.passengerCount} ${reservation.passengerCount === 1 ? "lugar" : "lugares"}`}
                   </td>
                   <td data-label="Estado">
-                    <span className="pill pill-estado pill-tabla" data-tono={tonoEstado(reservation.status)}>{formatReservationStatus(reservation.status)}</span>
+                    {registrarPago ? (
+                      <Link
+                        aria-label={`Registrar el pago de ${reservation.passenger}`}
+                        className="pill pill-estado pill-tabla reservas-pill-accion"
+                        data-tono={tonoEstado(reservation.status)}
+                        href={`${detailPath}/pago`}
+                        title="Registrar el pago"
+                      >
+                        {formatReservationStatus(reservation.status)}
+                      </Link>
+                    ) : (
+                      <span className="pill pill-estado pill-tabla" data-tono={tonoEstado(reservation.status)}>{formatReservationStatus(reservation.status)}</span>
+                    )}
                   </td>
                   <td data-label="Pago">
                     <span className="pill pill-estado pill-tabla" data-tono={tonoPago(reservation.paymentStatus, disabilityFare)}>
