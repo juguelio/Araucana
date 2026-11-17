@@ -73,8 +73,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
   const naves = await prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 
-  const imprevistos = vuelos.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
-  const visibles = soloAlerta ? imprevistos : vuelos;
+  // Una proyeccion del sistema no es un vuelo del dia: no entra al tablero. Si tiene reservas
+  // encima se avisa abajo como reserva a reasignar, no como vuelo fantasma.
+  const vuelosDelTablero = vuelos.filter((v) => !esProyeccion(v));
+  const imprevistos = vuelosDelTablero.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
+  const visibles = soloAlerta ? imprevistos : vuelosDelTablero;
   const conEvento = await prisma.flightEvent.findMany({
     where: { flight: { scheduledAt: { gte: desde, lt: hasta } } },
     orderBy: { detectedAt: "desc" },
@@ -85,27 +88,26 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const clave = await airLabsKeyState();
 
   // Cómo viene el día, de un vistazo: lo mismo que dice cada tarjeta, sumado.
-  // Los contadores de VUELOS hablan de lo que alguna fuente confirmo: una proyeccion no suma, o el
-  // operador ve 3 partidas donde hay 2. Los PASAJEROS si suman aunque el vuelo sea inventado: son
-  // personas reales y esconderlas del tablero es peor que mostrar el vuelo de mas.
-  const resumen = vuelos.reduce(
+  const resumen = vuelosDelTablero.reduce(
     (acc, v) => {
       const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
       acc.pasajeros += ocupados;
-      if (!esProyeccion(v)) {
-        if (v.direction === "ARRIVAL") acc.arribos += 1;
-        else acc.partidas += 1;
-      }
+      if (v.direction === "ARRIVAL") acc.arribos += 1;
+      else acc.partidas += 1;
       if (ocupados > 0 && v.assignments.length === 0) acc.sinCombi += 1;
       return acc;
     },
     { arribos: 0, partidas: 0, pasajeros: 0, sinCombi: 0 }
   );
-  const partidasParaCoordinar = vuelos.filter((vuelo) => !esProyeccion(vuelo) && airportPickupStart(vuelo));
-  const proyectadosDelDia = vuelos.filter((v) => esProyeccion(v));
-  const proyectadosConPasajeros = proyectadosDelDia.filter(
-    (v) => pasajerosOcupados(v.reservations.map((r) => r.reservation)) > 0
-  ).length;
+  const partidasParaCoordinar = vuelosDelTablero.filter((vuelo) => airportPickupStart(vuelo));
+  // Reservas que quedaron sobre un vuelo que nadie confirma: no se muestran como vuelo, pero
+  // tampoco se esconden, porque son personas que hay que pasar a un vuelo real.
+  const fantasma = vuelos.filter((v) => esProyeccion(v));
+  const reservasFantasma = fantasma.reduce((n, v) => n + v.reservations.length, 0);
+  const pasajerosFantasma = fantasma.reduce(
+    (n, v) => n + pasajerosOcupados(v.reservations.map((r) => r.reservation)),
+    0
+  );
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
 
   // La tarjeta se usa dos veces: arriba lo que sigue en juego y abajo, plegado y en gris, lo que
@@ -271,7 +273,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </form>
         <div className="flights-filters">
           <a href={link("")} data-active={!soloAlerta}>
-            Todos <span>{vuelos.length}</span>
+            Todos <span>{vuelosDelTablero.length}</span>
           </a>
           <a href={link("&solo=alerta")} data-active={soloAlerta}>
             Con imprevisto <span>{imprevistos.length}</span>
@@ -279,7 +281,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
       </section>
 
-      {vuelos.length > 0 ? (
+      {vuelosDelTablero.length > 0 ? (
         <dl className="flights-summary" aria-label="Resumen del día">
           <div><dt>Arribos</dt><dd>{resumen.arribos}</dd></div>
           <div><dt>Partidas</dt><dd>{resumen.partidas}</dd></div>
@@ -376,25 +378,20 @@ export default async function AirportPage({ searchParams }: PageProps) {
           );
         })}
         </div>
-        {/* Una proyeccion no es un vuelo del dia: va fuera de las columnas, donde no compite con
-            los contadores ni con el orden por horario. */}
-        {proyectadosDelDia.length ? (
-          <details className="flights-proyectados" open={proyectadosConPasajeros > 0}>
-            <summary>
-              {proyectadosDelDia.length} {proyectadosDelDia.length === 1 ? "vuelo proyectado" : "vuelos proyectados"} · sin confirmar por la fuente
-              {proyectadosConPasajeros ? ` · ${proyectadosConPasajeros} con pasajeros` : ""}
-            </summary>
-            <p className="muted">
-              Los estimó el sistema a partir del histórico: ninguna fuente confirmó que existan. No cuentan en el total
-              del día. Si tienen pasajeros, hay que pasarlos a un vuelo confirmado.
-            </p>
-            <div className="flights-list">
-              {proyectadosDelDia.map((v) => tarjeta(v))}
-            </div>
-          </details>
-        ) : null}
+        {/* Un vuelo que ninguna fuente confirma no se muestra: si tiene reservas encima, el aviso
+            va como reserva a reasignar, sin numero de vuelo ni tarjeta. */}
         </>
       )}
+
+      {reservasFantasma > 0 ? (
+        <p className="flights-aviso">
+          <strong>{reservasFantasma}</strong> {reservasFantasma === 1 ? "reserva" : "reservas"} ({pasajerosFantasma}{" "}
+          {pasajerosFantasma === 1 ? "pasajero" : "pasajeros"}) {reservasFantasma === 1 ? "está sobre un vuelo" : "están sobre vuelos"}{" "}
+          que ninguna fuente confirma, por eso no se muestran como vuelos del día. Reasigná{" "}
+          {reservasFantasma === 1 ? "esa reserva" : "esas reservas"} a un vuelo real desde{" "}
+          <a href="/admin/reservas">Reservas</a>.
+        </p>
+      ) : null}
 
       {conEvento.length > 0 ? (
         <section className="plain-card admin-section">
