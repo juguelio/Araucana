@@ -5,7 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
-import { esProyeccion, horaDeReferencia, separarVuelosDelTablero } from "@/lib/airport/flight-board";
+import { horaDeReferencia, separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -73,9 +73,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
   const naves = await prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
 
-  // Una proyeccion del sistema no es un vuelo del dia: no entra al tablero. Si tiene reservas
-  // encima se avisa abajo como reserva a reasignar, no como vuelo fantasma.
-  const vuelosDelTablero = vuelos.filter((v) => !esProyeccion(v));
+  // En un día con vuelos confirmados, una proyeccion es un vuelo fantasma: no entra al tablero y, si
+  // tiene reservas encima, se avisa abajo como reserva a reasignar. En un día sin ningún vuelo
+  // confirmado (los futuros), las proyecciones son la grilla que se reserva y sí se muestran.
+  const { tablero: vuelosDelTablero, fantasma, soloProyecciones } = vuelosParaElTablero(vuelos);
   const imprevistos = vuelosDelTablero.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
   const visibles = soloAlerta ? imprevistos : vuelosDelTablero;
   const conEvento = await prisma.flightEvent.findMany({
@@ -102,7 +103,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const partidasParaCoordinar = vuelosDelTablero.filter((vuelo) => airportPickupStart(vuelo));
   // Reservas que quedaron sobre un vuelo que nadie confirma: no se muestran como vuelo, pero
   // tampoco se esconden, porque son personas que hay que pasar a un vuelo real.
-  const fantasma = vuelos.filter((v) => esProyeccion(v));
   const reservasFantasma = fantasma.reduce((n, v) => n + v.reservations.length, 0);
   const pasajerosFantasma = fantasma.reduce(
     (n, v) => n + pasajerosOcupados(v.reservations.map((r) => r.reservation)),
@@ -297,6 +297,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
         imprevisto.
       </p>
 
+      {soloProyecciones ? (
+        <p className="flights-aviso">
+          Ningún vuelo de este día está confirmado todavía: AirLabs y el tablero del aeropuerto publican sólo el día
+          en curso. Estos son los vuelos <strong>estimados</strong> a partir de los días anteriores, los mismos que ve
+          el pasajero al reservar. El día del vuelo se reemplazan por los datos reales.
+        </p>
+      ) : null}
+
       {partidasParaCoordinar.length ? (
         <details className="plain-card admin-section aero-coordinar">
           <summary>
@@ -335,11 +343,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
         {(["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
-          // Los que alguna fuente confirmo son los vuelos del dia. Las proyecciones no van en la
-          // columna: si el encabezado dice 2 y abajo hay 3 tarjetas, el numero no cierra nunca.
-          const confirmados = lista.filter((v) => !esProyeccion(v));
-          // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
-          const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(confirmados, ahora);
+          // `visibles` ya trae sólo lo que va al tablero: los confirmados, o las proyecciones de un día
+          // que no tiene ninguno. Lo que sigue en juego arriba (el más cercano primero) y lo que ya
+          // pasó abajo, en gris; las proyecciones, por horario, después de lo que está en juego.
+          const { enJuego, terminados, porVerificar, proyectados } = separarVuelosDelTablero(lista, ahora);
           // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
           const terminadosSinConfirmar = terminados.filter(
             (v) => v.status !== "LANDED" && !(v.direction === "DEPARTURE" && v.status === "EN_ROUTE")
@@ -350,10 +357,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
           return (
             <section className="flights-group" key={dir}>
               <h2 className="flights-group-title">
-                {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{confirmados.length}</span>
+                {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{lista.length}</span>
               </h2>
               <div className="flights-list">
                 {enJuego.map((v) => tarjeta(v))}
+                {proyectados.map((v) => tarjeta(v))}
               </div>
               {porVerificar.length ? (
                 <section className="plain-card admin-section">
@@ -378,8 +386,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
           );
         })}
         </div>
-        {/* Un vuelo que ninguna fuente confirma no se muestra: si tiene reservas encima, el aviso
-            va como reserva a reasignar, sin numero de vuelo ni tarjeta. */}
         </>
       )}
 
