@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { horaDeReferencia, MARGEN_SIN_CONFIRMAR_MIN, MARGEN_TERMINADO_MIN, separarVuelosDelTablero, vueloTerminado } from "./flight-board";
+import { esProyeccion, horaDeReferencia, MARGEN_SIN_CONFIRMAR_MIN, MARGEN_TERMINADO_MIN, separarVuelosDelTablero, vueloTerminado } from "./flight-board";
 
 const ahora = new Date("2026-11-12T18:00:00.000Z");
 const enMinutos = (min: number) => new Date(ahora.getTime() + min * 60000);
 
-function vuelo(overrides: Partial<{ status: string; scheduledAt: Date; estimatedAt: Date | null }> = {}) {
+function vuelo(
+  overrides: Partial<{ status: string; scheduledAt: Date; estimatedAt: Date | null; source: string; lastCheckedAt: Date | null }> = {}
+) {
   return { status: "SCHEDULED", scheduledAt: enMinutos(-60), estimatedAt: null, ...overrides };
 }
 
@@ -82,5 +84,46 @@ describe("separar vuelos del tablero", () => {
     const original = [vuelo({ scheduledAt: enMinutos(60) }), vuelo({ scheduledAt: enMinutos(10) })];
     separarVuelosDelTablero(original, ahora);
     expect(original.map((v) => v.scheduledAt)).toEqual([enMinutos(60), enMinutos(10)]);
+  });
+});
+
+describe("vuelos proyectados", () => {
+  // El sistema fabrica el vuelo desde el historico cuando ninguna fuente lo confirma. Entra a la
+  // grilla con un horario plausible y el operador cuenta uno de mas: 3 partidas donde hay 2.
+  const proyectado = (overrides = {}) => vuelo({ source: "ESTIMADO", lastCheckedAt: null, scheduledAt: enMinutos(45), ...overrides });
+
+  it("una proyeccion sin verificar no es un vuelo del dia", () => {
+    expect(esProyeccion(proyectado())).toBe(true);
+    const { enJuego, proyectados } = separarVuelosDelTablero([proyectado()], ahora);
+    expect(enJuego).toHaveLength(0);
+    expect(proyectados).toHaveLength(1);
+  });
+
+  it("si la fuente llego a verificarla, deja de ser proyeccion y cuenta", () => {
+    const verificado = proyectado({ lastCheckedAt: ahora });
+    expect(esProyeccion(verificado)).toBe(false);
+    const { enJuego, proyectados } = separarVuelosDelTablero([verificado], ahora);
+    expect(enJuego).toHaveLength(1);
+    expect(proyectados).toHaveLength(0);
+  });
+
+  it("un vuelo de la API no es proyeccion aunque nadie lo haya chequeado todavia", () => {
+    expect(esProyeccion(vuelo({ source: "API", lastCheckedAt: null }))).toBe(false);
+  });
+
+  it("la proyeccion no se mezcla con los confirmados y sale ordenada por horario", () => {
+    const real = vuelo({ source: "API", lastCheckedAt: ahora, scheduledAt: enMinutos(-30) });
+    const { enJuego, proyectados } = separarVuelosDelTablero(
+      [real, proyectado({ scheduledAt: enMinutos(90) }), proyectado({ scheduledAt: enMinutos(30) })],
+      ahora
+    );
+    expect(enJuego.map((v) => v.source)).toEqual(["API"]);
+    expect(proyectados.map((v) => v.scheduledAt)).toEqual([enMinutos(30), enMinutos(90)]);
+  });
+
+  it("no muta la lista que recibe", () => {
+    const original = [proyectado(), vuelo()];
+    separarVuelosDelTablero(original, ahora);
+    expect(original).toHaveLength(2);
   });
 });
