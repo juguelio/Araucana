@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { addSeatAtPosition, getSeatCanvasSize, moveSeatToPosition, removeSeatAtIndex, updateSeatNumber } from "./seat-layout";
+import {
+  addSeatAtPosition,
+  getSeatCanvasSize,
+  moveSeatToPosition,
+  removeSeatAtIndex,
+  resizeSeatLayout,
+  updateSeatNumber
+} from "./seat-layout";
 
 describe("seat layout editing", () => {
   test("moves a seat into an empty row and column", () => {
@@ -78,5 +85,58 @@ describe("seat layout editing", () => {
     expect(addSeatAtPosition([{ number: "01", row: 1, column: 1 }], 1, 1)).toEqual([
       { number: "01", row: 1, column: 1 }
     ]);
+  });
+
+  describe("resizeSeatLayout", () => {
+    const tres = [
+      { number: "01", row: 1, column: 1 },
+      { number: "02", row: 1, column: 2 },
+      { number: "03", row: 2, column: 1 }
+    ];
+
+    test("agranda numerando a continuación y en las columnas que ya usa el plano", () => {
+      expect(resizeSeatLayout(tres, 5)).toEqual([
+        ...tres,
+        { number: "04", row: 2, column: 2 },
+        { number: "05", row: 3, column: 1 }
+      ]);
+    });
+
+    test("achica quitando los últimos por posición", () => {
+      expect(resizeSeatLayout(tres, 2)).toEqual([
+        { number: "01", row: 1, column: 1 },
+        { number: "02", row: 1, column: 2 }
+      ]);
+    });
+
+    test("no cambia nada si la cantidad es la misma", () => {
+      expect(resizeSeatLayout(tres, 3)).toBe(tres);
+    });
+
+    test("nunca deja la nave sin asientos", () => {
+      expect(resizeSeatLayout(tres, 0)).toHaveLength(1);
+      expect(resizeSeatLayout(tres, -4)).toHaveLength(1);
+      expect(resizeSeatLayout(tres, Number.NaN)).toBe(tres);
+    });
+
+    test("no muta el arreglo original", () => {
+      const copia = [...tres];
+      resizeSeatLayout(tres, 6);
+      resizeSeatLayout(tres, 1);
+      expect(tres).toEqual(copia);
+    });
+
+    test("una nave de 19 puede quedar en 21 sin huecos repetidos", () => {
+      const diecinueve = Array.from({ length: 19 }, (_, index) => ({
+        number: String(index + 1).padStart(2, "0"),
+        row: Math.floor(index / 4) + 1,
+        column: (index % 4) + 1
+      }));
+      const veintiuno = resizeSeatLayout(diecinueve, 21);
+      const posiciones = new Set(veintiuno.map((seat) => `${seat.row}-${seat.column}`));
+      expect(veintiuno).toHaveLength(21);
+      expect(posiciones.size).toBe(21);
+      expect(veintiuno.at(-1)?.number).toBe("21");
+    });
   });
 });

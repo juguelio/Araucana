@@ -1576,6 +1576,38 @@ svg {
   line-height: 1;
 }
 
+/* La cantidad de asientos es la capacidad real: se ajusta acá y el plano se redibuja. */
+.seat-capacity-field {
+  display: grid;
+  gap: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.seat-capacity-field input {
+  width: 104px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--primary);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: text;
+}
+
+.seat-capacity-field input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .vehicle-layout-grid {
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr) 42px;
