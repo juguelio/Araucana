@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
@@ -8,6 +8,7 @@ import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airp
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import {
@@ -44,6 +45,28 @@ type FlightOption = {
 };
 
 type Fare = { priceCents: number; currency: string } | null;
+
+/**
+ * Inicio de la recorrida de un tramo: 2 h 30 antes de la salida del vuelo (#35), con la hora
+ * estimada si el vuelo viene demorado y con la coordinada a mano si el operador la fijó.
+ * Devuelve `null` en la llegada, donde no hay recorrida previa.
+ */
+function inicioDeRecorrida(vuelo: FlightOption) {
+  if (vuelo.pickupStartAt) {
+    const coordinado = new Date(vuelo.pickupStartAt);
+    if (Number.isFinite(coordinado.getTime())) return coordinado;
+  }
+
+  const programado = new Date(vuelo.scheduledAt);
+  if (!Number.isFinite(programado.getTime())) return null;
+
+  return airportPickupStart({
+    direction: vuelo.direction,
+    scheduledAt: programado,
+    estimatedAt: vuelo.estimatedAt ? new Date(vuelo.estimatedAt) : null,
+    status: vuelo.status
+  });
+}
 
 type RoundTripCheckoutFormProps = {
   route: { slug: string; from: string; to: string; priceCents: number; currency: string };
@@ -136,7 +159,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
   const [pickupLlegada, setPickupLlegada] = useState<LugarPickup>(lugarVacio);
   const [pickupVuelta, setPickupVuelta] = useState<LugarPickup>(lugarVacio);
-  const [mismoLugar, setMismoLugar] = useState(true);
+  // Por defecto los dos tramos se eligen por separado: la vuelta suele salir de otro lado (17-nov).
+  const [mismoLugar, setMismoLugar] = useState(false);
 
   const [fullFareCount, setFullFareCount] = useState(1);
   const [halfFareCount, setHalfFareCount] = useState(0);
@@ -353,7 +377,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
       setPaso(2);
       return;
     }
-    const erroresPasajero = validateCheckoutPassenger(passenger, fromAdmin);
+    const erroresPasajero = validateCheckoutPassenger(passenger, fromAdmin, true);
     if (Object.keys(erroresPasajero).length > 0) {
       setFieldErrors(erroresPasajero);
       setError("Revisá los datos del pasajero.");
@@ -503,6 +527,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
               {bloquesDelViaje.map(({ sentido, etapa, titulo, ayuda, fecha, opciones, elegido, setElegido, cargando, minimo }, i) => {
                 const vueloElegido = opciones.find((opcion) => opcion.id === elegido) ?? null;
+                const inicioRecorrida = vueloElegido ? inicioDeRecorrida(vueloElegido) : null;
                 return (
                 <section key={sentido} className="leg-card" data-done={Boolean(vueloElegido)}>
                   <header className="leg-head">
@@ -550,6 +575,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                       .
                     </p>
                   ) : null}
+                  {inicioRecorrida ? (
+                    <p className="muted leg-help">
+                      <strong>Inicio estimado de recorrida: {airportPickupDateTime.format(inicioRecorrida)}</strong>{" "}
+                      — la camioneta pasa a buscarte 2 h 30 antes de la salida del vuelo.
+                    </p>
+                  ) : null}
                 </section>
                 );
               })}
@@ -568,13 +599,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 </p>
               </div>
 
-              <label className="checkout-checkbox">
-                <input type="checkbox" checked={mismoLugar} onChange={(e) => setMismoLugar(e.target.checked)} />
-                Usar el mismo lugar para la vuelta
-              </label>
-
               {bloquesDePickup.map(({ sentido, titulo, lugar, copia }, i) => (
-                <section key={sentido} className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={copia}>
+                <Fragment key={sentido}>
+                <section className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={copia}>
                   <header className="leg-head">
                     <span className="leg-badge" aria-hidden="true">{i + 1}</span>
                     <div className="leg-head-text">
@@ -633,6 +660,15 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                     <p className="muted">Arrastrá el pin si el punto no es el exacto.</p>
                   ) : null}
                 </section>
+                {/* El atajo va debajo del primer mapa: primero se elige el lugar de la ida y
+                    después se decide si la vuelta sale de ahí o de otro lado. */}
+                {i === 0 ? (
+                  <label className="checkout-checkbox">
+                    <input type="checkbox" checked={mismoLugar} onChange={(e) => setMismoLugar(e.target.checked)} />
+                    Usar el mismo lugar para la vuelta
+                  </label>
+                ) : null}
+                </Fragment>
               ))}
 
               <div className="form-actions">
@@ -680,6 +716,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 fieldErrors={fieldErrors}
                 onChange={updatePassenger}
                 optionalIdentity={fromAdmin}
+                optionalDocument
               />
 
               {fromAdmin ? (
