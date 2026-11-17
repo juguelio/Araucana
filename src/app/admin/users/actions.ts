@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
-import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
+import { getCurrentAdminOrRedirect, getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { hashPassword, isValidPassword } from "@/lib/auth/password";
 import { parseMonthlySalaryCents } from "@/lib/admin/salary";
 import { getManagedUserPath, isManagedUserRole, type ManagedUserRole } from "@/lib/admin/users";
+import { canManageManagedUser, canSeeSalary, forcedManagedRole, managedUsersBasePath } from "@/lib/admin/driver-access";
 import { validateManagedUserDraft } from "@/lib/admin/user-draft";
 import { diffRecords, hasChanges, HIDDEN_VALUE } from "@/lib/audit/diff";
 import { recordAudit } from "@/lib/audit/record";
@@ -30,8 +31,8 @@ function reportError(error: unknown) {
   return errorState(error instanceof Error ? error.message : "No pudimos guardar la cuenta.");
 }
 
-function notice(message: string): never {
-  redirect(`${getManagedUserPath()}?notice=${encodeURIComponent(message)}`);
+function notice(message: string, actorRole: string): never {
+  redirect(`${managedUsersBasePath(actorRole)}?notice=${encodeURIComponent(message)}`);
 }
 
 function refreshUsers() {
@@ -62,14 +63,16 @@ async function ensureAdminRemains(tx: Prisma.TransactionClient, userId: string, 
 }
 
 export async function createManagedUserAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  const actor = await getCurrentAdminOrRedirect();
+  const actor = await getCurrentDriverManagerOrRedirect();
   const passwordValue = formData.get("password");
+  // La secretaría crea choferes y nada más: el rol se fija en el servidor, no se confía en el form.
+  const role = forcedManagedRole(actor.role) ?? value(formData, "role");
 
   const validated = validateManagedUserDraft({
     email: value(formData, "email"),
     name: value(formData, "name"),
     password: typeof passwordValue === "string" ? passwordValue : "",
-    role: value(formData, "role"),
+    role,
     isActive: value(formData, "isActive") !== "false",
     monthlySalary: value(formData, "monthlySalary")
   });
@@ -107,17 +110,24 @@ export async function createManagedUserAction(_state: AdminFormState, formData: 
   }
 
   refreshUsers();
-  notice(`Cuenta creada para ${draft.email}. Entregale la contraseña inicial y pedile que la cambie.`);
+  notice(
+    draft.role === "DRIVER"
+      ? `Chofer creado: ${draft.email}. Entregale la contraseña inicial para que entre a su planilla.`
+      : `Cuenta creada para ${draft.email}. Entregale la contraseña inicial y pedile que la cambie.`,
+    actor.role
+  );
 }
 
 export async function updateManagedUserAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
-  const actor = await getCurrentAdminOrRedirect();
+  const actor = await getCurrentDriverManagerOrRedirect();
   const id = value(formData, "id");
-  const roleInput = value(formData, "role");
+  // Igual que en el alta: la secretaría no cambia roles, así que el suyo queda fijo en Chofer.
+  const roleInput = forcedManagedRole(actor.role) ?? value(formData, "role");
   const name = value(formData, "name");
   const passwordValue = formData.get("password");
   const password = typeof passwordValue === "string" ? passwordValue : "";
   const isActive = value(formData, "isActive") === "true";
+  const verSueldo = canSeeSalary(actor.role);
 
   if (!id || !isManagedUserRole(roleInput)) return errorState("Revisa los datos de la cuenta.");
   const role: ManagedUserRole = roleInput;
@@ -126,17 +136,21 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
     return errorState("No podés quitarte el rol de administrador ni desactivar tu propia cuenta.");
   }
 
-  let monthlySalaryCents: number | null = null;
   if (password && !isValidPassword(password)) return errorState("La contraseña debe tener al menos 12 caracteres y no superar 72 bytes UTF-8.");
   try {
-    monthlySalaryCents = role === "SECRETARY" || role === "DRIVER"
-      ? parseMonthlySalaryCents(value(formData, "monthlySalary"))
-      : null;
     await prisma.$transaction(async (tx) => {
       const before = await tx.user.findUnique({ where: { id }, select: auditedUserFields });
       if (!before) throw new Error("La cuenta ya no existe.");
       if (!canManageAccount(actor, before)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
+      // La secretaría sólo abre fichas de chofer: el id de una cuenta de administración en la URL no alcanza.
+      if (!canManageManagedUser(actor.role, before.role)) throw new Error("Esa cuenta no es de un chofer.");
       await ensureAdminRemains(tx, id, role, isActive);
+      // Si el actor no ve el sueldo, el campo no viaja en el formulario: se conserva el que ya tenía.
+      const monthlySalaryCents = verSueldo
+        ? role === "SECRETARY" || role === "DRIVER"
+          ? parseMonthlySalaryCents(value(formData, "monthlySalary"))
+          : null
+        : before.monthlySalaryCents;
       const after = await tx.user.update({
         where: { id },
         data: {
@@ -167,19 +181,21 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
   }
 
   refreshUsers();
-  notice("Cuenta actualizada.");
+  notice("Cuenta actualizada.", actor.role);
 }
 
 export async function setManagedUserActiveAction(formData: FormData) {
-  const actor = await getCurrentAdminOrRedirect();
+  const actor = await getCurrentDriverManagerOrRedirect();
   const id = value(formData, "id");
   const isActive = value(formData, "isActive") === "true";
-  if (actor.id === id && !isActive) notice("No podés desactivar tu propia cuenta.");
+  if (actor.id === id && !isActive) notice("No podés desactivar tu propia cuenta.", actor.role);
   try {
     await prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id }, select: { email: true, role: true, isActive: true } });
       if (!target) throw new Error("La cuenta ya no existe.");
       if (!canManageAccount(actor, target)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
+      // La secretaría activa y desactiva choferes: es parte de armar el día. Otras cuentas, no.
+      if (!canManageManagedUser(actor.role, target.role)) throw new Error("Esa cuenta no es de un chofer.");
       const role = isManagedUserRole(target.role) ? target.role : "USER";
       await ensureAdminRemains(tx, id, role, isActive);
       await tx.user.update({ where: { id }, data: { isActive } });
@@ -193,16 +209,16 @@ export async function setManagedUserActiveAction(formData: FormData) {
       }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
-    notice(error instanceof Error ? error.message : "No pudimos cambiar el estado.");
+    notice(error instanceof Error ? error.message : "No pudimos cambiar el estado.", actor.role);
   }
   refreshUsers();
-  notice(isActive ? "Cuenta activada." : "Cuenta desactivada.");
+  notice(isActive ? "Cuenta activada." : "Cuenta desactivada.", actor.role);
 }
 
 export async function deleteManagedUserAction(formData: FormData) {
   const actor = await getCurrentAdminOrRedirect();
   const id = value(formData, "id");
-  if (!id || actor.id === id) notice("No podés eliminar tu propia cuenta.");
+  if (!id || actor.id === id) notice("No podés eliminar tu propia cuenta.", actor.role);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -218,9 +234,9 @@ export async function deleteManagedUserAction(formData: FormData) {
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
-    notice(error instanceof Error ? error.message : "No pudimos eliminar la cuenta.");
+    notice(error instanceof Error ? error.message : "No pudimos eliminar la cuenta.", actor.role);
   }
 
   refreshUsers();
-  notice("Cuenta eliminada y acceso revocado.");
+  notice("Cuenta eliminada y acceso revocado.", actor.role);
 }
