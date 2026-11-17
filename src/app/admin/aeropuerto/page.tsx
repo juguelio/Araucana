@@ -5,7 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
-import { horaDeReferencia, separarVuelosDelTablero } from "@/lib/airport/flight-board";
+import { esProyeccion, horaDeReferencia, separarVuelosDelTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -85,18 +85,23 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const clave = await airLabsKeyState();
 
   // Cómo viene el día, de un vistazo: lo mismo que dice cada tarjeta, sumado.
+  // Los contadores de VUELOS hablan de lo que alguna fuente confirmo: una proyeccion no suma, o el
+  // operador ve 3 partidas donde hay 2. Los PASAJEROS si suman aunque el vuelo sea inventado: son
+  // personas reales y esconderlas del tablero es peor que mostrar el vuelo de mas.
   const resumen = vuelos.reduce(
     (acc, v) => {
       const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
       acc.pasajeros += ocupados;
-      if (v.direction === "ARRIVAL") acc.arribos += 1;
-      else acc.partidas += 1;
+      if (!esProyeccion(v)) {
+        if (v.direction === "ARRIVAL") acc.arribos += 1;
+        else acc.partidas += 1;
+      }
       if (ocupados > 0 && v.assignments.length === 0) acc.sinCombi += 1;
       return acc;
     },
     { arribos: 0, partidas: 0, pasajeros: 0, sinCombi: 0 }
   );
-  const partidasParaCoordinar = vuelos.filter((vuelo) => airportPickupStart(vuelo));
+  const partidasParaCoordinar = vuelos.filter((vuelo) => !esProyeccion(vuelo) && airportPickupStart(vuelo));
   const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
 
   // La tarjeta se usa dos veces: arriba lo que sigue en juego y abajo, plegado y en gris, lo que
@@ -323,8 +328,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
         {(["ARRIVAL", "DEPARTURE"] as const).map((dir) => {
           const lista = visibles.filter((v) => v.direction === dir);
           if (lista.length === 0) return null;
+          // Los que alguna fuente confirmo son los vuelos del dia; el resto son proyecciones del sistema.
+          const confirmados = lista.filter((v) => !esProyeccion(v));
+          const proyectados = lista.filter((v) => esProyeccion(v));
+          const proyectadosConPasajeros = proyectados.filter(
+            (v) => pasajerosOcupados(v.reservations.map((r) => r.reservation)) > 0
+          ).length;
           // Lo que sigue en juego arriba (el más cercano primero) y lo que ya pasó abajo, en gris.
-          const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(lista, ahora);
+          const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(confirmados, ahora);
           // Un vuelo que ya pasó pero tuvo demora o cancelación no se esconde: el bloque arranca abierto.
           const terminadosSinConfirmar = terminados.filter(
             (v) => v.status !== "LANDED" && !(v.direction === "DEPARTURE" && v.status === "EN_ROUTE")
@@ -335,7 +346,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           return (
             <section className="flights-group" key={dir}>
               <h2 className="flights-group-title">
-                {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{lista.length}</span>
+                {dir === "ARRIVAL" ? "Arribos" : "Partidas"} <span className="muted">{confirmados.length}</span>
               </h2>
               <div className="flights-list">
                 {enJuego.map((v) => tarjeta(v))}
@@ -356,6 +367,21 @@ export default async function AirportPage({ searchParams }: PageProps) {
                   </summary>
                   <div className="flights-list">
                     {terminados.map((v) => tarjeta(v, true))}
+                  </div>
+                </details>
+              ) : null}
+              {proyectados.length ? (
+                <details className="flights-pasados flights-proyectados" open={proyectadosConPasajeros > 0}>
+                  <summary>
+                    {proyectados.length} {proyectados.length === 1 ? "vuelo proyectado" : "vuelos proyectados"} · sin confirmar por la fuente
+                    {proyectadosConPasajeros ? ` · ${proyectadosConPasajeros} con pasajeros` : ""}
+                  </summary>
+                  <p className="muted">
+                    Los estimó el sistema a partir del histórico: ninguna fuente confirmó que existan. No cuentan en el
+                    total del día. Si tienen pasajeros, hay que pasarlos a un vuelo confirmado.
+                  </p>
+                  <div className="flights-list">
+                    {proyectados.map((v) => tarjeta(v))}
                   </div>
                 </details>
               ) : null}
