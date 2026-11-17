@@ -22,11 +22,26 @@ describe("sincronización con fuentes de distinta calidad", () => {
     expect(m.api).toHaveBeenCalledTimes(2);
     expect(m.api.mock.calls.every((args) => args[1] === "2026-11-14")).toBe(true);
   });
-  it("un tablero sin fecha no pisa la API consultada el mismo día", async () => {
+  it("un tablero sin fecha no pisa el HORARIO de la API consultada el mismo día", async () => {
     m.fids.mockResolvedValueOnce({ flights: [{ number: "JA3183", airlineCode: "JA", scheduled: "12:22", estimated: null, city: "AEP", statusText: "En Vuelo", statusClass: "arribado" }], error: null });
     m.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...live, id: "api", source: "API", lastCheckedAt: new Date(), _count: { reservations: 0, assignments: 0 } }]);
     await syncAirportFlights();
+    // Mismo estado que ya tenia: no hay nada que escribir.
     expect(m.update).not.toHaveBeenCalled(); expect(m.createMany).not.toHaveBeenCalled();
+  });
+  it("el tablero SI actualiza el estado de un vuelo que vino de la API", async () => {
+    // AirLabs trae el vuelo de CPC con su horario y despues nunca lo confirma. El aeropuerto si:
+    // sin esto el tablero mostraba «Programado» un vuelo que habia aterrizado hacia horas.
+    m.fids.mockResolvedValueOnce({ flights: [{ number: "JA3183", airlineCode: "JA", scheduled: "12:22", estimated: null, city: "AEP", statusText: "Aterrizado", statusClass: "arribado" }], error: null });
+    m.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...live, id: "api", source: "API", status: "SCHEDULED", lastCheckedAt: new Date(), _count: { reservations: 0, assignments: 0 } }]);
+    await syncAirportFlights();
+    expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "api" }, data: expect.objectContaining({ status: "LANDED" }) }));
+  });
+  it("el tablero no hace retroceder un vuelo ya aterrizado", async () => {
+    m.fids.mockResolvedValueOnce({ flights: [{ number: "JA3183", airlineCode: "JA", scheduled: "12:22", estimated: null, city: "AEP", statusText: "En Vuelo", statusClass: "arribado" }], error: null });
+    m.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([{ ...live, id: "api", source: "API", status: "LANDED", lastCheckedAt: new Date(), _count: { reservations: 0, assignments: 0 } }]);
+    await syncAirportFlights();
+    expect(m.update).not.toHaveBeenCalled();
   });
   it("una consulta del viernes a las 19 no crea el vuelo del sábado", async () => {
     vi.setSystemTime(new Date("2026-11-13T22:00:00Z"));

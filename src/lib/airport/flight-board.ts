@@ -15,6 +15,14 @@ import { horaEfectivaDelVuelo } from "./effective-time";
 /** Margen tras el horario para pedir verificación; nunca implica aterrizaje confirmado. */
 export const MARGEN_TERMINADO_MIN = 90;
 
+/**
+ * Pasado este margen el vuelo ya no se puede verificar en la operación: baja al pie como terminado
+ * sin confirmar. Sin tope, un vuelo que la fuente nunca confirma —Chapelco en temporada baja, o
+ * AirLabs caído— se quedaba en «Por verificar» el resto del día y tapaba lo que sí seguía en juego.
+ * Un vuelo de Chapelco no está cuatro horas en el aire.
+ */
+export const MARGEN_SIN_CONFIRMAR_MIN = 240;
+
 export type VueloConHorario = FlightEvidence;
 
 /** El horario que manda: el estimado si lo hay, si no el programado. */
@@ -39,7 +47,8 @@ export function vueloTerminado(vuelo: VueloConHorario, ahora: Date): boolean {
 export function separarVuelosDelTablero<T extends VueloConHorario>(
   vuelos: readonly T[],
   ahora: Date,
-  margenMin = MARGEN_TERMINADO_MIN
+  margenMin = MARGEN_TERMINADO_MIN,
+  margenSinConfirmarMin = MARGEN_SIN_CONFIRMAR_MIN
 ): { enJuego: T[]; terminados: T[]; porVerificar: T[] } {
   const enJuego: T[] = [];
   const terminados: T[] = [];
@@ -48,7 +57,13 @@ export function separarVuelosDelTablero<T extends VueloConHorario>(
   for (const vuelo of vuelos) {
     if (flightEvidenceWarning(vuelo, ahora)) porVerificar.push(vuelo);
     else if (vueloTerminado(vuelo, ahora)) terminados.push(vuelo);
-    else if (!["CANCELLED", "DIVERTED"].includes(vuelo.status) && ahora.getTime() - horaDeReferencia(vuelo).getTime() > margenMin * 60000) porVerificar.push(vuelo);
+    else if (
+      !["CANCELLED", "DIVERTED"].includes(vuelo.status) &&
+      ahora.getTime() - horaDeReferencia(vuelo).getTime() > margenSinConfirmarMin * 60000
+    ) {
+      // Ya no hay nada que verificar: el vuelo pasó hace horas y la fuente no lo va a confirmar.
+      terminados.push(vuelo);
+    } else if (!["CANCELLED", "DIVERTED"].includes(vuelo.status) && ahora.getTime() - horaDeReferencia(vuelo).getTime() > margenMin * 60000) porVerificar.push(vuelo);
     else enJuego.push(vuelo);
   }
 

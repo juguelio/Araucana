@@ -15,6 +15,7 @@ import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type Ent
 import { formatAuditDate } from "@/lib/audit/labels";
 import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
+import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -184,6 +185,58 @@ export async function updateFlightAction(formData: FormData) {
   redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(prev.scheduledAt), notice: message })}#vuelo-${id}`);
 }
 
+/**
+ * El operador confirma que el avión aterrizó o que salió, con la hora real. Es la salida cuando la
+ * fuente no la da: Chapelco en temporada baja no aparece en AirLabs, y sin esto el tablero se queda
+ * con vuelos «sin confirmar» que el operador ya vio llegar.
+ */
+export async function confirmFlightAction(formData: FormData) {
+  const actor = await getCurrentReservationsUserOrRedirect();
+
+  const id = value(formData, "id");
+  const prev = await prisma.flight.findUnique({ where: { id } });
+  if (!prev) return notice("El vuelo ya no existe.");
+
+  // Copia local para que el narrowing sobreviva al `redirect` del final.
+  const vuelo = prev;
+
+  // El estado lo decide la dirección: un arribo aterriza, una partida sale. No se elige a mano.
+  const status = vuelo.direction === "ARRIVAL" ? "LANDED" : "EN_ROUTE";
+  const horaIngresada = value(formData, "actualAt");
+  const actualAt = horaIngresada ? localDateTime(horaIngresada, argentina) : new Date();
+  if (!actualAt) redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(vuelo.scheduledAt), notice: "La hora no se entiende." })}#vuelo-${id}`);
+
+  const cambio = detectFlightChange(
+    { status: vuelo.status, scheduledAt: vuelo.scheduledAt, estimatedAt: vuelo.estimatedAt },
+    { status, scheduledAt: vuelo.scheduledAt, estimatedAt: vuelo.estimatedAt }
+  );
+
+  const updated = await prisma.flight.update({
+    where: { id },
+    data: {
+      status,
+      actualAt,
+      ...(cambio
+        ? { events: { create: { kind: cambio.kind, fromValue: cambio.fromValue, toValue: cambio.toValue } } }
+        : {})
+    }
+  });
+  await auditAirport({
+    actor,
+    entityId: id,
+    entityLabel: flightLabel(vuelo),
+    summary: vuelo.direction === "ARRIVAL" ? "Aterrizaje confirmado a mano." : "Salida confirmada a mano.",
+    before: { status: vuelo.status, actualAt: vuelo.actualAt },
+    after: { status: updated.status, actualAt: updated.actualAt }
+  });
+
+  revalidatePath("/admin/aeropuerto");
+  revalidatePath("/admin/aeropuerto/orden-de-servicio");
+  const hora = actualAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: argentina });
+  notice(`${vuelo.number}: ${status === "LANDED" ? "aterrizaje" : "salida"} confirmada a las ${hora}.`);
+  redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(vuelo.scheduledAt) })}#vuelo-${id}`);
+}
+
 /** Asigna una combi a un vuelo. Se puede cambiar hasta último momento: agregar, cambiar o quitar. */
 export async function assignVehicleAction(_state: unknown, formData: FormData): Promise<{ error?: string; conflicts?: FleetConflict[]; confirmation?: string }> {
   const user = await getCurrentReservationsUserOrRedirect();
@@ -234,6 +287,8 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   });
   if (!result.day) return result;
   revalidatePath("/admin/aeropuerto");
+  revalidatePath("/admin/salidas-del-dia");
+  if (returnsToBoard(formData)) redirectToBoard(result.day, "Combi asignada al vuelo.");
   redirect(`/admin/aeropuerto?date=${result.day}&notice=${encodeURIComponent("Combi asignada al vuelo.")}`);
 }
 
@@ -252,6 +307,8 @@ export async function removeAssignmentAction(formData: FormData) {
     });
   }
   revalidatePath("/admin/aeropuerto");
+  revalidatePath("/admin/salidas-del-dia");
+  if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.");
   notice("Combi quitada del vuelo.");
 }
 

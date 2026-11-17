@@ -2526,7 +2526,13 @@ a.wizard-option { text-decoration: none; }
 }
 .pill-combi { padding: 4px 10px; font-size: 11px; }
 .pill-combi[data-tono="ok"] { color: var(--moss); border-color: var(--moss); }
-.flight-card-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.flight-card-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; align-items: center; }
+/* Confirmar a mano: la fuente no siempre sabe que el avión llegó. Se ve como una acción más, con la
+   hora a la vista para que el operador la corrija si el vuelo no fue puntual. */
+.flight-confirmar { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 4px 8px; border: 1px dashed var(--line-strong); border-radius: 10px; }
+.flight-confirmar label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
+.flight-confirmar input[type="datetime-local"] { width: 168px; padding: 3px 6px; font-size: 11px; border: 1px solid var(--line); border-radius: 8px; }
+.flight-confirmar .button { padding: 5px 10px; font-size: 11px; }
 .flight-card-actions .ghost-button, .flight-foot .flight-actions summary { padding: 4px 10px; font-size: 11px; }
 .flight-actions { margin-left: 0; }
 .flight-card:hover { border-color: var(--line-strong); }
