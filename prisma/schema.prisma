@@ -26,6 +26,7 @@ model User {
   chapelcoDuties ChapelcoVehicleDuty[]
   airportDuties AirportVehicleAssignment[]
   specialTripAssignments SpecialTripAssignment[]
+  scheduleDuties Schedule[]
 }
 
 model Session {
@@ -327,6 +328,10 @@ model Schedule {
   route        TravelRoute   @relation(fields: [routeId], references: [id], onDelete: Cascade)
   vehicleId    String
   vehicle      Vehicle       @relation(fields: [vehicleId], references: [id])
+  /// Chofer de la salida (issue #174): se asigna desde «Salidas del día», igual que en aeropuerto,
+  /// Chapelco y viajes especiales. Opcional: las salidas existentes quedan sin chofer.
+  driverId     String?
+  driver       User?         @relation(fields: [driverId], references: [id], onDelete: SetNull)
   departureAt  DateTime
   arrivalAt    DateTime
   status       String        @default("OPEN")
@@ -335,6 +340,7 @@ model Schedule {
   updatedAt    DateTime      @updatedAt
 
   @@index([routeId, departureAt])
+  @@index([driverId])
 }
 
 model Passenger {
