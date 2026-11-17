@@ -123,15 +123,18 @@ function IconoCalendario() {
 }
 
 export function TripSearchBar({
-  orden, tramos, routeSlug,
-  onPedirOrden, onFecha, onVuelo
+  orden, tramos, routeSlug, confirmarCambio,
+  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo
 }: {
   orden: Orden;
   /** Los dos tramos en el orden del viaje: el de ida primero. */
   tramos: [TramoDeLaBarra, TramoDeLaBarra];
   routeSlug: string;
-  /** Pedir un orden: el formulario lo cambia sin borrar los vuelos ya elegidos (#189). */
+  confirmarCambio: boolean;
+  /** Pedir un orden: si cambia y ya hay vuelos elegidos, el formulario pregunta antes. */
   onPedirOrden: (orden: Orden) => void;
+  onConfirmarCambio: () => void;
+  onCancelarCambio: () => void;
   onFecha: (sentido: Sentido, fecha: string) => void;
   onVuelo: (sentido: Sentido, id: string) => void;
 }) {
@@ -174,6 +177,7 @@ export function TripSearchBar({
   }, [abierto]);
 
   function alternar(campo: Campo) {
+    if (confirmarCambio) onCancelarCambio();
     setAbierto((actual) => (actual === campo ? null : campo));
   }
 
@@ -181,7 +185,7 @@ export function TripSearchBar({
     const nuevo = ordenPara(campo, lugar);
     if (nuevo !== orden) onPedirOrden(nuevo);
     // Se sigue al campo siguiente, como en Kiwi: de «Desde» a «Hacia», y de «Hacia» al día de ida
-    // (el tramo de ida es siempre el del orden elegido).
+    // (el tramo de ida es siempre el del orden elegido). Si hay que confirmar, el panel espera.
     setAbierto(campo === "desde" ? "hacia" : nuevo);
   }
 
@@ -377,7 +381,17 @@ export function TripSearchBar({
         {tramos.map(campoTramo)}
       </div>
 
-      {abierto ? (
+      {confirmarCambio ? (
+        <div className="trip-search-confirm" role="alert">
+          <p><strong>¿Invertir el viaje?</strong> Como los dos tramos caen en días distintos, el que pasa a ir primero se corre de día y hay que volver a elegir ese vuelo.</p>
+          <div className="trip-search-confirm-actions">
+            <button type="button" className="button" onClick={() => { onConfirmarCambio(); setAbierto(null); }}>Sí, invertir</button>
+            <button type="button" className="ghost-button" onClick={onCancelarCambio}>No, dejarlo así</button>
+          </div>
+        </div>
+      ) : null}
+
+      {abierto && !confirmarCambio ? (
         <div className="trip-search-panel" id={panelId} role="group" aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? "Desde" : "Hacia"}>
           <button type="button" className="trip-search-close" aria-label="Cerrar" onClick={() => setAbierto(null)}>✕</button>
           {abierto === "desde" || abierto === "hacia" ? panelLugar(abierto) : tramoAbierto ? panelTramo(tramoAbierto) : null}

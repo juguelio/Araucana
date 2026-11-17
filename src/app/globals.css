@@ -2363,6 +2363,10 @@ a.wizard-option { text-decoration: none; }
 .trip-search-value .airline-badge { border-radius: 7px; }
 .trip-search-flight[aria-pressed="true"] .trip-search-flight-seats { color: var(--primary); }
 .trip-search-empty { margin: 0; padding: 14px 16px; border: 2px dashed var(--line-strong); border-radius: 12px; font-size: 16px; color: var(--ink-soft); }
+.trip-search-confirm { display: grid; gap: 10px; padding: 14px 16px; border: 2px solid var(--accent); border-radius: 14px; background: #fdf3ee; }
+.trip-search-confirm p { margin: 0; font-size: 16px; color: var(--ink); }
+.trip-search-confirm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.trip-search-confirm-actions > * { min-height: 48px; padding: 0 22px; font-size: 16px; }
 @keyframes trip-search-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .trip-search-panel { animation: none; }
@@ -2391,6 +2395,7 @@ a.wizard-option { text-decoration: none; }
   .trip-search-flight-time { grid-row: span 2; align-self: center; min-width: 0; }
   .trip-search-flight .airline-badge { grid-row: span 2; align-self: center; }
   .trip-search-flight-seats { grid-column: 3; }
+  .trip-search-confirm-actions > * { flex: 1 1 100%; }
 }
 
 /* Los lugares aparecen debajo de la barra apenas están los dos vuelos, sin otro paso (pedido de Jugue,

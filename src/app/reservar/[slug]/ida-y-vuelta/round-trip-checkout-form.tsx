@@ -155,6 +155,11 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
    */
   const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">("ARRIVAL");
+  /**
+   * Invertir sólo puede costar algo cuando los dos tramos caen en fechas distintas: ahí el tramo que
+   * pasa a ir primero se corre de día y su vuelo deja de servir. En ese caso se pregunta antes.
+   */
+  const [confirmarCambio, setConfirmarCambio] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const router = useRouter();
   const [fechaLlegada, setFechaLlegada] = useState(initialDate);
@@ -227,18 +232,29 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   }, [orden, fechaLlegada, fechaVuelta]);
 
   /**
-   * Invierte el orden del viaje (#189) y **conserva los vuelos ya elegidos**. Cada vuelo pertenece a su
-   * tramo —el de llegada sigue siendo el de llegada— así que invertir cuál va primero en el calendario
-   * no invalida ninguna elección. Antes se borraban los dos y el pasajero tenía que buscarlos de nuevo.
+   * Invierte el orden del viaje (#189) y conserva los vuelos elegidos. Cada vuelo pertenece a su tramo,
+   * así que invertir cuál va primero en el calendario no invalida la elección: con los dos tramos en la
+   * misma fecha no se pierde nada y el cambio es directo. Si las fechas son distintas, el guardia de
+   * abajo corre el día del tramo que pasa a ir primero (un viaje invertido es otro viaje) y ese vuelo
+   * deja de servir: por eso `pedirOrden` pregunta antes en ese caso.
    */
   function cambiarOrden() {
     setOrden(orden === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL");
     setError("");
+    setConfirmarCambio(false);
   }
 
-  /** «Desde/Hacia» o la flecha de invertir: cambia el orden y no se pierde nada, así que no pregunta. */
+  /**
+   * «Desde/Hacia» o la flecha de invertir. Pregunta sólo si el cambio va a costar algo: vuelos elegidos
+   * con los dos tramos en fechas distintas. Con la misma fecha no hay nada que advertir.
+   */
   function pedirOrden(nuevo: "ARRIVAL" | "DEPARTURE") {
     if (nuevo === orden) return;
+    const pierdeAlgunVuelo = Boolean(llegadaId || vueltaId) && fechaLlegada !== fechaVuelta;
+    if (pierdeAlgunVuelo) {
+      setConfirmarCambio(true);
+      return;
+    }
     cambiarOrden();
   }
   const fraseOrden = orden === "ARRIVAL" ? "Primero llega y después se va" : "Primero se va y después vuelve";
@@ -706,7 +722,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   cargando: bloque.cargando
                 })) as [TramoDeLaBarra, TramoDeLaBarra]}
                 routeSlug={route.slug}
+                confirmarCambio={confirmarCambio}
                 onPedirOrden={pedirOrden}
+                onConfirmarCambio={cambiarOrden}
+                onCancelarCambio={() => setConfirmarCambio(false)}
                 onFecha={(sentido, fecha) => {
                   if (sentido === "ARRIVAL") { setFechaLlegada(fecha); setLlegadaId(""); }
                   else { setFechaVuelta(fecha); setVueltaId(""); }
