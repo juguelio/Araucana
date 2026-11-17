@@ -38,6 +38,25 @@ export function esProyeccion(vuelo: Pick<VueloConHorario, "source" | "lastChecke
   return vuelo.source === "ESTIMADO" && !vuelo.lastCheckedAt;
 }
 
+/**
+ * Qué vuelos del día van al tablero del panel.
+ *
+ * - Si alguna fuente confirmó al menos un vuelo ese día, las proyecciones quedan afuera: en un día
+ *   con datos reales, una proyección es un vuelo fantasma (AR1653 del 17/11, reportado dos veces).
+ * - Si ningún vuelo del día está confirmado —todos los días futuros, porque AirLabs sólo publica
+ *   el día en curso—, las proyecciones son la grilla que el pasajero ve y reserva: se muestran,
+ *   marcadas como estimadas. Ocultarlas dejaba el panel vacío para cualquier fecha futura.
+ */
+export function vuelosParaElTablero<T extends Pick<VueloConHorario, "source" | "lastCheckedAt">>(
+  vuelos: readonly T[]
+): { tablero: T[]; fantasma: T[]; soloProyecciones: boolean } {
+  const confirmados = vuelos.filter((v) => !esProyeccion(v));
+  if (confirmados.length > 0) {
+    return { tablero: confirmados, fantasma: vuelos.filter((v) => esProyeccion(v)), soloProyecciones: false };
+  }
+  return { tablero: [...vuelos], fantasma: [], soloProyecciones: vuelos.length > 0 };
+}
+
 /** El horario que manda: el estimado si lo hay, si no el programado. */
 export function horaDeReferencia(vuelo: VueloConHorario): Date {
   // La estima 00:00 del tablero no es medianoche: `reliableEstimate` la descarta y manda la programada.
