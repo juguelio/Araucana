@@ -15,6 +15,8 @@ import type { Prisma } from "@prisma/client";
 import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
 import { assignVehicleAction, confirmFlightAction, createFlightAction, removeAssignmentAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
+import { shiftDateKey } from "@/lib/operations/day-board";
+import { fechaDeLaOrden } from "@/lib/airport/service-order";
 import { NaveBuscador } from "./nave-buscador";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -124,7 +126,8 @@ export default async function AirportPage({ searchParams }: PageProps) {
     (n, v) => n + pasajerosOcupados(v.reservations.map((r) => r.reservation)),
     0
   );
-  const link = (extra: string) => `/admin/aeropuerto?date=${fecha}${extra}`;
+  const link = (extra: string, dia: string = fecha) =>
+    `/admin/aeropuerto?date=${dia}${extra || (dia !== fecha && soloAlerta ? "&solo=alerta" : "")}`;
 
   // La tarjeta se usa dos veces: arriba lo que sigue en juego y abajo, plegado y en gris, lo que
   // ya pasó. Es la misma tarjeta —con pasajeros, combi y hoja del chofer— porque el operador
@@ -331,13 +334,20 @@ export default async function AirportPage({ searchParams }: PageProps) {
       }
     >
       <section className="flights-toolbar">
+        {/* Siempre las dos flechas, para ir de un día al otro sin volver a «hoy». */}
         <form className="flights-date" method="get">
+          <Link className="ghost-button flights-dia-paso" href={link("", shiftDateKey(fecha, -1))} aria-label="Día anterior">
+            ‹ Anterior
+          </Link>
           <label>
             Día
             <input type="date" name="date" defaultValue={fecha} />
           </label>
+          {soloAlerta ? <input type="hidden" name="solo" value="alerta" /> : null}
           <button className="button" type="submit">Ver</button>
-          {fecha !== hoy ? <a className="ghost-button" href="/admin/aeropuerto">Hoy</a> : null}
+          <Link className="ghost-button flights-dia-paso" href={link("", shiftDateKey(fecha, 1))} aria-label="Día siguiente">
+            Siguiente ›
+          </Link>
         </form>
         <div className="flights-filters">
           <a href={link("")} data-active={!soloAlerta}>
@@ -360,7 +370,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
       ) : null}
 
       <p className="muted flights-note">
-        {fecha === hoy ? "Hoy" : <strong>{fecha}</strong>} · datos de AirLabs y del tablero del aeropuerto. Se marcan
+        <strong>{fechaDeLaOrden(fecha)}</strong> · datos de AirLabs y del tablero del aeropuerto. Se marcan
         los <em>estimados</em> y los cargados <em>a mano</em>; el <strong>borde de color</strong>, los vuelos con
         imprevisto.
       </p>
