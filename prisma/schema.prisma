@@ -28,6 +28,31 @@ model User {
   specialTripAssignments SpecialTripAssignment[]
   scheduleDuties Schedule[]
   scheduleUnitDuties ScheduleUnit[]
+  driverProfile DriverProfile?
+}
+
+/// Documentación de un chofer (la planilla «Vencimientos Choferes» del cliente): DNI, licencia de
+/// conducir y certificado de antecedentes. Se pide al dar de alta un chofer; los vencimientos se
+/// marcan en el listado de choferes. Las fechas son días (medianoche UTC), no instantes.
+model DriverProfile {
+  id                      String    @id @default(cuid())
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// DNI, sólo dígitos.
+  documentNumber          String
+  /// CUIL con guiones (20-12345678-9). Opcional: la planilla lo tiene, el alta no lo exige.
+  cuil                    String?
+  /// Categoría de la licencia profesional (D1, D2, D3…).
+  licenseCategory         String
+  /// COMPLETA (nacional) o JURISDICCIONAL.
+  licenseScope            String    @default("COMPLETA")
+  licenseExpiresAt        DateTime
+  /// Certificado de antecedentes provincial.
+  criminalRecordExpiresAt DateTime
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([documentNumber])
 }
 
 model Session {

@@ -19,3 +19,45 @@
   padding: 0 16px;
   white-space: nowrap;
 }
+
+/* Documentación del chofer: un bloque propio dentro del formulario, con la misma grilla. */
+.admin-form-grid fieldset.driver-documents {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.admin-form-grid fieldset.driver-documents .driver-documents-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.admin-form-grid fieldset.driver-documents label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-form-grid fieldset.driver-documents legend {
+  padding: 0 6px;
+  font-weight: 800;
+}
+
+/* Listado de choferes: categoría y vencimiento arriba del estado. */
+.driver-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.status-pill[data-vencimiento="EXPIRING"] {
+  background: rgba(200, 140, 20, 0.16);
+  color: #7a5200;
+}
