@@ -115,22 +115,6 @@
 .aero-carga .admin-form-grid { align-items: end; }
 .aero-carga .admin-form-grid > button { align-self: end; min-height: 46px; height: 46px; }
 
-/* Clave de AirLabs: el campo con el mismo estilo que los demás. */
-.key-box .checkout-fields { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
-.key-box .checkout-fields > label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
-.key-box .checkout-fields input[type="password"] {
-  width: 100%;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--bg);
-  font: inherit;
-  font-size: 14px;
-  color: var(--ink);
-}
-.key-box .checkout-fields .quantity-help { grid-column: 1 / -1; }
-
 @media (max-width: 760px) {
   /* Resumen: 3 arriba y 2 abajo a lo ancho, sin hueco al final. */
   .flights-summary { grid-template-columns: repeat(6, minmax(0, 1fr)); }
@@ -142,7 +126,6 @@
   .aero-tablero .flight-card-actions .ghost-button,
   .aero-tablero .flight-card-actions .flight-actions > summary { justify-content: center; width: 100%; min-height: 36px; padding: 0 8px; }
   .aero-tablero .flight-actions-body { width: min(280px, calc(100vw - 48px)); }
-  .key-box .checkout-fields { grid-template-columns: minmax(0, 1fr); }
 }
 .aero-carga-modal .reservas-modal-body { margin-top: 16px; }
 .aero-carga-modal .admin-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
