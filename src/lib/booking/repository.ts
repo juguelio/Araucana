@@ -1217,6 +1217,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           status: reservation.status,
           paymentStatus: reservation.payment?.status ?? null,
           paymentProvider: reservation.payment?.provider ?? null,
+          totalCents: reservation.totalCents,
+          currency: reservation.currency,
           hasReceipt: Boolean(reservation.payment?.receiptBlobPathname),
           receiptFileName: reservation.payment?.receiptFileName ?? null,
           receiptUploadedAt: reservation.payment?.receiptUploadedAt ?? null,
