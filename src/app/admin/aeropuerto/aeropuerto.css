@@ -148,3 +148,7 @@
 .nave-buscador-opcion:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, transparent); }
 .nave-buscador-opcion > span { display: grid; gap: 2px; }
 .nave-buscador-opcion small { font-size: 12px; }
+
+/* Día anterior / siguiente a los costados del selector de fecha. */
+.flights-date { flex-wrap: wrap; }
+.flights-date .flights-dia-paso { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
