@@ -2334,7 +2334,13 @@ a.wizard-option { text-decoration: none; }
 .flights-pasados > summary::-webkit-details-marker { display: none; }
 .flights-pasados > summary::before { content: "▸"; font-size: 11px; transition: transform .15s ease; }
 .flights-pasados[open] > summary::before { transform: rotate(90deg); }
-.flights-proyectados > summary { color: var(--accent); }
+/* Los proyectados ya no viven dentro de la columna: tienen su propio bloque al pie del tablero,
+   separado de los vuelos del dia por una linea, para que no compitan con el contador. */
+.flights-proyectados { margin-top: 22px; padding-top: 4px; border-top: 1px solid var(--line); }
+.flights-proyectados > summary { display: flex; align-items: center; gap: 8px; padding: 10px 0 4px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); cursor: pointer; list-style: none; }
+.flights-proyectados > summary::-webkit-details-marker { display: none; }
+.flights-proyectados > summary::before { content: "▸"; font-size: 11px; transition: transform .15s ease; }
+.flights-proyectados[open] > summary::before { transform: rotate(90deg); }
 .flights-proyectados .flights-list { margin-top: 8px; }
 .flights-pasados .flights-list { margin-top: 8px; }
 .flight-card[data-pasado="true"] { filter: grayscale(1); opacity: .62; }
