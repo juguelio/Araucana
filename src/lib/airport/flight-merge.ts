@@ -62,7 +62,12 @@ export async function unificarFilasDeVuelo(
   const candidatos = [...new Set(aBorrar)].filter((id) => grupo.includes(id));
   if (candidatos.length === 0) return { borrados: 0, eventos: 0 };
 
-  return prisma.$transaction(async (tx) => {
+  // Las lecturas de las fuentes (`FlightObservation`) quedan con `SetNull` al borrar la fila; se
+  // reapuntan a la que queda. Va fuera de la transacción y sin poder romperla: la unificación no
+  // puede depender de una tabla de diagnóstico.
+  const lecturas = await lecturasDe(candidatos);
+
+  const resultado = await prisma.$transaction(async (tx) => {
     // Orden estable para que dos sync simultáneos no se bloqueen mutuamente.
     for (const id of [...grupo].sort()) {
       await tx.$queryRaw`SELECT id FROM "Flight" WHERE id = ${id} FOR UPDATE`;
@@ -71,7 +76,7 @@ export async function unificarFilasDeVuelo(
     const filas = await tx.flight.findMany({ where: { id: { in: grupo } }, select: CAMPOS });
     const prioridad = filas.map(comoPrioridad);
     const sobreviviente = elegirSuperviviente(prioridad);
-    if (!sobreviviente) return { borrados: 0, eventos: 0 };
+    if (!sobreviviente) return { borrados: [] as string[], eventos: 0, queda: null };
     const autoritativa = elegirAutoritativa(prioridad);
     const perdedores = candidatos.filter((id) => id !== sobreviviente.id);
 
@@ -127,6 +132,27 @@ export async function unificarFilasDeVuelo(
       });
     }
 
-    return { borrados: borrados.length, eventos };
+    return { borrados, eventos, queda: sobreviviente.id };
   }, { isolationLevel: "ReadCommitted" });
+
+  if (resultado.queda) await reapuntarLecturas(lecturas, resultado.borrados, resultado.queda);
+  return { borrados: resultado.borrados.length, eventos: resultado.eventos };
+}
+
+async function lecturasDe(ids: readonly string[]): Promise<Array<{ id: string; flightId: string | null }>> {
+  try {
+    return await prisma.flightObservation.findMany({ where: { flightId: { in: [...ids] } }, select: { id: true, flightId: true } });
+  } catch {
+    return [];
+  }
+}
+
+async function reapuntarLecturas(lecturas: Array<{ id: string; flightId: string | null }>, borrados: readonly string[], queda: string) {
+  const ids = lecturas.filter((l) => l.flightId && borrados.includes(l.flightId)).map((l) => l.id);
+  if (ids.length === 0) return;
+  try {
+    await prisma.flightObservation.updateMany({ where: { id: { in: ids }, flightId: null }, data: { flightId: queda } });
+  } catch (error) {
+    console.warn("[aeropuerto] no se pudieron reapuntar las observaciones", error instanceof Error ? error.message : error);
+  }
 }

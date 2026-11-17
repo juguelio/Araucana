@@ -273,10 +273,49 @@ model Flight {
   events        FlightEvent[]
   reservations  AirportReservationDetails[]
   assignments   AirportVehicleAssignment[]
+  observations  FlightObservation[]
 
   @@unique([number, scheduledAt, direction])
   @@index([scheduledAt])
   @@index([status])
+}
+
+/// Lo que dijo cada fuente (AirLabs, tablero del aeropuerto) en cada sincronización, tal como vino.
+/// Modo sombra: no decide nada sobre `Flight`. Sirve para comparar fuentes y medir duplicados antes
+/// de que el asociador pase a decidir qué fila es cada vuelo. Ver docs/aeropuerto-vuelos.md.
+model FlightObservation {
+  id              String    @id @default(cuid())
+  syncRunId       String
+  source          String
+  observedAt      DateTime  @default(now())
+  direction       String
+  rawNumber       String
+  canonicalNumber String
+  airline         String?
+  codeshareOf     String?
+  origin          String?
+  scheduledAt     DateTime?
+  estimatedAt     DateTime?
+  status          String?
+  rawStatus       String?
+  localDay        String?
+  dayInferred     Boolean   @default(false)
+  matchKey        String?
+  /// Qué hizo el sync con esta lectura (ACTUALIZADO, CREADO, DESCARTADO_GEMELO, …).
+  syncOutcome     String
+  /// Fila a la que el sync aplicó la lectura. SetNull: el sync borra filas repetidas todo el tiempo.
+  flightId        String?
+  flight          Flight?   @relation(fields: [flightId], references: [id], onDelete: SetNull)
+  /// Fila que habría elegido el asociador por identidad de vuelo (sombra, sin FK).
+  matcherFlightId String?
+  matchLevel      String
+  discrepancy     String?
+  payload         Json?
+
+  @@index([syncRunId])
+  @@index([localDay, direction])
+  @@index([matchKey])
+  @@index([flightId])
 }
 
 model FlightEvent {

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { detectFlightChange, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { planificarUnificacionJetSmart } from "@/lib/airport/dedupe";
 import { deleteUnoccupiedFlight } from "@/lib/airport/flight-cleanup";
@@ -10,6 +11,8 @@ import { prisma } from "@/lib/db/prisma";
 import { reconciliarReservasDeVuelosPasados } from "@/lib/airport/reservation-cleanup";
 import { getAirLabsKey } from "@/lib/settings/app-settings";
 import { recordAuditBestEffort, type AuditActor } from "@/lib/audit/record";
+import { guardarObservaciones, observacionDeAirLabs, observacionDelTablero, type ObservacionPendiente } from "@/lib/airport/observations";
+import { aerolineaDelNumero, aerolineasEquivalentes, numeroCanonico } from "@/lib/airport/observation-match";
 
 /**
  * Trae los vuelos de AirLabs y los guarda en `Flight`, registrando en `FlightEvent` cada
@@ -45,6 +48,8 @@ export type SyncSummary = {
   /** Vuelos que siguen repetidos porque más de una fila tiene reservas: los resuelve una persona. */
   repetidosConReservas: string[];
   errores: string[];
+  /** Lecturas de cada fuente guardadas en `FlightObservation` (modo sombra) y cuántas difieren del sync. */
+  observaciones?: { registradas: number; discrepancias: number };
 };
 
 /** Rango local (UTC-3) de un día, para saber si un día ya tiene datos reales. */
@@ -285,17 +290,24 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
   const resumen: SyncSummary = { corridas: 0, creados: 0, actualizados: 0, eventos: 0, proyectados: 0, desdeTablero: 0, limpiados: 0, proyectadosLimpiados: 0, realineados: 0, estadosFuturosLimpiados: 0, jetSmartUnificados: 0, repetidosConReservas: [], errores: [] };
   const direcciones: FlightDirection[] = ["ARRIVAL", "DEPARTURE"];
   const apiKey = await getAirLabsKey();
+  // Modo sombra: cada lectura de cada fuente, con lo que el sync hizo con ella. No decide nada.
+  const syncRunId = crypto.randomUUID();
+  const lecturas: ObservacionPendiente[] = [];
 
   await unificarJetSmartRepetidos(resumen);
 
   for (const dia of diasDesdeHoy(Math.min(opts.days ?? DIAS_A_SINCRONIZAR, 1))) {
     for (const direction of direcciones) {
-      const { flights, error } = await fetchSchedules(direction, dia, apiKey);
+      const { flights, error, raw } = await fetchSchedules(direction, dia, apiKey);
       resumen.corridas += 1;
       if (error) {
         resumen.errores.push(`${direction} ${dia}: ${error}`);
         continue;
       }
+
+      // Qué pasó con cada vuelo normalizado, para atribuírselo a las lecturas crudas de AirLabs.
+      const aplicados = new Map<string, { outcome: "CREADO" | "ACTUALIZADO"; flightId: string | null; status: string }>();
+      const claveApi = (numero: string, horario: Date) => `${numeroCanonico(numero)}|${horario.getTime()}`;
 
       for (const vuelo of flights) {
         // Mismo número y sentido ese día = el mismo vuelo, aunque el horario haya cambiado entre
@@ -329,9 +341,11 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
             }
           });
           resumen.creados += count;
+          aplicados.set(claveApi(vuelo.number, vuelo.scheduledAt), { outcome: "CREADO", flightId: null, status: vuelo.status });
           continue;
         }
 
+        aplicados.set(claveApi(vuelo.number, vuelo.scheduledAt), { outcome: "ACTUALIZADO", flightId: previo.id, status: vuelo.status });
         const cambio = detectFlightChange(
           { status: previo.status, scheduledAt: previo.scheduledAt, estimatedAt: previo.estimatedAt },
           { status: vuelo.status, scheduledAt: vuelo.scheduledAt, estimatedAt: vuelo.estimatedAt }
@@ -357,6 +371,21 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         if (cambio) resumen.eventos += 1;
         resumen.actualizados += 1;
       }
+
+      // Las lecturas crudas incluyen los códigos compartidos y los WJ que la normalización descarta.
+      for (const item of raw ?? []) {
+        const lectura = observacionDeAirLabs(item, direction);
+        if (!lectura) continue;
+        const aplicado = lectura.scheduledAt ? aplicados.get(claveApi(lectura.rawNumber, lectura.scheduledAt)) : undefined;
+        if (aplicado) {
+          lectura.outcome = aplicado.outcome;
+          lectura.flightId = aplicado.flightId;
+          lectura.status = aplicado.status;
+        } else {
+          lectura.outcome = lectura.codeshareOf ? "DESCARTADO_CODIGO_COMPARTIDO" : "DESCARTADO_DUPLICADO_PROVEEDOR";
+        }
+        lecturas.push(lectura);
+      }
     }
   }
 
@@ -376,20 +405,30 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
     const vistos = new Set<string>();
 
     for (const { f, canonical } of tablero) {
+      // Se registra antes de cualquier descarte: lo que el sync saltea es justo lo que hay que ver.
+      const lectura = observacionDelTablero(f, direction);
+      lecturas.push(lectura);
       const estadoDelTablero = mapFidsStatus(f);
       // El estado entra en la cuenta de la fecha: un vuelo que ya aterrizó es de hoy, no de mañana.
       const fecha = fechaDelTablero(f.scheduled, new Date(), estadoDelTablero);
-      if (!fecha) continue;
+      if (!fecha) {
+        lectura.outcome = "SIN_FECHA";
+        continue;
+      }
       const number = canonical ?? f.number;
       const airline = canonical ? "JA" : f.airlineCode;
       const clave = `${fecha}|${number}`;
-      if (canonical && vistos.has(clave)) continue;
-      if (canonical) vistos.add(clave);
       const scheduledAt = new Date(`${fecha}T${f.scheduled}:00-03:00`);
       const estimatedAt = f.estimated ? new Date(`${fecha}T${f.estimated}:00-03:00`) : null;
       // El estado declarado por el tablero, corregido con los horarios: si la estima se corrió
       // 30 min o más, es una demora aunque el tablero diga "Pre Embarque" o "En horario".
       const estado = estadoSegunHorario(estadoDelTablero, scheduledAt, estimatedAt);
+      Object.assign(lectura, { localDay: fecha, scheduledAt, estimatedAt, status: estado });
+      if (canonical && vistos.has(clave)) {
+        lectura.outcome = "REPETIDO_EN_TABLERO";
+        continue;
+      }
+      if (canonical) vistos.add(clave);
 
       // Mismo número y día observado: buscar la fila existente antes de usar este dato sin fecha.
       const desdeElDia = new Date(`${fecha}T00:00:00-03:00`);
@@ -408,6 +447,8 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         (v) => v.source === "API" && v.lastCheckedAt && fechaLocal(v.lastCheckedAt) === fecha
       );
       if (deLaApi) {
+        lectura.outcome = "ESTADO_SOBRE_API";
+        lectura.flightId = deLaApi.id;
         const peso: Record<string, number> = { SCHEDULED: 0, DELAYED: 0, EN_ROUTE: 1, LANDED: 2, DIVERTED: 2, CANCELLED: 2 };
         // Nunca retroceder: un LANDED no vuelve a EN_ROUTE porque el tablero tarde en refrescar.
         if (estado !== deLaApi.status && (peso[estado] ?? 0) >= (peso[deLaApi.status] ?? 0)) {
@@ -445,6 +486,8 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         }
       }
       if (propio) {
+        lectura.outcome = "ACTUALIZADO";
+        lectura.flightId = propio.id;
         const cambio = detectFlightChange(
           { status: propio.status, scheduledAt: propio.scheduledAt, estimatedAt: propio.estimatedAt },
           { status: estado, scheduledAt, estimatedAt }
@@ -501,16 +544,26 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         continue;
       }
 
-      const gemelo = canonical ? null : await prisma.flight.findFirst({
+      // Sólo un vuelo de la misma aerolínea puede ser el mismo vuelo con otro número. Sin este
+      // filtro, AR1656/AR1657 del tablero se descartaban por estar a 25 minutos de AJ324/AJ325
+      // (otra empresa, otra ruta) y desaparecían de la grilla cuando AirLabs no los traía.
+      const aerolineasDelVuelo = aerolineasEquivalentes(f.airlineCode || aerolineaDelNumero(number));
+      const gemelo = canonical || aerolineasDelVuelo.length === 0 ? null : await prisma.flight.findFirst({
         where: {
           direction,
+          airline: { in: aerolineasDelVuelo },
           scheduledAt: {
             gte: new Date(scheduledAt.getTime() - 25 * 60000),
             lte: new Date(scheduledAt.getTime() + 25 * 60000)
           }
         }
       });
-      if (gemelo) continue;
+      if (gemelo) {
+        // Queda registrado contra qué fila se descartó, para ver si se perdió un vuelo real.
+        lectura.outcome = "DESCARTADO_GEMELO";
+        lectura.payload = { ...(lectura.payload as Record<string, unknown>), gemelo: gemelo.id, gemeloNumero: gemelo.number } as Prisma.InputJsonValue;
+        continue;
+      }
 
       const { count } = await prisma.flight.createMany({
         skipDuplicates: true,
@@ -529,8 +582,10 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
       });
       resumen.creados += count;
       resumen.desdeTablero += count;
+      lectura.outcome = "CREADO";
     }
   }
+
 
   // El día en curso tiene que mostrar horarios reales: si quedaron filas proyectadas de cuando ese
   // día todavía era futuro, se descartan una vez que hay dato de la API o del tablero.
@@ -538,6 +593,10 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
     resumen.proyectadosLimpiados += await limpiarProyectadosConDatosReales(dia);
   resumen.estadosFuturosLimpiados += await limpiarEstadosQueNoPudieronOcurrir();
   }
+
+  // Después de descartar las proyecciones de hoy (si no, cada vuelo real figuraría repetido con su
+  // proyección) y antes de proyectar días futuros: se compara la grilla real del día.
+  resumen.observaciones = await guardarObservaciones(syncRunId, lecturas);
 
   // Los días futuros NO vienen de la API (el plan de AirLabs no publica horarios futuros).
   // Para que el pasajero igual pueda elegir un vuelo de los próximos días, se repite el patrón

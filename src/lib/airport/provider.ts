@@ -97,7 +97,7 @@ export async function fetchSchedules(
   direction: FlightDirection,
   dia: string,
   apiKey?: string | null
-): Promise<{ flights: NormalizedFlight[]; error: string | null }> {
+): Promise<{ flights: NormalizedFlight[]; error: string | null; raw?: RawSchedule[] }> {
   // La clave puede venir de la variable de entorno o de la configurada en el panel (la resuelve
   // el sync); sin ninguna, el conector queda en modo degradado y lo dice.
   // /schedules es una ventana en vivo: no admite consultar fechas futuras.
@@ -117,7 +117,8 @@ export async function fetchSchedules(
       const ts = fecha(direction === "ARRIVAL" ? it.arr_time_ts : it.dep_time_ts);
       return ts ? airportLocalDay(ts) === dia : false;
     });
-    return { flights: normalizeSchedules(items, direction), error: null };
+    // `raw` va sin normalizar (con los códigos compartidos) para el registro de observaciones.
+    return { flights: normalizeSchedules(items, direction), error: null, raw: items };
   } catch (e) {
     return { flights: [], error: e instanceof Error ? e.message : "error de red" };
   }

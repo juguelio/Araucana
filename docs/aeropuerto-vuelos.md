@@ -35,6 +35,33 @@ en la pantalla del aeropuerto el día del vuelo.
 6. **Corrige** las filas `ESTIMADO` futuras que quedaron con la hora de otro día.
 7. **Limpia** proyecciones de días que ya consiguieron datos reales.
 
+## Registro de observaciones (modo sombra)
+
+Cada corrida guarda en `FlightObservation` lo que dijo cada fuente, tal como vino (`observations.ts`):
+
+- **AirLabs crudo**, antes de normalizar: incluye los códigos compartidos (`codeshareOf` = `cs_flight_iata`) y
+  los WJ que la normalización descarta.
+- **Tablero**, antes de cualquier descarte, con `dayInferred = true` porque el tablero no trae fecha.
+- `syncOutcome`: qué hizo el sync con la lectura (`ACTUALIZADO`, `CREADO`, `ESTADO_SOBRE_API`,
+  `DESCARTADO_GEMELO`, `DESCARTADO_CODIGO_COMPARTIDO`, …) y `flightId`, la fila a la que la aplicó.
+- `matcherFlightId` / `matchLevel`: qué fila habría elegido el asociador (`observation-match.ts`) por
+  identidad de vuelo: **aerolínea que opera + número canónico + día local + sentido**. Si difiere de lo que
+  hizo el sync, o hay dos filas del mismo vuelo, queda en `discrepancy`.
+
+No cambia nada de `Flight`: sirve para medir duplicados y diferencias entre fuentes antes de que el
+asociador decida. Todas las lecturas de una corrida comparten `syncRunId`. Si no se puede guardar, el sync
+sigue igual.
+
+```sql
+-- discrepancias de los últimos días
+select "localDay", source, "rawNumber", "syncOutcome", "matchLevel", discrepancy
+from "FlightObservation" where discrepancy is not null order by "observedAt" desc limit 50;
+
+-- lo que dijo cada fuente del mismo vuelo
+select "matchKey", source, "scheduledAt", status, "rawStatus", "observedAt"
+from "FlightObservation" where "localDay" = '2026-11-18' order by "matchKey", "observedAt";
+```
+
 ## Cuándo corre
 
 No hay cron. Se dispara cuando alguien consulta los vuelos del día en el sitio
