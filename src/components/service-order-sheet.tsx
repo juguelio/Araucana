@@ -119,7 +119,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
         Cobrar / Pagado es el estado del pago. Las filas están en el orden de la recorrida: el que se acomodó a mano en
         el panel y, si no, el sugerido desde el aeropuerto (el retiro más cercano primero y al final los pasajeros que
         no tienen el punto marcado en el mapa). Si el vuelo sale con más de una nave, hay una orden por nave. El
-        contacto abre el WhatsApp con un toque.
+        botón verde «W» al lado del contacto abre el WhatsApp.
       </p>
     </article>
   );

@@ -4,18 +4,28 @@ import { whatsappLink } from "@/lib/airport/route-order";
  * Contenido de una celda de la orden de servicio. Lo comparten la hoja de sólo lectura y la recorrida
  * editable del panel, así que no lleva `"use client"`.
  *
- * El contacto es un link de WhatsApp para que el chofer lo abra con un click (pedido del cliente); el
- * resto de las celdas es texto. El número se muestra igual que se cargó, sin normalizar a la vista.
+ * El contacto lleva al lado el botón de WhatsApp del listado de reservas para que el chofer lo abra con
+ * un toque (pedido del cliente); el resto de las celdas es texto. El número se muestra igual que se cargó, sin normalizar a la vista.
  */
 export function CeldaDeLaOrden({ celda, columna }: { celda: string; columna: string }) {
   if (!celda) return <span className="orden-vacio">—</span>;
   if (columna !== "Contacto") return <>{celda}</>;
   const whatsapp = whatsappLink(celda);
   if (!whatsapp) return <>{celda}</>;
+  // El mismo botón verde «W» que el listado de reservas: un solo criterio visual para abrir WhatsApp.
   return (
-    <a className="orden-whatsapp" href={whatsapp} target="_blank" rel="noopener noreferrer">
+    <span className="orden-contacto">
       {celda}
-      <span className="orden-whatsapp-icono" aria-hidden="true"> · WhatsApp</span>
-    </a>
+      <a
+        className="whatsapp-link orden-whatsapp-boton"
+        href={whatsapp}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Enviar WhatsApp a ${celda}`}
+        title="Enviar WhatsApp"
+      >
+        W
+      </a>
+    </span>
   );
 }
