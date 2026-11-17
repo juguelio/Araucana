@@ -7,7 +7,7 @@ const when = new Intl.DateTimeFormat("es-AR", {
   timeZone: "America/Argentina/Salta"
 });
 
-type ScheduleRow = { id: string; routeId: string; vehicleId: string; departureAt: Date; arrivalAt: Date; status: string };
+type ScheduleRow = { id: string; routeId: string; vehicleId: string; driverId?: string | null; departureAt: Date; arrivalAt: Date; status: string };
 
 /** "Origen → Destino · 21/11/2026, 08:00": cómo se nombra una salida en la auditoría. */
 export async function scheduleAuditLabel(tx: Prisma.TransactionClient, schedule: { routeId: string; departureAt: Date }) {
@@ -31,8 +31,17 @@ export async function recordScheduleAudit(
   const vehicleIds = [...new Set([before?.vehicleId, after?.vehicleId].filter((id): id is string => !!id))];
   const vehicles = await tx.vehicle.findMany({ where: { id: { in: vehicleIds } }, select: { id: true, name: true } });
   const vehicleName = (id?: string) => (id ? vehicles.find((vehicle) => vehicle.id === id)?.name ?? id : null);
+  // El chofer (issue #174) también por nombre: un id de usuario no le dice nada a quien lee.
+  const driverIds = [...new Set([before?.driverId, after?.driverId].filter((id): id is string => !!id))];
+  const drivers = driverIds.length ? await tx.user.findMany({ where: { id: { in: driverIds } }, select: { id: true, name: true, email: true } }) : [];
+  const driverName = (id?: string | null) => {
+    if (!id) return null;
+    const found = drivers.find((driver) => driver.id === id);
+    return found ? found.name ?? found.email : id;
+  };
   const picture = (row: ScheduleRow | null) => row && {
-    departureAt: row.departureAt, arrivalAt: row.arrivalAt, status: row.status, routeId: row.routeId, vehicle: vehicleName(row.vehicleId)
+    departureAt: row.departureAt, arrivalAt: row.arrivalAt, status: row.status, routeId: row.routeId, vehicle: vehicleName(row.vehicleId),
+    ...(row.driverId !== undefined ? { driver: driverName(row.driverId) } : {})
   };
   await recordEntityAudit(tx, {
     actor, entity: "SCHEDULE", entityId: reference.id, entityLabel: await scheduleAuditLabel(tx, reference),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { horaDeReferencia, MARGEN_TERMINADO_MIN, separarVuelosDelTablero, vueloTerminado } from "./flight-board";
+import { horaDeReferencia, MARGEN_SIN_CONFIRMAR_MIN, MARGEN_TERMINADO_MIN, separarVuelosDelTablero, vueloTerminado } from "./flight-board";
 
 const ahora = new Date("2026-11-12T18:00:00.000Z");
 const enMinutos = (min: number) => new Date(ahora.getTime() + min * 60000);
@@ -47,15 +47,35 @@ describe("separar vuelos del tablero", () => {
     expect(terminados.map((v) => v.scheduledAt)).toEqual([enMinutos(-120)]);
   });
 
-  it("un día pasado sin confirmación queda por verificar", () => {
+  it("lo que pasó hace un rato y nadie confirmó queda por verificar", () => {
     const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(
-      [vuelo({ scheduledAt: enMinutos(-600) }), vuelo({ scheduledAt: enMinutos(-400) })],
+      [vuelo({ scheduledAt: enMinutos(-(MARGEN_TERMINADO_MIN + 30)) }), vuelo({ scheduledAt: enMinutos(-150) })],
       ahora
     );
 
     expect(enJuego).toHaveLength(0);
     expect(terminados).toHaveLength(0);
     expect(porVerificar).toHaveLength(2);
+  });
+
+  it("lo que pasó hace horas baja al pie aunque la fuente nunca lo confirme", () => {
+    // El caso real: Chapelco en temporada baja, o AirLabs caído. Sin tope, el día entero se
+    // apilaba en «Por verificar» y tapaba los vuelos que sí seguían en juego.
+    const { enJuego, terminados, porVerificar } = separarVuelosDelTablero(
+      [vuelo({ scheduledAt: enMinutos(-600) }), vuelo({ scheduledAt: enMinutos(-(MARGEN_SIN_CONFIRMAR_MIN + 60)) })],
+      ahora
+    );
+
+    expect(porVerificar).toHaveLength(0);
+    expect(terminados).toHaveLength(2);
+    expect(enJuego).toHaveLength(0);
+  });
+
+  it("el tope es sobre la hora de referencia: un demorado sigue arriba", () => {
+    const demorado = vuelo({ status: "DELAYED", scheduledAt: enMinutos(-300), estimatedAt: enMinutos(45) });
+    const { enJuego, porVerificar } = separarVuelosDelTablero([demorado], ahora);
+    expect(porVerificar).toHaveLength(0);
+    expect(enJuego).toHaveLength(1);
   });
 
   it("no muta la lista que recibe", () => {
