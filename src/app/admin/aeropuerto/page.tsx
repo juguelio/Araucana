@@ -386,8 +386,8 @@ export default async function AirportPage({ searchParams }: PageProps) {
       {reservasFantasma > 0 ? (
         <p className="flights-aviso">
           <strong>{reservasFantasma}</strong> {reservasFantasma === 1 ? "reserva" : "reservas"} ({pasajerosFantasma}{" "}
-          {pasajerosFantasma === 1 ? "pasajero" : "pasajeros"}) {reservasFantasma === 1 ? "está sobre un vuelo" : "están sobre vuelos"}{" "}
-          que ninguna fuente confirma, por eso no se muestran como vuelos del día. Reasigná{" "}
+          {pasajerosFantasma === 1 ? "pasajero" : "pasajeros"}) sobre {reservasFantasma === 1 ? "un vuelo" : "vuelos"} que
+          ninguna fuente confirma. No se {reservasFantasma === 1 ? "muestra" : "muestran"} en el tablero: reasigná{" "}
           {reservasFantasma === 1 ? "esa reserva" : "esas reservas"} a un vuelo real desde{" "}
           <a href="/admin/reservas">Reservas</a>.
         </p>
