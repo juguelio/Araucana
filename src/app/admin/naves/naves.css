@@ -1,17 +1,20 @@
-/* === Naves: vencimientos juntos arriba y tarjetas en el celular === estilos propios */
+/* === Naves: alerta de vencimientos por fila, orden por columna y tarjetas en el celular === estilos propios */
 @media (min-width: 761px) { .naves-stats { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
 .naves-stats .naves-stat-link { text-decoration: none; color: inherit; }
 .naves-stats .naves-stat-link:hover { border-color: var(--primary); }
 .naves-stats .naves-stat-link[data-alerta="true"] strong { color: var(--accent); }
-.naves-vencimientos { border-color: var(--accent); }
-.naves-urgentes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
-.naves-urgentes li { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.naves-urgentes li[data-nivel="vencido"] { border-color: #c0392b; background: #fff4f2; }
-.naves-urgente-unidad { display: grid; gap: 1px; text-decoration: none; color: inherit; min-width: 0; }
-.naves-urgente-unidad:hover strong { text-decoration: underline; }
-.naves-urgente-unidad .muted { font-size: 12px; }
-.naves-urgente-papeles { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.naves-urgente-papeles .pill { font-size: 11px; padding: 4px 9px; }
+/* Encabezados ordenables: toda la celda es el enlace, con la flecha del sentido. */
+.naves-tabla th .naves-orden { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; white-space: nowrap; }
+.naves-tabla th .naves-orden:hover { color: var(--primary); }
+.naves-tabla th .naves-orden-flecha { font-size: 10px; opacity: .45; }
+.naves-tabla th .naves-orden[data-activo="true"] { color: var(--primary); }
+.naves-tabla th .naves-orden[data-activo="true"] .naves-orden-flecha { opacity: 1; }
+/* En el celular la tabla pasa a tarjetas y no hay encabezado: el orden se elige con este selector. */
+.naves-orden-movil { display: none; }
+@media (max-width: 760px) {
+  .naves-orden-movil { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin: 0 0 12px; }
+  .naves-orden-movil label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; flex: 1 1 140px; }
+}
 .naves-tabla tr[data-nivel="vencido"] td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
 .naves-tabla tr[data-nivel="proximo"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
 
@@ -19,8 +22,6 @@
   .naves-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
   .naves-stats .admin-card { padding: 12px; }
   .naves-stats .admin-card strong { font-size: 22px; }
-  .naves-urgentes li { align-items: flex-start; flex-direction: column; }
-  .naves-urgente-papeles { justify-content: flex-start; }
 
   .naves-tabla-scroll { overflow: visible; }
   .table-scroll .naves-tabla { min-width: 0; width: 100%; display: block; background: transparent; }
