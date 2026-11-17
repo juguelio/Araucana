@@ -71,6 +71,15 @@ function aerolineaCanonica(code: string | null | undefined, numero: string): str
   return c;
 }
 
+/** Códigos con los que las fuentes nombran a la misma aerolínea ("WJ" y "JA" son JetSMART). */
+const EQUIVALENTES: Record<string, string[]> = { JA: ["JA", "WJ"], WJ: ["JA", "WJ"], AJ: ["AJ", "AJB"], AJB: ["AJ", "AJB"] };
+
+export function aerolineasEquivalentes(code: string | null | undefined): string[] {
+  const c = (code ?? "").trim().toUpperCase();
+  if (!c) return [];
+  return EQUIVALENTES[c] ?? [c];
+}
+
 export function claveDeVuelo(aerolinea: string | null, numero: string, dia: string, sentido: string): string {
   return `${aerolinea ?? "?"}|${numero}|${dia}|${sentido}`;
 }

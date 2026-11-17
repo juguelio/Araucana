@@ -77,14 +77,27 @@ describe("registro de observaciones por fuente (modo sombra)", () => {
     expect(r.observaciones).toEqual({ registradas: 2, discrepancias: 0 });
   });
 
-  it("una fila del tablero descartada por cercanía con otra aerolínea queda como discrepancia", async () => {
+  it("el tablero no descarta un vuelo por cercanía con otra aerolínea (AR1657 no es AJ325)", async () => {
     m.fids.mockResolvedValueOnce({ flights: [{ number: "AR1657", airlineCode: "AR", scheduled: "12:30", estimated: null, city: "Buenos Aires", statusText: "Programado", statusClass: "" }], error: null });
-    // el «gemelo» que hoy bloquea la fila es un American Jet a 15 minutos
-    m.findFirst.mockResolvedValueOnce({ id: "aj", number: "AJ325", airline: "AJB", direction: "ARRIVAL", scheduledAt: new Date("2026-11-14T15:15:00Z") });
+    // La base sólo tiene un American Jet a 15 minutos: una búsqueda sin filtro de aerolínea lo encuentra.
+    const aj = { id: "aj", number: "AJ325", airline: "AJ", direction: "ARRIVAL", scheduledAt: new Date("2026-11-14T15:15:00Z") };
+    m.findFirst.mockImplementation(async (args: { where?: { airline?: { in?: string[] } } }) =>
+      !args?.where?.airline || args.where.airline.in?.includes(aj.airline) ? aj : null
+    );
+    await syncAirportFlights();
+    expect(m.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ airline: { in: ["AR"] } }) }));
+    expect(m.createMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ number: "AR1657", source: "FIDS" }) }));
+    const [lectura] = m.obs.mock.calls[0][0].data as Array<Record<string, unknown>>;
+    expect(lectura).toMatchObject({ source: "FIDS", syncOutcome: "CREADO", dayInferred: true, localDay: "2026-11-14" });
+  });
+
+  it("un descarte por cercanía que deja el vuelo fuera de la grilla queda como discrepancia", async () => {
+    m.fids.mockResolvedValueOnce({ flights: [{ number: "AR1650", airlineCode: "AR", scheduled: "12:30", estimated: null, city: "Buenos Aires", statusText: "Programado", statusClass: "" }], error: null });
+    m.findFirst.mockResolvedValueOnce({ id: "ar", number: "AR1657", airline: "AR", direction: "ARRIVAL", scheduledAt: new Date("2026-11-14T15:15:00Z") });
     await syncAirportFlights();
     const [lectura] = m.obs.mock.calls[0][0].data as Array<Record<string, unknown>>;
-    expect(lectura).toMatchObject({ source: "FIDS", syncOutcome: "DESCARTADO_GEMELO", dayInferred: true, localDay: "2026-11-14", matchLevel: "SIN_VUELO" });
-    expect(lectura.discrepancy).toMatch(/AR1657 no quedó en la grilla/);
+    expect(lectura).toMatchObject({ syncOutcome: "DESCARTADO_GEMELO", matchLevel: "SIN_VUELO" });
+    expect(lectura.discrepancy).toMatch(/AR1650 no quedó en la grilla/);
     expect(m.createMany).not.toHaveBeenCalled();
   });
 

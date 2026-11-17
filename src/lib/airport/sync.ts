@@ -12,7 +12,7 @@ import { reconciliarReservasDeVuelosPasados } from "@/lib/airport/reservation-cl
 import { getAirLabsKey } from "@/lib/settings/app-settings";
 import { recordAuditBestEffort, type AuditActor } from "@/lib/audit/record";
 import { guardarObservaciones, observacionDeAirLabs, observacionDelTablero, type ObservacionPendiente } from "@/lib/airport/observations";
-import { numeroCanonico } from "@/lib/airport/observation-match";
+import { aerolineaDelNumero, aerolineasEquivalentes, numeroCanonico } from "@/lib/airport/observation-match";
 
 /**
  * Trae los vuelos de AirLabs y los guarda en `Flight`, registrando en `FlightEvent` cada
@@ -544,9 +544,14 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         continue;
       }
 
-      const gemelo = canonical ? null : await prisma.flight.findFirst({
+      // Sólo un vuelo de la misma aerolínea puede ser el mismo vuelo con otro número. Sin este
+      // filtro, AR1656/AR1657 del tablero se descartaban por estar a 25 minutos de AJ324/AJ325
+      // (otra empresa, otra ruta) y desaparecían de la grilla cuando AirLabs no los traía.
+      const aerolineasDelVuelo = aerolineasEquivalentes(f.airlineCode || aerolineaDelNumero(number));
+      const gemelo = canonical || aerolineasDelVuelo.length === 0 ? null : await prisma.flight.findFirst({
         where: {
           direction,
+          airline: { in: aerolineasDelVuelo },
           scheduledAt: {
             gte: new Date(scheduledAt.getTime() - 25 * 60000),
             lte: new Date(scheduledAt.getTime() + 25 * 60000)
@@ -554,8 +559,7 @@ export async function syncAirportFlights(opts: { days?: number; actor?: AuditAct
         }
       });
       if (gemelo) {
-        // Hoy se descarta por cercanía con cualquier vuelo del mismo sentido, sin mirar aerolínea:
-        // queda registrado contra qué fila, para ver si se perdió un vuelo real.
+        // Queda registrado contra qué fila se descartó, para ver si se perdió un vuelo real.
         lectura.outcome = "DESCARTADO_GEMELO";
         lectura.payload = { ...(lectura.payload as Record<string, unknown>), gemelo: gemelo.id, gemeloNumero: gemelo.number } as Prisma.InputJsonValue;
         continue;
