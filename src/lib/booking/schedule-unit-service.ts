@@ -126,7 +126,9 @@ export async function updateScheduleUnit(input: {
       if (schedule.vehicleId === input.vehicleId || schedule.extraUnits.some((other) => other.id !== input.unitId && other.vehicleId === input.vehicleId)) {
         return { error: "Esa nave ya está en la salida." };
       }
-      const seatsNow = schedule.extraUnits.find((other) => other.id === input.unitId)?.vehicle._count.seats ?? 0;
+      // Una nave dada de baja ya no suma lugares (ver totalSeats): no se descuenta dos veces.
+      const current = schedule.extraUnits.find((other) => other.id === input.unitId);
+      const seatsNow = current?.vehicle.isActive ? current.vehicle._count.seats : 0;
       const replacement = await tx.vehicle.findUnique({ where: { id: input.vehicleId }, select: { _count: { select: { seats: true } } } });
       const capacity = totalSeats(schedule) - seatsNow + (replacement?._count.seats ?? 0);
       if (occupied(schedule) > capacity) {

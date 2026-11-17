@@ -218,7 +218,9 @@ export async function listDriverUpcomingSchedules(options: {
       dropoffStop: reservation.dropoffStop ?? null,
       phone: reservation.passenger.phone,
       documentLabel: documentLabel(reservation.passenger),
-      seatNumber: reservation.seatNumber,
+      // El número es un control interno de cupo. Con varias naves (o si alguna vez las tuvo) no dice
+      // en qué nave va el pasajero, así que no se muestra.
+      seatNumber: (schedule.extraUnits ?? []).length || reservation.seatNumber?.startsWith("U") ? null : reservation.seatNumber,
       passengerCount: reservation.passengerCount,
       reservationStatus: reservation.status,
       paymentStatus: reservation.payment?.status ?? null
