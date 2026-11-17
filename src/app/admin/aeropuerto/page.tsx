@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
-import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
+import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
 import { horaDeReferencia, separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
@@ -173,7 +173,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             )
           ) : (
             <span className="pill pill-combi" data-tono="ok">
-              {v.assignments.map((a) => `${a.vehicle.name} (${a.vehicle.seats.length})`).join(" · ")}
+              {v.assignments.map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)})`).join(" · ")}
             </span>
           )}
           {pickupStart ? <span className="muted flight-info-recorrida">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}

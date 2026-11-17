@@ -5,6 +5,7 @@ import {
   buildServiceOrderBlocks,
   buildServiceOrderWorkbook,
   filtrarPorNave,
+  inicioDeRecorrida,
   referenciaDeLaOrden,
   SIN_NAVE,
   tituloDelTotal,
@@ -437,6 +438,38 @@ describe("orden de servicio del aeropuerto", () => {
       expect(filtrarPorNave(blocks, null)).toHaveLength(2);
       expect(filtrarPorNave(blocks, "asig-b").map((b) => b.passengers[0].code)).toEqual(["ARA-2"]);
       expect(filtrarPorNave(blocks, "otra")).toEqual([]);
+    });
+  });
+
+  describe("inicio de recorrida remarcado", () => {
+    it("las partidas dan la hora de inicio aparte y el rótulo puede omitirla", () => {
+      const [block] = buildServiceOrderBlocks([reserva()]);
+
+      expect(inicioDeRecorrida(block)).toBe("12:45");
+      expect(blockTimeLabel(block)).toContain("recorrida 12:45");
+      expect(blockTimeLabel(block, { sinRecorrida: true })).toBe("OUT 1671 · despegue 15:15");
+    });
+
+    it("los arribos no tienen recorrida", () => {
+      const [block] = buildServiceOrderBlocks([
+        reserva({ direction: "ARRIVAL", flight: vuelo({ direction: "ARRIVAL", number: "1670" }) })
+      ]);
+
+      expect(inicioDeRecorrida(block)).toBeNull();
+    });
+
+    it("el Excel lleva un renglón «INICIO DE RECORRIDA» en las partidas", async () => {
+      const ExcelJS = (await import("exceljs")).default;
+      const buffer = await buildServiceOrderWorkbook(
+        { date: "2026-11-12", generatedAt: new Date("2026-11-12T10:00:00Z") },
+        buildServiceOrderBlocks([reserva()])
+      );
+      const libro = new ExcelJS.Workbook();
+      await libro.xlsx.load(buffer as unknown as ArrayBuffer);
+      const textos: string[] = [];
+      libro.worksheets[0].eachRow((fila) => textos.push(String(fila.getCell(1).value ?? "")));
+
+      expect(textos).toContain("INICIO DE RECORRIDA 12:45");
     });
   });
 });

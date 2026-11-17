@@ -431,15 +431,27 @@ function conNave(block: ServiceOrderBlock) {
   return nave ? ` · ${nave}` : "";
 }
 
-/** Renglón de horario del bloque: lo que va en la banda gris sobre los pasajeros. */
-export function blockTimeLabel(block: ServiceOrderBlock) {
+/**
+ * Hora de inicio de la recorrida de una partida («12:45»): el dato que el chofer no puede perder, así
+ * que la hoja lo remarca aparte. Los arribos no tienen recorrida: el chofer espera el vuelo.
+ */
+export function inicioDeRecorrida(block: ServiceOrderBlock) {
+  return block.direction === "DEPARTURE" ? horaEnSalta(block.operationAt) : null;
+}
+
+/**
+ * Renglón de horario del bloque: lo que va en la banda sobre los pasajeros. Con `sinRecorrida` deja
+ * afuera la hora de inicio de la recorrida, para cuando la hoja la muestra remarcada aparte.
+ */
+export function blockTimeLabel(block: ServiceOrderBlock, { sinRecorrida = false }: { sinRecorrida?: boolean } = {}) {
   if (block.direction === "DEPARTURE") {
     const despegue = horaEnSalta(block.flightAt);
     const programado = horaEnSalta(block.scheduledAt);
     // Si la aerolínea movió el vuelo, el chofer ve la hora vigente y la programada entre paréntesis:
     // el papel no puede esconder la hora a la que estaba citado (issue #140).
     const corrido = despegue !== programado ? ` (programado ${programado})` : "";
-    return `${block.heading} ${block.flightNumber} · recorrida ${horaEnSalta(block.operationAt)} · despegue ${despegue}${corrido}${conNave(block)}`;
+    const recorrida = sinRecorrida ? "" : ` · recorrida ${horaEnSalta(block.operationAt)}`;
+    return `${block.heading} ${block.flightNumber}${recorrida} · despegue ${despegue}${corrido}${conNave(block)}`;
   }
 
   const llega = horaEnSalta(block.flightAt);
@@ -517,6 +529,8 @@ const BORDE = "FFC9C3B2";
 const TINTA = "FF233024";
 const GRIS = "FF6B6455";
 const COBRAR = "FFA32A1F";
+/** Amarillo resaltador para la hora de inicio de la recorrida. */
+const REMARCADO = "FFFFE58A";
 const PAGADO = "FF1F5B4F";
 
 const FILA_ENCABEZADO = 5;
@@ -714,6 +728,20 @@ export async function buildServiceOrderWorkbook(
     pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE);
     banda.height = 20;
     fila += 1;
+
+    // La hora de inicio de la recorrida va remarcada en su propio renglón: es la cita del chofer.
+    const inicio = inicioDeRecorrida(block);
+    if (inicio) {
+      const renglonInicio = sheet.getRow(fila);
+      sheet.mergeCells(`A${fila}:G${fila}`);
+      const celdaInicio = renglonInicio.getCell(1);
+      celdaInicio.value = `INICIO DE RECORRIDA ${inicio}`;
+      celdaInicio.font = { bold: true, size: 14, color: { argb: TINTA } };
+      celdaInicio.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+      pintarFila(sheet, { fila, desde: 1, hasta: 7 }, REMARCADO);
+      renglonInicio.height = 24;
+      fila += 1;
+    }
 
     block.passengers.forEach((pasajero, indice) => {
       const renglon = sheet.getRow(fila);

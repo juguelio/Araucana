@@ -37,6 +37,7 @@ export const CANCELLATION_POLICY: readonly string[] = [
 const ZONA_ARGENTINA = "America/Argentina/Salta";
 const AEROPUERTO = "Aeropuerto Chapelco (CPC)";
 const CERRO = "Cerro Chapelco";
+const CIUDAD = "San Martín de los Andes";
 
 const dosDigitos = (valor: number) => String(valor).padStart(2, "0");
 
@@ -87,6 +88,8 @@ export type VoucherData = {
   referredBy: string | null;
   code: string;
   shortCode: string;
+  /** Código corto del otro tramo del ida y vuelta, para que el pasajero tenga los dos a mano. */
+  partnerShortCode: string | null;
   rows: VoucherRow[];
   totalCents: number;
   paidCents: number;
@@ -128,8 +131,10 @@ function filaDelAeropuerto(airport: {
   const horario = vuelo?.scheduledAt ? horaArgentina(vuelo.scheduledAt) : "A confirmar";
   const direccion = airport.pickupAddress ?? null;
   const saleDelAeropuerto = airport.direction === "ARRIVAL";
-  const inicio = saleDelAeropuerto ? AEROPUERTO : direccion ?? AEROPUERTO;
-  const fin = saleDelAeropuerto ? direccion ?? "San Martín de los Andes" : AEROPUERTO;
+  // Sin dirección cargada, la partida sale «de San Martín de los Andes», no del aeropuerto: si no, el
+  // voucher decía «Aeropuerto → Aeropuerto» y la vuelta parecía otro traslado.
+  const inicio = saleDelAeropuerto ? AEROPUERTO : direccion ?? CIUDAD;
+  const fin = saleDelAeropuerto ? direccion ?? CIUDAD : AEROPUERTO;
 
   const notas: string[] = [`Vuelo ${airport.flightNumber}`];
   if (airport.pickupName) notas.push(airport.pickupName);
@@ -148,8 +153,12 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
 
   const rows: VoucherRow[] = [];
 
+  // El otro tramo del ida y vuelta, salvo que se haya cancelado: entonces el voucher es sólo de éste.
+  const socio =
+    reservation.roundTripPartner && reservation.roundTripPartner.status !== "CANCELLED" ? reservation.roundTripPartner : null;
+
   if (airport) {
-    const vuelta = reservation.roundTripPartner?.airport ?? null;
+    const vuelta = socio?.airport ?? null;
     // Ida y vuelta: el comprobante tiene que mostrar también la vuelta, no sólo el tramo que se abrió.
     // Se ordenan como el viaje —la llegada primero, la salida después— sin importar cuál se abrió.
     const tramos = vuelta ? [airport, vuelta] : [airport];
@@ -176,9 +185,22 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     });
   }
 
-  const noCharge = reservation.payment?.provider === PROVEEDOR_SIN_CARGO;
-  const pagado = reservation.payment?.status === "APPROVED" ? reservation.payment.amountCents : 0;
-  const totalCents = noCharge ? 0 : reservation.totalCents;
+  // Ida y vuelta: cada tramo es una reserva con su importe y su pago, pero el pasajero compró un viaje.
+  // El voucher suma los dos, así no muestra la mitad del valor ni la mitad de lo pagado.
+  const conImporte = airport && socio?.airport && typeof socio.totalCents === "number";
+  const tramosCobrados = [
+    { totalCents: reservation.totalCents, payment: reservation.payment ?? null },
+    ...(conImporte ? [{ totalCents: socio.totalCents as number, payment: socio.payment ?? null }] : [])
+  ];
+  const noCharge = tramosCobrados.every((tramo) => tramo.payment?.provider === PROVEEDOR_SIN_CARGO);
+  const totalCents = noCharge
+    ? 0
+    : tramosCobrados.reduce((suma, tramo) => suma + (tramo.payment?.provider === PROVEEDOR_SIN_CARGO ? 0 : tramo.totalCents), 0);
+  const pagado = tramosCobrados.reduce(
+    (suma, tramo) =>
+      suma + (tramo.payment?.status === "APPROVED" && tramo.payment.provider !== PROVEEDOR_SIN_CARGO ? tramo.payment.amountCents : 0),
+    0
+  );
   const paidCents = noCharge ? 0 : Math.min(pagado, totalCents);
 
   return {
@@ -189,6 +211,7 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     referredBy: reservation.referredBy ?? null,
     code: reservation.code,
     shortCode: reservation.shortCode,
+    partnerShortCode: airport && socio ? socio.shortCode : null,
     rows,
     totalCents,
     paidCents,

@@ -77,6 +77,11 @@
   letter-spacing: 0.06em;
 }
 
+.voucher-ida-vuelta {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
 .voucher-aviso {
   margin: 18px 0 0;
   padding: 12px 14px;
