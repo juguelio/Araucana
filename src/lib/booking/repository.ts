@@ -574,9 +574,60 @@ function findReservationByCode(client: BookingTransactionClient, code: string) {
   });
 }
 
+/**
+ * El otro tramo del ida y vuelta. El voucher (#166) lo imprime en la misma tabla que el propio, así
+ * que trae los datos del servicio; el panel sólo usa `code`/`shortCode` para saltar de uno al otro.
+ */
+async function tramoCompanero(client: BookingTransactionClient, roundTripId: string, idActual: string) {
+  const socio = await client.reservation.findFirst({
+    where: { roundTripId, id: { not: idActual } },
+    select: {
+      code: true,
+      shortCode: true,
+      airportDetails: {
+        select: {
+          direction: true,
+          flightNumber: true,
+          serviceDate: true,
+          pickupName: true,
+          pickupAddress: true,
+          pickupNotes: true,
+          flight: {
+            select: { scheduledAt: true, estimatedAt: true, status: true, pickupStartOverrideAt: true }
+          }
+        }
+      }
+    }
+  });
+  if (!socio) return null;
+
+  const airport = socio.airportDetails;
+  return {
+    code: socio.code,
+    shortCode: socio.shortCode,
+    direction: airport?.direction ?? null,
+    airport: airport
+      ? {
+          direction: airport.direction ?? null,
+          flightNumber: airport.flightNumber,
+          serviceDate: airport.serviceDate,
+          pickupName: airport.pickupName ?? null,
+          pickupAddress: airport.pickupAddress ?? null,
+          pickupNotes: airport.pickupNotes ?? null,
+          flight: airport.flight ?? null
+        }
+      : null
+  };
+}
+
 async function getReservationByCodeWithClient(client: BookingTransactionClient, code: string) {
   const reservation = await findReservationByCode(client, code);
-  return reservation ? mapReservation(reservation) : null;
+  if (!reservation) return null;
+
+  const detalle = mapReservation(reservation);
+  if (!reservation.roundTripId) return { ...detalle, roundTripPartner: null };
+
+  return { ...detalle, roundTripPartner: await tramoCompanero(client, reservation.roundTripId, reservation.id) };
 }
 
 export function createBookingRepository(client: BookingClient, deps: BookingRepositoryDeps = {}) {
@@ -925,16 +976,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       if (!reservation.roundTripId) return { ...detalle, roundTripPartner: null };
 
       // Ida y vuelta (#36): el panel muestra el otro tramo del viaje para saltar de uno al otro.
-      const socio = await client.reservation.findFirst({
-        where: { roundTripId: reservation.roundTripId, id: { not: reservation.id } },
-        select: { code: true, shortCode: true, id: true, airportDetails: { select: { direction: true } } }
-      });
-
       return {
         ...detalle,
-        roundTripPartner: socio
-          ? { code: socio.code, shortCode: socio.shortCode, direction: socio.airportDetails?.direction ?? null }
-          : null
+        roundTripPartner: await tramoCompanero(client, reservation.roundTripId, reservation.id)
       };
     },
 

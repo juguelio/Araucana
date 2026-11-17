@@ -101,49 +101,67 @@ export type VoucherData = {
 /** Prefijo del proveedor de pago que representa la tarifa sin cargo por discapacidad. */
 const PROVEEDOR_SIN_CARGO = "disability_document";
 
+/** Un renglón de la tabla del voucher para un traslado al aeropuerto. */
+function filaDelAeropuerto(airport: {
+  direction?: string | null;
+  flightNumber: string;
+  serviceDate: Date | string;
+  pickupName?: string | null;
+  pickupAddress?: string | null;
+  pickupNotes?: string | null;
+  flight?: { scheduledAt: Date | string } | null;
+}): VoucherRow {
+  const vuelo = airport.flight ?? null;
+  const fecha = vuelo?.scheduledAt ? fechaArgentina(vuelo.scheduledAt) : diaCalendario(airport.serviceDate);
+  const horario = vuelo?.scheduledAt ? horaArgentina(vuelo.scheduledAt) : "A confirmar";
+  const direccion = airport.pickupAddress ?? null;
+  const saleDelAeropuerto = airport.direction === "ARRIVAL";
+  const inicio = saleDelAeropuerto ? AEROPUERTO : direccion ?? AEROPUERTO;
+  const fin = saleDelAeropuerto ? direccion ?? "San Martín de los Andes" : AEROPUERTO;
+
+  const notas: string[] = [`Vuelo ${airport.flightNumber}`];
+  if (airport.pickupName) notas.push(airport.pickupName);
+  if (airport.pickupNotes) notas.push(airport.pickupNotes);
+
+  return { fecha, horario, inicio, fin, observaciones: notas.filter(Boolean).join(" · ") };
+}
+
 /**
- * Arma el voucher desde la reserva. Un solo renglón de servicio: cada reserva es un traslado (los viajes
- * de varios tramos se reservan por tramo), así que repetir la tabla del Excel no aplica.
+ * Arma el voucher desde la reserva. Un traslado al aeropuerto es un renglón; en el ida y vuelta se
+ * suman los dos servicios en la misma tabla (#166), con la vuelta debajo de la ida.
  */
 export function buildVoucher(reservation: ReservationDetailDto, now = new Date()): VoucherData {
   const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails ?? null : null;
   const chapelco = reservation.bookingMode === "CHAPELCO" ? reservation.chapelcoDetails ?? null : null;
 
-  let fecha: string;
-  let horario: string;
-  let inicio: string;
-  let fin: string;
-  const notas: string[] = [];
+  const rows: VoucherRow[] = [];
 
   if (airport) {
-    const vuelo = airport.flight ?? null;
-    if (vuelo?.scheduledAt) {
-      fecha = fechaArgentina(vuelo.scheduledAt);
-      horario = horaArgentina(vuelo.scheduledAt);
-    } else {
-      fecha = diaCalendario(airport.serviceDate);
-      horario = "A confirmar";
-    }
-    const direccion = airport.pickupAddress ?? null;
-    const saleDelAeropuerto = airport.direction === "ARRIVAL";
-    inicio = saleDelAeropuerto ? AEROPUERTO : direccion ?? AEROPUERTO;
-    fin = saleDelAeropuerto ? direccion ?? "San Martín de los Andes" : AEROPUERTO;
-    notas.push(`Vuelo ${airport.flightNumber}`);
-    if (airport.pickupName) notas.push(airport.pickupName);
-    if (airport.pickupNotes) notas.push(airport.pickupNotes);
+    const vuelta = reservation.roundTripPartner?.airport ?? null;
+    // Ida y vuelta: el comprobante tiene que mostrar también la vuelta, no sólo el tramo que se abrió.
+    // Se ordenan como el viaje —la llegada primero, la salida después— sin importar cuál se abrió.
+    const tramos = vuelta ? [airport, vuelta] : [airport];
+    tramos.sort((a, b) => Number(b.direction === "ARRIVAL") - Number(a.direction === "ARRIVAL"));
+    rows.push(...tramos.map(filaDelAeropuerto));
   } else if (chapelco) {
-    fecha = diaCalendario(chapelco.serviceDate);
-    horario = chapelco.ascentSlot;
-    inicio = `${chapelco.pickupName} — ${chapelco.pickupAddress}`;
-    fin = CERRO;
-    notas.push(`Regreso incluido desde las 17:00`);
+    const notas = [`Regreso incluido desde las 17:00`];
     if (chapelco.pickupNotes) notas.push(chapelco.pickupNotes);
+    rows.push({
+      fecha: diaCalendario(chapelco.serviceDate),
+      horario: chapelco.ascentSlot,
+      inicio: `${chapelco.pickupName} — ${chapelco.pickupAddress}`,
+      fin: CERRO,
+      observaciones: notas.filter(Boolean).join(" · ")
+    });
   } else {
     const salida = reservation.schedule.departureAt;
-    fecha = salida ? fechaArgentina(salida) : "A confirmar";
-    horario = salida ? horaArgentina(salida) : "A confirmar";
-    inicio = reservation.route.from;
-    fin = reservation.dropoffStop ?? reservation.route.to;
+    rows.push({
+      fecha: salida ? fechaArgentina(salida) : "A confirmar",
+      horario: salida ? horaArgentina(salida) : "A confirmar",
+      inicio: reservation.route.from,
+      fin: reservation.dropoffStop ?? reservation.route.to,
+      observaciones: ""
+    });
   }
 
   const noCharge = reservation.payment?.provider === PROVEEDOR_SIN_CARGO;
@@ -159,15 +177,7 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     referredBy: reservation.referredBy ?? null,
     code: reservation.code,
     shortCode: reservation.shortCode,
-    rows: [
-      {
-        fecha,
-        horario,
-        inicio,
-        fin,
-        observaciones: notas.filter(Boolean).join(" · ")
-      }
-    ],
+    rows,
     totalCents,
     paidCents,
     balanceCents: Math.max(totalCents - paidCents, 0),

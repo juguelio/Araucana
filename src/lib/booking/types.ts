@@ -100,8 +100,28 @@ export type ReservationDetailDto = {
   roundTripId?: string | null;
   /** Quién derivó la venta (#109): agencia, voucher o persona. Vacío cuando se vendió directo. */
   referredBy?: string | null;
-  /** El otro tramo del ida y vuelta (sólo en las consultas del panel). */
-  roundTripPartner?: { code: string; shortCode: string; direction: string | null } | null;
+  /** El otro tramo del ida y vuelta: en el panel para saltar de uno al otro, y en el voucher para
+   *  mostrar los dos servicios en la misma tabla (#166). */
+  roundTripPartner?: {
+    code: string;
+    shortCode: string;
+    direction: string | null;
+    /** Datos del tramo compañero que imprime el voucher. `null` si no es un traslado al aeropuerto. */
+    airport?: {
+      direction: string | null;
+      flightNumber: string;
+      serviceDate: Date;
+      pickupName: string | null;
+      pickupAddress: string | null;
+      pickupNotes: string | null;
+      flight: {
+        scheduledAt: Date;
+        estimatedAt?: Date | null;
+        status: string;
+        pickupStartOverrideAt?: Date | null;
+      } | null;
+    } | null;
+  } | null;
   /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
   shortCode: string;
   bookingMode: string;
