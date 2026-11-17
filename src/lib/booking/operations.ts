@@ -1,3 +1,4 @@
+import { extraUnitsCountInclude, scheduleSeatCount, scheduleVehicles } from "./schedule-units";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -97,6 +98,7 @@ export async function getAdminOperationsSummary(now = new Date()): Promise<Admin
         departureAt: true,
         route: { select: { from: true, to: true } },
         vehicle: { select: { name: true, _count: { select: { seats: true } } } },
+        extraUnits: extraUnitsCountInclude,
         reservations: { select: { passengerCount: true, status: true } }
       }
     }),
@@ -125,8 +127,8 @@ export async function getAdminOperationsSummary(now = new Date()): Promise<Admin
         routeLabel: `${departure.route.from} → ${departure.route.to}`,
         departureAt: departure.departureAt,
         occupied: ocupadas,
-        capacity: departure.vehicle._count.seats,
-        vehicle: departure.vehicle.name
+        capacity: scheduleSeatCount(departure),
+        vehicle: scheduleVehicles(departure).map((vehicle) => vehicle.name).join(" + ")
       };
     }),
     flightsWithoutVehicle

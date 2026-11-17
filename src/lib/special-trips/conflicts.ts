@@ -48,7 +48,8 @@ export async function fleetConflicts(
     specialConflicts(tx, interval, excludeTrip),
     tx.schedule.findMany({
       where: {
-        vehicleId,
+        // La nave puede ser la principal de la salida o una de las que se le sumaron.
+        OR: [{ vehicleId }, { extraUnits: { some: { vehicleId } } }],
         departureAt: { lt: endsAt },
         arrivalAt: { gt: startsAt },
         ...(excludeSchedule ? { id: { not: excludeSchedule } } : {}),
@@ -85,10 +86,15 @@ export async function recordAcceptance(tx: Prisma.TransactionClient, service: st
 type ScheduleData = { routeId: string; vehicleId: string; departureAt: Date; arrivalAt: Date; status: string };
 
 export async function savePublicSchedule(tx: Prisma.TransactionClient, data: ScheduleData, userId: string, acknowledgment: string, id?: string, statusOnly = false) {
-  await lockFleet(tx, [data.vehicleId]);
-  const conflicts = data.status === "CLOSED" ? [] : await specialConflicts(tx, {
-    vehicleId: data.vehicleId, startsAt: data.departureAt, endsAt: data.arrivalAt
-  });
+  // Al mover una salida que lleva varias naves, se controlan también las que se le sumaron.
+  const extras = id && !statusOnly
+    ? (await tx.scheduleUnit.findMany({ where: { scheduleId: id }, select: { vehicleId: true } })).map((unit) => unit.vehicleId)
+    : [];
+  const vehicleIds = [...new Set([data.vehicleId, ...extras])];
+  await lockFleet(tx, vehicleIds);
+  const conflicts = data.status === "CLOSED" ? [] : (await Promise.all(vehicleIds.map((vehicleId) => specialConflicts(tx, {
+    vehicleId, startsAt: data.departureAt, endsAt: data.arrivalAt
+  })))).flat();
   const confirmation = conflictKey(conflicts, [id, data]);
   if (conflicts.length && acknowledgment !== confirmation) return { conflicts, confirmation };
   const saved = id

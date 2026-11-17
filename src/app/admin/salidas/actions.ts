@@ -6,6 +6,8 @@ import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { vehicleConflictNotice } from "@/lib/booking/schedule-vehicle";
 import { fleetConflicts, lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
+import { addScheduleUnit, primaryVehicleProblem, removeScheduleUnit } from "@/lib/booking/schedule-unit-service";
+import type { FleetConflict } from "@/lib/special-trips/conflicts";
 import { prisma } from "@/lib/db/prisma";
 import { recordScheduleAudit } from "@/lib/audit/schedule";
 import type { AuditActor } from "@/lib/audit/record";
@@ -133,6 +135,8 @@ async function saveAudited(
 ) {
   return prisma.$transaction(async (tx) => {
     const before = id ? await tx.schedule.findUnique({ where: { id } }) : null;
+    const problem = id && !statusOnly ? await primaryVehicleProblem(tx, id, data.vehicleId) : null;
+    if (problem) throw new FormValidationError(problem, { vehicleId: problem });
     const result = await savePublicSchedule(tx, data, actor.id, confirmation, id, statusOnly);
     if ("id" in result && result.id) {
       await recordScheduleAudit(tx, actor, summary, before, await tx.schedule.findUnique({ where: { id: result.id } }));
@@ -323,11 +327,18 @@ export async function setScheduleVehicleAction(formData: FormData) {
       return { conflicts };
     }
 
+    const problem = await primaryVehicleProblem(tx, current.id, vehicleId);
+    if (problem) return { conflicts: [], problem };
+
     const before = await tx.schedule.findUnique({ where: { id: current.id } });
     const updated = await tx.schedule.update({ where: { id: current.id }, data: { vehicleId } });
     await recordScheduleAudit(tx, actor, "Nave de la salida cambiada.", before, updated);
     return { conflicts: [] };
   });
+
+  if ("problem" in result && result.problem) {
+    backToCalendar(result.problem);
+  }
 
   if (result.conflicts.length) {
     backToCalendar(vehicleConflictNotice(result.conflicts));
@@ -336,4 +347,41 @@ export async function setScheduleVehicleAction(formData: FormData) {
   revalidateSchedulePaths(current.route.slug, current.routeId);
   revalidatePath(`/admin/rutas/${current.routeId}/salidas/${current.id}`);
   backToCalendar("Nave de la salida actualizada.");
+}
+
+// ── Varias naves por salida: sumar y quitar desde la ficha de la salida ──────────────────────────
+
+function revalidateUnitPaths(schedule: { id: string; routeId: string; slug: string | null }) {
+  revalidateSchedulePaths(schedule.slug ?? undefined, schedule.routeId);
+  revalidatePath(`/admin/rutas/${schedule.routeId}/salidas/${schedule.id}`);
+  revalidatePath("/admin/salidas-del-dia");
+}
+
+/** Sumar otra nave (con su chofer) a la salida. Los choques se avisan como al elegir la principal. */
+export async function addScheduleUnitAction(
+  _state: { error?: string; conflicts?: FleetConflict[]; confirmation?: string },
+  formData: FormData
+): Promise<{ error?: string; conflicts?: FleetConflict[]; confirmation?: string }> {
+  const actor = await getCurrentAdminOrRedirect();
+  const vehicleId = value(formData, "vehicleId");
+  if (!vehicleId) return { error: "Elegí la nave." };
+  const result = await addScheduleUnit({
+    actor, scheduleId: value(formData, "scheduleId"), vehicleId,
+    driverId: value(formData, "driverId") || null, confirmation: value(formData, "confirmation")
+  });
+  if (!result.ok) return result;
+  revalidateUnitPaths(result.schedule);
+  redirect(`/admin/rutas/${result.schedule.routeId}/salidas/${result.schedule.id}?notice=${encodeURIComponent(result.summary)}`);
+}
+
+/** Quitar una nave de la salida: una de las sumadas (`unitId`) o la principal (`primaryOf`). */
+export async function removeScheduleUnitAction(formData: FormData) {
+  const actor = await getCurrentAdminOrRedirect();
+  const unitId = value(formData, "unitId") || undefined;
+  const primaryOf = value(formData, "primaryOf") || undefined;
+  const back = value(formData, "back");
+  const result = await removeScheduleUnit({ actor, unitId, primaryOf });
+  const message = result.ok ? result.summary : "error" in result ? result.error : "No se pudo quitar la nave.";
+  if (result.ok) revalidateUnitPaths(result.schedule);
+  redirect(`${back.startsWith("/admin/") ? back : "/admin/rutas"}?notice=${encodeURIComponent(message)}`);
 }

@@ -8,6 +8,7 @@ type ApiActor = AuditActor & { id: string };
 const VIA_API = " (por la API)";
 const routeLabel = (route: { from: string; to: string }) => `${route.from} → ${route.to}`;
 import { lockFleet, savePublicSchedule } from "@/lib/special-trips/conflicts";
+import { primaryVehicleProblem } from "@/lib/booking/schedule-unit-service";
 import { z, type ZodError } from "zod";
 import { ApiError, type ApiErrorFields } from "@/lib/api/responses";
 import { approveManualPayment, getReservationByCode, listAdminReservations, listAdminRoutes, listAdminSchedules, updatePassengerForReservation } from "@/lib/booking/repository";
@@ -193,6 +194,8 @@ function scheduleInclude() {
         seats: true
       }
     },
+    // Las naves que se sumaron a la salida, en orden, con su chofer.
+    extraUnits: { orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }], include: { vehicle: true, driver: { select: { id: true, name: true } } } },
     reservations: true
   };
 }
@@ -327,6 +330,8 @@ async function persistAdminApiSchedule(
 ) {
   const result = await prisma.$transaction(async (tx) => {
     const before = id ? await tx.schedule.findUnique({ where: { id } }) : null;
+    const problem = id && !statusOnly ? await primaryVehicleProblem(tx, id, data.vehicleId) : null;
+    if (problem) throw new ApiError("VEHICLE_NOT_AVAILABLE", problem, 409);
     const saved = await savePublicSchedule(tx, data, actor.id, confirmation ?? "", id, statusOnly);
     if ("id" in saved && saved.id) {
       const summary = `${!id ? "Salida creada" : statusOnly ? "Estado de la salida cambiado" : "Salida editada"}${VIA_API}.`;
@@ -523,10 +528,10 @@ export async function deleteAdminApiVehicle(id: string, actor?: ApiActor | null)
   return prisma.$transaction(async (tx) => {
     await lockFleet(tx, [id]);
     const vehicle = await tx.vehicle.findUnique({
-      where: { id }, include: { _count: { select: { schedules: true, specialTripAssignments: true } } }
+      where: { id }, include: { _count: { select: { schedules: true, scheduleUnits: true, specialTripAssignments: true } } }
     });
     if (!vehicle) throw new ApiError("VEHICLE_NOT_FOUND", "Nave no encontrada", 404);
-    if (vehicle._count.schedules || vehicle._count.specialTripAssignments) {
+    if (vehicle._count.schedules || vehicle._count.scheduleUnits || vehicle._count.specialTripAssignments) {
       await tx.vehicle.update({ where: { id }, data: { isActive: false } });
       await recordEntityAudit(tx, {
         actor, entity: "VEHICLE", entityId: id, entityLabel: vehicle.name, action: "UPDATE",

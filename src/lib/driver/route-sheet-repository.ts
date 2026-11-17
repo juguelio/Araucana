@@ -17,6 +17,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
       status: true,
       route: { select: { from: true, to: true, via: true, stops: true } },
       vehicle: { select: { name: true, licensePlate: true } },
+      extraUnits: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { vehicle: { select: { name: true, licensePlate: true } } } },
       reservations: {
         where: { status: { not: "CANCELLED" } },
         orderBy: [{ dropoffStop: "asc" }, { createdAt: "asc" }],
@@ -51,7 +52,15 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
     arrivalAt: schedule.arrivalAt,
     status: schedule.status,
     route: schedule.route,
-    vehicle: schedule.vehicle,
+    // Con varias naves, la planilla las nombra todas («Combi 243 (AB123CD) + Sprinter 196»).
+    vehicle: schedule.extraUnits.length
+      ? {
+        name: [schedule.vehicle, ...schedule.extraUnits.map((unit) => unit.vehicle)]
+          .map((vehicle) => (vehicle.licensePlate ? `${vehicle.name} (${vehicle.licensePlate})` : vehicle.name))
+          .join(" + "),
+        licensePlate: null
+      }
+      : schedule.vehicle,
     reservations: schedule.reservations.map((reservation) => ({
       ticketCode: reservation.ticket?.code ?? null,
       passengerCount: reservation.passengerCount,

@@ -26,7 +26,8 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
       _count: {
         select: {
           seats: true,
-          schedules: true
+          schedules: true,
+          scheduleUnits: true
         }
       }
     }
@@ -191,7 +192,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                       <form action={deleteVehicleAction}>
                         <input type="hidden" name="id" value={vehicle.id} />
                         <button className="danger-button" type="submit">
-                          {vehicle._count.schedules > 0 ? "Archivar" : "Borrar"}
+                          {vehicle._count.schedules + vehicle._count.scheduleUnits > 0 ? "Archivar" : "Borrar"}
                         </button>
                       </form>
                     </div>

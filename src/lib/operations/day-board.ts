@@ -20,7 +20,11 @@ export type BoardUnit = {
   seats: number;
   driverId: string | null;
   driverName: string | null;
-  /** Rutas: pasajeros de esa unidad (cada unidad es su propia salida, con sus asientos). */
+  /** Rutas: la salida a la que pertenece la nave. */
+  scheduleId?: string;
+  /** Rutas: la nave principal de la salida (`Schedule.vehicleId`) o una que se le sumó. */
+  unitKind?: "PRIMARY" | "EXTRA";
+  /** Rutas: pasajeros de la salida, cuando la fila junta salidas distintas a la misma hora. */
   passengers?: number;
   /** Rutas: se puede quitar desde el tablero porque la salida no tiene ninguna reserva. */
   removable?: boolean;
@@ -77,6 +81,8 @@ export type ScheduleInput = {
   reservations?: number;
   vehicle: { id: string; name: string; seats: number };
   driver: BoardPerson | null;
+  /** Naves que se sumaron a la salida además de la principal. */
+  extraUnits?: Array<{ id: string; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
 };
 
 export type FlightInput = {
@@ -130,8 +136,9 @@ function crewFlags(passengers: number, units: BoardUnit[], needsVehicle: boolean
 }
 
 /**
- * Salidas de una misma ruta a la misma hora van en una fila: cada salida es una unidad (su nave, su
- * chofer y sus asientos). Así «sumar otra combi» a un recorrido se ve como en el aeropuerto.
+ * Cada salida es una fila con todas sus naves: la principal y las que se le sumaron, cada una con su
+ * chofer. Si quedaron salidas distintas de la misma ruta a la misma hora (como se cargaban antes de
+ * que una salida pudiera llevar varias naves), van juntas en la misma fila.
  */
 export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
   const groups = new Map<string, ScheduleInput[]>();
@@ -141,18 +148,37 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
   }
   return [...groups.values()].map((group) => {
     const first = group[0];
-    const units: BoardUnit[] = group.map((schedule) => ({
-      id: schedule.id,
-      vehicleId: schedule.vehicle.id,
-      vehicleName: schedule.vehicle.name,
-      seats: schedule.vehicle.seats,
-      driverId: schedule.driver?.id ?? null,
-      driverName: personName(schedule.driver),
-      passengers: schedule.passengers,
-      removable: (schedule.reservations ?? schedule.passengers) === 0,
-      status: SCHEDULE_STATUS[schedule.status] ?? null,
-      editHref: `/admin/rutas/${schedule.routeId}/salidas/${schedule.id}/editar`
-    }));
+    const units: BoardUnit[] = group.flatMap((schedule) => {
+      const extras = schedule.extraUnits ?? [];
+      const primary: BoardUnit = {
+        id: schedule.id,
+        scheduleId: schedule.id,
+        unitKind: "PRIMARY",
+        vehicleId: schedule.vehicle.id,
+        vehicleName: schedule.vehicle.name,
+        seats: schedule.vehicle.seats,
+        driverId: schedule.driver?.id ?? null,
+        driverName: personName(schedule.driver),
+        ...(group.length > 1 ? { passengers: schedule.passengers } : {}),
+        // Con otras naves, quitar la principal deja a la siguiente en su lugar; sola, se borra la
+        // salida y eso sólo si no tiene reservas.
+        removable: extras.length > 0 || (schedule.reservations ?? schedule.passengers) === 0,
+        status: SCHEDULE_STATUS[schedule.status] ?? null,
+        editHref: `/admin/rutas/${schedule.routeId}/salidas/${schedule.id}/editar`
+      };
+      return [primary, ...extras.map((unit): BoardUnit => ({
+        id: unit.id,
+        scheduleId: schedule.id,
+        unitKind: "EXTRA",
+        vehicleId: unit.vehicle.id,
+        vehicleName: unit.vehicle.name,
+        seats: unit.vehicle.seats,
+        driverId: unit.driver?.id ?? null,
+        driverName: personName(unit.driver),
+        removable: true,
+        status: SCHEDULE_STATUS[schedule.status] ?? null
+      }))];
+    });
     const passengers = group.reduce((sum, schedule) => sum + schedule.passengers, 0);
     const statuses = [...new Set(units.map((unit) => unit.status ?? null))];
     return {
@@ -162,7 +188,7 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
       at: first.departureAt,
       atLabel: "Sale",
       title: `${first.from} → ${first.to}`,
-      detail: group.length > 1 ? `${group.length} unidades` : null,
+      detail: units.length > 1 ? `${units.length} naves` : null,
       passengers,
       ...crewFlags(passengers, units, false),
       units,

@@ -1,3 +1,4 @@
+import { scheduleSeatCount } from "@/lib/booking/schedule-units";
 import { prisma } from "@/lib/db/prisma";
 
 const ACTIVE_DRIVER_SCHEDULE_STATUSES = ["OPEN", "DOCUMENTATION"] as const;
@@ -46,6 +47,8 @@ export type DriverUpcomingSchedule = {
     name: string;
     licensePlate: string | null;
   };
+  /** Naves que se sumaron a la salida además de la principal, con su chofer. */
+  extraVehicles: Array<{ id: string; name: string; licensePlate: string | null; driverName: string | null }>;
   stops: DriverRouteStop[];
   totalSeats: number;
   availableSeats: number;
@@ -165,6 +168,13 @@ export async function listDriverUpcomingSchedules(options: {
           }
         }
       },
+      extraUnits: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          vehicle: { select: { id: true, name: true, licensePlate: true, isActive: true, _count: { select: { seats: true } } } },
+          driver: { select: { name: true, email: true } }
+        }
+      },
       reservations: {
         where: {
           status: {
@@ -208,12 +218,14 @@ export async function listDriverUpcomingSchedules(options: {
       dropoffStop: reservation.dropoffStop ?? null,
       phone: reservation.passenger.phone,
       documentLabel: documentLabel(reservation.passenger),
-      seatNumber: reservation.seatNumber,
+      // El número es un control interno de cupo. Con varias naves (o si alguna vez las tuvo) no dice
+      // en qué nave va el pasajero, así que no se muestra.
+      seatNumber: (schedule.extraUnits ?? []).length || reservation.seatNumber?.startsWith("U") ? null : reservation.seatNumber,
       passengerCount: reservation.passengerCount,
       reservationStatus: reservation.status,
       paymentStatus: reservation.payment?.status ?? null
     }));
-    const totalSeats = schedule.vehicle._count.seats;
+    const totalSeats = scheduleSeatCount(schedule);
 
     return {
       id: schedule.id,
@@ -228,6 +240,12 @@ export async function listDriverUpcomingSchedules(options: {
         name: schedule.vehicle.name,
         licensePlate: schedule.vehicle.licensePlate
       },
+      extraVehicles: (schedule.extraUnits ?? []).map((unit) => ({
+        id: unit.vehicle.id,
+        name: unit.vehicle.name,
+        licensePlate: unit.vehicle.licensePlate,
+        driverName: unit.driver ? unit.driver.name ?? unit.driver.email : null
+      })),
       stops: normalizeRouteStops(schedule.route.stops),
       totalSeats,
       availableSeats: Math.max(totalSeats - passengers.reduce((total, passenger) => total + passenger.passengerCount, 0), 0),

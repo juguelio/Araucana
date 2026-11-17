@@ -178,7 +178,14 @@ const fieldLabels: Record<string, string> = {
   source: "Origen del dato",
   licensePlate: "Patente",
   brand: "Marca",
-  templateKey: "Plantilla de asientos"
+  templateKey: "Plantilla de asientos",
+  extraUnits: "Otras naves de la salida",
+  "driver.documentNumber": "Chofer · DNI",
+  "driver.cuil": "Chofer · CUIL",
+  "driver.licenseCategory": "Chofer · categoría de licencia",
+  "driver.licenseScope": "Chofer · alcance de la licencia",
+  "driver.licenseExpiresAt": "Chofer · vencimiento de licencia",
+  "driver.criminalRecordExpiresAt": "Chofer · vencimiento de antecedentes"
 };
 
 const valueLabels: Record<string, string> = {
