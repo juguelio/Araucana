@@ -3,13 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { airlineName } from "@/lib/airport/airlines";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
 import { AirportTripOptions } from "./airport-trip-options";
 import { statusLabel } from "@/lib/airport/flights";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
-import { AirlineBadge } from "@/components/airline-badge";
+import { TripSearchBar, type TramoDeLaBarra } from "./ida-y-vuelta/trip-search-bar";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
@@ -41,9 +40,11 @@ type AirportFieldErrors = PassengerFieldErrors & {
 };
 
 /**
- * Checkout del aeropuerto, **en pasos**: primero el pasajero elige llegada o salida —y con eso se
- * filtran los vuelos—, después el día y su vuelo (con el estado que informa la aerolínea), y al
- * final sus datos. El aeropuerto no tiene salidas propias: sus salidas son los vuelos.
+ * Checkout del aeropuerto de **un solo tramo**, en una sola página que se va abriendo sola, igual que
+ * el ida y vuelta: primero la llegada o la salida con las tres tarjetas (`AirportTripOptions`),
+ * después el día y su vuelo en la barra estilo Kiwi con un solo tramo, **después el lugar** (el
+ * destino si llega, el punto de búsqueda si se va) y al final los datos del pasajero. No hay botón
+ * «Continuar»: cada sección aparece cuando la anterior está resuelta (pedido de Jugue, 17-nov).
  */
 
 type AirportRouteProps = {
@@ -89,12 +90,47 @@ type AirportCheckoutFormProps = {
   fromAdmin?: boolean;
   /** A dónde lleva «Ida y vuelta»: la pantalla pública o la del panel. */
   roundTripHref?: string;
-  /** Entra directo a elegir el vuelo (vino de la tarjeta «Llegada» o «Salida» de otra pantalla). */
+  /** El sentido ya viene elegido (tarjeta «Llegada» o «Salida» de otra pantalla): se baja a la barra. */
   startAtFlights?: boolean;
 };
 
-const PASOS = ["Llegada o salida", "Tu vuelo", "Tus datos"];
+/** Las etapas del indicador, en el orden en que se van abriendo. */
+export const ETAPAS_DEL_CHECKOUT = ["Tu vuelo", "Los lugares", "Tus datos"] as const;
 
+/**
+ * Qué secciones se abren en el checkout de un tramo. Es el mismo criterio que el ida y vuelta, con
+ * una sola pata: los lugares aparecen apenas hay vuelo y los datos apenas está resuelto el lugar.
+ * Vive aparte del JSX para poder probarlo sin DOM.
+ */
+export function seccionesDelCheckoutUnTramo({ vueloListo, lugarListo }: { vueloListo: boolean; lugarListo: boolean }) {
+  return {
+    etapas: ETAPAS_DEL_CHECKOUT,
+    lugares: vueloListo,
+    datos: vueloListo && lugarListo,
+    /** Etapa que se está completando: la de los datos queda abierta hasta reservar. */
+    activa: lugarListo ? 2 : vueloListo ? 1 : 0,
+    hechas: [vueloListo, vueloListo && lugarListo, false] as [boolean, boolean, boolean]
+  };
+}
+
+/**
+ * El único lugar del traslado, con el mismo criterio que `textosLugar` del ida y vuelta: en la
+ * llegada el lugar es **el destino** y en la salida **el punto de búsqueda**. Como hay un solo
+ * tramo no existe la pregunta «¿es el mismo lugar?».
+ */
+export function textoDelLugarDe(sentido: "ARRIVAL" | "DEPARTURE") {
+  return sentido === "ARRIVAL"
+    ? {
+        titulo: "¿Adónde te llevamos cuando llegás?",
+        ayuda: "El vuelo te deja en Chapelco y nosotros te acercamos hasta la puerta de tu alojamiento.",
+        lugar: "Punto de destino"
+      }
+    : {
+        titulo: "¿Dónde te pasamos a buscar?",
+        ayuda: "Te buscamos por tu alojamiento y te llevamos al aeropuerto con tiempo para tu vuelo.",
+        lugar: "Punto de búsqueda"
+      };
+}
 
 const sentidoTexto = (d: "ARRIVAL" | "DEPARTURE") => (d === "ARRIVAL" ? "Llegada" : "Salida");
 
@@ -137,14 +173,12 @@ function formatPrice(cents: number, currency: string) {
 
 export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false }: AirportCheckoutFormProps) {
   const router = useRouter();
-  const [paso, setPaso] = useState<1 | 2 | 3>(startAtFlights && fares[initialDirection] ? 2 : 1);
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
   const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(
     // Si el sentido con el que entra la página no tiene tarifa activa, se arranca por el otro.
     fares[initialDirection] ? initialDirection : fares.DEPARTURE ? "DEPARTURE" : "ARRIVAL"
   );
-  const [flightNumber, setFlightNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string>("");
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
@@ -184,6 +218,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [privadoOrigen, setPrivadoOrigen] = useState("");
   const [privadoHora, setPrivadoHora] = useState("");
 
+  const vueloRef = useRef<HTMLDivElement>(null);
+  const lugaresRef = useRef<HTMLElement>(null);
+  const datosRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
   /**
    * Clave del intento de alta (#139): si la respuesta se pierde y el pasajero reintenta, el
    * servidor devuelve la reserva que ya creó en vez de ocupar un segundo lugar. Se renueva
@@ -194,13 +233,34 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     claveDeIdempotencia.current = "";
   }, [selectedId, date, sentido, esPrivado, privadoNumero, privadoHora]);
 
-  // La lista se filtra por el sentido elegido en el paso 1; el vuelo elegido manda en la reserva.
-  // Los que ya no se pueden reservar van aparte (plegados, con su motivo) para no mezclarlos.
-  const { reservables, noReservables } = useMemo(
+  // La barra muestra los vuelos del sentido elegido en las tarjetas que hoy se pueden reservar; el
+  // vuelo elegido manda en la reserva. Los que ya no se pueden reservar tienen su motivo y quedan
+  // afuera de la barra: para eso está el vuelo privado o el panel.
+  const { reservables } = useMemo(
     () => separarVuelosDelSelector(flights, sentido),
     [flights, sentido]
   );
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
+
+  /**
+   * El único tramo de la barra (pedido de Jugue, 17-nov: «el mismo wizard de ida y vuelta, para un
+   * tramo»). Se arma con el sentido elegido en las tarjetas, el día y los vuelos, igual que el ida
+   * y vuelta arma los suyos. `minimo` usa la misma fórmula que allá: en la web no se reserva para
+   * días que ya pasaron y el panel puede cargar atrasados.
+   */
+  const tramoDeLaBarra: TramoDeLaBarra = {
+    sentido,
+    etapa: "Tu vuelo",
+    titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín",
+    pregunta: sentido === "ARRIVAL"
+      ? "¿Qué día aterriza en Chapelco y en qué vuelo?"
+      : "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
+    fecha: date,
+    minimo: fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10),
+    opciones: reservables,
+    elegido: selectedId,
+    cargando: cargandoVuelos
+  };
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
   const pickupStart = esPrivado && privadoListo
@@ -223,6 +283,51 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   const outsideCoverage = Boolean(coverage.enabled && pickupPoint && !isInsideAirportPickupZone(pickupPoint, coverage));
+
+  /**
+   * El vuelo está listo cuando se puede reservar (tarifa vigente + vuelo de la lista o privado
+   * completo). El lugar, cuando hay un punto confirmado y adentro de la cobertura: es el mismo
+   * criterio con el que se valida el alta, así los datos no se abren sobre un lugar inválido.
+   */
+  const lugarListo = Boolean(pickupPoint) && pickupConfirmed && !outsideCoverage;
+  const flujo = seccionesDelCheckoutUnTramo({ vueloListo: puedeSeguir, lugarListo });
+  const textoDelLugar = textoDelLugarDe(sentidoDelVuelo);
+
+  // Una vez que una sección apareció, se queda: si después cambia un vuelo o el lugar, no se le
+  // borra de la pantalla lo que ya estaba cargando (igual que el ida y vuelta).
+  const [lugaresAbiertos, setLugaresAbiertos] = useState(false);
+  const [datosAbiertos, setDatosAbiertos] = useState(false);
+  if (flujo.lugares && !lugaresAbiertos) setLugaresAbiertos(true);
+  if (flujo.datos && !datosAbiertos) setDatosAbiertos(true);
+
+  // Al elegir el vuelo, la pantalla baja sola a los lugares (y el foco va al título, para el lector
+  // de pantalla). Sólo cuando aparecen, no en cada cambio.
+  const vueloListoAntes = useRef(puedeSeguir);
+  useEffect(() => {
+    if (puedeSeguir && !vueloListoAntes.current) {
+      const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      lugaresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+      lugaresRef.current?.querySelector<HTMLElement>("#pickup-flow-titulo")?.focus({ preventScroll: true });
+    }
+    vueloListoAntes.current = puedeSeguir;
+  }, [puedeSeguir]);
+  // Y con el lugar confirmado, a los datos del pasajero.
+  const lugarListoAntes = useRef(lugarListo);
+  useEffect(() => {
+    if (lugarListo && !lugarListoAntes.current) {
+      const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      datosRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+      datosRef.current?.querySelector<HTMLElement>("#datos-titulo")?.focus({ preventScroll: true });
+    }
+    lugarListoAntes.current = lugarListo;
+  }, [lugarListo]);
+  // El sentido ya viene elegido en el link: se entra directo a la barra del vuelo, una sola vez.
+  const entroAlVuelo = useRef(false);
+  useEffect(() => {
+    if (!startAtFlights || entroAlVuelo.current) return;
+    entroAlVuelo.current = true;
+    vueloRef.current?.scrollIntoView({ block: "start" });
+  }, [startAtFlights]);
 
   function selectPickupPoint(point: PickupPoint | null) {
     setUsandoSucursal(false);
@@ -344,64 +449,23 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setCargandoVuelos(false);
   }
 
-  /** El pasajero puede escribir el número de vuelo: lo buscamos entre los del día y lo seleccionamos. */
-  function buscarPorNumero(valor: string) {
-    const buscado = valor.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!buscado) return;
-    // Si el mismo número aparece más de una vez (cargado a mano y traído de la API),
-    // preferimos uno reservable: elegir uno que ya salió sería un callejón sin salida.
-    const candidatos = flights.filter(
-      (f) => f.number.toUpperCase().replace(/[^A-Z0-9]/g, "") === buscado && f.direction === sentido
-    );
-    const encontrado = candidatos.find((f) => f.bookable) ?? candidatos[0];
-    if (encontrado) {
-      setSelectedId(encontrado.id);
-      setError(encontrado.bookable ? "" : `El vuelo ${encontrado.number} no se puede reservar: ${encontrado.reason}`);
-    } else {
-      setSelectedId("");
-      setError(`No encontramos el vuelo ${valor.toUpperCase()} para el ${date} en ese sentido.`);
-    }
+  /** Muestra el problema arriba del formulario y lo deja a la vista (puede estar lejos de donde está la persona). */
+  function mostrarProblema(problema: string) {
+    setError(problema);
+    requestAnimationFrame(() => errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
 
-  function listaDeVuelos(lista: FlightOption[]) {
-    return (
-      <div className="flight-options">
-        {lista.map((f) => {
-          const tramo = tramoDeVuelo({ direction: f.direction, origin: f.origin });
-          return (
-            <label
-              key={f.id}
-              className="flight-option"
-              data-selected={selectedId === f.id}
-              data-disabled={!f.bookable}
-            >
-              <input
-                type="radio"
-                name="flight"
-                value={f.id}
-                checked={selectedId === f.id}
-                disabled={!f.bookable}
-                onChange={() => { setSelectedId(f.id); setError(""); }}
-              />
-              <AirlineBadge code={f.airline} />
-              <span className="flight-when">
-                <strong>{hhmm(f.estimatedAt ?? f.scheduledAt)}</strong>
-                <span className="muted">
-                  {f.number}
-                  {f.airline ? ` · ${airlineName(f.airline)}` : ""}
-                  {f.source === "PASAJERO" ? " · privado" : ""}
-                </span>
-                {tramo ? <span className="flight-route">{tramo}</span> : null}
-              </span>
-              <span className="flight-state" data-status={f.status} data-estimado={f.source === "ESTIMADO"}>
-                {estadoDe(f)}
-              </span>
-              <span className="flight-seats">{f.bookable ? `${f.available} lugares` : f.reason}</span>
-            </label>
-          );
-        })}
-      </div>
-    );
+  /** El botón del resumen antes de tener todo: dice qué falta y lleva a esa sección. */
+  function avanzar() {
+    if (!puedeSeguir) {
+      mostrarProblema(esPrivado
+        ? "Completá el número o matrícula y la hora de tu vuelo privado."
+        : "Elegí tu vuelo en la barra de arriba.");
+      vueloRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    mostrarProblema(outsideCoverage ? OUTSIDE_PICKUP_ZONE : "Confirmá que el punto marcado sea el lugar correcto.");
+    lugaresRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -414,7 +478,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     if (esPrivado) {
       if (!privadoListo) errors.flight = "Completá el número o matrícula y la hora de tu vuelo privado.";
     } else if (!selected) {
-      errors.flight = "Elegí un vuelo de la lista (o escribí el número de vuelo).";
+      errors.flight = "Elegí tu vuelo en la barra de arriba.";
     } else if (!selected.bookable) {
       errors.flight = selected.reason ?? "Ese vuelo no se puede reservar.";
     }
@@ -487,182 +551,241 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     <form className="checkout-layout" onSubmit={handleSubmit} noValidate>
       <div className="checkout-main">
         <section className="form-panel checkout-panel">
-          <ol className="wizard-steps">
-            {PASOS.map((titulo, i) => (
-              <li key={titulo} data-active={paso === i + 1} data-done={paso > i + 1}>
-                {/* Un paso ya hecho se puede volver a abrir desde acá, igual que con «← Volver». */}
-                {paso > i + 1 ? (
-                  <button type="button" onClick={() => setPaso((i + 1) as 1 | 2)}>
-                    <span>{i + 1}</span>
-                    {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
-                  </button>
-                ) : (
-                  <>
-                    <span>{i + 1}</span>
-                    {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
-                  </>
-                )}
-              </li>
-            ))}
+          {/* Indicador de por dónde va: se completa solo, no hay que tocarlo. */}
+          <ol className="wizard-steps checkout-progress" aria-label="Pasos de la reserva">
+            {flujo.etapas.map((titulo, i) => {
+              const activa = flujo.activa === i;
+              return (
+                <li key={titulo} data-active={activa} data-done={flujo.hechas[i]} aria-current={activa ? "step" : undefined}>
+                  <span>{flujo.hechas[i] ? "✓" : i + 1}</span>
+                  {fromAdmin && i === 2 ? "Datos del pasajero" : titulo}
+                </li>
+              );
+            })}
           </ol>
 
-          {error ? <p className="error" role="alert">{error} {error === OUTSIDE_PICKUP_ZONE ? <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a> : null}</p> : null}
+          {error ? <p className="error" role="alert" ref={errorRef}>{error} {error === OUTSIDE_PICKUP_ZONE ? <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a> : null}</p> : null}
 
-          {paso === 1 ? (
-            <>
-              <div>
-                <p className="eyebrow">Paso 1 de 3</p>
-                <h2 className="route-title">¿Llegás o te vas?</h2>
+          {/* Las tres opciones, siempre a la vista: elegir llegada o salida fija el sentido del único
+              tramo y la barra de abajo busca sólo esos vuelos. Llegada y salida siguen en este
+              formulario; ida y vuelta tiene su propia pantalla. */}
+          <div>
+            <h2 className="route-title">¿Llegás o te vas?</h2>
+            <p className="muted">
+              Elegí para qué lado viajás: con eso te mostramos <strong>sólo los vuelos de ese sentido</strong>,
+              con el estado que informa la aerolínea.
+            </p>
+          </div>
+          <AirportTripOptions
+            fares={fares}
+            selected={sentido}
+            onSelect={Object.fromEntries(
+              (["ARRIVAL", "DEPARTURE"] as const).map((code) => [
+                code,
+                () => {
+                  // Ya elegido: no se borra el vuelo ni el lugar, sólo se baja a la barra del vuelo.
+                  if (code === sentido) {
+                    vueloRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    return;
+                  }
+                  useAddress();
+                  setPickupAddress("");
+                  setSentido(code);
+                  setSelectedId("");
+                  setError("");
+                }
+              ])
+            )}
+            hrefs={{ ROUND_TRIP: roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta?date=${date}` }}
+          />
+
+          <div ref={vueloRef}>
+            <p className="eyebrow">Tu vuelo · {sentidoTexto(sentido)}</p>
+            <h2 className="route-title">Tu vuelo</h2>
+            <p className="muted">
+              {sentido === "ARRIVAL"
+                ? "Tocá el recuadro «Tu vuelo» para elegir el día y el vuelo de llegada a Chapelco (CPC)."
+                : "Tocá el recuadro «Tu vuelo» para elegir el día y el vuelo de salida desde Chapelco (CPC)."}
+            </p>
+          </div>
+
+          {/* El día y el vuelo se eligen en la misma barra que el ida y vuelta (pedido de Jugue,
+              17-nov), con un solo tramo. El sentido ya viene de las tarjetas de arriba: Desde/Hacia
+              se muestran fijos, sin botón de invertir. */}
+          <TripSearchBar
+            tramos={[tramoDeLaBarra]}
+            routeSlug={route.slug}
+            onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
+            onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
+          />
+          {fieldErrors.flight ? <p className="field-error" role="alert">{fieldErrors.flight}</p> : null}
+
+          <div className="private-flight" data-open={esPrivado}>
+            <button
+              type="button"
+              className="ghost-button private-flight-toggle"
+              onClick={() => {
+                setEsPrivado((actual) => !actual);
+                setSelectedId("");
+                setError("");
+              }}
+            >
+              {esPrivado ? "← Elegir un vuelo de la lista" : "Mi vuelo no está en la lista (vuelo privado)"}
+            </button>
+
+            {esPrivado ? (
+              <div className="checkout-fields private-flight-fields">
                 <p className="muted">
-                  Elegí para qué lado viajás: con eso te mostramos <strong>sólo los vuelos de ese sentido</strong>,
-                  con el estado que informa la aerolínea.
+                  Charter, avión particular o taxi aéreo: si no figura en la lista, cargalo con los datos que
+                  tengas. Lo sumamos al día y la operación lo revisa antes del traslado.
                 </p>
-              </div>
-              {/* Las tres opciones, iguales en todas las pantallas que reservan aeropuerto. Llegada y salida
-                  siguen en este formulario; ida y vuelta tiene su propia pantalla. */}
-              <AirportTripOptions
-                fares={fares}
-                selected={sentido}
-                onSelect={Object.fromEntries(
-                  (["ARRIVAL", "DEPARTURE"] as const).map((code) => [
-                    code,
-                    () => {
-                      if (code !== sentido) {
-                        useAddress();
-                        setPickupAddress("");
-                      }
-                      setSentido(code);
-                      setSelectedId("");
-                      setError("");
-                      setPaso(2);
-                    }
-                  ])
-                )}
-                hrefs={{ ROUND_TRIP: roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta?date=${date}` }}
-              />
-            </>
-          ) : null}
-
-          {paso === 2 ? (
-            <>
-              <div>
-                <p className="eyebrow">Paso 2 de 3 · {sentidoTexto(sentido)}</p>
-                <h2 className="route-title">Tu vuelo</h2>
-                <p className="muted">
-                  {sentido === "ARRIVAL"
-                    ? "Elegí el día y tu vuelo de llegada a Chapelco (CPC)."
-                    : "Elegí el día y tu vuelo de salida desde Chapelco (CPC)."}
-                </p>
-              </div>
-
-              <div className="checkout-fields">
                 <label>
-                  Día
-                  <input type="date" value={date} onChange={(e) => { setDate(e.target.value); void cargarVuelos(e.target.value); }} />
+                  Número de vuelo o matrícula
+                  <input
+                    value={privadoNumero}
+                    placeholder="Ej. LV-BET"
+                    autoComplete="off"
+                    onChange={(e) => setPrivadoNumero(e.target.value)}
+                  />
                 </label>
                 <label>
-                  Número de vuelo (opcional)
+                  Hora {sentido === "ARRIVAL" ? "de llegada" : "de salida"}
+                  <input type="time" value={privadoHora} onChange={(e) => setPrivadoHora(e.target.value)} />
+                </label>
+                <label>
+                  Aerolínea u operador (opcional)
                   <input
-                    value={flightNumber}
-                    placeholder="Ej. AR1656"
-                    onChange={(e) => setFlightNumber(e.target.value)}
-                    onBlur={(e) => buscarPorNumero(e.target.value)}
+                    value={privadoOperador}
+                    placeholder="Ej. Fly Patagonia"
+                    onChange={(e) => setPrivadoOperador(e.target.value)}
+                  />
+                </label>
+                <label>
+                  {sentido === "ARRIVAL" ? "Desde dónde viene (opcional)" : "A dónde va (opcional)"}
+                  <input
+                    value={privadoOrigen}
+                    placeholder="Ej. Buenos Aires"
+                    onChange={(e) => setPrivadoOrigen(e.target.value)}
                   />
                 </label>
               </div>
+            ) : null}
+          </div>
 
-              {cargandoVuelos ? <p className="muted">Buscando vuelos…</p> : null}
+          {/* Con el vuelo elegido aparecen los lugares, sin apretar «Continuar». */}
+          {lugaresAbiertos ? (
+            <section className="pickup-flow" ref={lugaresRef} aria-labelledby="pickup-flow-titulo">
+              <div>
+                <p className="eyebrow">Los lugares</p>
+                <h2 className="route-title" id="pickup-flow-titulo" tabIndex={-1}>{textoDelLugar.titulo}</h2>
+                <p className="muted">{textoDelLugar.ayuda}</p>
+              </div>
 
-              {reservables.length === 0 && !cargandoVuelos ? (
-                <p className="muted">
-                  {noReservables.length > 0
-                    ? `No quedan vuelos ${sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para reservar ese día.`
-                    : `No hay vuelos ${sentido === "ARRIVAL" ? "de llegada a Chapelco" : "de salida desde Chapelco"} para ese día.`}{" "}
-                  Probá otra fecha o cargá tu vuelo privado acá abajo.
-                </p>
-              ) : null}
-              {reservables.length > 0 ? listaDeVuelos(reservables) : null}
-              {noReservables.length > 0 ? (
-                // Plegados: siguen a mano (con su motivo) para quien busca un vuelo puntual, pero no
-                // se mezclan con los que se pueden reservar. Se abren solos si se eligió uno de estos
-                // escribiendo el número.
-                <details className="flight-unavailable" open={Boolean(selected && !selected.bookable)}>
-                  <summary>
-                    {noReservables.length === 1
-                      ? "1 vuelo de ese día ya no se puede reservar"
-                      : `${noReservables.length} vuelos de ese día ya no se pueden reservar`}
-                  </summary>
-                  {listaDeVuelos(noReservables)}
-                </details>
-              ) : null}
-              {fieldErrors.flight ? <p className="field-error">{fieldErrors.flight}</p> : null}
-
-              <div className="private-flight" data-open={esPrivado}>
-                <button
-                  type="button"
-                  className="ghost-button private-flight-toggle"
-                  onClick={() => {
-                    setEsPrivado((actual) => !actual);
-                    setSelectedId("");
-                    setError("");
-                  }}
-                >
-                  {esPrivado ? "← Elegir un vuelo de la lista" : "Mi vuelo no está en la lista (vuelo privado)"}
-                </button>
-
-                {esPrivado ? (
-                  <div className="checkout-fields private-flight-fields">
-                    <p className="muted">
-                      Charter, avión particular o taxi aéreo: si no figura en la lista, cargalo con los datos que
-                      tengas. Lo sumamos al día y la operación lo revisa antes del traslado.
-                    </p>
-                    <label>
-                      Número de vuelo o matrícula
-                      <input
-                        value={privadoNumero}
-                        placeholder="Ej. LV-BET"
-                        autoComplete="off"
-                        onChange={(e) => setPrivadoNumero(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      Hora {sentido === "ARRIVAL" ? "de llegada" : "de salida"}
-                      <input type="time" value={privadoHora} onChange={(e) => setPrivadoHora(e.target.value)} />
-                    </label>
-                    <label>
-                      Aerolínea u operador (opcional)
-                      <input
-                        value={privadoOperador}
-                        placeholder="Ej. Fly Patagonia"
-                        onChange={(e) => setPrivadoOperador(e.target.value)}
-                      />
-                    </label>
-                    <label>
-                      {sentido === "ARRIVAL" ? "Desde dónde viene (opcional)" : "A dónde va (opcional)"}
-                      <input
-                        value={privadoOrigen}
-                        placeholder="Ej. Buenos Aires"
-                        onChange={(e) => setPrivadoOrigen(e.target.value)}
-                      />
-                    </label>
+              <section className="leg-card" data-done={lugarListo}>
+                <header className="leg-head">
+                  <span className="leg-badge" aria-hidden="true">1</span>
+                  <div className="leg-head-text">
+                    <span className="leg-kicker">{sentidoDelVuelo === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+                    <h3 className="leg-title">{textoDelLugar.lugar}</h3>
                   </div>
-                ) : null}
-              </div>
+                  {lugarListo ? <span className="leg-check" aria-label="Lugar confirmado">✓</span> : null}
+                </header>
 
-              <div className="wizard-nav">
-                <button type="button" className="ghost-button" onClick={() => setPaso(1)}>← Volver</button>
-                <button type="button" className="button" disabled={!puedeSeguir} onClick={() => setPaso(3)}>
-                  Siguiente →
-                </button>
-              </div>
-            </>
+                {/* Los atajos primero, en botones grandes; escribir la dirección queda como tercera opción. */}
+                <div className="place-shortcuts">
+                  <button type="button" className="place-shortcut" disabled={locating || isSubmitting}
+                    aria-pressed={Boolean(pickupPoint) && pickupMode === "location"} onClick={useCurrentLocation}>
+                    <span className="place-shortcut-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" /><circle cx="12" cy="12" r="7.5" /><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" /></svg>
+                    </span>
+                    <span className="place-shortcut-text">
+                      <b>{locating ? "Buscando dónde estás…" : "Usar mi ubicación actual"}</b>
+                      <small>Si ya estás en el lugar</small>
+                    </span>
+                  </button>
+                  {officePickup ? (
+                    <button type="button" className="place-shortcut" disabled={isSubmitting}
+                      aria-pressed={usandoSucursal} onClick={useOfficePickup}>
+                      <span className="place-shortcut-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M4 21V9l8-5 8 5v12" /><path d="M9 21v-6h6v6M3 21h18" /></svg>
+                      </span>
+                      <span className="place-shortcut-text">
+                        <b>{sentidoDelVuelo === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}</b>
+                        <small>{officePickup.address}</small>
+                      </span>
+                    </button>
+                  ) : null}
+                </div>
+                {locationError ? <p role="alert" className="field-error">{locationError}</p> : null}
+
+                {pickupMode === "address" ? (
+                  <>
+                    <p className="place-or">o escribí la dirección:</p>
+                    <AirportPlaceSearch coverage={coverage} useGoogle={useGooglePickup} disabled={isSubmitting}
+                      onSelect={selectSearchPlace} onChange={() => {
+                        setPickupAddress("");
+                        selectPickupPoint(null);
+                      }} />
+                  </>
+                ) : (
+                  <button className="ghost-button" type="button" onClick={useAddress}>Buscar por dirección</button>
+                )}
+                {pickupMode === "address" && pickupAddress && !pickupPoint ? (
+                  <p className="muted" role="status">
+                    Dirección cargada: <strong>{pickupAddress}</strong>. Marcá en el mapa dónde está para fijar el punto.
+                  </p>
+                ) : null}
+                {fieldErrors.pickupAddress && !outsideCoverage ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
+                {useGooglePickup ? (
+                  <AirportGooglePickup
+                    coverage={coverage}
+                    point={pickupPoint}
+                    reference={googleReference}
+                    approximate={approximateAddress}
+                    disabled={isSubmitting}
+                    onPoint={markPickupPoint}
+                    onUnavailable={() => setUseGooglePickup(false)}
+                  />
+                ) : (
+                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
+                )}
+                {coverage.enabled && pickupPoint ? (
+                  <p className={outsideCoverage ? "field-error" : "muted"} role="status">
+                    {outsideCoverage ? (
+                      <>{OUTSIDE_PICKUP_ZONE} <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a></>
+                    ) : adicionales.zoneExtraCents > 0
+                      ? `El punto marcado está en la zona con recargo: se suman ${formatPrice(adicionales.zoneExtraCents, moneda)} a la reserva.`
+                      : "El punto marcado está dentro de la cobertura."}
+                  </p>
+                ) : null}
+                {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
+                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
+                ) : null}
+                {pickupPoint && !outsideCoverage ? (
+                  <label>
+                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting} onChange={(event) => {
+                      setPickupConfirmed(event.target.checked);
+                      setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
+                    }} /> Confirmo que el mapa marca el lugar correcto
+                  </label>
+                ) : null}
+                {pickupMode === "address" && (pickupPoint || pickupAddress) ? (
+                  <label>Dirección o referencia para el chofer (opcional)
+                    <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
+                      disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />
+                  </label>
+                ) : null}
+                <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
+              </section>
+            </section>
           ) : null}
 
-          {paso === 3 ? (
-            <>
+          {/* Con el lugar confirmado aparecen los datos del pasajero, sin apretar «Continuar». */}
+          {datosAbiertos ? (
+            <section className="pickup-flow" ref={datosRef} aria-labelledby="datos-titulo">
               <div>
-                <p className="eyebrow">Paso 3 de 3</p>
-                <h2 className="route-title">{fromAdmin ? "Datos del pasajero" : "Tus datos"}</h2>
+                <p className="eyebrow">Tus datos</p>
+                <h2 className="route-title" id="datos-titulo" tabIndex={-1}>{fromAdmin ? "Datos del pasajero" : "¿Quiénes viajan?"}</h2>
                 <p className="muted">
                   Vuelo elegido:{" "}
                   <strong>
@@ -753,88 +876,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 </div>
               ) : null}
 
-              <div className="checkout-fields">
-                <div className="checkout-main" style={{ gridColumn: "1 / -1" }}>
-                  <strong>{sentidoDelVuelo === "ARRIVAL" ? "Punto de destino" : "Punto de búsqueda"}</strong>
-                  <p className="muted">
-                    Buscá un lugar o marcá el punto en el mapa. Si ya estás en el lugar, podés usar tu ubicación actual.
-                  </p>
-                  <div className="form-actions">
-                    <button className="ghost-button" type="button" disabled={locating || isSubmitting} onClick={useCurrentLocation}>
-                      {locating ? "Buscando ubicación…" : "Usar mi ubicación actual"}
-                    </button>
-                    {officePickup ? (
-                      <button className="ghost-button" type="button" disabled={isSubmitting} onClick={useOfficePickup}
-                        aria-pressed={usandoSucursal}>
-                        {sentidoDelVuelo === "ARRIVAL" ? `Ir a ${officePickup.label}` : `Salir desde ${officePickup.label}`}
-                      </button>
-                    ) : null}
-                    {pickupMode === "location" ? <button className="ghost-button" type="button" onClick={useAddress}>Buscar por dirección</button> : null}
-                  </div>
-                  {locationError ? <p role="alert" className="field-error">{locationError}</p> : null}
-                </div>
-                {pickupMode === "address" ? (
-                  <AirportPlaceSearch coverage={coverage} useGoogle={useGooglePickup} disabled={isSubmitting}
-                    onSelect={selectSearchPlace} onChange={() => {
-                      setPickupAddress("");
-                      selectPickupPoint(null);
-                    }} />
-                ) : null}
-                {pickupMode === "address" && pickupAddress && !pickupPoint ? (
-                  <p className="muted" role="status" style={{ gridColumn: "1 / -1" }}>
-                    Dirección cargada: <strong>{pickupAddress}</strong>. Marcá en el mapa dónde está para fijar el punto.
-                  </p>
-                ) : null}
-                {fieldErrors.pickupAddress && !outsideCoverage ? <p className="field-error" role="alert">{fieldErrors.pickupAddress}</p> : null}
-                {useGooglePickup ? (
-                  <AirportGooglePickup
-                    coverage={coverage}
-                    point={pickupPoint}
-                    reference={googleReference}
-                    approximate={approximateAddress}
-                    disabled={isSubmitting}
-                    onPoint={markPickupPoint}
-                    onUnavailable={() => setUseGooglePickup(false)}
-                  />
-                ) : (
-                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
-                )}
-                {coverage.enabled && pickupPoint ? (
-                  <p className={outsideCoverage ? "field-error" : "muted"} role="status" style={{ gridColumn: "1 / -1" }}>
-                    {outsideCoverage ? (
-                      <>{OUTSIDE_PICKUP_ZONE} <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a></>
-                    ) : adicionales.zoneExtraCents > 0
-                      ? `El punto marcado está en la zona con recargo: se suman ${formatPrice(adicionales.zoneExtraCents, moneda)} a la reserva.`
-                      : "El punto marcado está dentro de la cobertura."}
-                  </p>
-                ) : null}
-                {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
-                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
-                ) : null}
-                {pickupPoint && !outsideCoverage ? (
-                  <label style={{ gridColumn: "1 / -1" }}>
-                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting} onChange={(event) => {
-                      setPickupConfirmed(event.target.checked);
-                      setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
-                    }} /> Confirmo que el mapa marca el lugar correcto
-                  </label>
-                ) : null}
-                {pickupMode === "address" && (pickupPoint || pickupAddress) ? (
-                  <label>Dirección o referencia para el chofer (opcional)
-                    <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
-                      disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />
-                  </label>
-                ) : null}
-                <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
-              </div>
-
-              <div className="wizard-nav">
-                <button type="button" className="ghost-button" onClick={() => setPaso(2)}>← Volver</button>
-                <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || outsideCoverage}>
-                  {isSubmitting ? "Reservando…" : "Reservar"}
-                </button>
-              </div>
-            </>
+              <button className="button pickup-flow-next" type="submit" disabled={isSubmitting || !puedeSeguir || outsideCoverage}>
+                {isSubmitting ? "Reservando…" : "Reservar"}
+              </button>
+            </section>
           ) : null}
         </section>
       </div>
@@ -857,14 +902,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           {adicionales.zoneExtraCents > 0 && overrideTotalCents == null ? <span>Recargo por zona: <strong>{formatPrice(adicionales.zoneExtraCents, moneda)}</strong></span> : null}
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>
-        {paso < 3 ? (
-          <button
-            className="button checkout-submit"
-            type="button"
-            disabled={paso === 2 && !puedeSeguir}
-            onClick={() => setPaso(paso === 1 ? 2 : 3)}
-          >
-            {paso === 1 ? "Elegir vuelo →" : "Completar datos →"}
+        {!lugarListo ? (
+          <button className="button checkout-submit" type="button" onClick={avanzar}>
+            {puedeSeguir ? "Falta elegir el lugar" : "Elegí tu vuelo"}
           </button>
         ) : (
           <button className="button checkout-submit" type="submit" disabled={isSubmitting || !puedeSeguir || outsideCoverage}>

@@ -49,7 +49,10 @@ test("la reserva web muestra las tres opciones y ya no el recuadro verde de ida 
 
   await enIdaYVuelta.salida.click();
   await expect(page).toHaveURL(/sentido=DEPARTURE/);
-  await expect(page.getByText(/Paso 2 de 3 · Salida/)).toBeVisible();
+  // La reserva de un tramo entra con el sentido ya elegido y la barra del vuelo a la vista: la
+  // página es una sola que se despliega sola, así que ya no hay «Paso 2 de 3».
+  await expect(page.locator(".trip-search-leg")).toHaveCount(1);
+  await expect(page.locator('.trip-search-place[data-campo="desde"] .trip-search-chip')).toHaveText("San Martín de los Andes");
 });
 
 test("el panel usa las mismas tres opciones en vez de pestañas", async ({ page }) => {
@@ -64,5 +67,7 @@ test("el panel usa las mismas tres opciones en vez de pestañas", async ({ page 
   await expect(tarjetas(page).idaYVuelta).toHaveAttribute("aria-pressed", "true");
   await tarjetas(page).llegada.click();
   await expect(page).toHaveURL(/\/admin\/aeropuerto\/reservar\?.*sentido=ARRIVAL/);
-  await expect(page.getByText(/Paso 2 de 3 · Llegada/)).toBeVisible();
+  // La barra del vuelo queda a la vista, con Desde fijo en el aeropuerto (el sentido vino en el link).
+  await expect(page.locator(".trip-search-leg")).toHaveCount(1);
+  await expect(page.locator('.trip-search-place[data-campo="desde"] .trip-search-chip')).toHaveText("Aeropuerto Chapelco");
 });

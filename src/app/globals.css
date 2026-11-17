@@ -701,6 +701,18 @@ svg {
   align-items: start;
 }
 
+/* Los títulos del checkout, más chicos: el nombre de la ruta ocupaba dos líneas enormes
+   y empujaba el formulario abajo del pliegue. Acotado a la reserva; el resto del sitio
+   conserva el tamaño de siempre. */
+.checkout-head .section-title {
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1.08;
+}
+
+.checkout-layout .route-title {
+  font-size: 22px;
+}
+
 .checkout-main {
   display: grid;
   gap: 18px;
@@ -2305,6 +2317,10 @@ a.wizard-option { text-decoration: none; }
 .trip-search-chip svg, .trip-search-value svg, .trip-search-option-icon svg { flex: 0 0 auto; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .trip-search-places-row .trip-search-place:first-child { padding-right: 26px; }
 .trip-search-places-row .trip-search-place:last-child { padding-left: 26px; }
+/* Un solo tramo (la reserva simple del aeropuerto): Desde/Hacia son el dato del viaje que ya se
+   eligió en las tarjetas del paso 1, no un control. No se tocan ni abren panel. */
+.trip-search-place[data-fijo] { cursor: default; }
+.trip-search-place[data-fijo]:hover { border-color: var(--line-strong); background: #fff; }
 .trip-search-swap {
   position: absolute; left: 50%; top: 50%; z-index: 1; width: 40px; height: 40px; margin: 0; padding: 0;
   display: grid; place-items: center; transform: translate(-50%, -50%);
@@ -2396,6 +2412,20 @@ a.wizard-option { text-decoration: none; }
   .trip-search-flight .airline-badge { grid-row: span 2; align-self: center; }
   .trip-search-flight-seats { grid-column: 3; }
   .trip-search-confirm-actions > * { flex: 1 1 100%; }
+}
+
+/* Barra con un solo tramo: Desde/Hacia + el vuelo, sin el hueco del segundo tramo ni el botón de
+   invertir (que sólo existe con dos). El ancho sigue el mismo criterio que la barra de ida y vuelta. */
+@container (min-width: 861px) {
+  .trip-search-bar[data-tramos="1"] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+}
+@container (min-width: 601px) and (max-width: 860px) {
+  .trip-search-bar[data-tramos="1"] .trip-search-leg { grid-column: 1 / -1; }
+}
+@container (max-width: 600px) {
+  /* Sin botón de invertir no hace falta dejarle el lugar a la derecha. */
+  .trip-search-bar[data-tramos="1"] .trip-search-places-row .trip-search-place:first-child,
+  .trip-search-bar[data-tramos="1"] .trip-search-places-row .trip-search-place:last-child { padding: 10px 16px; }
 }
 
 /* Los lugares aparecen debajo de la barra apenas están los dos vuelos, sin otro paso (pedido de Jugue,
