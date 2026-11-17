@@ -368,23 +368,23 @@
   text-align: center;
 }
 
-/* El contacto del chofer es un link de WhatsApp (pedido del cliente). */
-.orden-whatsapp {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 2px;
+/* El contacto lleva el mismo botón verde «W» del listado de reservas (`.whatsapp-link`), más chico. */
+.orden-contacto {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
-.orden-whatsapp-icono {
-  font-size: 0.75em;
-  letter-spacing: 0.02em;
-  opacity: 0.75;
+.orden-whatsapp-boton {
+  width: 26px;
+  min-height: 26px;
+  font-size: 12px;
+  flex: none;
 }
 
 @media print {
-  .orden-whatsapp-icono {
+  .orden-whatsapp-boton {
     display: none;
   }
 }

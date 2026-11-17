@@ -79,6 +79,12 @@ test("un vuelo con dos naves da una orden por nave, repartida por capacidad en e
     await expect(bloque.getByRole("link", { name: "Descargar Excel" })).toBeVisible();
     await expect(bloque.getByRole("button", { name: "Copiar link" })).toBeVisible();
   }
+  // El contacto usa el mismo botón verde «W» del listado de reservas, sin el texto «WhatsApp».
+  const whatsapp = orden(page, naves.a.name).getByRole("link", { name: "Enviar WhatsApp a +5492944000000" });
+  await expect(whatsapp).toHaveText("W");
+  await expect(whatsapp).toHaveClass(/whatsapp-link/);
+  await expect(whatsapp).toHaveAttribute("href", /wa\.me|whatsapp/);
+  await expect(orden(page, naves.a.name)).not.toContainText("· WhatsApp");
   // Las opciones ya no están arriba para todo el día.
   await expect(page.locator(".orden-link-chofer")).toHaveCount(0);
 
@@ -109,6 +115,8 @@ test("arrastrar una fila cambia el orden, y soltarla en la otra nave la pasa a e
   const b = orden(page, naves.b.name);
   await b.locator(`tr[data-codigo="${pasajeros.ceci.code}"]`).dragTo(b.locator(`tr[data-codigo="${pasajeros.beto.code}"]`), { targetPosition: { x: 20, y: 4 } });
   await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Ceci", "Beto"]);
+  // Que el primer cambio termine de guardarse antes de arrastrar otra vez.
+  await expect(b.getByText("Recorrida guardada.")).toBeVisible();
 
   const a = orden(page, naves.a.name);
   await b.locator(`tr[data-codigo="${pasajeros.beto.code}"]`).dragTo(a.locator(`tr[data-codigo="${pasajeros.ana.code}"]`), { targetPosition: { x: 20, y: 4 } });
