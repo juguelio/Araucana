@@ -5,7 +5,9 @@ import { formatCurrency } from "@/lib/admin/salary";
 import { canDeleteManagedUser, canSeeSalary, managedUsersBasePath } from "@/lib/admin/driver-access";
 import { getCurrentAdminOrRedirect, getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
+import { EXPIRY_LABELS, LICENSE_SCOPES, expiryStatus, todayInArgentina, worstStatus, type ExpiryStatus, type LicenseScope } from "@/lib/admin/driver-documents";
 import { CrmNavigation } from "../crm-navigation";
+import "./users.css";
 import { deleteManagedUserAction, setManagedUserActiveAction } from "./actions";
 
 type ManagedUsersPageProps = {
@@ -28,7 +30,10 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
       ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] } : {})
     },
     orderBy: [{ isActive: "asc" }, { createdAt: "desc" }],
-    select: { id: true, email: true, name: true, role: true, isActive: true, monthlySalaryCents: true, salaryCurrency: true, createdAt: true }
+    select: {
+      id: true, email: true, name: true, role: true, isActive: true, monthlySalaryCents: true, salaryCurrency: true, createdAt: true,
+      driverProfile: { select: { documentNumber: true, licenseCategory: true, licenseScope: true, licenseExpiresAt: true, criminalRecordExpiresAt: true } }
+    }
   });
   const pendingCount = users.filter((user) => !user.isActive && user.role === "USER").length;
   const activeCount = users.filter((user) => user.isActive).length;
@@ -37,7 +42,16 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
   const verSueldo = canSeeSalary(sessionUser.role);
   const puedeBorrar = canDeleteManagedUser(sessionUser.role);
   const esChoferes = access === "drivers";
-  const columnas = 6 + (verSueldo ? 1 : 0);
+  // La documentación (DNI, licencia y antecedentes) se ve en el listado de choferes.
+  const verDocumentacion = esChoferes || role === "DRIVER";
+  const hoy = todayInArgentina();
+  const documentacion = (user: (typeof users)[number]) => {
+    const licencia = expiryStatus(user.driverProfile?.licenseExpiresAt, hoy);
+    const antecedentes = expiryStatus(user.driverProfile?.criminalRecordExpiresAt, hoy);
+    return { licencia, antecedentes, peor: worstStatus([licencia, antecedentes]) };
+  };
+  const aRevisar = verDocumentacion ? users.filter((user) => user.isActive && documentacion(user).peor !== "VALID").length : 0;
+  const columnas = 6 + (verSueldo ? 1 : 0) + (verDocumentacion ? 3 : 0);
 
   return (
     <AdminShell role={sessionUser.role}
@@ -51,6 +65,9 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
         <div className="admin-card"><span className="muted">{esChoferes ? "Inactivos" : "Pendientes"}</span><strong>{esChoferes ? users.length - activeCount : pendingCount}</strong></div>
         <div className="admin-card"><span className="muted">Activos</span><strong>{activeCount}</strong></div>
         <div className="admin-card"><span className="muted">Total</span><strong>{users.length}</strong></div>
+        {verDocumentacion && (
+          <div className="admin-card"><span className="muted">Documentación a revisar</span><strong>{aRevisar}</strong></div>
+        )}
       </section>
 
       <form method="get" className="admin-form-grid" style={{ margin: "1.5rem 0" }}>
@@ -69,7 +86,9 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
       <table className="data-table">
         <thead>
           <tr>
-            <th>Nombre</th><th>Email</th>{!esChoferes && <th>Rol</th>}{verSueldo && <th>Sueldo</th>}
+            <th>Nombre</th><th>Email</th>{!esChoferes && <th>Rol</th>}
+            {verDocumentacion && <><th>DNI</th><th>Licencia</th><th>Antecedentes</th></>}
+            {verSueldo && <th>Sueldo</th>}
             <th>Alta</th><th>Estado</th><th>Acciones</th>
           </tr>
         </thead>
@@ -79,6 +98,24 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
               <td>{user.name ?? "-"}</td>
               <td>{user.email}</td>
               {!esChoferes && <td>{getManagedUserRoleName(user.role as ManagedUserRole)}</td>}
+              {verDocumentacion && (
+                <>
+                  <td>{user.driverProfile?.documentNumber ?? <ExpiryPill status="MISSING" />}</td>
+                  <td>
+                    {user.driverProfile ? (
+                      <span className="driver-doc">
+                        {user.driverProfile.licenseCategory} · {LICENSE_SCOPES[user.driverProfile.licenseScope as LicenseScope] ?? user.driverProfile.licenseScope}
+                        <small>vence {formatDay(user.driverProfile.licenseExpiresAt)}</small>
+                      </span>
+                    ) : null}
+                    <ExpiryPill status={documentacion(user).licencia} />
+                  </td>
+                  <td>
+                    {user.driverProfile ? <span className="driver-doc"><small>vence {formatDay(user.driverProfile.criminalRecordExpiresAt)}</small></span> : null}
+                    <ExpiryPill status={documentacion(user).antecedentes} />
+                  </td>
+                </>
+              )}
               {verSueldo && <td>{user.role === "SECRETARY" || user.role === "DRIVER" ? formatCurrency(user.monthlySalaryCents, user.salaryCurrency) : "-"}</td>}
               <td>{user.createdAt.toLocaleDateString("es-AR")}</td>
               <td><span className={`status-pill ${user.isActive ? "active" : "inactive"}`}>{user.isActive ? "Activo" : user.role === "USER" ? "Pendiente" : "Inactivo"}</span></td>
@@ -105,4 +142,13 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
       </table>
     </AdminShell>
   );
+}
+
+function formatDay(date: Date) {
+  return date.toISOString().slice(0, 10).split("-").reverse().join("/");
+}
+
+/** Vigente en verde; por vencer, vencido o faltante, marcado para revisar. */
+function ExpiryPill({ status }: { status: ExpiryStatus }) {
+  return <span className={`status-pill ${status === "VALID" ? "active" : "inactive"}`} data-vencimiento={status}>{EXPIRY_LABELS[status]}</span>;
 }
