@@ -168,6 +168,8 @@ export type AdminScheduleRowDto = {
   vehicleName: string;
   vehiclePlate: string | null;
   vehicleInternalNumber: string | null;
+  /** Naves que se sumaron a la salida además de la principal (sus nombres). */
+  extraVehicleNames?: string[];
   departureAt: Date;
   arrivalAt: Date;
   status: string;

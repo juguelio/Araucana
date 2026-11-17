@@ -12,7 +12,7 @@ import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type Bo
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
-import { addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
+import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
 import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
@@ -53,6 +53,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         route: { select: { from: true, to: true } },
         vehicle: { select: VEHICLE_SELECT },
         driver: { select: DRIVER_SELECT },
+        extraUnits: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } },
         reservations: { where: { status: ACTIVE_RESERVATION }, select: { passengerCount: true } },
         _count: { select: { reservations: true } }
       }
@@ -105,7 +106,12 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       passengers: schedule.reservations.reduce((sum, reservation) => sum + reservation.passengerCount, 0),
       reservations: schedule._count.reservations,
       vehicle: { id: schedule.vehicle.id, name: schedule.vehicle.name, seats: seatsOf(schedule.vehicle) },
-      driver: schedule.driver
+      driver: schedule.driver,
+      extraUnits: schedule.extraUnits.map((unit) => ({
+        id: unit.id,
+        vehicle: { id: unit.vehicle.id, name: unit.vehicle.name, seats: seatsOf(unit.vehicle) },
+        driver: unit.driver
+      }))
     })),
     flights: flights.map((flight) => ({
       id: flight.id,
@@ -420,7 +426,7 @@ function UnitsReadOnly({ units, note }: { units: BoardUnit[]; note: ReactNode })
 
 const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
 
-/** Rutas: cada unidad es una salida con su nave y su chofer; abajo, sumar otra unidad a la misma hora. */
+/** Rutas: las naves de la salida, cada una con su chofer; abajo, sumar otra nave a la salida. */
 function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
   return (
     <div className="sd-units">
@@ -428,6 +434,7 @@ function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }
         <div className="sd-route-unit" key={unit.id}>
           <ScheduleCrewForm
             scheduleId={unit.id}
+            unitKind={unit.unitKind ?? "PRIMARY"}
             dateKey={dateKey}
             vehicleId={unit.vehicleId}
             driverId={unit.driverId}
@@ -435,30 +442,30 @@ function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }
             drivers={withCurrent(driverOptions, unit.driverId, unit.driverName)}
           />
           <p className="sd-unit-meta">
-            {row.units.length > 1 ? <span>{unit.passengers ?? 0} de {unit.seats} lug.</span> : null}
+            {row.units.length > 1 ? <span>{unit.passengers !== undefined ? `${unit.passengers} de ` : ""}{unit.seats} lug.</span> : null}
             {unit.status && !row.status ? <span className="pill pill-estado" data-tono="grave">{unit.status}</span> : null}
             {unit.editHref ? <Link href={unit.editHref}>Editar</Link> : null}
             {unit.removable ? (
               <form action={removeBoardScheduleAction} className="sd-remove">
                 <input type="hidden" name="id" value={unit.id} />
+                <input type="hidden" name="kind" value={unit.unitKind ?? "PRIMARY"} />
                 <input type="hidden" name="date" value={dateKey} />
-                <button className="text-button" type="submit" aria-label={`Quitar la unidad ${unit.vehicleName}`}>Quitar</button>
+                <button className="text-button" type="submit" aria-label={`Quitar la nave ${unit.vehicleName} de la salida`}>Quitar</button>
               </form>
             ) : null}
           </p>
         </div>
       ))}
-      {/* Sumar otra unidad: otra salida de la misma ruta a la misma hora, con sus propios asientos. */}
+      {/* Sumar otra nave a la misma salida: el cupo pasa a ser la suma de los asientos de todas. */}
       <div className="sd-sumar" data-campos="3">
-<FleetAssignmentForm action={createBoardScheduleAction}>
+<FleetAssignmentForm action={addBoardUnitAction}>
         <input type="hidden" name="date" value={dateKey} />
-        <input type="hidden" name="routeId" value={row.routeId} />
-        <input type="hidden" name="time" value={timeFormat(row.at ?? undefined)} />
+        <input type="hidden" name="scheduleId" value={row.serviceId} />
         <select name="vehicleId" defaultValue="" aria-label="Nave para sumar a la salida" required>
-          <option value="" disabled>Sumar otra unidad…</option>
+          <option value="" disabled>Sumar otra nave…</option>
           {vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
         </select>
-        <select name="driverId" defaultValue="" aria-label="Chofer de la unidad nueva">
+        <select name="driverId" defaultValue="" aria-label="Chofer de la nave nueva">
           <option value="">Sin chofer</option>
           {driverOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
         </select>

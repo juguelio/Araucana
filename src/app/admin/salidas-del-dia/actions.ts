@@ -11,6 +11,7 @@ import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetCon
 import type { Prisma } from "@prisma/client";
 import { isDateKey, localDateKey } from "@/lib/operations/day-board";
 import { redirectToBoard } from "./return-to";
+import { addScheduleUnit, primaryVehicleProblem, removeScheduleUnit, updateScheduleUnit, type UnitResult } from "@/lib/booking/schedule-unit-service";
 
 export type CrewState = { error?: string; conflicts?: FleetConflict[]; confirmation?: string };
 
@@ -56,6 +57,11 @@ export async function saveScheduleCrewAction(_state: CrewState, formData: FormDa
   const id = value(formData, "id");
   const vehicleId = value(formData, "vehicleId");
   const driverId = value(formData, "driverId") || null;
+  if (value(formData, "kind") === "EXTRA") {
+    if (!vehicleId) return { error: "Elegí la nave." };
+    const result = await updateScheduleUnit({ actor, unitId: id, vehicleId, driverId, confirmation: value(formData, "confirmation") });
+    return afterUnitChange(result, formData);
+  }
 
   const current = id
     ? await prisma.schedule.findUnique({
@@ -86,6 +92,8 @@ export async function saveScheduleCrewAction(_state: CrewState, formData: FormDa
       conflicts = await fleetConflicts(tx, { vehicleId, startsAt: current.departureAt, endsAt: current.arrivalAt }, undefined, current.id);
       const check = checkConflicts(conflicts, [current.id, vehicleId], value(formData, "confirmation"));
       if (check) return check.error ? { error: vehicleConflictNotice(conflicts.filter((c) => !c.possible)) } : check;
+      const problem = await primaryVehicleProblem(tx, current.id, vehicleId);
+      if (problem) return { error: problem };
     }
     const before = await tx.schedule.findUnique({ where: { id: current.id } });
     const updated = await tx.schedule.update({ where: { id: current.id }, data: { vehicleId, driverId } });
@@ -204,6 +212,18 @@ export async function createBoardScheduleAction(_state: BoardFormState, formData
   if (driverId && !(await activeDriver(driverId))) return { error: "Ese chofer no está disponible: elegí un chofer activo." };
   const arrivalAt = new Date(departureAt.getTime() + Math.max(route.durationMin, 1) * 60000);
 
+  // Si la ruta ya tiene una salida a esa hora, la nave se suma a esa salida en vez de crear otra:
+  // una salida puede llevar varias naves y el cupo es la suma de todas.
+  const existing = await prisma.schedule.findFirst({
+    where: { routeId, departureAt, status: { notIn: ["CLOSED", "CANCELLED"] } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true }
+  });
+  if (existing) {
+    const added = await addScheduleUnit({ actor, scheduleId: existing.id, vehicleId, driverId, confirmation: value(formData, "confirmation") });
+    return afterUnitChange(added, formData);
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     await lockFleet(tx, [vehicleId]);
     const conflicts = await fleetConflicts(tx, { vehicleId, startsAt: departureAt, endsAt: arrivalAt });
@@ -227,10 +247,55 @@ export async function createBoardScheduleAction(_state: BoardFormState, formData
   redirectToBoard(dateKey, route.isActive ? "Salida creada." : "Salida creada. Ojo: la ruta está inactiva y no se vende en la web.");
 }
 
-/** Quitar una unidad de una ruta: sólo si esa salida no tiene reservas (si tiene, se cierra desde la salida). */
+/**
+ * Lo que queda después de sumar, cambiar o quitar una nave de una salida: el aviso del choque o del
+ * error, o volver al tablero con las pantallas de la salida y de la venta refrescadas (el cupo cambió).
+ */
+function afterUnitChange(result: UnitResult, formData: FormData): CrewState {
+  if (!result.ok) return result;
+  const { schedule, summary } = result;
+  revalidatePath("/admin/salidas-del-dia");
+  revalidatePath(`/admin/rutas/${schedule.routeId}/salidas`);
+  revalidatePath(`/admin/rutas/${schedule.routeId}/salidas/${schedule.id}`);
+  if (schedule.slug) {
+    revalidatePath(`/rutas/${schedule.slug}`);
+    revalidatePath(`/reservar/${schedule.slug}`);
+  }
+  redirectToBoard(boardDate(formData, schedule.departureAt), summary);
+}
+
+/** Sumar otra nave (con su chofer) a una salida: el cupo pasa a ser la suma de los asientos. */
+export async function addBoardUnitAction(_state: BoardFormState, formData: FormData): Promise<BoardFormState> {
+  const actor = await getCurrentAdminOrRedirect();
+  const vehicleId = value(formData, "vehicleId");
+  if (!vehicleId) return { error: "Elegí la nave." };
+  const result = await addScheduleUnit({
+    actor, scheduleId: value(formData, "scheduleId"), vehicleId,
+    driverId: value(formData, "driverId") || null, confirmation: value(formData, "confirmation")
+  });
+  return afterUnitChange(result, formData);
+}
+
+/**
+ * Quitar una nave de una salida. Si la salida tiene otras naves, se saca sólo esa (con la principal,
+ * la siguiente pasa a su lugar), siempre que con las que quedan entren los pasajeros. Si es la única
+ * nave, se borra la salida, y eso sólo si no tiene reservas (si tiene, se cierra desde la salida).
+ */
 export async function removeBoardScheduleAction(formData: FormData) {
   const actor = await getCurrentAdminOrRedirect();
   const id = value(formData, "id");
+  if (value(formData, "kind") === "EXTRA") {
+    const result = await removeScheduleUnit({ actor, unitId: id });
+    if (!result.ok) redirectToBoard(boardDate(formData, new Date()), "error" in result ? result.error : "No se pudo quitar la nave.");
+    afterUnitChange(result, formData);
+    return;
+  }
+  if (await prisma.scheduleUnit.count({ where: { scheduleId: id } })) {
+    const result = await removeScheduleUnit({ actor, primaryOf: id });
+    if (!result.ok) redirectToBoard(boardDate(formData, new Date()), "error" in result ? result.error : "No se pudo quitar la nave.");
+    afterUnitChange(result, formData);
+    return;
+  }
   const schedule = await prisma.schedule.findUnique({ where: { id }, select: { id: true, routeId: true, departureAt: true, route: { select: { slug: true } }, _count: { select: { reservations: true } } } });
   const fallback = boardDate(formData, new Date());
   if (!schedule) redirectToBoard(fallback, "Esa salida ya no existe.");

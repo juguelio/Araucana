@@ -178,7 +178,8 @@ const fieldLabels: Record<string, string> = {
   source: "Origen del dato",
   licensePlate: "Patente",
   brand: "Marca",
-  templateKey: "Plantilla de asientos"
+  templateKey: "Plantilla de asientos",
+  extraUnits: "Otras naves de la salida"
 };
 
 const valueLabels: Record<string, string> = {

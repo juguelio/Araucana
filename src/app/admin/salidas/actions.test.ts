@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   audit: vi.fn(),
   refresh: vi.fn(),
-  redirect: vi.fn()
+  redirect: vi.fn(),
+  primaryProblem: vi.fn()
 }));
 
 vi.mock("@/lib/auth/admin", () => ({ getCurrentAdminOrRedirect: mocks.auth }));
@@ -32,6 +33,12 @@ vi.mock("@/lib/special-trips/conflicts", () => ({
   fleetConflicts: mocks.fleetConflicts,
   lockFleet: mocks.lockFleet,
   savePublicSchedule: mocks.save
+}));
+
+vi.mock("@/lib/booking/schedule-unit-service", () => ({
+  primaryVehicleProblem: mocks.primaryProblem,
+  addScheduleUnit: vi.fn(),
+  removeScheduleUnit: vi.fn()
 }));
 
 import { setScheduleVehicleAction } from "./actions";

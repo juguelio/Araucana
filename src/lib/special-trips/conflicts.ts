@@ -48,7 +48,8 @@ export async function fleetConflicts(
     specialConflicts(tx, interval, excludeTrip),
     tx.schedule.findMany({
       where: {
-        vehicleId,
+        // La nave puede ser la principal de la salida o una de las que se le sumaron.
+        OR: [{ vehicleId }, { extraUnits: { some: { vehicleId } } }],
         departureAt: { lt: endsAt },
         arrivalAt: { gt: startsAt },
         ...(excludeSchedule ? { id: { not: excludeSchedule } } : {}),
