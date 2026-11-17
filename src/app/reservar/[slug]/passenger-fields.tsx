@@ -104,10 +104,10 @@ export function validateCheckoutPassenger(
   // la orden de servicio del chofer salía con «—» en la mayoría de las ventas cargadas a mano.
   // En el ida y vuelta se pide sin documento (17-nov): el pasajero suele cargar los dos tramos de
   // apuro y el chofer igual lo tiene por nombre y teléfono.
-  if (!optionalDocument) {
-    const documentError = passengerDocumentError(passenger.documentType, passenger.documentId);
-    if (documentError) errors.documentId = documentError;
-  }
+  // Opcional quiere decir que puede quedar vacío, no que se acepte cualquier cosa: si lo cargan,
+  // se valida acá igual que en el servidor, y el error queda al lado del campo.
+  const documentError = passengerDocumentError(passenger.documentType, passenger.documentId, optionalDocument);
+  if (documentError) errors.documentId = documentError;
 
   return errors;
 }

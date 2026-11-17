@@ -61,3 +61,27 @@ describe("contrato de la reserva de aeropuerto", () => {
     expect(airportReservationSchema.safeParse({ ...reserva, sportsLuggageCount: 25 }).success).toBe(false);
   });
 });
+
+describe("el documento en el aeropuerto es opcional (#206, #208)", () => {
+  const sinDni = { ...reserva, passenger: { ...reserva.passenger, documentId: "" } };
+  const sinCampo = { ...reserva, passenger: (({ documentId: _omitido, ...resto }) => resto)(reserva.passenger) };
+
+  it("la reserva pública acepta el documento vacío o ausente", () => {
+    expect(airportReservationSchema.safeParse(sinDni).success).toBe(true);
+    const parsed = airportReservationSchema.safeParse(sinCampo);
+    expect(parsed.success && parsed.data.passenger.documentId).toBe("");
+  });
+
+  it("la reserva del panel acepta el documento vacío", () => {
+    expect(adminAirportReservationSchema.safeParse(sinDni).success).toBe(true);
+  });
+
+  it("si el documento viene, se sigue validando y normalizando", () => {
+    const mal = { ...reserva, passenger: { ...reserva.passenger, documentId: "12" } };
+    expect(airportReservationSchema.safeParse(mal).success).toBe(false);
+    expect(adminAirportReservationSchema.safeParse(mal).success).toBe(false);
+    const conPuntos = { ...reserva, passenger: { ...reserva.passenger, documentId: "30.123.456" } };
+    const parsed = airportReservationSchema.safeParse(conPuntos);
+    expect(parsed.success && parsed.data.passenger.documentId).toBe("30123456");
+  });
+});
