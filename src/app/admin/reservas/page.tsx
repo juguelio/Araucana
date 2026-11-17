@@ -7,6 +7,8 @@ import type { AdminReservationRowDto } from "@/lib/booking/types";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
+import { adminReservationOrder, type AdminReservationOrderColumn } from "@/lib/booking/admin-reservation-sort";
+import { alternarOrden, ariaSortDe, flechaDeOrden, hrefConOrden, type OrdenDeListado } from "@/lib/admin/list-order";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
@@ -25,6 +27,8 @@ type AdminReservationsPageProps = {
     scheduleId?: string;
     page?: string;
     payment?: string;
+    orden?: string;
+    dir?: string;
   }>;
 };
 
@@ -78,6 +82,34 @@ function paginaHref(destino: number, params: Record<string, string | undefined>)
   return `/admin/reservas?${query.toString()}`;
 }
 
+/**
+ * Encabezado ordenable (issue #192): el primer clic ordena por esa columna y el segundo invierte la
+ * dirección. El link arrastra los filtros activos y vuelve a la página 1; `aria-sort` dice el estado.
+ */
+function EncabezadoOrdenable({
+  etiqueta, columna, orden, params
+}: {
+  etiqueta: string;
+  columna: AdminReservationOrderColumn;
+  orden: OrdenDeListado<AdminReservationOrderColumn>;
+  params: Record<string, string | undefined>;
+}) {
+  const flecha = flechaDeOrden(orden, columna);
+  const siguiente = alternarOrden(orden, columna);
+  return (
+    <th aria-sort={ariaSortDe(orden, columna)}>
+      <Link
+        className="reservas-orden"
+        href={hrefConOrden("/admin/reservas", params, siguiente)}
+        title={`Ordenar por ${etiqueta.toLowerCase()} (${siguiente.direccion === "asc" ? "de menor a mayor" : "de mayor a menor"})`}
+      >
+        {etiqueta}
+        <span aria-hidden="true" className="reservas-orden-flecha">{flecha ?? "↕"}</span>
+      </Link>
+    </th>
+  );
+}
+
 function formatTotal(reservation: AdminReservationRowDto) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.totalCents / 100);
 }
@@ -119,6 +151,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
   const hayFiltros = ["code", "date", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
+  // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
+  const orden = adminReservationOrder(parsed.success ? parsed.data : {});
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -137,6 +171,9 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           Filtros{hayFiltros ? <span className="reservas-filters-activos">activos</span> : null}
         </label>
         <form action="/admin/reservas" method="get" className="reservas-filter-grid">
+          {/* Filtrar no pierde el orden elegido: viaja en el formulario como cualquier otro filtro. */}
+          <input type="hidden" name="orden" value={orden.columna} />
+          <input type="hidden" name="dir" value={orden.direccion} />
           <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} placeholder="Largo del link o corto" /></label>
           <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
           <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
@@ -162,15 +199,15 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
         <table className="data-table">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Pasajero</th>
-              <th>Creada por</th>
+              <EncabezadoOrdenable etiqueta="Código" columna="codigo" orden={orden} params={filtros} />
+              <EncabezadoOrdenable etiqueta="Pasajero" columna="pasajero" orden={orden} params={filtros} />
+              <EncabezadoOrdenable etiqueta="Creada por" columna="creadaPor" orden={orden} params={filtros} />
               <th>WhatsApp</th>
               <th>Ruta</th>
               <th>Fecha del viaje</th>
-              <th>Asiento</th>
-              <th>Estado</th>
-              <th>Pago</th>
+              <EncabezadoOrdenable etiqueta="Asiento" columna="asiento" orden={orden} params={filtros} />
+              <EncabezadoOrdenable etiqueta="Estado" columna="estado" orden={orden} params={filtros} />
+              <EncabezadoOrdenable etiqueta="Pago" columna="pago" orden={orden} params={filtros} />
               <th>Comprobante</th>
               <th>Acciones</th>
             </tr>
