@@ -112,7 +112,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <p>Tu comprobante para presentar en el viaje, con las políticas de cancelación. Podés mostrarlo desde el celular o imprimirlo.</p>
           </div>
           <div className="form-actions">
-            <Link className="ghost-button" href={voucherHref}>Ver voucher</Link>
+            <Link className="button" href={voucherHref}>Ver mi voucher</Link>
             {voucherWhatsApp ? (
               <a className="ghost-button" href={voucherWhatsApp} target="_blank" rel="noopener noreferrer">Compartir por WhatsApp</a>
             ) : null}

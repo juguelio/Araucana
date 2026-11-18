@@ -10,6 +10,9 @@ import { ADMIN_RESERVATIONS_PAGE_SIZE, ADMIN_RESERVATIONS_PAGE_SIZES, adminReser
 import { adminReservationOrder } from "@/lib/booking/admin-reservation-sort";
 import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
+import { CopiarVoucher } from "@/components/copiar-voucher";
+import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
+import { siteOrigin } from "@/lib/site-origin";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
@@ -69,11 +72,6 @@ function tonoEstado(status: string) {
 function tonoPago(status: string | null, disabilityFare: boolean) {
   if (disabilityFare) return "normal";
   return status === "APPROVED" ? "ok" : status === "REJECTED" ? "grave" : status === "PENDING" ? "atencion" : "normal";
-}
-
-function whatsappHref(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  return digits ? `https://wa.me/${digits}` : null;
 }
 
 /** Link de página que arrastra los filtros activos (menos `notice`, que es un mensaje de una acción). */
@@ -139,6 +137,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const hayFiltros = ["q", "code", "date", "until", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
   // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
   const orden = adminReservationOrder(parsed.success ? parsed.data : {});
+  // El voucher se comparte fuera de la app, así que el link del mensaje tiene que ser absoluto (#243).
+  const origen = await siteOrigin();
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -213,7 +213,15 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             {reservations.map((reservation) => {
               const disabilityFare = reservation.paymentProvider === DISABILITY_DOCUMENT_PROVIDER;
               const canViewReceipt = !disabilityFare || isAdminRole(user.role);
-              const whatsappUrl = whatsappHref(reservation.passengerPhone);
+              const voucherUrl = absoluteUrl(voucherPath(reservation.code), origen);
+              const whatsappUrl = whatsappShareUrl(
+                reservation.passengerPhone,
+                voucherMessage({
+                  firstName: reservation.passenger.split(" ")[0],
+                  shortCode: formatShortCode(reservation.shortCode),
+                  url: voucherUrl
+                })
+              );
               const detailPath = `/admin/reservas/${reservation.code}`;
               const porValidar = reservation.hasReceipt && canViewReceipt && reservation.paymentStatus === "PENDING" &&
                 (disabilityFare ? reservation.status === DISABILITY_PENDING_STATUS : reservation.status === "PENDING_PAYMENT");
@@ -246,20 +254,23 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                   </td>
                   <td data-label="Creada por">{reservation.creatorLabel}</td>
                   <td data-label="WhatsApp">
-                    {whatsappUrl ? (
-                      <a
-                        aria-label={`Enviar WhatsApp a ${reservation.passenger}`}
-                        className="whatsapp-link"
-                        href={whatsappUrl}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                        title={`Enviar WhatsApp a ${reservation.passenger}`}
-                      >
-                        W
-                      </a>
-                    ) : (
-                      <span className="muted">-</span>
-                    )}
+                    <span className="reserva-compartir">
+                      {whatsappUrl ? (
+                        <a
+                          aria-label={`Enviar el voucher por WhatsApp a ${reservation.passenger}`}
+                          className="whatsapp-link"
+                          href={whatsappUrl}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                          title={`Enviar el voucher por WhatsApp a ${reservation.passenger}`}
+                        >
+                          W
+                        </a>
+                      ) : (
+                        <span className="muted" title="La reserva no tiene teléfono cargado">-</span>
+                      )}
+                      <CopiarVoucher url={voucherUrl} />
+                    </span>
                   </td>
                   <td data-label="Ruta">
                     {reservation.route}
