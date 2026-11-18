@@ -32,6 +32,7 @@ const TIPO_LABEL: Record<string, string> = { CAMIONETA: "Camioneta", BUS: "Bus",
 const COLUMNAS: Array<{ columna: ColumnaNaves; titulo: string }> = [
   { columna: "unidad", titulo: "Unidad" },
   { columna: "vehiculo", titulo: "Marca / modelo · patente" },
+  { columna: "anio", titulo: "Año" },
   { columna: "titular", titulo: "Titular" },
   { columna: "seguro", titulo: "Seguro" },
   { columna: "vencimientos", titulo: "Vencimientos" },
@@ -163,6 +164,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                     <br />
                     <span className="muted">{vehicle.licensePlate ?? "sin patente"}</span>
                   </td>
+                  <td data-label="Año">{vehicle.year ?? "—"}</td>
                   <td data-label="Titular">{vehicle.owner ?? "—"}</td>
                   <td data-label="Seguro">
                     {vehicle.insurer ?? "—"}
