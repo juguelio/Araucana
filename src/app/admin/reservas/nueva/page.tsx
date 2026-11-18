@@ -3,8 +3,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
-import { createAdminReservationAction } from "../actions";
-import { SalidaPicker } from "./salida-picker";
+import { NuevaReservaForm } from "./nueva-reserva-form";
 
 type NewReservationPageProps = {
   searchParams?: Promise<{ notice?: string }>;
@@ -47,61 +46,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
           <Link className="ghost-button" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto</Link>
         </div>
         {schedules.length ? (
-          <form className="alta-form" action={createAdminReservationAction}>
-            <SalidaPicker schedules={schedules} />
-            <div className="alta-pasajero">
-              <div className="alta-pasajero-head">
-                <p className="eyebrow">Pasajero</p>
-                <p className="muted">Contacto y documento del titular de la reserva.</p>
-              </div>
-              <div className="admin-form-grid alta-campos">
-                <label>
-                  Nombre
-                  <input name="firstName" autoComplete="given-name" required />
-                </label>
-                <label>
-                  Apellido
-                  <input name="lastName" autoComplete="family-name" required />
-                </label>
-                <label>
-                  Email (opcional)
-                  <input name="email" type="email" autoComplete="email" />
-                </label>
-                <label>
-                  Teléfono (opcional)
-                  <input name="phone" type="tel" autoComplete="tel" placeholder="+54 9..." />
-                </label>
-                <label>
-                  Tipo de documento
-                  <select name="documentType" defaultValue="DNI" required><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
-                </label>
-                <label>
-                  Documento
-                  <input name="documentId" required placeholder="7 u 8 dígitos si es DNI" />
-                </label>
-                <label className="span-2">
-                  Nacionalidad
-                  <input name="nationality" placeholder="Opcional" />
-                </label>
-              </div>
-              <div className="admin-form-grid alta-campos">
-                <label>
-                  Precio total de la reserva (opcional)
-                  <input name="customPrice" inputMode="decimal" placeholder="Usar tarifa automática" />
-                  <small>Ingresá el importe para todos los lugares en la moneda de la salida.</small>
-                </label>
-                <label>
-                  Derivado por (opcional)
-                  <input name="referredBy" maxLength={120} placeholder="Ej. una agencia de viajes" />
-                  <small>Quién vendió la reserva, si la venta vino de otra agencia o por un voucher.</small>
-                </label>
-              </div>
-              <div className="form-actions">
-                <button className="button" type="submit">Crear reserva</button>
-                <Link className="ghost-button" href="/admin/reservas">Cancelar</Link>
-              </div>
-            </div>
-          </form>
+          <NuevaReservaForm schedules={schedules} />
         ) : <p className="muted">No hay salidas futuras con lugares disponibles.</p>}
       </section>
     </AdminShell>
