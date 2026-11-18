@@ -1,0 +1,135 @@
+/* Vista compacta de /admin. La planilla completa sigue en Salidas del día. */
+body:has(.plan-heading) .site-header { display: none; }
+.admin-layout:has(.plan-heading) { min-height: 100vh; }
+.admin-main:has(.plan-heading) { min-width: 0; }
+.admin-main:has(.plan-heading) .admin-top {
+  align-items: center;
+  flex-wrap: wrap;
+  padding-bottom: 18px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.admin-main:has(.plan-heading) .admin-top .eyebrow { display: none; }
+.admin-main:has(.plan-heading) .section-title { margin: 0; font-size: clamp(24px, 2.3vw, 34px); text-transform: none; }
+.admin-main:has(.plan-heading) .sd-days { gap: 5px; }
+.admin-main:has(.plan-heading) .sd-days :is(.ghost-button, .danger-button, input) {
+  min-height: 34px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.admin-main:has(.plan-heading) .sd-days .danger-button { background: none; color: var(--ink-soft); border: 0; }
+.plan-heading, .plan-toolbar, .plan-filters { display: flex; align-items: center; flex-wrap: wrap; }
+.plan-heading { justify-content: space-between; gap: 12px 24px; }
+.plan-heading h2 { margin: 0; font-size: clamp(21px, 2vw, 28px); line-height: 1.2; letter-spacing: -.025em; text-transform: none; }
+.plan-heading p { margin: 5px 0 0; color: var(--ink-soft); font-size: 14px; }
+.plan-filters { gap: 4px; border-bottom: 1px solid var(--line); }
+.plan-filters a { border-bottom: 2px solid transparent; padding: 8px 10px; color: var(--ink-soft); font-size: 14px; }
+.plan-filters a[aria-current] { border-color: var(--primary); color: var(--primary-deep); font-weight: bold; }
+.plan-filters b { font-variant-numeric: tabular-nums; }
+.plan-toolbar { position: relative; gap: 8px; margin: 18px 0 12px; }
+.plan-toolbar .sd-add { margin: 0; background: none; border: 0; box-shadow: none; }
+.plan-toolbar :is(.sd-add > summary, .plan-team-trigger, .plan-shortcuts > summary) {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+.plan-toolbar summary::-webkit-details-marker, .plan-service-fold > summary::-webkit-details-marker { display: none; }
+.plan-toolbar .sd-add > summary { background: var(--primary); border-color: var(--primary); color: white; }
+.plan-toolbar .sd-add > summary::before { width: auto; height: auto; background: none; }
+.plan-toolbar .plan-team-trigger[aria-expanded=true] { background: var(--primary-soft); border-color: var(--primary); }
+.plan-shortcuts { margin-inline-start: auto; }
+.plan-shortcuts > summary::after { content: "▾"; }
+.plan-toolbar .sd-add-body, .plan-shortcuts nav {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px #193a2b18;
+}
+.plan-toolbar .sd-add-body { inset-inline: 0; grid-template-columns: minmax(0,1fr); gap: 8px; }
+.plan-shortcuts nav { right: 0; display: grid; min-width: 185px; }
+.plan-shortcuts a { padding: 7px; font-size: 14px; }
+.plan-shortcuts a:hover { background: var(--primary-soft); }
+.desk-layout.plan-wide { grid-template-columns: minmax(0,1fr); }
+.plan-sheet { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: clip; }
+.plan-columns, .plan-service-fold > summary {
+  display: grid;
+  grid-template-columns: 78px minmax(0,1.6fr) minmax(0,1fr) 74px 16px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+}
+.plan-columns { font-size: 12px; font-weight: 700; background: var(--primary-soft); color: var(--primary-deep); }
+.plan-sheet .sd-list { gap: 0; }
+.plan-sheet .sd-row { display: block; padding: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
+.plan-service-fold > summary { list-style: none; min-height: 72px; cursor: pointer; font-size: 14px; }
+.plan-service-fold > summary:hover, .plan-service-fold[open] > summary { background: #f3f6f2; }
+.plan-service-fold > summary:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
+.plan-service-fold summary :is(strong,small,.plan-detail,.plan-alert) { display: block; }
+.plan-service-fold small, .plan-detail { font-size: 12px; color: var(--ink-soft); }
+.plan-service-fold .plan-time strong { font-size: 21px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.plan-service > small { font-weight: 700; color: var(--primary); }
+.plan-crew small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-service-fold .plan-load small { display: inline; }
+.plan-load { font-variant-numeric: tabular-nums; }
+.plan-alert { color: #953d18; font-size: 13px; font-weight: 700; }
+.plan-chevron { justify-self: end; color: var(--primary); }
+.plan-service-fold[open] .plan-chevron { transform: rotate(180deg); }
+.plan-edit { padding: 4px 18px 16px; }
+.plan-detail-links { display: flex; gap: 12px; margin: 7px 0 12px; font-size: 13px; text-decoration: underline; }
+.plan-edit .sd-assign { border: 0; padding: 0; }
+.plan-mobile-label { display: none; }
+@container (max-width: 610px) {
+  .plan-columns { display: none; }
+  .plan-service-fold > summary {
+    grid-template-columns: 54px minmax(0,1fr) auto;
+    grid-template-areas: "time service arrow" ". crew crew" ". load load";
+    gap: 2px 10px;
+    padding: 12px;
+  }
+  .plan-time { grid-area: time; align-self: start; }
+  .plan-service { grid-area: service; }
+  .plan-chevron { grid-area: arrow; }
+  .plan-crew { grid-area: crew; }
+  .plan-crew strong, .plan-service-fold .plan-crew small { display: inline; }
+  .plan-crew small:not(:empty)::before { content: " · "; }
+  .plan-service-fold .plan-crew small { white-space: normal; }
+  .plan-load { grid-area: load; font-size: 12px; color: var(--ink-soft); }
+  .plan-mobile-label { display: inline; }
+}
+@media (max-width: 640px) {
+  .plan-toolbar { gap: 5px; }
+  .plan-toolbar :is(.sd-add > summary,.plan-team-trigger,.plan-shortcuts > summary) { padding-inline: 8px; }
+  .admin-main:has(.plan-heading) .admin-top { gap: 10px; margin-bottom: 18px; }
+  .admin-main:has(.plan-heading) .sd-date { flex: 0 1 auto; }
+}
+.plan-calendar { position: relative; }
+.plan-calendar > summary { padding: 7px 10px; font-size: 13px; cursor: pointer; color: var(--ink); }
+.plan-calendar .sd-date { position: absolute; top: 100%; right: 0; z-index: 6; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.plan-shortcuts .danger-button { justify-self: start; border: 0; background: transparent; color: var(--ink-soft); font-size: 14px; min-height: 34px; padding: 7px; }
+@media (max-width: 640px) {
+  .admin-layout:has(.plan-heading) .admin-sidebar nav { margin-top: 0; }
+  .admin-main:has(.plan-heading) .admin-top { align-items: flex-start; }
+  .plan-calendar .sd-date { right: auto; left: -60px; }
+  .plan-sheet .plan-crew strong { display: inline; }
+}
+.sd-replace { margin: 4px 0; font-size: 13px; }
+.sd-replace > summary { width: fit-content; cursor: pointer; color: var(--primary-deep); font-weight: 700; }
+.sd-replace[open] { padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.sd-units .sd-replace form .inline-actions { grid-template-columns: minmax(0,1fr); justify-items: start; gap: 10px; }
+.sd-replacement-row { width: 100%; display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+.sd-replacement-row label { flex: 1 1 140px; display: grid; gap: 4px; }
+.sd-replacement-row button { color: var(--primary); border: 0; background: transparent; cursor: pointer; padding: 8px; }

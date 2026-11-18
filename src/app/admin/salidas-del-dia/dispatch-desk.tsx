@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, type ReactNode, type SelectHTMLAttributes } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode, type SelectHTMLAttributes } from "react";
 import type { Option } from "./crew-form";
 
 type Kind = "driverId" | "vehicleId";
@@ -36,9 +36,31 @@ export function DropSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
     }} />;
 }
 
-export function DispatchDesk({ panel, vehicles, drivers, assignments, children }: {
-  panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: Assignment[]; children: ReactNode;
+export function ServiceDisclosure({ panel, summary, children }: { panel: boolean; summary: ReactNode; children: ReactNode }) {
+  const { dragging } = useContext(Desk);
+  if (!panel) return <>{children}</>;
+  return <details name="servicio-panel" className="plan-service-fold" onDragEnter={event => {
+    if (dragging) event.currentTarget.open = true;
+  }}>
+    <summary>{summary}</summary>
+    <div className="plan-edit">{children}</div>
+  </details>;
+}
+
+export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, actions, shortcuts, children }: {
+  dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: Assignment[]; actions: ReactNode; shortcuts: ReactNode; children: ReactNode;
 }) {
+  const [showTeam, setShowTeam] = useState(false);
+  useEffect(() => {
+    if (panel) setShowTeam(sessionStorage.getItem("araucana.panel.equipo") === dateKey);
+  }, [dateKey, panel]);
+
+  function toggleTeam() {
+    if (showTeam) sessionStorage.removeItem("araucana.panel.equipo");
+    else sessionStorage.setItem("araucana.panel.equipo", dateKey);
+    setShowTeam(!showTeam);
+  }
+
   const [kind, setKind] = useState<Kind>("vehicleId");
   const [selected, setSelected] = useState<Resource | null>(null);
   const [dragging, setDragging] = useState<Resource | null>(null);
@@ -48,12 +70,17 @@ export function DispatchDesk({ panel, vehicles, drivers, assignments, children }
   const agenda = selected ? assignments.filter(a => a[selected.kind] === selected.id)
     .sort((a,b) => (a.start ?? Infinity) - (b.start ?? Infinity)) : [];
   return <Desk.Provider value={{ panel, dragging }}>
-    <div className="desk-layout">
-      <aside className="desk-resources" aria-label="Recursos de la jornada">
-        <h3>Equipo del día</h3>
+    {panel && <div className="plan-toolbar">
+      {actions}
+      <button type="button" className="plan-team-trigger" aria-expanded={showTeam} aria-controls="plan-team" onClick={toggleTeam}>Equipo del día</button>
+      {shortcuts}
+    </div>}
+    <div className={panel && !showTeam ? "desk-layout plan-wide" : "desk-layout"}>
+      <aside hidden={panel && !showTeam} id="plan-team" className="desk-resources" aria-label="Recursos de la jornada">
+        <h3>{panel ? "Naves y choferes" : "Equipo del día"}</h3>
         <div className="desk-switch">{(["vehicleId","driverId"] as const).map(k => <button type="button" key={k} aria-pressed={kind === k} onClick={() => {setKind(k); setSelected(null); setSearch("");}}>{k === "vehicleId" ? "Naves" : "Choferes"}</button>)}</div>
         <input type="search" aria-label="Buscar en el equipo" placeholder={kind === "vehicleId" ? "Buscar nave…" : "Buscar chofer…"} value={search} onChange={e => setSearch(e.target.value)} />
-        <p>Elegí para ver su agenda o arrastrá al selector del servicio. Guardá desde esa fila.</p>
+        <p>Elegí para ver la agenda o arrastrá al servicio.</p>
         <div className="desk-options">{options.filter(o => o.label.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(o =>
           <button type="button" key={o.id} draggable aria-pressed={selected?.id === o.id} onClick={() => setSelected({ kind, id: o.id })}
             onDragStart={e => { e.dataTransfer.setData(`application/x-araucana-${kind.toLowerCase()}`, o.id); e.dataTransfer.effectAllowed = "copy"; setDragging({ kind, id: o.id }); }} onDragEnd={() => setDragging(null)}>
@@ -67,7 +94,7 @@ export function DispatchDesk({ panel, vehicles, drivers, assignments, children }
           })}
         </section>}
       </aside>
-      <div className="desk-services">{children}</div>
+      <div className="desk-services">{!panel && actions}{children}</div>
     </div>
   </Desk.Provider>;
 }

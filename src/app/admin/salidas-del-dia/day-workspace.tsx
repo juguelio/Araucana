@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import type { AppRole } from "@/lib/auth/roles";
-import { DispatchDesk, DropSelect, OriginField } from "./dispatch-desk";
+import { DispatchDesk, DropSelect, OriginField, ServiceDisclosure } from "./dispatch-desk";
 import { LogoutButton } from "../logout-button";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
@@ -11,6 +11,7 @@ import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardArea, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
+import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
@@ -18,6 +19,7 @@ import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction,
 import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
+import "./panel-jornada.css";
 
 export type DayParams = { date?: string; falta?: string; notice?: string };
 
@@ -85,13 +87,13 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       where: { serviceDate, status: { not: "CANCELLED" } },
       include: { assignments: { orderBy: { startsAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } } }
     }),
-    prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { ...VEHICLE_SELECT, internalNumber: true } }),
+    prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { ...VEHICLE_SELECT, internalNumber: true, publicTransport: true, kind: true } }),
     prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, orderBy: [{ name: "asc" }, { email: "asc" }], select: DRIVER_SELECT }),
     // Rutas con salidas propias, para crear una desde el tablero (aeropuerto y Chapelco tienen su lógica).
     prisma.travelRoute.findMany({
       where: { bookingMode: { notIn: ["AIRPORT", CHAPELCO_BOOKING_MODE] } },
       orderBy: [{ isActive: "desc" }, { from: "asc" }, { to: "asc" }],
-      select: { id: true, from: true, to: true, isActive: true, durationMin: true }
+      select: { id: true, from: true, to: true, isActive: true, durationMin: true, bookingMode: true }
     })
   ]);
 
@@ -132,7 +134,10 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     })),
     chapelco: chapelcoRoutes.map((route) => {
       const day = route.chapelcoOperationDays[0] ?? null;
-      const slots = route.directReservations.map((reservation) => reservation.chapelcoDetails?.ascentSlot).filter((slot): slot is string => !!slot).sort();
+      const slots = [
+        ...route.directReservations.map(reservation => reservation.chapelcoDetails?.ascentSlot),
+        ...(day?.vehicleDuties ?? []).flatMap(duty => duty.runs.filter(run => run.direction === "UP").map(run => run.ascentSlot))
+      ].filter((slot): slot is string => !!slot).sort();
       return {
         operationDayId: day?.id ?? null,
         routeId: route.id,
@@ -159,9 +164,10 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     }))
   });
 
-  const rows = onlyMissing ? board.rows.filter((row) => row.missingVehicle || row.missingDriver || row.overbooked) : board.rows;
-  const vehicleOptions: Option[] = vehicles.map((vehicle) => ({
-    id: vehicle.id,
+  const pendingRows = board.rows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
+  const rows = onlyMissing ? pendingRows : board.rows;
+  const vehicleOptions: VehicleOption[] = vehicles.map((vehicle) => ({
+    id: vehicle.id, seats: seatsOf(vehicle), publicTransport: vehicle.publicTransport, kind: vehicle.kind,
     label: `${vehicle.name}${vehicle.internalNumber ? ` · Int. ${vehicle.internalNumber}` : ""} · ${seatsOf(vehicle)} lug.`
   }));
   const driverOptions: Option[] = drivers.map((driver) => ({ id: driver.id, label: driver.name?.trim() || driver.email }));
@@ -190,6 +196,14 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   }));
   const dayHref = (key: string) => `${path}?date=${key}${onlyMissing ? "&falta=1" : ""}`;
 
+  const dateForm = (
+    <form className="sd-date" action={path}>
+      <input type="date" name="date" defaultValue={dateKey} aria-label="Fecha" />
+      {onlyMissing ? <input type="hidden" name="falta" value="1" /> : null}
+      <button className="ghost-button" type="submit">Ver</button>
+    </form>
+  );
+
   return (
     <AdminShell
       title={panel ? "Panel de operaciones" : "Salidas del día"}
@@ -199,28 +213,27 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         <nav className="sd-days" aria-label="Elegir el día">
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, -1))} aria-label="Día anterior">‹</Link>
           <Link className={`ghost-button${dateKey === today ? " is-active" : ""}`} href={dayHref(today)}>Hoy</Link>
-          <Link className={`ghost-button${dateKey === shiftDateKey(today, 1) ? " is-active" : ""}`} href={dayHref(shiftDateKey(today, 1))}>Mañana</Link>
+          {!panel && <Link className={`ghost-button${dateKey === shiftDateKey(today, 1) ? " is-active" : ""}`} href={dayHref(shiftDateKey(today, 1))}>Mañana</Link>}
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, 1))} aria-label="Día siguiente">›</Link>
-          <form className="sd-date" action={path}>
-            <input type="date" name="date" defaultValue={dateKey} aria-label="Fecha" />
-            {onlyMissing ? <input type="hidden" name="falta" value="1" /> : null}
-            <button className="ghost-button" type="submit">Ver</button>
-          </form>
-          {panel && <LogoutButton />}
+          {panel ? <details className="plan-calendar">
+            <summary>Elegir fecha</summary>
+            {dateForm}
+          </details> : dateForm}
         </nav>
       }
     >
       {params?.notice ? <p className="admin-notice" role="status">{params.notice}</p> : null}
 
-      {panel && <nav className="desk-shortcuts" aria-label="Atajos de operación">
-        {[
-          ["Nueva reserva", "/admin/reservas/nueva"], ["Reserva de aeropuerto", `/admin/aeropuerto/reservar?date=${dateKey}`],
-          ["Reservas", "/admin/reservas"], ["Vuelos", `/admin/aeropuerto?date=${dateKey}`], ["Cerro", `/admin/chapelco?date=${dateKey}`],
-          ["Rutas", "/admin/rutas"], ["Viajes especiales", "/admin/viajes-especiales"], ["Excursiones", "/admin/excursiones"],
-          ["Naves", "/admin/naves"], ["Choferes", "/admin/choferes"], ["Cobros y comprobantes", "/admin?vista=comercial"],
-          ["Contabilidad", "/admin/contabilidad"], ["Reportes", "/admin/reportes"], ["CRM", "/admin/usuarios"]
-        ].map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}
-      </nav>}
+      {panel ? <section className="plan-heading">
+        <div>
+          <h2>{dayTitle(dateKey, today)}</h2>
+          <p>{board.summary.services} {board.summary.services === 1 ? "servicio" : "servicios"} · {board.summary.passengers} {board.summary.passengers === 1 ? "pasajero" : "pasajeros"}</p>
+        </div>
+        <nav className="plan-filters" aria-label="Filtrar servicios">
+          <Link aria-current={!onlyMissing ? "page" : undefined} href={`${path}?date=${dateKey}`}>Todos</Link>
+          <Link aria-current={onlyMissing ? "page" : undefined} href={`${path}?date=${dateKey}&falta=1`}>Pendientes <b>{pendingRows.length}</b></Link>
+        </nav>
+      </section> : (
       <section className="sd-head">
         <div>
           <h2>{dayTitle(dateKey, today)}</h2>
@@ -237,14 +250,13 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           <Link className={`pill${!onlyMissing ? " is-active" : ""}`} href={`${path}?date=${dateKey}`}>Todos</Link>
           <Link className={`pill${onlyMissing ? " is-active" : ""}`} href={`${path}?date=${dateKey}&falta=1`}>Sólo lo que falta asignar</Link>
         </div>
-      </section>
+      </section>)}
 
-      <DispatchDesk key={dateKey} panel={panel} vehicles={vehicleOptions} drivers={driverOptions} assignments={assignments}>
-      {/* Crear desde el tablero: una salida de ruta acá mismo; el resto, a su formulario completo. */}
-      <details className="plain-card sd-add">
+      <DispatchDesk key={dateKey} dateKey={dateKey} panel={panel} vehicles={vehicleOptions} drivers={driverOptions} assignments={assignments} actions={
+      <details name={panel ? "panel-menu" : undefined} className="plain-card sd-add">
         <summary>
-          <strong>Agregar al día</strong>
-          <span className="muted">salida de ruta, vuelo, reserva, viaje especial, nave o chofer</span>
+          <strong>{panel ? "Agregar servicio" : "Agregar al día"}</strong>
+          {!panel && <span className="muted">salida de ruta, vuelo, reserva, viaje especial, nave o chofer</span>}
         </summary>
         <div className="sd-add-body">
           {canEditRoutes ? (
@@ -287,12 +299,24 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           </div>
         </div>
       </details>
-
+      } shortcuts={panel && <details name="panel-menu" className="plan-shortcuts">
+        <summary>Atajos</summary>
+        <nav aria-label="Atajos de operación">
+          <Link href="/admin/reservas/nueva">Nueva reserva</Link>
+          <Link href={`/admin/aeropuerto/reservar?date=${dateKey}`}>Reserva de aeropuerto</Link>
+          <Link href={`/admin/aeropuerto?date=${dateKey}`}>Vuelos del día</Link>
+          <Link href={`/admin/chapelco?date=${dateKey}`}>Cerro del día</Link>
+          <Link href="/admin?vista=comercial">Cobros y comprobantes</Link>
+          <LogoutButton />
+        </nav>
+      </details>}>
       {rows.length === 0 ? (
         <p className="plain-card sd-empty">
           {onlyMissing && board.rows.length ? "Todo lo del día tiene nave y chofer." : "No hay servicios cargados para este día."}
         </p>
       ) : (
+        <div className={panel ? "plan-sheet" : undefined}>
+        {panel && <div className="plan-columns" aria-hidden="true"><span>Hora</span><span>Servicio</span><span>Equipo asignado</span><span>Pasajeros</span><span /></div>}
         <ol className="sd-list">
           {rows.map((row) => (
             <li
@@ -301,6 +325,11 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               data-area={row.area}
               data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
             >
+              <ServiceDisclosure panel={panel} summary={panel && <ServiceSummary row={row} />}>
+              {panel ? <div className="plan-detail-links">
+                <Link href={row.href}>Ver servicio</Link>
+                {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
+              </div> : <>
               <div className="sd-time">
                 <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
                 <span>{row.atLabel}</span>
@@ -327,10 +356,11 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
                 <span>{row.capacity !== null ? `de ${row.capacity} lugares` : "pasajeros"}</span>
               </div>
 
+              </>}
               <div className="sd-assign">
                 {row.area === "RUTA" ? (
                   canEditRoutes ? (
-                    <RouteUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+                    <RouteUnits publicRoute={routes.find(r => r.id === row.routeId)?.bookingMode === "SEATED"} row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                   ) : (
                     <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
                   )
@@ -342,9 +372,11 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
                   <SpecialUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                 )}
               </div>
+              </ServiceDisclosure>
             </li>
           ))}
         </ol>
+        </div>
       )}
 
       {driverOptions.length === 0 ? (
@@ -355,10 +387,34 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   );
 }
 
+function ServiceSummary({ row }: { row: BoardRow }) {
+  const first = row.units[0];
+  const count = row.units.length;
+  return <>
+    <span className="plan-time"><strong>{row.at ? hourFormat.format(row.at) : "—"}</strong><small>{row.atLabel}</small></span>
+    <span className="plan-service">
+      <small>{AREA_LABEL[row.area]}</small>
+      <strong>{row.title}</strong>
+      {row.detail && row.area !== "RUTA" && <span className="plan-detail">{row.detail}</span>}
+      {(row.status || row.missingDriver || row.overbooked || row.missingVehicle) && <span className="plan-alert">
+        {[row.status, row.missingVehicle && "Falta nave", row.missingDriver && "Falta chofer", row.overbooked && "Sobrecupo"].filter(Boolean).join(" · ")}
+      </span>}
+    </span>
+    <span className="plan-crew">
+      <strong>{count > 1 ? `${count} naves asignadas` : first?.vehicleName ?? "Sin asignar"}</strong>
+      {first && <small>{count === 1 ? first.driverName : row.units.map(unit => unit.vehicleName).join(" · ")}</small>}
+    </span>
+    <span className="plan-load">{row.passengers}{row.capacity !== null && <small> / {row.capacity}</small>}<span className="plan-mobile-label"> pasajeros</span></span>
+    <span className="plan-chevron" aria-hidden="true">⌄</span>
+  </>;
+}
+
+type VehicleOption = Option & { seats: number; publicTransport: boolean; kind: string };
+
 type UnitProps = {
   row: BoardRow;
   dateKey: string;
-  vehicleOptions: Option[];
+  vehicleOptions: VehicleOption[];
   driverOptions: Option[];
   withCurrent: (options: Option[], id: string | null, label: string | null) => Option[];
 };
@@ -467,7 +523,7 @@ function UnitsReadOnly({ units, note }: { units: BoardUnit[]; note: ReactNode })
 const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
 
 /** Rutas: las naves de la salida, cada una con su chofer; abajo, sumar otra nave a la salida. */
-function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
+function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent, publicRoute }: UnitProps & { publicRoute: boolean }) {
   return (
     <div className="sd-units">
       {/* Sumar otra nave a la misma salida: el cupo pasa a ser la suma de los asientos de todas. */}
@@ -497,6 +553,16 @@ function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }
             driverId={unit.driverId}
             vehicles={withCurrent(vehicleOptions, unit.vehicleId, unit.vehicleName)}
             drivers={withCurrent(driverOptions, unit.driverId, unit.driverName)}
+          />
+          <ReplaceVehicleForm key={unit.vehicleId}
+            scheduleId={unit.scheduleId ?? row.serviceId}
+            outgoing={unit}
+            passengers={row.units.find(other => other.unitKind === "PRIMARY" && other.scheduleId === unit.scheduleId)?.passengers ?? row.passengers}
+            keptSeats={row.units.filter(other => other.scheduleId === unit.scheduleId && other.id !== unit.id)
+              .reduce((sum, other) => sum + (vehicleOptions.find(v => v.id === other.vehicleId)?.seats ?? 0), 0)}
+            vehicles={vehicleOptions.filter(v => v.seats > 0 && v.kind !== "UTILITARIO" && (!publicRoute || v.publicTransport) && !row.units.some(other => other.vehicleId === v.id))}
+            drivers={driverOptions}
+            date={dateKey}
           />
           <div className="sd-unit-meta">
             {row.units.length > 1 ? <span>{unit.passengers !== undefined ? `${unit.passengers} de ` : ""}{unit.seats} lug.</span> : null}
