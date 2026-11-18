@@ -160,3 +160,7 @@
 /* Día anterior / siguiente a los costados del selector de fecha. */
 .flights-date { flex-wrap: wrap; }
 .flights-date .flights-dia-paso { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* Casilla para juntar varias hojas del chofer en una sola impresión. */
+.aero-marcar { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.aero-marcar input { width: 18px; height: 18px; accent-color: var(--primary); }

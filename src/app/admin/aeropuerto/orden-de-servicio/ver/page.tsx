@@ -15,6 +15,8 @@ import {
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
 import { linkDeLaOrden } from "@/lib/airport/service-order-link";
+import { vuelosDeLaHoja } from "@/lib/airport/flight-selection";
+import { ImprimirTodas } from "@/components/imprimir-todas";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { CombiDelVueloModal, INCLUDE_COMBIS_DEL_VUELO, nombreDeChofer, opcionesDeCombi } from "../../combi-modal";
@@ -29,7 +31,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; vehicle?: string; notice?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; vehicle?: string; notice?: string; imprimir?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -55,10 +57,15 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     notFound();
   }
 
-  const blocks = filtrarPorNave(
+  // Varios vuelos marcados en Aeropuerto: sus órdenes juntas, para imprimirlas de una vez.
+  const flightIdsPedidos = flightId ? [] : vuelosDeLaHoja(params?.flights);
+  const todas = filtrarPorNave(
     buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }),
     vehicle
   );
+  const blocks = flightIdsPedidos.length
+    ? todas.filter((block) => block.flightId && flightIdsPedidos.includes(block.flightId))
+    : todas;
   const cabeceras = await headers();
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
   const protocolo =
@@ -73,7 +80,12 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     opcionesDeCombi()
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
-  const volverAOrden = new URLSearchParams({ date, ...(flightId ? { flight: flightId } : {}), ...(vehicle ? { vehicle } : {}) }).toString();
+  const volverAOrden = new URLSearchParams({
+    date,
+    ...(flightId ? { flight: flightId } : {}),
+    ...(vehicle ? { vehicle } : {}),
+    ...(flightIdsPedidos.length ? { flights: flightIdsPedidos.join(",") } : {})
+  }).toString();
 
   // Las naves de cada vuelo, para pasar un pasajero de una a otra desde cualquier orden del vuelo.
   const navesPorVuelo = new Map<string, Array<{ assignmentId: string; name: string }>>();
@@ -145,6 +157,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       notice={params?.notice}
       action={
         <div className="form-actions no-print">
+          {blocks.length > 1 ? (
+            <ImprimirTodas cantidad={blocks.length} alAbrir={flightIdsPedidos.length > 1 && params?.imprimir === "1" && !params?.notice} />
+          ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
         </div>
       }

@@ -195,8 +195,41 @@
     max-width: none;
   }
 
+  /* Las órdenes van seguidas, sin saltos de página forzados, para gastar las menos hojas posibles.
+     Una orden larga puede seguir en la hoja siguiente: se corta entre filas (nunca a mitad de un
+     pasajero), el título no queda solo al pie y el encabezado de la tabla se repite arriba. */
   .orden-bloque {
+    break-inside: auto;
+    margin: 0 0 6mm;
+  }
+
+  .orden-bloque-cabeza,
+  .orden-bloque-titulo {
+    break-after: avoid;
+  }
+
+  .orden-tabla thead {
+    display: table-header-group;
+  }
+
+  .orden-tabla tr {
     break-inside: avoid;
+  }
+
+  .orden-tabla th,
+  .orden-tabla td {
+    padding: 3px 6px;
+    font-size: 10.5px;
+  }
+
+  .orden-cabecera {
+    margin-bottom: 4mm;
+    padding-bottom: 2mm;
+  }
+
+  .orden-pie {
+    margin-top: 4mm;
+    font-size: 9px;
   }
 
   .orden-bloque-titulo {

@@ -16,6 +16,7 @@ import { createFlightAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
+import { HojaDelChofer, MarcarVuelo } from "./seleccion-de-vuelos";
 import { CombiDelVueloModal, combisDelVuelo, INCLUDE_COMBIS_DEL_VUELO, opcionesDeCombi } from "./combi-modal";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -191,16 +192,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </div>
           <div className="flight-card-actions">
           {ocupados > 0 ? (
+            // Marcando varios vuelos, «Hoja del chofer» de cualquiera de ellos abre todas las órdenes
+            // juntas, para imprimirlas en las menos hojas posibles.
             <>
-              <Link
-                className="ghost-button"
-                href={`/admin/aeropuerto/orden-de-servicio/ver?date=${encodeURIComponent(fecha)}&flight=${v.id}`}
-                target="_blank"
-                rel="noreferrer"
-                title="Hoja del chofer de este vuelo: verla, imprimirla o descargarla en Excel"
-              >
-                Hoja del chofer
-              </Link>
+              <MarcarVuelo date={fecha} flightId={v.id} flightNumber={v.number} />
+              <HojaDelChofer date={fecha} flightId={v.id} />
             </>
           ) : null}
           {pickupStart && v.direction === "DEPARTURE" ? (
