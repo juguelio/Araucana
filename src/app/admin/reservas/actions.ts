@@ -19,12 +19,14 @@ function value(formData: FormData, key: string) {
   return typeof entry === "string" ? entry.trim() : "";
 }
 
-export async function createAdminReservationAction(formData: FormData) {
+export async function createAdminReservationAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
   const creator = await getCurrentReservationsUserOrRedirect();
 
   const customPrice = value(formData, "customPrice");
   const overrideTotalCents = customPrice ? parseReservationPrice(customPrice) : undefined;
-  if (overrideTotalCents === null) redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(reservationPriceError)}`);
+  // Los errores vuelven como estado del formulario, no como `?notice=`: el usuario ve el campo
+  // marcado, el foco va ahí y no pierde lo que ya cargó (#242).
+  if (overrideTotalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
   const parsed = adminReservationSchema.safeParse({
     overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
@@ -44,7 +46,10 @@ export async function createAdminReservationAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.")}`);
+    const fieldErrors = fieldErrorsFromZodError(parsed.error);
+    const cantidad = Object.keys(fieldErrors).length;
+    const primero = parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.";
+    return errorState(cantidad > 1 ? `Hay ${cantidad} datos para revisar.` : primero, fieldErrors);
   }
 
   let reservation: Awaited<ReturnType<typeof createWebReservation>>;
@@ -62,7 +67,7 @@ export async function createAdminReservationAction(formData: FormData) {
         : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
         ? "La parada seleccionada ya no está disponible. Volvé a elegir."
         : "No pudimos crear la reserva. Intentalo nuevamente.";
-    redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(message)}`);
+    return errorState(message);
   }
 
   revalidatePath("/admin/reservas");
