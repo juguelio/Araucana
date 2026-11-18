@@ -72,7 +72,13 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
   const aRevisar = verDocumentacion ? users.filter((user) => user.isActive && documentacion(user).peor !== "VALID").length : 0;
   const columnas = 6 + (verSueldo ? 1 : 0) + (verDocumentacion ? 3 : 0);
   const texto = (clave: string) => (typeof params[clave] === "string" ? (params[clave] as string) : undefined);
-  const orden = leerOrden(COLUMNAS, POR_DEFECTO, { orden: texto("orden"), dir: texto("dir") });
+  // Sólo se ordena por lo que esta pantalla muestra: la secretaría no ve sueldos en choferes, así que
+  // `?orden=sueldo` no puede ordenarle la lista por sueldo.
+  const visibles = COLUMNAS.filter((columna) =>
+    (columna !== "sueldo" || verSueldo) &&
+    (columna !== "rol" || !esChoferes) &&
+    (!["dni", "licencia", "antecedentes"].includes(columna) || verDocumentacion));
+  const orden = leerOrden(visibles, POR_DEFECTO, { orden: texto("orden"), dir: texto("dir") });
   const ordenadas = ordenarEnMemoria(users, orden, {
     nombre: (user) => user.name,
     email: (user) => user.email,

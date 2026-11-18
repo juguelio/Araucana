@@ -29,17 +29,16 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
   const filters = parseAuditFilters(params);
   const where = auditWhere(filters);
 
-  const [rows, total] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      orderBy: auditOrderBy(filters.orden),
-      take: AUDIT_PAGE_SIZE,
-      skip: (filters.page - 1) * AUDIT_PAGE_SIZE
-    }),
-    prisma.auditLog.count({ where })
-  ]);
-  const pages = Math.max(Math.ceil(total / AUDIT_PAGE_SIZE), 1);
+  // Primero el total: una página pedida más allá de la última (un link viejo) muestra la última.
+  const total = await prisma.auditLog.count({ where });
   const rango = rangoDePagina(total, filters.page, AUDIT_PAGE_SIZE);
+  const pages = rango.totalPages;
+  const rows = await prisma.auditLog.findMany({
+    where,
+    orderBy: auditOrderBy(filters.orden),
+    take: AUDIT_PAGE_SIZE,
+    skip: rango.skip
+  });
   const filtered = !!(filters.q || filters.entity || filters.action || filters.from || filters.to);
 
   return (
@@ -78,7 +77,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
 
       <p className="muted audit-count">
         {total === 0 ? "Sin registros" : `${total} ${total === 1 ? "registro" : "registros"}`}
-        {pages > 1 ? ` · página ${filters.page} de ${pages}` : ""}
+        {pages > 1 ? ` · página ${rango.page} de ${pages}` : ""}
       </p>
 
       <div className="audit-scroll">
