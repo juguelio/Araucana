@@ -131,7 +131,7 @@ function IconoCalendario() {
 
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
-  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo
+  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
@@ -146,19 +146,34 @@ export function TripSearchBar({
   onCancelarCambio?: () => void;
   onFecha: (sentido: Sentido, fecha: string) => void;
   onVuelo: (sentido: Sentido, id: string) => void;
+  /**
+   * Un tramo: el segundo casillero de fecha es la vuelta, apagada. Tocarlo lleva al ida y vuelta con lo
+   * ya elegido (pedido de Jugue, 18-nov: «que los selectores de fecha siempre sean dos»).
+   */
+  agregarVuelta?: { href: string; detalle?: string };
+  /** Ida y vuelta: la cruz arriba a la derecha de la vuelta la saca y lleva a la reserva de un tramo. */
+  quitarVueltaHref?: string;
 }) {
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
   const [abierto, setAbierto] = useState<Campo | null>(null);
   /** El primer día de la tira de cada tramo: se corre de a una semana con las flechas. */
   const [inicioTira, setInicioTira] = useState<Partial<Record<Sentido, string>>>({});
+  /**
+   * El tramo al que se acaba de pasar solo (con la ida elegida se abre la vuelta). Mientras siga abierto,
+   * el panel lo anuncia bien a la vista (pedido de Jugue, 18-nov: «la transición tiene que ser mucho más notable»).
+   */
+  const [recienPaso, setRecienPaso] = useState<Sentido | null>(null);
 
   // Con un solo tramo el sentido es el del tramo; con dos manda el orden del viaje.
   const sentidoBase: Sentido = orden ?? tramos[0]?.sentido ?? "ARRIVAL";
   const desde: Lugar = sentidoBase === "ARRIVAL" ? "CPC" : "SMA";
   const hacia: Lugar = sentidoBase === "ARRIVAL" ? "SMA" : "CPC";
-  /** Un solo tramo: el sentido vino elegido del paso anterior, así que Desde/Hacia no se editan. */
-  const lugaresFijos = tramos.length === 1;
+  /**
+   * Desde/Hacia se editan si el formulario deja cambiar el sentido (`onPedirOrden`). Desde el 18-nov
+   * la reserva de un tramo también: es el mismo recuadro que el ida y vuelta, con las mismas flechas.
+   */
+  const lugaresFijos = !onPedirOrden;
 
   // Se cierra con Escape o tocando fuera de la barra, como cualquier menú.
   useEffect(() => {
@@ -189,8 +204,18 @@ export function TripSearchBar({
     destino?.focus({ preventScroll: true });
   }, [abierto]);
 
+  // Al pasar solo a la vuelta, la pantalla se acomoda: el casillero de la vuelta arriba y el panel debajo,
+  // con el anuncio a la vista (en el celular quedaba tapado por el encabezado del sitio).
+  useEffect(() => {
+    if (!recienPaso) return;
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    raiz.current?.querySelector<HTMLElement>(`[data-campo="${recienPaso}"]`)
+      ?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+  }, [recienPaso]);
+
   function alternar(campo: Campo) {
     if (confirmarCambio) onCancelarCambio?.();
+    setRecienPaso(null);
     setAbierto((actual) => (actual === campo ? null : campo));
   }
 
@@ -207,7 +232,9 @@ export function TripSearchBar({
     // Después de la ida se abre la vuelta, si todavía no tiene vuelo; si no (o si es un solo
     // tramo), se cierra.
     const otro = tramos.find((t) => t.sentido !== tramo.sentido);
-    setAbierto(tramo === tramos[0] && otro && !otro.elegido ? otro.sentido : null);
+    const siguiente = tramo === tramos[0] && otro && !otro.elegido ? otro.sentido : null;
+    setAbierto(siguiente);
+    setRecienPaso(siguiente);
   }
 
   const tramoAbierto = tramos.find((tramo) => tramo.sentido === abierto) ?? null;
@@ -225,8 +252,7 @@ export function TripSearchBar({
         </span>
       </>
     );
-    // Con un solo tramo el sentido ya está elegido en las tarjetas del paso 1: el lugar se muestra
-    // como dato del viaje (no como botón), para que no quede un sentido distinto del elegido.
+    // Sin `onPedirOrden` el sentido no se puede cambiar acá: el lugar se muestra como dato del viaje.
     if (lugaresFijos) {
       return (
         <div className="trip-search-field trip-search-place" data-campo={campo} data-fijo="true">
@@ -249,32 +275,63 @@ export function TripSearchBar({
     );
   }
 
-  function campoTramo(tramo: TramoDeLaBarra) {
+  function campoTramo(tramo: TramoDeLaBarra, quitarHref?: string) {
     const vuelo = tramo.opciones.find((opcion) => opcion.id === tramo.elegido) ?? null;
     return (
-      <button
-        key={tramo.sentido}
-        type="button"
-        className="trip-search-field trip-search-leg"
-        data-campo={tramo.sentido}
-        data-abierto={abierto === tramo.sentido || undefined}
-        data-listo={Boolean(vuelo) || undefined}
-        aria-expanded={abierto === tramo.sentido}
-        aria-controls={panelId}
-        onClick={() => alternar(tramo.sentido)}
-      >
-        <span className="trip-search-label">{tramo.etapa} · {tramo.sentido === "ARRIVAL" ? "Llegada" : "Salida"}</span>
-        <span className="trip-search-value">
-          {/* Con el vuelo elegido, el logo de la aerolínea dice más que el calendario. */}
-          {vuelo ? <AirlineBadge code={vuelo.airline} size={28} /> : <IconoCalendario />}
-          <span>
-            {diaCorto(tramo.fecha)}
-            {vuelo
-              ? <b> · {hora(vuelo.estimatedAt ?? vuelo.scheduledAt)} {vuelo.number}</b>
-              : <em> · elegir vuelo</em>}
+      <div key={tramo.sentido} className="trip-search-leg-slot">
+        <button
+          type="button"
+          className="trip-search-field trip-search-leg"
+          data-con-cruz={quitarHref ? "true" : undefined}
+          data-campo={tramo.sentido}
+          data-abierto={abierto === tramo.sentido || undefined}
+          data-listo={Boolean(vuelo) || undefined}
+          data-siguiente={(recienPaso === tramo.sentido && abierto === tramo.sentido) || undefined}
+          aria-expanded={abierto === tramo.sentido}
+          aria-controls={panelId}
+          onClick={() => alternar(tramo.sentido)}
+        >
+          <span className="trip-search-label">{tramo.etapa} · {tramo.sentido === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+          <span className="trip-search-value">
+            {/* Con el vuelo elegido, el logo de la aerolínea dice más que el calendario. */}
+            {vuelo ? <AirlineBadge code={vuelo.airline} size={28} /> : <IconoCalendario />}
+            <span>
+              {diaCorto(tramo.fecha)}
+              {/* El « · » se esconde en el celular, donde la hora y el vuelo van en su propio renglón. */}
+              {vuelo
+                ? <b><span className="trip-search-sep"> · </span>{hora(vuelo.estimatedAt ?? vuelo.scheduledAt)} {vuelo.number}</b>
+                : <em><span className="trip-search-sep"> · </span>elegir vuelo</em>}
+            </span>
           </span>
+        </button>
+        {/* La cruz es hermana del botón (no puede ir adentro de otro botón). */}
+        {quitarHref ? (
+          <Link
+            href={quitarHref}
+            scroll={false}
+            className="trip-search-remove"
+            aria-label="Sacar la vuelta y reservar un solo tramo"
+            title="Sacar la vuelta"
+          >
+            <span aria-hidden="true">✕</span>
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
+
+  /** La vuelta que todavía no está: se ve apagada y se toca para sumarla. */
+  function campoAgregarVuelta(oferta: { href: string; detalle?: string }) {
+    const otro: Sentido = sentidoBase === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL";
+    return (
+      <Link href={oferta.href} scroll={false} className="trip-search-field trip-search-leg trip-search-add" data-vacio="true">
+        <span className="trip-search-label">Vuelta · {otro === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+        <span className="trip-search-value">
+          <span className="trip-search-add-icon" aria-hidden="true">+</span>
+          <span>Agregar vuelta</span>
         </span>
-      </button>
+        {oferta.detalle ? <small className="trip-search-add-detail">{oferta.detalle}</small> : null}
+      </Link>
     );
   }
 
@@ -314,8 +371,27 @@ export function TripSearchBar({
     const anterior = sumarDias(inicio, -7);
     const puedeVolver = !minimo || sumarDias(inicio, -1) >= minimo;
     const mover = (desdeDia: string) => setInicioTira((actual) => ({ ...actual, [tramo.sentido]: desdeDia }));
+    const indice = tramos.indexOf(tramo);
+    const previo = indice > 0 ? tramos[indice - 1] : null;
+    const vueloPrevio = previo?.opciones.find((opcion) => opcion.id === previo.elegido) ?? null;
+    const recienLlegado = recienPaso === tramo.sentido && previo && vueloPrevio;
     return (
       <>
+        {/* Con la ida recién elegida, la vuelta se anuncia: lo que ya quedó listo y lo que sigue. */}
+        {recienLlegado ? (
+          <div className="trip-search-handoff" role="status">
+            <span className="trip-search-handoff-check" aria-hidden="true">✓</span>
+            <span className="trip-search-handoff-text">
+              <b>{previo.etapa} lista</b>
+              <span>{diaCorto(previo.fecha)} · {hora(vueloPrevio.estimatedAt ?? vueloPrevio.scheduledAt)} {vueloPrevio.number}</span>
+            </span>
+          </div>
+        ) : null}
+        {tramos.length > 1 ? (
+          <p className="trip-search-panel-kicker">
+            {recienLlegado ? `Ahora, la ${tramo.etapa.toLowerCase()}` : `Tramo ${indice + 1} de ${tramos.length} · ${tramo.etapa}`}
+          </p>
+        ) : null}
         <p className="trip-search-panel-title">{tramo.titulo}</p>
         <p className="trip-search-panel-help">{tramo.pregunta}</p>
 
@@ -397,8 +473,8 @@ export function TripSearchBar({
       <div className="trip-search-bar" data-tramos={tramos.length}>
         <div className="trip-search-places-row">
           {campoLugar("desde")}
-          {/* Invertir sólo tiene sentido con dos tramos; con uno, el sentido ya está elegido. */}
-          {tramos.length > 1 && onPedirOrden ? (
+          {/* Invertir: con dos tramos cambia el orden del viaje; con uno, pasa de llegada a salida. */}
+          {onPedirOrden ? (
             <button
               type="button"
               className="trip-search-swap"
@@ -413,7 +489,11 @@ export function TripSearchBar({
           ) : null}
           {campoLugar("hacia")}
         </div>
-        {tramos.map(campoTramo)}
+        {/* Siempre dos fechas, mitad y mitad: ida y vuelta, o la ida y la vuelta para agregar. */}
+        <div className="trip-search-dates">
+          {tramos.map((tramo, indice) => campoTramo(tramo, indice === 1 ? quitarVueltaHref : undefined))}
+          {tramos.length === 1 && agregarVuelta ? campoAgregarVuelta(agregarVuelta) : null}
+        </div>
       </div>
 
       {confirmarCambio && onConfirmarCambio && onCancelarCambio ? (
@@ -427,7 +507,15 @@ export function TripSearchBar({
       ) : null}
 
       {abierto && !confirmarCambio ? (
-        <div className="trip-search-panel" id={panelId} role="group" aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? "Desde" : "Hacia"}>
+        <div
+          // La clave cambia con el campo: al pasar de la ida a la vuelta el panel vuelve a entrar, con su animación.
+          key={abierto}
+          className="trip-search-panel"
+          id={panelId}
+          role="group"
+          data-paso={recienPaso && abierto === recienPaso ? "siguiente" : undefined}
+          aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? "Desde" : "Hacia"}
+        >
           <button type="button" className="trip-search-close" aria-label="Cerrar" onClick={() => setAbierto(null)}>✕</button>
           {abierto === "desde" || abierto === "hacia" ? panelLugar(abierto) : tramoAbierto ? panelTramo(tramoAbierto) : null}
         </div>

@@ -25,6 +25,8 @@ type ReservationPageProps = {
     date?: string;
     /** Llegada o salida elegida en la tarjeta de otra pantalla (ida y vuelta): entra directo al vuelo. */
     sentido?: string;
+    /** Vuelo ya elegido al destildar «¿Ida y vuelta?»: se conserva. */
+    vuelo?: string;
   }>;
 };
 
@@ -100,6 +102,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
       loadAirportCheckoutFlights(fecha), getAirportFares(), getAirportCoverage(), getAirportExtras(), getAirportOfficePickup()
     ]);
     const sentidoPedido = query?.sentido === "ARRIVAL" || query?.sentido === "DEPARTURE" ? query.sentido : null;
+    const vueloElegido = typeof query?.vuelo === "string" && /^[\w-]{1,64}$/.test(query.vuelo) ? query.vuelo : undefined;
     const iguales = tarifas.ARRIVAL && tarifas.DEPARTURE && tarifas.ARRIVAL.priceCents === tarifas.DEPARTURE.priceCents;
 
     return (
@@ -129,6 +132,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
           <AirportCheckoutForm
             initialDirection={sentidoPedido ?? (route.specialType === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL")}
             startAtFlights={Boolean(sentidoPedido)}
+            initialFlightId={vueloElegido}
             fares={tarifas}
             route={{
               slug: route.slug,
