@@ -40,6 +40,16 @@
   font-weight: 700;
 }
 
+/* La búsqueda libre ocupa la fila entera: es la que se usa todo el tiempo. */
+.reservas-filter-buscar {
+  grid-column: 1 / -1;
+}
+
+.reservas-filter-buscar input {
+  font-size: 16px;
+  padding: 12px 14px;
+}
+
 .reservas-filter-grid input,
 .reservas-filter-grid select {
   width: 100%;

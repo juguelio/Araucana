@@ -357,6 +357,12 @@ class FakeBookingClient {
     }
   };
 
+  // Los tests no levantan Postgres: la búsqueda sin tildes devuelve vacío y el filtro sigue
+  // funcionando por ILIKE para los nombres sin acento.
+  async $queryRaw<T = unknown>(_query: TemplateStringsArray, ..._values: unknown[]): Promise<T> {
+    return [] as unknown as T;
+  }
+
   async $transaction<T>(callback: (client: FakeBookingClient) => Promise<T>, _options?: { isolationLevel: "Serializable" }) {
     this.transactionCallCount += 1;
     this.activeTransactionAborted = false;

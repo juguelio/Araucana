@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminScheduleFiltersSchema, adminScheduleWhere, formatTravelDay, travelDayKey } from "./admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, adminReservationWhere, adminReservationsPage, adminReservationsPageSize, adminScheduleFiltersSchema, adminScheduleWhere, formatTravelDay, travelDayKey } from "./admin-filters";
 
 describe("fecha del viaje", () => {
   it("usa el día calendario de Chapelco sin correrlo de día", () => {
@@ -24,6 +24,47 @@ describe("fecha del viaje", () => {
 });
 
 describe("reservation search", () => {
+  it("la búsqueda libre mira código, pasajero y ruta de una sola vez", () => {
+    const where = adminReservationWhere({ q: "perez" }) as { AND: Array<{ OR: unknown[] }> };
+    const texto = { contains: "perez", mode: "insensitive" };
+    expect(where.AND[0].OR).toContainEqual({ code: texto });
+    expect(where.AND[0].OR).toContainEqual(
+      { passenger: { is: { OR: [
+        { firstName: texto },
+        { lastName: texto },
+        { documentId: texto },
+        { email: texto },
+        { phone: texto }
+      ] } } }
+    );
+    expect(where.AND[0].OR).toContainEqual({ route: { is: { OR: [{ from: texto }, { to: texto }, { slug: texto }] } } });
+  });
+
+  it("la búsqueda libre también encuentra por el código corto que se dicta por teléfono", () => {
+    const where = adminReservationWhere({ q: "abcd-2345" }) as { AND: Array<{ OR: unknown[] }> };
+    expect(where.AND[0].OR).toContainEqual({ shortCode: { contains: "ABCD2345", mode: "insensitive" } });
+  });
+
+  it("recorta la búsqueda antes de usarla", () => {
+    const where = adminReservationWhere({ q: "  gomez  " }) as { AND: Array<{ OR: Array<{ code?: { contains: string } }> }> };
+    expect(where.AND[0].OR[0].code?.contains).toBe("gomez");
+  });
+
+  it("el rango de fechas incluye el día hasta completo", () => {
+    const where = adminReservationWhere({ date: "2026-11-03", until: "2026-11-05" }) as { AND: Array<{ OR: Array<Record<string, { is: Record<string, unknown> }>> }> };
+    expect(where.AND[0].OR[0]).toEqual({
+      schedule: { is: { departureAt: { gte: new Date("2026-11-03T03:00:00Z"), lt: new Date("2026-11-06T03:00:00Z") } } }
+    });
+  });
+
+  it("las filas por página sólo aceptan los tamaños ofrecidos", () => {
+    expect(adminReservationsPageSize({ pageSize: "100" })).toBe(100);
+    expect(adminReservationsPageSize({ pageSize: "50" })).toBe(50);
+    expect(adminReservationsPageSize({ pageSize: "7" })).toBe(ADMIN_RESERVATIONS_PAGE_SIZE);
+    expect(adminReservationsPageSize({ pageSize: "cualquiera" })).toBe(ADMIN_RESERVATIONS_PAGE_SIZE);
+    expect(adminReservationsPageSize({})).toBe(ADMIN_RESERVATIONS_PAGE_SIZE);
+  });
+
   it("rejects invalid calendar days instead of silently searching all reservations", () => {
     expect(adminReservationFiltersSchema.safeParse({ date: "2026-02-30" }).success).toBe(false);
     expect(adminReservationFiltersSchema.safeParse({ date: "not-a-date" }).success).toBe(false);
@@ -40,7 +81,7 @@ describe("reservation search", () => {
       { OR: [
         { schedule: { is: { departureAt: { gte: new Date("2026-11-03T03:00:00Z"), lt: new Date("2026-11-04T03:00:00Z") } } } },
         { airportDetails: { is: { serviceDate: { gte: new Date("2026-11-03T03:00:00Z"), lt: new Date("2026-11-04T03:00:00Z") } } } },
-        { chapelcoDetails: { is: { serviceDate: new Date("2026-11-03T00:00:00Z") } } }
+        { chapelcoDetails: { is: { serviceDate: { gte: new Date("2026-11-03T00:00:00Z"), lt: new Date("2026-11-04T00:00:00Z") } } } }
       ] }
     ]);
   });
