@@ -9,11 +9,31 @@ import {
   agruparPorMes, claveDia, condicionVista, etiquetaFecha, etiquetaGrupo, etiquetaRelativa, mesesConViajes, rangoMes, sumarDias,
   tonoFila, vistaDe, vistas, type Vista
 } from "./listado";
+import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
+import { leerOrden, type OrdenDeListado } from "@/lib/admin/list-order";
 import "./listado.css";
 
 const base = "/admin/viajes-especiales";
 const porPagina = 50;
-const claves = ["vista", "mes", "q", "estado", "nave", "semana", "pagina"] as const;
+const claves = ["vista", "mes", "q", "estado", "nave", "semana", "pagina", "orden", "dir"] as const;
+
+/** Columnas ordenables (issue #192). «Nave» no: un viaje puede tener varias asignadas. */
+const COLUMNAS = ["fecha", "cliente", "destino", "pax", "estado"] as const;
+type Columna = (typeof COLUMNAS)[number];
+const ETIQUETAS: Record<Columna, string> = { fecha: "Fecha", cliente: "Cliente", destino: "Destino o servicio", pax: "Pax", estado: "Estado" };
+
+/** `orderBy` de Prisma; a igual valor sigue la fecha de la vista y, al final, el id (las páginas no se pisan). */
+function orderByDe({ columna, direccion }: OrdenDeListado<Columna>, porFecha: "asc" | "desc"): Prisma.SpecialTripOrderByWithRelationInput[] {
+  const despues: Prisma.SpecialTripOrderByWithRelationInput[] = [{ serviceDate: porFecha }, { client: "asc" }, { id: "asc" }];
+  switch (columna) {
+    case "fecha": return [{ serviceDate: direccion }, { client: "asc" }, { id: "asc" }];
+    case "cliente": return [{ client: direccion }, ...despues];
+    case "destino": return [{ destinationSearch: direccion }, ...despues];
+    case "pax": return [{ passengers: { sort: direccion, nulls: "last" } }, ...despues];
+    case "estado": return [{ status: direccion }, ...despues];
+  }
+}
 
 /** Lo que todavía no está cargado en el viaje, para verlo desde el listado sin abrir la ficha. */
 function pendientesDe(trip: { status: string; totalCents: number | null; billingMode: string; contact: string | null; passengers: number | null; legs: unknown }, tieneNave: boolean) {
@@ -60,12 +80,15 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
     ...(q && { OR: [{ client: { contains: q, mode: "insensitive" } }, { destinationSearch: { contains: q, mode: "insensitive" } }] }),
     ...(vehicleId && { assignments: { some: { vehicleId } } })
   };
-  const orden = filtroMes ? "asc" : condicion.orden;
+  // La vista (o el mes) fija el sentido de la fecha; un encabezado clickeado lo reemplaza.
+  const porFecha = filtroMes ? "asc" : condicion.orden;
+  const orden = leerOrden(COLUMNAS, { columna: "fecha", direccion: porFecha }, { orden: value("orden"), dir: value("dir") });
+  const ordenElegido = Boolean(value("orden")) && orden.columna === value("orden");
   const page = Math.min(10000, Math.max(1, Number.parseInt(value("pagina"), 10) || 1));
   const [vehicles, trips, count, dias, agenda, conteos] = await Promise.all([
     prisma.vehicle.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.specialTrip.findMany({
-      where, skip: (page - 1) * porPagina, take: porPagina, orderBy: [{ serviceDate: orden }, { client: "asc" }],
+      where, skip: (page - 1) * porPagina, take: porPagina, orderBy: orderByDe(orden, porFecha),
       include: { assignments: { select: { vehicleId: true }, orderBy: { startsAt: "asc" } } }
     }),
     prisma.specialTrip.count({ where }),
@@ -101,7 +124,12 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   const desde = count ? (page - 1) * porPagina + 1 : 0;
   const hasta = Math.min(page * porPagina, count);
   const titulo = filtroMes ? `Viajes de ${meses.find((m) => m.clave === mes)?.label ?? mes}` : vistas[vista];
-  const grupos = agruparPorMes(trips);
+  // Los títulos de mes sólo tienen sentido si las filas vienen por fecha.
+  const porMes = orden.columna === "fecha";
+  const grupos = porMes ? agruparPorMes(trips) : [{ clave: "todos", fecha: hoy, items: trips }];
+  const encabezado = (columna: Columna) => (
+    <EncabezadoOrdenable etiqueta={ETIQUETAS[columna]} columna={columna} orden={orden} base={base} params={params} clavePagina="pagina" />
+  );
 
   return <AdminShell title="Viajes especiales" role={user.role} action={<div className="inline-actions">
     <Link href={`${base}/importar`} className="ghost-button">Importar historial</Link>
@@ -123,6 +151,8 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
       </label>
       <form method="get" className="admin-form-grid vesp-filtros">
         <input type="hidden" name="vista" value={vista} />
+        {/* Filtrar no pierde un orden elegido a mano; sin él, manda el sentido de la vista. */}
+        {ordenElegido && <OrdenOculto orden={orden} />}
         {mes && <input type="hidden" name="mes" value={mes} />}
         <label>Cliente o destino<input name="q" defaultValue={q} placeholder="Buscar…" /></label>
         <label>Estado<select name="estado" defaultValue={status}><option value="">Todos</option>{Object.entries(statuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
@@ -145,12 +175,14 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
       <h2>{titulo}</h2>
       <p className="vesp-resumen">
         <span>{count ? `${desde}–${hasta} de ${count} viajes` : "Sin viajes para esta vista."}</span>
-        {orden === "asc" ? <span>Del más próximo al más lejano</span> : <span>Del más reciente al más antiguo</span>}
+        {porMes
+          ? <span>{orden.direccion === "asc" ? "Del más próximo al más lejano" : "Del más reciente al más antiguo"}</span>
+          : <span>Por {ETIQUETAS[orden.columna].toLowerCase()}, {orden.direccion === "asc" ? "de menor a mayor" : "de mayor a menor"}</span>}
       </p>
       {!!trips.length && <div className="table-scroll"><table className="data-table vesp-tabla">
-        <thead><tr><th>Fecha</th><th>Cliente</th><th>Destino o servicio</th><th>Pax</th><th>Nave</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead><tr>{encabezado("fecha")}{encabezado("cliente")}{encabezado("destino")}{encabezado("pax")}<th>Nave</th>{encabezado("estado")}<th>Acciones</th></tr></thead>
         {grupos.map((grupo) => <tbody key={grupo.clave} className="vesp-grupo">
-          {(grupos.length > 1 || filtroMes === null) && <tr className="vesp-grupo-titulo"><th colSpan={7} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
+          {porMes && (grupos.length > 1 || filtroMes === null) && <tr className="vesp-grupo-titulo"><th colSpan={7} scope="rowgroup">{etiquetaGrupo(grupo.fecha)}</th></tr>}
           {grupo.items.map((trip) => {
             const asignadas = [...new Set(trip.assignments.map((a) => naves.get(a.vehicleId) ?? "Nave"))];
             const estado = tonoFila(trip, asignadas.length > 0, hoy);
@@ -170,11 +202,8 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
           })}
         </tbody>)}
       </table></div>}
-      {count > porPagina && <nav className="pagination" aria-label="Paginación de viajes">
-        {page > 1 ? <Link className="pagination-link" href={url({ pagina: String(page - 1) })} rel="prev">← Anterior</Link> : <span aria-disabled="true" className="pagination-link">← Anterior</span>}
-        <span className="pagination-status">Página {page} de {Math.ceil(count / porPagina)}</span>
-        {hasta < count ? <Link className="pagination-link" href={url({ pagina: String(page + 1) })} rel="next">Siguiente →</Link> : <span aria-disabled="true" className="pagination-link">Siguiente →</span>}
-      </nav>}
+      <Paginador page={page} totalPages={Math.max(1, Math.ceil(count / porPagina))} total={count} desde={desde} hasta={hasta}
+        hrefPagina={(n) => url({ pagina: n > 1 ? String(n) : "" })} etiqueta="viajes" />
     </section>
 
     <section className="plain-card admin-section vesp-agenda">

@@ -17,4 +17,3 @@
 .audit-field { color: var(--ink-muted); }
 .audit-before { color: var(--ink-muted); text-decoration: line-through; }
 .audit-after { font-weight: 700; }
-.audit-pager { display: flex; justify-content: space-between; gap: 12px; margin-top: 18px; }
