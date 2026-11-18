@@ -16,9 +16,14 @@ const password = `Test-${suffix}-combi`;
 const date = "2031-07-08";
 const vuelo = { id: `combi-${suffix}`, number: `AR${1000 + Math.floor(Math.random() * 8999)}` };
 const borrable = { id: `borrar-${suffix}`, number: `AR${1000 + Math.floor(Math.random() * 8999)}` };
+const choferes = { ramon: `Ramón ${suffix}`, lucia: `Lucía ${suffix}` };
 const naves = { buscada: { name: `Sprinter ${suffix}`, internal: `9${suffix.replace(/\D/g, "").slice(0, 3).padEnd(3, "7")}` }, otra: { name: `Master ${suffix}` } };
 
 test.beforeAll(async () => {
+  await db.user.createMany({ data: [
+    { email: `ramon-${suffix}@example.com`, name: choferes.ramon, role: "DRIVER", isActive: true },
+    { email: `lucia-${suffix}@example.com`, name: choferes.lucia, role: "DRIVER", isActive: true }
+  ] });
   await db.user.create({ data: { email, name: "Admin combi", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 10) } });
   await db.flight.createMany({ data: [
     { id: vuelo.id, number: vuelo.number, airline: "AR", origin: "AEP", destination: "CPC", direction: "ARRIVAL", source: "MANUAL", status: "SCHEDULED", scheduledAt: new Date(`${date}T14:10:00-03:00`) },
@@ -46,13 +51,25 @@ test("«sin combi asignada» abre el modal, busca la nave y la asigna; después 
   await expect(modal.getByRole("radio")).toHaveCount(1);
   await expect(modal).toContainText("15 lugares para aeropuerto");
   await modal.getByRole("radio", { name: new RegExp(naves.buscada.name) }).check();
+  await modal.getByLabel(`Chofer para ${vuelo.number}`).selectOption({ label: choferes.ramon });
   await page.screenshot({ path: "/tmp/araucana-combi-modal.png" });
   await modal.getByRole("button", { name: "Asignar nave" }).click();
 
   await expect(page.getByText("Combi asignada al vuelo.")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(tarjeta.getByRole("button", { name: `Cambiar combi del ${vuelo.number}` })).toContainText(`${naves.buscada.name} (15)`);
-  expect(await db.airportVehicleAssignment.count({ where: { flightId: vuelo.id } })).toBe(1);
+  const boton = tarjeta.getByRole("button", { name: `Cambiar combi del ${vuelo.number}` });
+  await expect(boton).toContainText(`${naves.buscada.name} (15) · ${choferes.ramon}`);
+  const asignacion = await db.airportVehicleAssignment.findMany({ where: { flightId: vuelo.id }, include: { driver: true } });
+  expect(asignacion.map((a) => a.driver?.name)).toEqual([choferes.ramon]);
+
+  // El chofer de la combi ya asignada se cambia desde el mismo modal.
+  await boton.click();
+  const abierto = page.getByRole("dialog", { name: `Combi del ${vuelo.number}` });
+  await abierto.getByLabel(`Chofer de ${naves.buscada.name}`).selectOption({ label: choferes.lucia });
+  await abierto.getByRole("button", { name: "Guardar chofer" }).click();
+  await expect(page.getByText("Chofer asignado a la combi.")).toBeVisible();
+  await expect(boton).toContainText(`${naves.buscada.name} (15) · ${choferes.lucia}`);
+  expect((await db.airportVehicleAssignment.findFirst({ where: { flightId: vuelo.id }, include: { driver: true } }))?.driver?.name).toBe(choferes.lucia);
 
   await tarjeta.getByRole("button", { name: `Cambiar combi del ${vuelo.number}` }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Quitar" }).click();
