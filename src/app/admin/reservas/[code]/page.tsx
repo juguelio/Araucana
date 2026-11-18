@@ -8,6 +8,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { getAdminReservationByCode } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
 import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
+import { CopiarVoucher } from "@/components/copiar-voucher";
 import { siteOrigin } from "@/lib/site-origin";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
@@ -122,6 +123,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         </div>
         <div className="detalle-contacto">
           <a className="ghost-button" href={voucherHref} target="_blank" rel="noopener noreferrer">Voucher</a>
+          <CopiarVoucher url={absoluteUrl(voucherHref, await siteOrigin())} />
           {voucherWa ? (
             <a className="ghost-button detalle-whatsapp" href={voucherWa} target="_blank" rel="noopener noreferrer">Enviar voucher por WhatsApp</a>
           ) : null}
