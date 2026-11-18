@@ -27,18 +27,27 @@ const arribos = [
   { id: "", number: `JA${n()}`, hour: "19:35", pasajeros: ["Fede", "Gabi"] }
 ];
 
+// Dos partidas coordinadas juntas pero con naves distintas: no se unen y cada hoja trae sólo su vuelo.
+const separadas = [
+  { id: "", number: `AR${n()}`, hour: "08:00", pasajeros: ["Hugo"] },
+  { id: "", number: `JA${n()}`, hour: "08:30", pasajeros: ["Ines"] }
+];
+
 test.beforeAll(async () => {
   await db.user.create({ data: { email, name: "Admin vuelta", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 10) } });
   const trafic = await db.vehicle.create({ data: { name: `Trafic ${suffix}`, seats: { create: Array.from({ length: 19 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } });
-  for (const [direction, vuelos] of [["DEPARTURE", partidas], ["ARRIVAL", arribos]] as const) {
+  for (const [direction, vuelos] of [["DEPARTURE", partidas], ["ARRIVAL", arribos], ["DEPARTURE", separadas]] as const) {
     for (const vuelo of vuelos) {
       const flight = await db.flight.create({ data: {
         number: vuelo.number, airline: "AR", origin: "Aeroparque", direction, source: "MANUAL", status: "SCHEDULED",
         scheduledAt: new Date(`${day}T${vuelo.hour}:00-03:00`)
       } });
       vuelo.id = flight.id;
-      // La misma trafic en los dos vuelos: es la que hace la vuelta.
-      await db.airportVehicleAssignment.create({ data: { flightId: flight.id, vehicleId: trafic.id } });
+      // La misma trafic en los dos vuelos: es la que hace la vuelta. Las «separadas» llevan cada una la suya.
+      const nave = vuelos === separadas
+        ? await db.vehicle.create({ data: { name: `Master ${vuelo.number}`, seats: { create: Array.from({ length: 19 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } })
+        : trafic;
+      await db.airportVehicleAssignment.create({ data: { flightId: flight.id, vehicleId: nave.id } });
       for (const [i, nombre] of vuelo.pasajeros.entries()) {
         await db.reservation.create({ data: {
           code: `ARA-2605-${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`, shortCode: createReservationShortCode(),
@@ -154,4 +163,16 @@ test("dos arribos juntados salen en una sola orden, y «Separar» los vuelve a d
   await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${ar.id}`);
   await expect(page.locator("section.orden-bloque")).toHaveCount(1);
   expect(await pasajerosDeLaOrden(page)).toEqual([`Eva ${suffix}`]);
+});
+
+test("coordinadas juntas pero con naves distintas: cada hoja trae sólo su vuelo", async ({ page }) => {
+  const [ar, ja] = separadas;
+  await db.flight.updateMany({ where: { id: { in: [ar.id, ja.id] } }, data: { pickupGroupId: `grupo-${suffix}` } });
+  await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${ar.id}`);
+  await expect(page.locator("section.orden-bloque")).toHaveCount(1);
+  expect(await pasajerosDeLaOrden(page)).toEqual([`Hugo ${suffix}`]);
+  const excel = await page.locator("section.orden-bloque").getByRole("link", { name: "Descargar Excel" }).getAttribute("href");
+  const filas = await filasDelExcel(page, excel!);
+  expect(filas).toContain(`Hugo ${suffix}`);
+  expect(filas).not.toContain(`Ines ${suffix}`);
 });

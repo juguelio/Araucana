@@ -470,6 +470,16 @@ export function referenciaDeLaOrden(block: ServiceOrderBlock) {
   };
 }
 
+/**
+ * Las órdenes de la hoja de un vuelo. El repositorio trae a los vuelos de la misma vuelta para poder
+ * unirlos; si no se unieron (el grupo usa más de una nave), cada vuelo se queda sólo con sus órdenes:
+ * el chofer de uno no puede recibir los pasajeros del otro. Sin vuelo pedido devuelve todas.
+ */
+export function ordenesDelVuelo(blocks: ServiceOrderBlock[], flightId: string | null) {
+  if (!flightId) return blocks;
+  return blocks.filter((block) => block.flightIds.includes(flightId));
+}
+
 /** Deja sólo la orden de esa nave; sin nave pedida devuelve todas. */
 export function filtrarPorNave(blocks: ServiceOrderBlock[], vehicle: string | null) {
   if (!vehicle) return blocks;
@@ -503,7 +513,11 @@ export function blockTimeLabel(block: ServiceOrderBlock, { sinRecorrida = false 
   if (block.flights.length > 1) {
     // Varios vuelos en la misma vuelta: cada uno con su hora, en el orden en que salen o llegan.
     const vuelos = block.flights
-      .map((vuelo) => `${vuelo.number} ${block.direction === "DEPARTURE" ? "despegue" : "llega"} ${horaEnSalta(vuelo.flightAt)}`)
+      .map((vuelo) => {
+        const hora = horaEnSalta(vuelo.flightAt);
+        const programado = horaEnSalta(vuelo.scheduledAt);
+        return `${vuelo.number} ${block.direction === "DEPARTURE" ? "despegue" : "llega"} ${hora}${hora !== programado ? ` (programado ${programado})` : ""}`;
+      })
       .join(" + ");
     const recorrida = block.direction === "DEPARTURE" && !sinRecorrida ? ` · recorrida ${horaEnSalta(block.operationAt)}` : "";
     return `${block.heading} ${vuelos}${recorrida}${conNave(block)}`;

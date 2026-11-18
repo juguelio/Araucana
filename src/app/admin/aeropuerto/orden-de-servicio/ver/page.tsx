@@ -9,6 +9,7 @@ import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-
 import {
   buildServiceOrderBlocks,
   filtrarPorNave,
+  ordenesDelVuelo,
   referenciaDeLaOrden,
   SERVICE_ORDER_COLUMNS,
   serviceOrderRow,
@@ -60,7 +61,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Varios vuelos marcados en Aeropuerto: sus órdenes juntas, para imprimirlas de una vez.
   const flightIdsPedidos = flightId ? [] : vuelosDeLaHoja(params?.flights);
   const todas = filtrarPorNave(
-    buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }),
+    ordenesDelVuelo(buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }), flightId),
     vehicle
   );
   const blocks = flightIdsPedidos.length
@@ -162,7 +163,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       notice={params?.notice}
       action={
         <div className="form-actions no-print">
-          {blocks.length > 1 ? (
+          {/* Con varios vuelos marcados puede salir una sola orden (si la misma camioneta los hace juntos). */}
+          {blocks.length > 1 || flightIdsPedidos.length > 1 ? (
             <ImprimirTodas cantidad={blocks.length} alAbrir={flightIdsPedidos.length > 1 && params?.imprimir === "1" && !params?.notice} />
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
