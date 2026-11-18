@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
-import { IdaYVueltaToggle, hrefConViaje } from "./airport-trip-options";
+import { detalleDeLaVuelta, hrefConViaje } from "./airport-trip-options";
 import { statusLabel } from "@/lib/airport/flights";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
@@ -598,12 +598,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             <h2 className="route-title">{sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín"}</h2>
             <p className="muted">
               Tocá cada recuadro para elegir: desde dónde sale, adónde va, y el día y el vuelo. Con ⇄ pasás
-              de llegada a salida.
+              de llegada a salida, y con «Agregar vuelta» sumás el regreso.
             </p>
           </div>
 
           {/* El mismo recuadro que el ida y vuelta (pedido de Jugue, 18-nov): Desde ⇄ Hacia cambia
-              entre llegada y salida, y abajo «¿Ida y vuelta?» suma la vuelta. */}
+              entre llegada y salida, y al lado de la fecha está la vuelta, apagada, para sumarla. */}
           <TripSearchBar
             tramos={[tramoDeLaBarra]}
             routeSlug={route.slug}
@@ -619,15 +619,13 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             }}
             onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
             onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
+            agregarVuelta={detalleDeLaVuelta(sentido, fares) === null ? undefined : {
+              href: hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined }),
+              detalle: detalleDeLaVuelta(sentido, fares) ?? undefined
+            }}
           />
           {fieldErrors.flight ? <p className="field-error" role="alert">{fieldErrors.flight}</p> : null}
 
-          <IdaYVueltaToggle
-            activo={false}
-            sentido={sentido}
-            fares={fares}
-            href={hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined })}
-          />
 
           <div className="private-flight" data-open={esPrivado}>
             <button

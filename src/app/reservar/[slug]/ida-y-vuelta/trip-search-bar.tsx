@@ -131,7 +131,7 @@ function IconoCalendario() {
 
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
-  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo
+  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
@@ -146,6 +146,13 @@ export function TripSearchBar({
   onCancelarCambio?: () => void;
   onFecha: (sentido: Sentido, fecha: string) => void;
   onVuelo: (sentido: Sentido, id: string) => void;
+  /**
+   * Un tramo: el segundo casillero de fecha es la vuelta, apagada. Tocarlo lleva al ida y vuelta con lo
+   * ya elegido (pedido de Jugue, 18-nov: «que los selectores de fecha siempre sean dos»).
+   */
+  agregarVuelta?: { href: string; detalle?: string };
+  /** Ida y vuelta: la cruz arriba a la derecha de la vuelta la saca y lleva a la reserva de un tramo. */
+  quitarVueltaHref?: string;
 }) {
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -251,32 +258,62 @@ export function TripSearchBar({
     );
   }
 
-  function campoTramo(tramo: TramoDeLaBarra) {
+  function campoTramo(tramo: TramoDeLaBarra, quitarHref?: string) {
     const vuelo = tramo.opciones.find((opcion) => opcion.id === tramo.elegido) ?? null;
     return (
-      <button
-        key={tramo.sentido}
-        type="button"
-        className="trip-search-field trip-search-leg"
-        data-campo={tramo.sentido}
-        data-abierto={abierto === tramo.sentido || undefined}
-        data-listo={Boolean(vuelo) || undefined}
-        aria-expanded={abierto === tramo.sentido}
-        aria-controls={panelId}
-        onClick={() => alternar(tramo.sentido)}
-      >
-        <span className="trip-search-label">{tramo.etapa} · {tramo.sentido === "ARRIVAL" ? "Llegada" : "Salida"}</span>
-        <span className="trip-search-value">
-          {/* Con el vuelo elegido, el logo de la aerolínea dice más que el calendario. */}
-          {vuelo ? <AirlineBadge code={vuelo.airline} size={28} /> : <IconoCalendario />}
-          <span>
-            {diaCorto(tramo.fecha)}
-            {vuelo
-              ? <b> · {hora(vuelo.estimatedAt ?? vuelo.scheduledAt)} {vuelo.number}</b>
-              : <em> · elegir vuelo</em>}
+      <div key={tramo.sentido} className="trip-search-leg-slot">
+        <button
+          type="button"
+          className="trip-search-field trip-search-leg"
+          data-con-cruz={quitarHref ? "true" : undefined}
+          data-campo={tramo.sentido}
+          data-abierto={abierto === tramo.sentido || undefined}
+          data-listo={Boolean(vuelo) || undefined}
+          aria-expanded={abierto === tramo.sentido}
+          aria-controls={panelId}
+          onClick={() => alternar(tramo.sentido)}
+        >
+          <span className="trip-search-label">{tramo.etapa} · {tramo.sentido === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+          <span className="trip-search-value">
+            {/* Con el vuelo elegido, el logo de la aerolínea dice más que el calendario. */}
+            {vuelo ? <AirlineBadge code={vuelo.airline} size={28} /> : <IconoCalendario />}
+            <span>
+              {diaCorto(tramo.fecha)}
+              {/* El « · » se esconde en el celular, donde la hora y el vuelo van en su propio renglón. */}
+              {vuelo
+                ? <b><span className="trip-search-sep"> · </span>{hora(vuelo.estimatedAt ?? vuelo.scheduledAt)} {vuelo.number}</b>
+                : <em><span className="trip-search-sep"> · </span>elegir vuelo</em>}
+            </span>
           </span>
+        </button>
+        {/* La cruz es hermana del botón (no puede ir adentro de otro botón). */}
+        {quitarHref ? (
+          <Link
+            href={quitarHref}
+            scroll={false}
+            className="trip-search-remove"
+            aria-label="Sacar la vuelta y reservar un solo tramo"
+            title="Sacar la vuelta"
+          >
+            <span aria-hidden="true">✕</span>
+          </Link>
+        ) : null}
+      </div>
+    );
+  }
+
+  /** La vuelta que todavía no está: se ve apagada y se toca para sumarla. */
+  function campoAgregarVuelta(oferta: { href: string; detalle?: string }) {
+    const otro: Sentido = sentidoBase === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL";
+    return (
+      <Link href={oferta.href} scroll={false} className="trip-search-field trip-search-leg trip-search-add" data-vacio="true">
+        <span className="trip-search-label">Vuelta · {otro === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+        <span className="trip-search-value">
+          <span className="trip-search-add-icon" aria-hidden="true">+</span>
+          <span>Agregar vuelta</span>
         </span>
-      </button>
+        {oferta.detalle ? <small className="trip-search-add-detail">{oferta.detalle}</small> : null}
+      </Link>
     );
   }
 
@@ -415,7 +452,11 @@ export function TripSearchBar({
           ) : null}
           {campoLugar("hacia")}
         </div>
-        {tramos.map(campoTramo)}
+        {/* Siempre dos fechas, mitad y mitad: ida y vuelta, o la ida y la vuelta para agregar. */}
+        <div className="trip-search-dates">
+          {tramos.map((tramo, indice) => campoTramo(tramo, indice === 1 ? quitarVueltaHref : undefined))}
+          {tramos.length === 1 && agregarVuelta ? campoAgregarVuelta(agregarVuelta) : null}
+        </div>
       </div>
 
       {confirmarCambio && onConfirmarCambio && onCancelarCambio ? (

@@ -41,8 +41,27 @@ describe("TripSearchBar con un solo tramo", () => {
   const html = render({ ...manejadores, tramos: [tramo({ etapa: "Tu vuelo" })] });
 
   it("muestra un único tramo y la barra queda marcada como de un tramo", () => {
-    expect(veces(html, "trip-search-leg")).toBe(1);
+    expect(veces(html, 'data-campo="ARRIVAL"')).toBe(1);
     expect(veces(html, 'data-tramos="1"')).toBe(1);
+    // Sin oferta de vuelta (el otro sentido sin tarifa), la fecha ocupa toda la fila y no hay casillero apagado.
+    expect(html).not.toContain("Agregar vuelta");
+    expect(html).not.toContain("trip-search-remove");
+  });
+
+  it("con oferta, la segunda fecha es la vuelta apagada que lleva al ida y vuelta", () => {
+    const conVuelta = render({
+      ...manejadores,
+      tramos: [tramo({ etapa: "Ida" })],
+      agregarVuelta: { href: "/reservar/aeropuerto-chapelco-sma/ida-y-vuelta?date=2026-11-20&sentido=ARRIVAL", detalle: "$ 25.000 más por persona" }
+    });
+    expect(veces(conVuelta, 'class="trip-search-dates"')).toBe(1);
+    expect(veces(conVuelta, 'data-vacio="true"')).toBe(1);
+    expect(conVuelta).toContain("Vuelta · Salida");
+    expect(conVuelta).toContain("Agregar vuelta");
+    expect(conVuelta).toContain("$ 25.000 más por persona");
+    expect(conVuelta).toContain('href="/reservar/aeropuerto-chapelco-sma/ida-y-vuelta?date=2026-11-20&amp;sentido=ARRIVAL"');
+    // En un tramo no hay nada que sacar.
+    expect(conVuelta).not.toContain("trip-search-remove");
   });
 
   it("no ofrece invertir el viaje", () => {
@@ -78,7 +97,8 @@ describe("TripSearchBar con ida y vuelta", () => {
   });
 
   it("sigue mostrando los dos tramos y el botón de invertir", () => {
-    expect(veces(html, "trip-search-leg")).toBe(2);
+    expect(veces(html, 'class="trip-search-field trip-search-leg"')).toBe(2);
+    expect(html).not.toContain("Agregar vuelta");
     expect(html).toContain("Invertir: cambiar desde y hacia");
     expect(veces(html, 'data-tramos="2"')).toBe(1);
   });
@@ -101,5 +121,25 @@ describe("TripSearchBar con ida y vuelta", () => {
     });
     expect(confirmando).toContain("¿Invertir el viaje?");
     expect(confirmando).toContain("Sí, invertir");
+  });
+});
+
+describe("TripSearchBar: sacar la vuelta", () => {
+  it("la cruz va sólo en la vuelta, afuera del botón del casillero, y lleva a un tramo", () => {
+    const html = render({
+      ...manejadores,
+      orden: "ARRIVAL",
+      tramos: [tramo({ etapa: "Ida" }), tramo({ sentido: "DEPARTURE", etapa: "Vuelta", titulo: "Salida desde San Martín" })],
+      onPedirOrden: () => {},
+      quitarVueltaHref: "/reservar/aeropuerto-chapelco-sma?date=2026-11-20&sentido=ARRIVAL"
+    });
+    expect(veces(html, 'class="trip-search-remove"')).toBe(1);
+    expect(html).toContain('aria-label="Sacar la vuelta y reservar un solo tramo"');
+    expect(html).toContain('href="/reservar/aeropuerto-chapelco-sma?date=2026-11-20&amp;sentido=ARRIVAL"');
+    expect(veces(html, 'data-con-cruz="true"')).toBe(1);
+    // La cruz está después del botón de la vuelta, no adentro (un botón no puede llevar otro control).
+    const vuelta = html.indexOf('data-campo="DEPARTURE"');
+    const cierre = html.indexOf("</button>", vuelta);
+    expect(html.indexOf("trip-search-remove")).toBeGreaterThan(cierre);
   });
 });

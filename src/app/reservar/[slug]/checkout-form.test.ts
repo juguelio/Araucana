@@ -233,17 +233,18 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     return html.split(fragmento).length - 1;
   }
 
-  it("el mismo recuadro que el ida y vuelta, sin tarjetas, con «¿Ida y vuelta?» abajo", () => {
+  it("el mismo recuadro que el ida y vuelta, sin tarjetas, con la vuelta apagada al lado de la fecha", () => {
     const html = renderToStaticMarkup(createElement(AirportCheckoutForm, props));
     // Pedido de Jugue (18-nov): ya no están las tres tarjetas «¿Llegás o te vas?»; el sentido se
-    // elige en el recuadro (Desde ⇄ Hacia) y la vuelta se suma con el interruptor de abajo.
+    // elige en el recuadro (Desde ⇄ Hacia) y la segunda fecha es la vuelta, apagada, para sumarla.
     expect(html).not.toContain("wizard-option");
     expect(html).not.toContain("¿Llegás o te vas?");
+    expect(html).not.toContain('role="switch"');
     expect(html).toContain("Llegada a Chapelco");
-    expect(html).toContain('role="switch"');
-    expect(html).toContain('aria-checked="false"');
-    expect(html).toContain("¿Ida y vuelta?");
-    expect(html).toContain("Sumá la vuelta: la salida desde San Martín");
+    expect(veces(html, 'data-vacio="true"')).toBe(1);
+    expect(html).toContain("Vuelta · Salida");
+    expect(html).toContain("Agregar vuelta");
+    expect(html).toContain("más por persona");
     // Una sola página que se despliega sola: no quedan los «Paso N de 3» ni los botones de avance.
     expect(html).not.toContain("Paso 1 de 3");
     expect(html).not.toContain("Paso 2 de 3");
@@ -269,7 +270,7 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     const html = renderToStaticMarkup(createElement(AirportCheckoutForm, { ...props, startAtFlights: true }));
     // El casillero se llama igual que el primero del ida y vuelta.
     expect(html).toContain("Ida · Llegada");
-    expect(veces(html, "trip-search-leg")).toBe(1);
+    expect(veces(html, 'class="trip-search-field trip-search-leg"')).toBe(1);
     // Desde y Hacia se editan, y ⇄ pasa de llegada a salida (antes eran fijos, sin invertir).
     expect(html).toContain("Invertir");
     expect(veces(html, 'data-fijo="true"')).toBe(0);

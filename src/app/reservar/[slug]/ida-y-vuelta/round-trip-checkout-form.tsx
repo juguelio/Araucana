@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { IdaYVueltaToggle, hrefConViaje } from "../airport-trip-options";
+import { hrefConViaje } from "../airport-trip-options";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
@@ -730,13 +730,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   else setVueltaId(vueloId);
                   setError("");
                 }}
-              />
-              {/* Destildar vuelve a la reserva de un tramo con el primer tramo ya elegido (18-nov). */}
-              <IdaYVueltaToggle
-                activo
-                sentido={orden}
-                fares={fares}
-                href={hrefConViaje(
+                // La cruz de la vuelta vuelve a la reserva de un tramo con el primer tramo ya elegido (18-nov).
+                quitarVueltaHref={hrefConViaje(
                   singleHrefs?.[orden] ?? `/reservar/${route.slug}?sentido=${orden}`,
                   {
                     date: orden === "ARRIVAL" ? fechaLlegada : fechaVuelta,
