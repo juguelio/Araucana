@@ -19,19 +19,14 @@ function value(formData: FormData, key: string) {
   return typeof entry === "string" ? entry.trim() : "";
 }
 
-/**
- * Alta manual de reserva. Devuelve el estado en vez de redirigir cuando hay un error de datos
- * (#242): así el formulario conserva lo cargado y puede marcar cada campo con su mensaje.
- * El redirect queda sólo para el camino feliz.
- */
-export async function createAdminReservationAction(_previous: AdminFormState, formData: FormData): Promise<AdminFormState> {
+export async function createAdminReservationAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
   const creator = await getCurrentReservationsUserOrRedirect();
 
   const customPrice = value(formData, "customPrice");
   const overrideTotalCents = customPrice ? parseReservationPrice(customPrice) : undefined;
-  if (overrideTotalCents === null) {
-    return errorState(reservationPriceError, { customPrice: reservationPriceError });
-  }
+  // Los errores vuelven como estado del formulario, no como `?notice=`: el usuario ve el campo
+  // marcado, el foco va ahí y no pierde lo que ya cargó (#242).
+  if (overrideTotalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
   const parsed = adminReservationSchema.safeParse({
     overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
@@ -51,10 +46,10 @@ export async function createAdminReservationAction(_previous: AdminFormState, fo
   });
 
   if (!parsed.success) {
-    return errorState(
-      parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.",
-      fieldErrorsFromZodError(parsed.error)
-    );
+    const fieldErrors = fieldErrorsFromZodError(parsed.error);
+    const cantidad = Object.keys(fieldErrors).length;
+    const primero = parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.";
+    return errorState(cantidad > 1 ? `Hay ${cantidad} datos para revisar.` : primero, fieldErrors);
   }
 
   let reservation: Awaited<ReturnType<typeof createWebReservation>>;
@@ -72,11 +67,6 @@ export async function createAdminReservationAction(_previous: AdminFormState, fo
         : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
         ? "La parada seleccionada ya no está disponible. Volvé a elegir."
         : "No pudimos crear la reserva. Intentalo nuevamente.";
-    // Los errores de negocio se anclan al campo que los causa cuando hay uno claro: el de cupo es
-    // de la salida elegida y así el resumen puede llevar el foco ahí.
-    if (error instanceof BookingError && error.code === "CAPACITY_FULL") {
-      return errorState(message, { scheduleId: message });
-    }
     return errorState(message);
   }
 

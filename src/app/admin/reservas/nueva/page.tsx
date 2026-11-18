@@ -3,8 +3,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
-import { createAdminReservationAction } from "../actions";
-import { NewReservationForm } from "./new-reservation-form";
+import { NuevaReservaForm } from "./nueva-reserva-form";
 
 type NewReservationPageProps = {
   searchParams?: Promise<{ notice?: string }>;
@@ -47,7 +46,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
           <Link className="ghost-button" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto</Link>
         </div>
         {schedules.length ? (
-          <NewReservationForm action={createAdminReservationAction} schedules={schedules} />
+          <NuevaReservaForm schedules={schedules} />
         ) : <p className="muted">No hay salidas futuras con lugares disponibles.</p>}
       </section>
     </AdminShell>
