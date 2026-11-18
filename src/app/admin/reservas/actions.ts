@@ -10,8 +10,8 @@ import { manageReservation, reservationManagementSchema } from "@/lib/booking/ad
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { reviewDisabilityDocument, approveManualPayment, rejectManualPayment, BookingError, createWebReservation } from "@/lib/booking/repository";
-import { adminReservationSchema, adminPassengerPatchSchema } from "@/lib/booking/validation";
+import { reviewDisabilityDocument, approveManualPayment, rejectManualPayment, BookingError, createRouteRoundTripReservation, createWebReservation } from "@/lib/booking/repository";
+import { adminReservationSchema, adminPassengerPatchSchema, adminRouteRoundTripSchema } from "@/lib/booking/validation";
 import {
   errorState,
   fieldErrorsFromZodError,
@@ -54,6 +54,8 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
   // Los errores vuelven como estado del formulario, no como `?notice=`: el usuario ve el campo
   // marcado, el foco va ahí y no pierde lo que ya cargó (#242).
   if (overrideTotalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
+  // Con «+ Agregar vuelta» el formulario manda la salida de la vuelta: se crean los dos tramos juntos.
+  if (value(formData, "returnScheduleId")) return createAdminRouteRoundTrip(formData, overrideTotalCents, creator);
   const parsed = adminReservationSchema.safeParse({
     overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
@@ -87,24 +89,87 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
   try {
     reservation = await createWebReservation(parsed.data, { fromAdmin: true, creator });
   } catch (error) {
-    const message = error instanceof BookingError && error.code === "AIRPORT_SCHEDULE_NOT_BOOKABLE"
-      ? error.message
-      : error instanceof BookingError && error.code === "CAPACITY_FULL"
-      ? "No hay suficientes asientos disponibles para esa salida."
-      : error instanceof BookingError && error.code === "BOOKING_BUSY"
-        ? "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente."
-        : error instanceof BookingError && error.code === "DISABILITY_FARE_NOT_AVAILABLE"
-        ? error.message
-        : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
-        ? "La parada seleccionada ya no está disponible. Volvé a elegir."
-        : "No pudimos crear la reserva. Intentalo nuevamente.";
-    return errorState(message);
+    return errorState(mensajeDeAlta(error));
   }
 
   revalidatePath("/admin/reservas");
   revalidatePath(`/admin/reservas/${reservation.code}`);
   revalidatePath(`/reservar/${reservation.route.slug}`);
   redirect(`/admin/reservas/${reservation.code}`);
+}
+
+/** Lo que ve quien carga la reserva cuando el alta no sale. */
+function mensajeDeAlta(error: unknown) {
+  if (!(error instanceof BookingError)) return "No pudimos crear la reserva. Intentalo nuevamente.";
+  switch (error.code) {
+    case "AIRPORT_SCHEDULE_NOT_BOOKABLE":
+    case "DISABILITY_FARE_NOT_AVAILABLE":
+    case "ROUND_TRIP_ROUTE_MISMATCH":
+    case "INVALID_ROUND_TRIP_ORDER":
+      return error.message;
+    case "CAPACITY_FULL":
+      return "No hay suficientes asientos disponibles para esa salida.";
+    case "SCHEDULE_CLOSED":
+      return "Una de las salidas ya no admite reservas. Volvé a elegir.";
+    case "BOOKING_BUSY":
+      return "La salida está recibiendo otras reservas en este momento. Intentalo nuevamente.";
+    case "STOP_NOT_AVAILABLE":
+      return "La parada seleccionada ya no está disponible. Volvé a elegir.";
+    default:
+      return "No pudimos crear la reserva. Intentalo nuevamente.";
+  }
+}
+
+/**
+ * Ida y vuelta de una ruta regular (pedido de Jugue, 18-nov): las dos reservas se crean juntas con el
+ * mismo pasajero, y el panel abre la de ida, que muestra el otro tramo.
+ */
+async function createAdminRouteRoundTrip(
+  formData: FormData,
+  overrideTotalCents: number | undefined,
+  creator: Awaited<ReturnType<typeof getCurrentReservationsUserOrRedirect>>
+): Promise<AdminFormState> {
+  const parsed = adminRouteRoundTripSchema.safeParse({
+    overrideTotalCents,
+    scheduleId: value(formData, "scheduleId"),
+    returnScheduleId: value(formData, "returnScheduleId"),
+    requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
+    dropoffStop: value(formData, "dropoffStop") || undefined,
+    returnDropoffStop: value(formData, "returnDropoffStop") || undefined,
+    referredBy: value(formData, "referredBy") || undefined,
+    passengerCount: value(formData, "passengerCount"),
+    halfFareCount: value(formData, "halfFareCount") || 0,
+    freeFareCount: value(formData, "freeFareCount") || 0,
+    passenger: {
+      firstName: value(formData, "firstName"),
+      lastName: value(formData, "lastName"),
+      email: value(formData, "email"),
+      phone: value(formData, "phone"),
+      documentType: value(formData, "documentType"),
+      documentId: value(formData, "documentId"),
+      nationality: value(formData, "nationality") || null
+    }
+  });
+  if (!parsed.success) {
+    const fieldErrors = fieldErrorsFromZodError(parsed.error);
+    const cantidad = Object.keys(fieldErrors).length;
+    const primero = parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.";
+    return errorState(cantidad > 1 ? `Hay ${cantidad} datos para revisar.` : primero, fieldErrors);
+  }
+
+  let viaje: Awaited<ReturnType<typeof createRouteRoundTripReservation>>;
+  try {
+    viaje = await createRouteRoundTripReservation(parsed.data, { creator });
+  } catch (error) {
+    return errorState(mensajeDeAlta(error));
+  }
+
+  revalidatePath("/admin/reservas");
+  for (const tramo of [viaje.ida, viaje.vuelta]) {
+    revalidatePath(`/admin/reservas/${tramo.code}`);
+    revalidatePath(`/reservar/${tramo.route.slug}`);
+  }
+  redirect(`/admin/reservas/${viaje.ida.code}`);
 }
 
 async function reviewPaymentAction(formData: FormData, decision: "approve" | "reject") {
