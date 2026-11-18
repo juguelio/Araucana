@@ -4,13 +4,14 @@ import { AdminShell } from "@/components/admin-shell";
 import { initialAirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { canCorrectManualPayment, canEditReservationTotal } from "@/lib/booking/admin-price";
+import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { isAdminRole } from "@/lib/auth/roles";
 import { manageReservationAction, updateReservationAction } from "../../actions";
 import { ConfirmReservationButton } from "../confirm-reservation-button";
 import { ReservationEditForm } from "../reservation-edit-form";
+import { RegistrarPagoForm } from "../registrar-pago-form";
 import "../../reservas.css";
 
 export default async function EditReservationPage({ params }: { params: Promise<{ code: string }> }) {
@@ -26,6 +27,9 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const coverage = airport && pickup ? await getAirportCoverage() : initialAirportCoverage;
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
+  // Cargar el pago también desde acá (no sólo desde el detalle): mismas reglas que «Registrar pago».
+  const registerPayment = canRegisterManualPayment(reservation.status, reservation.totalCents, reservation.payment);
+  const total = new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.total);
   const detailPath = `/admin/reservas/${reservation.code}`;
   // Borrar vive acá y no en el listado: misma regla de siempre, sólo administración y nunca una
   // reserva con el pago aprobado (las sin cargo sí, porque no tienen plata detrás).
@@ -35,6 +39,12 @@ export default async function EditReservationPage({ params }: { params: Promise<
   return (
     <AdminShell title="Editar reserva" eyebrow={reservation.code} role={user.role}
       action={<Link className="ghost-button" href={detailPath}>Volver al detalle</Link>}>
+      {registerPayment ? (
+        <section className="plain-card admin-section" aria-labelledby="cargar-pago">
+          <h2 id="cargar-pago">Cargar pago</h2>
+          <RegistrarPagoForm code={reservation.code} total={total} />
+        </section>
+      ) : null}
       <section className="plain-card admin-section">
         <ReservationEditForm action={updateReservationAction} code={reservation.code} passenger={reservation.passenger}
           referredBy={reservation.referredBy ?? ""}
