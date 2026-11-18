@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { CheckoutScheduleDto, PublicRouteDto, SeatMapDto } from "@/lib/booking/types";
@@ -17,6 +17,18 @@ import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares
 import { diaEfectivo, diasConSalidas } from "@/lib/booking/schedule-days";
 import { getStopFares } from "@/lib/booking/stop-fares";
 import { createReservationAction } from "./actions";
+import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
+
+/** Orden en que se ven los campos del pasajero: define a cuál va el foco (#242). */
+const PASSENGER_FIELD_ORDER = [
+  "firstName",
+  "lastName",
+  "email",
+  "phoneCountryCode",
+  "phone",
+  "documentType",
+  "documentId"
+] as const;
 
 // Se mantienen los exports de siempre: los dos checkouts comparten la lógica del pasajero.
 export {
@@ -96,6 +108,10 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<PassengerFieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // El error tiene que quedar a la vista y el foco ir al campo culpable, no a un cartel lejano.
+  useFocusFirstError(fieldErrors, PASSENGER_FIELD_ORDER, formRef);
   const hasBookableSchedules = bookableOptions.schedules.length > 0;
 
   const selectedSchedule = useMemo(
@@ -168,7 +184,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   }
 
   return (
-    <form className="checkout-layout" onSubmit={handleSubmit} noValidate>
+    <form className="checkout-layout" onSubmit={handleSubmit} ref={formRef} noValidate>
       <div className="checkout-main">
         <section className="form-panel checkout-panel">
           <div>
@@ -348,6 +364,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             </strong>
           </div>
         </div>
+        <FormErrorSummary fieldErrors={fieldErrors} order={PASSENGER_FIELD_ORDER} />
         {error ? (
           <p className="error" role="alert">
             {error}
