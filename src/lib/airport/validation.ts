@@ -1,10 +1,10 @@
 import { reservationPriceCents } from "@/lib/booking/admin-price";
 import { z } from "zod";
 import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
-// El aeropuerto no exige documento (#206, #208): el checkout lo marca «(opcional)».
+// El aeropuerto no exige documento (#206, #208) ni email (#239): el checkout los marca «(opcional)».
 import {
   adminOptionalDocumentPassengerSchema as adminPassengerSchema,
-  optionalDocumentPassengerSchema as passengerSchema,
+  optionalContactPassengerSchema as passengerSchema,
   referredBySchema
 } from "@/lib/booking/validation";
 

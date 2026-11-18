@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { adminAirportReservationSchema, airportReservationSchema } from "./validation";
+import { createReservationSchema } from "@/lib/booking/validation";
+import { adminAirportReservationSchema, airportReservationSchema, airportRoundTripSchema } from "./validation";
 
 /** Reserva pública mínima y válida: se le agrega un campo por test. */
 const reserva = {
@@ -83,5 +84,41 @@ describe("el documento en el aeropuerto es opcional (#206, #208)", () => {
     const conPuntos = { ...reserva, passenger: { ...reserva.passenger, documentId: "30.123.456" } };
     const parsed = airportReservationSchema.safeParse(conPuntos);
     expect(parsed.success && parsed.data.passenger.documentId).toBe("30123456");
+  });
+});
+
+describe("el email en el aeropuerto es opcional (#239)", () => {
+  const sinEmail = { ...reserva, passenger: { ...reserva.passenger, email: "" } };
+  const sinCampo = { ...reserva, passenger: (({ email: _omitido, ...resto }) => resto)(reserva.passenger) };
+
+  it("la reserva pública acepta el email vacío o ausente y lo guarda vacío", () => {
+    expect(airportReservationSchema.safeParse(sinEmail).success).toBe(true);
+    const parsed = airportReservationSchema.safeParse(sinCampo);
+    expect(parsed.success && parsed.data.passenger.email).toBe("");
+  });
+
+  it("si el email viene, se sigue validando", () => {
+    const mal = { ...reserva, passenger: { ...reserva.passenger, email: "ana@" } };
+    expect(airportReservationSchema.safeParse(mal).success).toBe(false);
+    expect(adminAirportReservationSchema.safeParse(mal).success).toBe(false);
+  });
+
+  it("el ida y vuelta público también lo acepta vacío", () => {
+    const tramo = { flightNumber: "AR1656", serviceDate: "2026-11-13" };
+    const idaYVuelta = {
+      routeSlug: "aeropuerto-chapelco-sma",
+      passenger: sinEmail.passenger,
+      arrival: tramo,
+      departure: { ...tramo, flightNumber: "AR1657", serviceDate: "2026-11-20" }
+    };
+    const parsed = airportRoundTripSchema.safeParse(idaYVuelta);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.passenger.email).toBe("");
+  });
+
+  it("las rutas y Chapelco lo siguen exigiendo", () => {
+    const salida = { scheduleId: "salida-1", passengerCount: 1 };
+    expect(createReservationSchema.safeParse({ ...salida, passenger: sinEmail.passenger }).success).toBe(false);
+    expect(createReservationSchema.safeParse({ ...salida, passenger: reserva.passenger }).success).toBe(true);
   });
 });
