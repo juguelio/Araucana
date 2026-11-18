@@ -123,7 +123,7 @@ export function NewReservationForm({ action, schedules }: NewReservationFormProp
             <FieldError id="alta-email-error" message={errors.email} />
           </label>
           <label>
-            Teléfono
+            Teléfono (opcional)
             <input
               name="phone"
               type="tel"
@@ -134,7 +134,6 @@ export function NewReservationForm({ action, schedules }: NewReservationFormProp
               disabled={pending}
               aria-invalid={Boolean(errors.phone)}
               aria-describedby={errors.phone ? "alta-phone-error" : undefined}
-              required
             />
             <FieldError id="alta-phone-error" message={errors.phone} />
           </label>
