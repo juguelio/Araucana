@@ -134,7 +134,7 @@
 .aero-combi-boton:hover { border-color: var(--primary); color: var(--primary); }
 .aero-combi-boton.aero-combi-ok { color: var(--moss); border-color: var(--moss); }
 .aero-combi-boton.aero-combi-vacia { color: var(--ink-muted); border-style: dashed; }
-.aero-combi-modal { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.aero-combi-modal { width: min(880px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
 .aero-combi-modal .reservas-modal-body { margin-top: 16px; display: grid; gap: 16px; }
 .aero-combi-modal fieldset.inline-actions { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; }
 .aero-combi-modal fieldset.inline-actions > .button { justify-self: start; }
@@ -143,8 +143,9 @@
 .aero-combi-asignada > span { flex: 1 1 100%; }
 .aero-combi-asignada > form:first-of-type { flex: 1 1 auto; }
 .aero-combi-asignada fieldset { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
-.aero-combi-asignada select, .aero-combi-chofer select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
-.aero-combi-chofer { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.aero-combi-asignada select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
+/* Buscador de naves a la izquierda y de choferes a la derecha; en pantallas angostas, apilados. */
+.aero-combi-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; align-items: start; }
 .nave-buscador { display: grid; gap: 10px; }
 .nave-buscador-campo { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
 .nave-buscador-campo input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }

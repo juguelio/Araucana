@@ -18,6 +18,7 @@ import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
 import { NaveBuscador } from "./nave-buscador";
+import { ChoferBuscador } from "./chofer-buscador";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import "./aeropuerto.css";
@@ -100,7 +101,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
     where: { role: "DRIVER", isActive: true },
     orderBy: [{ name: "asc" }, { email: "asc" }],
     select: { id: true, name: true, email: true }
-  })).map((chofer) => ({ id: chofer.id, label: nombreDeChofer(chofer) }));
+  })).map((chofer) => ({ id: chofer.id, label: nombreDeChofer(chofer), email: chofer.email }));
   // Si la combi tiene un chofer que ya no está activo, se sigue mostrando para no borrarlo sin querer.
   const choferesCon = (actual: { id: string; name: string | null; email: string } | null) =>
     actual && !choferes.some((chofer) => chofer.id === actual.id)
@@ -239,17 +240,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
             ) : null}
             <FleetAssignmentForm action={assignVehicleAction}>
               <input type="hidden" name="flightId" value={v.id} />
-              <NaveBuscador
-                flightNumber={v.number}
-                naves={naves.filter((nave) => !v.assignments.some((a) => a.vehicle.id === nave.id))}
-              />
-              <label className="aero-combi-chofer">
-                Chofer
-                <select name="driverId" defaultValue="" aria-label={`Chofer para ${v.number}`}>
-                  <option value="">Sin chofer</option>
-                  {choferes.map((chofer) => <option key={chofer.id} value={chofer.id}>{chofer.label}</option>)}
-                </select>
-              </label>
+              {/* Nave a la izquierda y chofer a la derecha, con el mismo buscador (en el celular, uno abajo del otro). */}
+              <div className="aero-combi-columnas">
+                <NaveBuscador
+                  flightNumber={v.number}
+                  naves={naves.filter((nave) => !v.assignments.some((a) => a.vehicle.id === nave.id))}
+                />
+                <ChoferBuscador flightNumber={v.number} choferes={choferes} />
+              </div>
               <button className="button" type="submit">{v.assignments.length ? "Sumar nave" : "Asignar nave"}</button>
             </FleetAssignmentForm>
           </RowModal>
