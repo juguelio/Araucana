@@ -61,6 +61,10 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
     dropoffStop: value(formData, "dropoffStop") || undefined,
     referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
+    // Los menores se cargaban en el formulario pero no llegaban: la reserva quedaba toda con tarifa
+    // entera (18-nov). Ahora viajan como en la reserva web.
+    halfFareCount: value(formData, "halfFareCount") || 0,
+    freeFareCount: value(formData, "freeFareCount") || 0,
     passenger: {
       firstName: value(formData, "firstName"),
       lastName: value(formData, "lastName"),
