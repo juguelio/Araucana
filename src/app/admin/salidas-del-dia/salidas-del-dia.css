@@ -176,3 +176,24 @@
   .sd-window input { flex: 1; }
 }
 .sd-crew > .form-alert { grid-column: 1 / -1; margin: 0; }
+
+.desk-shortcuts,.desk-switch { display:flex; flex-wrap:wrap; gap:.45rem }
+.desk-shortcuts { margin:0 0 1.5rem; padding-block:.65rem; border-block:1px solid var(--line) }
+.desk-shortcuts a,.desk-switch button,.desk-options button { border:1px solid var(--line); border-radius:8px; padding:.45rem .65rem; color:var(--ink); background:var(--surface); font:inherit; font-size:.85rem }
+.desk-shortcuts a:hover,.desk-options button:hover { border-color:var(--primary) }
+.desk-layout { display:grid; grid-template-columns:minmax(185px,220px) minmax(0,1fr); gap:1rem; align-items:start }
+.desk-resources { position:sticky; top:.75rem; max-height:90vh; overflow:auto; padding:1rem; border:1px solid var(--line); border-radius:14px; background:var(--surface) }
+.desk-resources h3,.desk-resources h4 { margin:0 0 .55rem }
+.desk-resources input { width:100%; margin-top:.7rem; padding:.55rem; border-radius:7px; border:1px solid var(--line) }
+.desk-resources p { font-size:.82rem; line-height:1.45; color:var(--ink-soft) }
+.desk-options { display:grid; gap:.3rem; max-height:26vh; overflow:auto }
+.desk-options button { text-align:left; cursor:grab }
+.desk-switch button[aria-pressed=true],.desk-options button[aria-pressed=true] { background:var(--primary); color:white }
+.desk-agenda { margin-top:1rem }
+.desk-agenda a { display:grid; border-top:1px solid var(--line); padding:.5rem 0; font-size:.84rem }
+.desk-agenda small { color:var(--accent) }
+.desk-services { min-width:0; container-type:inline-size }
+select[data-drop=ready] { outline:2px dashed var(--primary); outline-offset:1px }
+select[data-drop=over] { outline:3px solid var(--primary); background:#e1f3e9 }
+@container (max-width:880px) { .desk-services .sd-row { grid-template-columns:70px minmax(0,1fr) auto } .desk-services .sd-assign { grid-column:1/-1 } }
+@media(max-width:850px) { .desk-layout { grid-template-columns:1fr } .desk-resources { position:static; max-height:none } .desk-options { display:flex; overflow:auto } .desk-options button { flex:none } }

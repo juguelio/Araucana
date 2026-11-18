@@ -285,7 +285,7 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   if (!result.day) return result;
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
-  if (returnsToBoard(formData)) redirectToBoard(result.day, "Combi asignada al vuelo.");
+  if (returnsToBoard(formData)) redirectToBoard(result.day, "Combi asignada al vuelo.", formData);
   redirect(`/admin/aeropuerto?date=${result.day}&notice=${encodeURIComponent("Combi asignada al vuelo.")}`);
 }
 
@@ -305,7 +305,7 @@ export async function removeAssignmentAction(formData: FormData) {
   }
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
-  if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.");
+  if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.", formData);
   // Vuelve al día del vuelo: quitar una combi desde el modal no puede dejar al operador en otro día.
   if (removed) redirect(`/admin/aeropuerto?${new URLSearchParams({ date: localInput(removed.flight.scheduledAt).slice(0, 10), notice: "Combi quitada del vuelo." })}`);
   notice("Combi quitada del vuelo.");

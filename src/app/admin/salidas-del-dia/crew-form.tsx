@@ -1,6 +1,7 @@
 "use client";
 
 import { startTransition, useActionState } from "react";
+import { DropSelect, OriginField } from "./dispatch-desk";
 import { FleetConflictWarning } from "../fleet-assignment-form";
 import { saveScheduleCrewAction, type CrewState } from "./actions";
 
@@ -25,21 +26,22 @@ export function ScheduleCrewForm({ scheduleId, unitKind = "PRIMARY", dateKey, ve
       const data = new FormData(event.currentTarget, event.nativeEvent instanceof SubmitEvent ? event.nativeEvent.submitter : undefined);
       startTransition(() => dispatch(data));
     }}>
+      <OriginField />
       <input type="hidden" name="id" value={scheduleId} />
       <input type="hidden" name="kind" value={unitKind} />
       <input type="hidden" name="date" value={dateKey} />
       <label>
         <span>Nave</span>
-        <select name="vehicleId" defaultValue={vehicleId}>
+        <DropSelect name="vehicleId" defaultValue={vehicleId}>
           {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.label}</option>)}
-        </select>
+        </DropSelect>
       </label>
       <label>
         <span>Chofer</span>
-        <select name="driverId" defaultValue={driverId ?? ""} data-falta={!driverId || undefined}>
+        <DropSelect name="driverId" defaultValue={driverId ?? ""} data-falta={!driverId || undefined}>
           <option value="">Sin chofer</option>
           {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.label}</option>)}
-        </select>
+        </DropSelect>
       </label>
       <button className="ghost-button" type="submit" disabled={pending}>{pending ? "Guardando…" : "Guardar"}</button>
       {state.error ? <p className="sd-error" role="alert">{state.error}</p> : null}

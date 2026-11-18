@@ -75,7 +75,7 @@ export async function saveScheduleCrewAction(_state: CrewState, formData: FormDa
 
   const vehicleChanged = vehicleId !== current.vehicleId;
   const driverChanged = driverId !== current.driverId;
-  if (!vehicleChanged && !driverChanged) redirectToBoard(dateKey, "La salida ya tenía esa nave y ese chofer.");
+  if (!vehicleChanged && !driverChanged) redirectToBoard(dateKey, "La salida ya tenía esa nave y ese chofer.", formData);
 
   if (driverId && driverChanged && !(await activeDriver(driverId))) {
     return { error: "Ese chofer no está disponible: elegí un chofer activo." };
@@ -113,7 +113,7 @@ export async function saveScheduleCrewAction(_state: CrewState, formData: FormDa
     revalidatePath(`/rutas/${current.route.slug}`);
     revalidatePath(`/reservar/${current.route.slug}`);
   }
-  redirectToBoard(dateKey, vehicleChanged ? "Salida actualizada." : driverId ? "Chofer asignado a la salida." : "Chofer quitado de la salida.");
+  redirectToBoard(dateKey, vehicleChanged ? "Salida actualizada." : driverId ? "Chofer asignado a la salida." : "Chofer quitado de la salida.", formData);
 }
 
 /** Chofer de una combi ya asignada a un vuelo. Agregar o quitar la combi sigue en las acciones del aeropuerto. */
@@ -126,11 +126,11 @@ export async function setAirportDriverAction(formData: FormData) {
     select: { driverId: true, flight: { select: { id: true, number: true, scheduledAt: true } }, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
   });
   const fallbackDate = boardDate(formData, new Date());
-  if (!assignment) redirectToBoard(fallbackDate, "Esa combi ya no está asignada al vuelo.");
+  if (!assignment) redirectToBoard(fallbackDate, "Esa combi ya no está asignada al vuelo.", formData);
   const dateKey = boardDate(formData, assignment.flight.scheduledAt);
-  if (assignment.driverId === driverId) redirectToBoard(dateKey, "La combi ya tenía ese chofer.");
+  if (assignment.driverId === driverId) redirectToBoard(dateKey, "La combi ya tenía ese chofer.", formData);
   const driver = driverId ? await activeDriver(driverId) : null;
-  if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.");
+  if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.", formData);
 
   await prisma.airportVehicleAssignment.update({ where: { id }, data: { driverId } });
   await recordEntityAuditAfterCommit(prisma, {
@@ -143,7 +143,7 @@ export async function setAirportDriverAction(formData: FormData) {
   });
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
-  redirectToBoard(dateKey, driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.");
+  redirectToBoard(dateKey, driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.", formData);
 }
 
 /** Chofer de una nave del día de Chapelco. Agregar o quitar la nave sigue en las acciones de Chapelco. */
@@ -156,11 +156,11 @@ export async function setChapelcoDriverAction(formData: FormData) {
     select: { driverId: true, operationDayId: true, operationDay: { select: { serviceDate: true } }, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
   });
   const fallbackDate = boardDate(formData, new Date());
-  if (!duty) redirectToBoard(fallbackDate, "Esa nave ya no está en la operación de Chapelco.");
+  if (!duty) redirectToBoard(fallbackDate, "Esa nave ya no está en la operación de Chapelco.", formData);
   const day = duty.operationDay.serviceDate.toISOString().slice(0, 10);
-  if (duty.driverId === driverId) redirectToBoard(day, "La nave ya tenía ese chofer.");
+  if (duty.driverId === driverId) redirectToBoard(day, "La nave ya tenía ese chofer.", formData);
   const driver = driverId ? await activeDriver(driverId) : null;
-  if (driverId && !driver) redirectToBoard(day, "Ese chofer no está disponible: elegí un chofer activo.");
+  if (driverId && !driver) redirectToBoard(day, "Ese chofer no está disponible: elegí un chofer activo.", formData);
 
   await prisma.chapelcoVehicleDuty.update({ where: { id }, data: { driverId } });
   await recordEntityAuditAfterCommit(prisma, {
@@ -172,7 +172,7 @@ export async function setChapelcoDriverAction(formData: FormData) {
   });
   revalidatePath("/admin/chapelco");
   revalidatePath("/admin/salidas-del-dia");
-  redirectToBoard(day, driverId ? "Chofer asignado a la nave." : "Chofer quitado de la nave.");
+  redirectToBoard(day, driverId ? "Chofer asignado a la nave." : "Chofer quitado de la nave.", formData);
 }
 
 // ── Más flexibilidad desde el tablero (pedido de Jugue, 16-nov): crear salidas, sumar unidades y
@@ -244,7 +244,7 @@ export async function createBoardScheduleAction(_state: BoardFormState, formData
   revalidatePath(`/admin/rutas/${routeId}/salidas`);
   revalidatePath(`/rutas/${route.slug}`);
   revalidatePath(`/reservar/${route.slug}`);
-  redirectToBoard(dateKey, route.isActive ? "Salida creada." : "Salida creada. Ojo: la ruta está inactiva y no se vende en la web.");
+  redirectToBoard(dateKey, route.isActive ? "Salida creada." : "Salida creada. Ojo: la ruta está inactiva y no se vende en la web.", formData);
 }
 
 /**
@@ -261,7 +261,7 @@ function afterUnitChange(result: UnitResult, formData: FormData): CrewState {
     revalidatePath(`/rutas/${schedule.slug}`);
     revalidatePath(`/reservar/${schedule.slug}`);
   }
-  redirectToBoard(boardDate(formData, schedule.departureAt), summary);
+  redirectToBoard(boardDate(formData, schedule.departureAt), summary, formData);
 }
 
 /** Sumar otra nave (con su chofer) a una salida: el cupo pasa a ser la suma de los asientos. */
@@ -286,21 +286,21 @@ export async function removeBoardScheduleAction(formData: FormData) {
   const id = value(formData, "id");
   if (value(formData, "kind") === "EXTRA") {
     const result = await removeScheduleUnit({ actor, unitId: id });
-    if (!result.ok) redirectToBoard(boardDate(formData, new Date()), "error" in result ? result.error : "No se pudo quitar la nave.");
+    if (!result.ok) redirectToBoard(boardDate(formData, new Date()), "error" in result ? result.error : "No se pudo quitar la nave.", formData);
     afterUnitChange(result, formData);
     return;
   }
   if (await prisma.scheduleUnit.count({ where: { scheduleId: id } })) {
     const result = await removeScheduleUnit({ actor, primaryOf: id });
-    if (!result.ok) redirectToBoard(boardDate(formData, new Date()), "error" in result ? result.error : "No se pudo quitar la nave.");
+    if (!result.ok) redirectToBoard(boardDate(formData, new Date()), "error" in result ? result.error : "No se pudo quitar la nave.", formData);
     afterUnitChange(result, formData);
     return;
   }
   const schedule = await prisma.schedule.findUnique({ where: { id }, select: { id: true, routeId: true, departureAt: true, route: { select: { slug: true } }, _count: { select: { reservations: true } } } });
   const fallback = boardDate(formData, new Date());
-  if (!schedule) redirectToBoard(fallback, "Esa salida ya no existe.");
+  if (!schedule) redirectToBoard(fallback, "Esa salida ya no existe.", formData);
   const dateKey = boardDate(formData, schedule.departureAt);
-  if (schedule._count.reservations > 0) redirectToBoard(dateKey, "Esa salida tiene reservas: no se quita desde acá. Cerrala o pasá las reservas desde la salida.");
+  if (schedule._count.reservations > 0) redirectToBoard(dateKey, "Esa salida tiene reservas: no se quita desde acá. Cerrala o pasá las reservas desde la salida.", formData);
   await prisma.$transaction(async (tx) => {
     const before = await tx.schedule.findUnique({ where: { id } });
     await recordScheduleAudit(tx, actor, "Salida quitada desde Salidas del día.", before, null);
@@ -309,7 +309,7 @@ export async function removeBoardScheduleAction(formData: FormData) {
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath(`/admin/rutas/${schedule.routeId}/salidas`);
   revalidatePath(`/rutas/${schedule.route.slug}`);
-  redirectToBoard(dateKey, "Unidad quitada.");
+  redirectToBoard(dateKey, "Unidad quitada.", formData);
 }
 
 /**
@@ -335,11 +335,11 @@ export async function setSpecialDriverAction(formData: FormData) {
     select: { driverId: true, tripId: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } }, trip: { select: { client: true, serviceDate: true } } }
   });
   const fallback = boardDate(formData, new Date());
-  if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.");
+  if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.", formData);
   const dateKey = assignment.trip.serviceDate.toISOString().slice(0, 10);
-  if (assignment.driverId === driverId) redirectToBoard(dateKey, "La nave ya tenía ese chofer.");
+  if (assignment.driverId === driverId) redirectToBoard(dateKey, "La nave ya tenía ese chofer.", formData);
   const driver = driverId ? await activeDriver(driverId) : null;
-  if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.");
+  if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.", formData);
   await prisma.$transaction(async (tx) => {
     await tx.specialTripAssignment.update({ where: { id }, data: { driverId } });
     await touchTrip(tx, assignment.tripId);
@@ -347,7 +347,7 @@ export async function setSpecialDriverAction(formData: FormData) {
   await auditTrip(actor, assignment.tripId, assignment.trip.client, `Chofer de la nave ${assignment.vehicle.name} cambiado en el viaje.`, { driver: personLabel(assignment.driver) }, { driver: personLabel(driver) });
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath(`/admin/viajes-especiales/${assignment.tripId}`);
-  redirectToBoard(dateKey, driverId ? "Chofer asignado al viaje." : "Chofer quitado del viaje.");
+  redirectToBoard(dateKey, driverId ? "Chofer asignado al viaje." : "Chofer quitado del viaje.", formData);
 }
 
 /**
@@ -386,7 +386,7 @@ export async function addSpecialVehicleAction(_state: BoardFormState, formData: 
   await auditTrip(actor, trip.id, trip.client, `Nave ${vehicle.name} sumada al viaje.`, null, { vehicle: vehicle.name, driver: personLabel(driver), from: value(formData, "from"), to: value(formData, "to") });
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath(`/admin/viajes-especiales/${trip.id}`);
-  redirectToBoard(dateKey, "Nave sumada al viaje.");
+  redirectToBoard(dateKey, "Nave sumada al viaje.", formData);
 }
 
 /** Quitar una nave de un viaje especial. */
@@ -398,7 +398,7 @@ export async function removeSpecialVehicleAction(formData: FormData) {
     select: { tripId: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } }, trip: { select: { client: true, serviceDate: true } } }
   });
   const fallback = boardDate(formData, new Date());
-  if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.");
+  if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.", formData);
   const dateKey = assignment.trip.serviceDate.toISOString().slice(0, 10);
   await prisma.$transaction(async (tx) => {
     await tx.specialTripAssignment.delete({ where: { id } });
@@ -407,5 +407,5 @@ export async function removeSpecialVehicleAction(formData: FormData) {
   await auditTrip(actor, assignment.tripId, assignment.trip.client, `Nave ${assignment.vehicle.name} quitada del viaje.`, { vehicle: assignment.vehicle.name, driver: personLabel(assignment.driver) }, null);
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath(`/admin/viajes-especiales/${assignment.tripId}`);
-  redirectToBoard(dateKey, "Nave quitada del viaje.");
+  redirectToBoard(dateKey, "Nave quitada del viaje.", formData);
 }

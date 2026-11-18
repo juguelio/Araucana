@@ -18,6 +18,7 @@ export function boardHref(dateKey: string, notice?: string) {
   return `/admin/salidas-del-dia?${query.toString()}`;
 }
 
-export function redirectToBoard(dateKey: string, notice: string): never {
-  redirect(boardHref(dateKey, notice));
+export function redirectToBoard(dateKey: string, notice: string, form?: FormData): never {
+  const href = boardHref(dateKey, notice);
+  redirect(form?.get("panelOrigin") === "panel" ? href.replace("/admin/salidas-del-dia?", "/admin?") : href);
 }
