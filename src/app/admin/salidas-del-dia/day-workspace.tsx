@@ -315,7 +315,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
                   {row.overbooked ? <span className="pill pill-alerta">sobrecupo</span> : null}
                 </p>
                 <h3><Link href={row.href}>{row.title}</Link></h3>
-                {row.detail ? <p className="muted">{row.detail}</p> : null}
+                {row.area !== "RUTA" && row.detail ? <p className="muted">{row.detail}</p> : null}
+                {row.units.length > 0 && <p className="muted">{row.units.length === 1 ? "1 nave asignada" : `${row.units.length} naves asignadas`}</p>}
                 {row.area !== "RUTA" ? (
                   <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
                 ) : null}
@@ -387,6 +388,19 @@ function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
   const free = vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id));
   return (
     <div className="sd-units">
+      {/* Sólo las naves que el vuelo todavía no tiene: volver a «agregar» una ya asignada le borraría el chofer. */}
+      <div className="sd-sumar" data-campos="1">
+        <FleetAssignmentForm action={assignVehicleAction}>
+        <OriginField />
+        <input type="hidden" name="flightId" value={row.serviceId} />
+        <BoardReturn />
+        <DropSelect name="vehicleId" defaultValue="" aria-label="Combi para sumar al vuelo">
+          <option value="" disabled>{row.units.length ? "Sumar otra combi…" : "Elegir combi…"}</option>
+          {free.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </DropSelect>
+        <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
+      </FleetAssignmentForm>
+      </div>
       {row.units.map((unit) => (
         <div className="sd-unit" key={unit.id}>
           <UnitHead unit={unit} />
@@ -399,19 +413,6 @@ function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
           </form>
         </div>
       ))}
-      {/* Sólo las naves que el vuelo todavía no tiene: volver a «agregar» una ya asignada le borraría el chofer. */}
-      <div className="sd-sumar" data-campos="1">
-<FleetAssignmentForm action={assignVehicleAction}>
-        <OriginField />
-        <input type="hidden" name="flightId" value={row.serviceId} />
-        <BoardReturn />
-        <DropSelect name="vehicleId" defaultValue="" aria-label="Combi para sumar al vuelo">
-          <option value="" disabled>{row.units.length ? "Sumar otra combi…" : "Elegir combi…"}</option>
-          {free.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-        </DropSelect>
-        <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
-      </FleetAssignmentForm>
-</div>
     </div>
   );
 }
@@ -420,6 +421,19 @@ function ChapelcoUnits({ row, dateKey, vehicleOptions, driverOptions, withCurren
   const free = vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id));
   return (
     <div className="sd-units">
+      <div className="sd-sumar" data-campos="1">
+        <FleetAssignmentForm action={assignChapelcoVehicle}>
+        <OriginField />
+        <input type="hidden" name="routeId" value={row.serviceId} />
+        <input type="hidden" name="serviceDate" value={dateKey} />
+        <BoardReturn />
+        <DropSelect name="vehicleId" defaultValue="" aria-label="Nave para sumar a Chapelco">
+          <option value="" disabled>{row.units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
+          {free.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+        </DropSelect>
+        <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
+      </FleetAssignmentForm>
+      </div>
       {row.units.map((unit) => (
         <div className="sd-unit" key={unit.id}>
           <UnitHead unit={unit} />
@@ -432,19 +446,6 @@ function ChapelcoUnits({ row, dateKey, vehicleOptions, driverOptions, withCurren
           </form>
         </div>
       ))}
-      <div className="sd-sumar" data-campos="1">
-<FleetAssignmentForm action={assignChapelcoVehicle}>
-        <OriginField />
-        <input type="hidden" name="routeId" value={row.serviceId} />
-        <input type="hidden" name="serviceDate" value={dateKey} />
-        <BoardReturn />
-        <DropSelect name="vehicleId" defaultValue="" aria-label="Nave para sumar a Chapelco">
-          <option value="" disabled>{row.units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
-          {free.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-        </DropSelect>
-        <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
-      </FleetAssignmentForm>
-</div>
     </div>
   );
 }
@@ -469,36 +470,9 @@ const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
 function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
   return (
     <div className="sd-units">
-      {row.units.map((unit) => (
-        <div className="sd-route-unit" key={unit.id}>
-          <ScheduleCrewForm
-            scheduleId={unit.id}
-            unitKind={unit.unitKind ?? "PRIMARY"}
-            dateKey={dateKey}
-            vehicleId={unit.vehicleId}
-            driverId={unit.driverId}
-            vehicles={withCurrent(vehicleOptions, unit.vehicleId, unit.vehicleName)}
-            drivers={withCurrent(driverOptions, unit.driverId, unit.driverName)}
-          />
-          <p className="sd-unit-meta">
-            {row.units.length > 1 ? <span>{unit.passengers !== undefined ? `${unit.passengers} de ` : ""}{unit.seats} lug.</span> : null}
-            {unit.status && !row.status ? <span className="pill pill-estado" data-tono="grave">{unit.status}</span> : null}
-            {unit.editHref ? <Link href={unit.editHref}>Editar</Link> : null}
-            {unit.removable ? (
-              <form action={removeBoardScheduleAction} className="sd-remove">
-        <OriginField />
-                <input type="hidden" name="id" value={unit.id} />
-                <input type="hidden" name="kind" value={unit.unitKind ?? "PRIMARY"} />
-                <input type="hidden" name="date" value={dateKey} />
-                <button className="text-button" type="submit" aria-label={`Quitar la nave ${unit.vehicleName} de la salida`}>Quitar</button>
-              </form>
-            ) : null}
-          </p>
-        </div>
-      ))}
       {/* Sumar otra nave a la misma salida: el cupo pasa a ser la suma de los asientos de todas. */}
       <div className="sd-sumar" data-campos="3">
-<FleetAssignmentForm action={addBoardUnitAction}>
+        <FleetAssignmentForm action={addBoardUnitAction}>
         <OriginField />
         <input type="hidden" name="date" value={dateKey} />
         <input type="hidden" name="scheduleId" value={row.serviceId} />
@@ -512,7 +486,34 @@ function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }
         </DropSelect>
         <button className="ghost-button" type="submit">Sumar</button>
       </FleetAssignmentForm>
-</div>
+      </div>
+      {row.units.map((unit) => (
+        <div className="sd-route-unit" key={unit.id}>
+          <ScheduleCrewForm
+            scheduleId={unit.id}
+            unitKind={unit.unitKind ?? "PRIMARY"}
+            dateKey={dateKey}
+            vehicleId={unit.vehicleId}
+            driverId={unit.driverId}
+            vehicles={withCurrent(vehicleOptions, unit.vehicleId, unit.vehicleName)}
+            drivers={withCurrent(driverOptions, unit.driverId, unit.driverName)}
+          />
+          <div className="sd-unit-meta">
+            {row.units.length > 1 ? <span>{unit.passengers !== undefined ? `${unit.passengers} de ` : ""}{unit.seats} lug.</span> : null}
+            {unit.status && !row.status ? <span className="pill pill-estado" data-tono="grave">{unit.status}</span> : null}
+            {unit.editHref ? <Link href={unit.editHref}>Editar</Link> : null}
+            {unit.removable ? (
+              <form action={removeBoardScheduleAction} className="sd-remove">
+        <OriginField />
+                <input type="hidden" name="id" value={unit.id} />
+                <input type="hidden" name="kind" value={unit.unitKind ?? "PRIMARY"} />
+                <input type="hidden" name="date" value={dateKey} />
+                <button className="text-button" type="submit" aria-label={`Quitar la nave ${unit.vehicleName} de la salida`}>Quitar</button>
+              </form>
+            ) : null}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -522,20 +523,8 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
   const first = row.units[0];
   return (
     <div className="sd-units">
-      {row.units.map((unit) => (
-        <div className="sd-unit" key={unit.id}>
-          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{timeFormat(unit.from)}–{timeFormat(unit.to)}</span></p>
-          <DriverForm unit={unit} action={setSpecialDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
-          <form action={removeSpecialVehicleAction} className="sd-remove">
-        <OriginField />
-            <input type="hidden" name="id" value={unit.id} />
-            <input type="hidden" name="date" value={dateKey} />
-            <button className="text-button" type="submit" aria-label={`Quitar ${unit.vehicleName} del viaje`}>Quitar</button>
-          </form>
-        </div>
-      ))}
       <div className="sd-sumar" data-campos="4">
-<FleetAssignmentForm action={addSpecialVehicleAction}>
+        <FleetAssignmentForm action={addSpecialVehicleAction}>
         <OriginField />
         <input type="hidden" name="tripId" value={row.serviceId} />
         <DropSelect name="vehicleId" defaultValue="" aria-label="Nave para sumar al viaje" required>
@@ -552,7 +541,19 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
         </span>
         <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
       </FleetAssignmentForm>
-</div>
+      </div>
+      {row.units.map((unit) => (
+        <div className="sd-unit" key={unit.id}>
+          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{timeFormat(unit.from)}–{timeFormat(unit.to)}</span></p>
+          <DriverForm unit={unit} action={setSpecialDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+          <form action={removeSpecialVehicleAction} className="sd-remove">
+        <OriginField />
+            <input type="hidden" name="id" value={unit.id} />
+            <input type="hidden" name="date" value={dateKey} />
+            <button className="text-button" type="submit" aria-label={`Quitar ${unit.vehicleName} del viaje`}>Quitar</button>
+          </form>
+        </div>
+      ))}
     </div>
   );
 }

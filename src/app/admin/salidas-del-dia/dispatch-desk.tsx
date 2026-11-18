@@ -14,17 +14,23 @@ export function DropSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const { dragging } = useContext(Desk);
   const [hover, setHover] = useState(false);
   const accepts = dragging && dragging.kind === props.name;
-  function valid(select: HTMLSelectElement) {
-    return accepts && !select.matches(":disabled") && Array.from(select.options).some(o => o.value === dragging.id && !o.disabled);
-  }
+  const transferType = `application/x-araucana-${props.name?.toLowerCase()}`;
   return <select {...props} data-drop={accepts ? hover ? "over" : "ready" : undefined}
-    onDragOver={e => { if (valid(e.currentTarget)) { e.preventDefault(); setHover(true); } }}
+    onDragOver={e => {
+      if (e.dataTransfer.types.includes(transferType) && !e.currentTarget.matches(":disabled")) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        setHover(true);
+      }
+    }}
     onDragLeave={() => setHover(false)}
     onDrop={e => {
       setHover(false);
-      if (!dragging || !valid(e.currentTarget)) return;
+      const id = e.dataTransfer.getData(transferType);
+      if (!id || e.currentTarget.matches(":disabled")) return;
+      if (!Array.from(e.currentTarget.options).some(option => option.value === id && !option.disabled)) return;
       e.preventDefault();
-      e.currentTarget.value = dragging.id;
+      e.currentTarget.value = id;
       e.currentTarget.dispatchEvent(new Event("change", { bubbles: true }));
       e.currentTarget.focus();
     }} />;
@@ -50,7 +56,7 @@ export function DispatchDesk({ panel, vehicles, drivers, assignments, children }
         <p>Elegí para ver su agenda o arrastrá al selector del servicio. Guardá desde esa fila.</p>
         <div className="desk-options">{options.filter(o => o.label.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(o =>
           <button type="button" key={o.id} draggable aria-pressed={selected?.id === o.id} onClick={() => setSelected({ kind, id: o.id })}
-            onDragStart={e => { e.dataTransfer.setData("text/plain", o.label); e.dataTransfer.effectAllowed = "copy"; setDragging({ kind, id: o.id }); }} onDragEnd={() => setDragging(null)}>
+            onDragStart={e => { e.dataTransfer.setData(`application/x-araucana-${kind.toLowerCase()}`, o.id); e.dataTransfer.effectAllowed = "copy"; setDragging({ kind, id: o.id }); }} onDragEnd={() => setDragging(null)}>
             <span aria-hidden="true">⠿</span> {o.label}
           </button>)}</div>
         {selected && <section className="desk-agenda" aria-live="polite"><h4>{selectedName}</h4>

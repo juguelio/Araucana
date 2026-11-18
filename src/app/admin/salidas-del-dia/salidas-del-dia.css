@@ -197,3 +197,6 @@ select[data-drop=ready] { outline:2px dashed var(--primary); outline-offset:1px 
 select[data-drop=over] { outline:3px solid var(--primary); background:#e1f3e9 }
 @container (max-width:880px) { .desk-services .sd-row { grid-template-columns:70px minmax(0,1fr) auto } .desk-services .sd-assign { grid-column:1/-1 } }
 @media(max-width:850px) { .desk-layout { grid-template-columns:1fr } .desk-resources { position:static; max-height:none } .desk-options { display:flex; overflow:auto } .desk-options button { flex:none } }
+
+/* La página se desplaza durante el arrastre entre el equipo y las filas largas. */
+html:has(.desk-layout) { scroll-behavior: auto; }
