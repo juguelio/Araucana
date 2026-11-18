@@ -1,5 +1,6 @@
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
+import { adminReservationOrderBy } from "./admin-reservation-sort";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createReservationShortCode as defaultCreateReservationShortCode, createTicketCode } from "./codes";
 import {
@@ -1179,12 +1180,14 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       const where = adminReservationWhere(filters);
       const pageSize = ADMIN_RESERVATIONS_PAGE_SIZE;
       const pedida = adminReservationsPage(filters);
+      // Orden por columna desde la URL (issue #192), saneado contra la lista blanca del listado.
+      const orderBy = adminReservationOrderBy(filters);
 
       const pagina = (numero: number) =>
         client.reservation.findMany({
           where,
           include: adminReservationListInclude(),
-          orderBy: { createdAt: "desc" },
+          orderBy,
           take: pageSize,
           skip: (numero - 1) * pageSize
         });

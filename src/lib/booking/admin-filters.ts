@@ -19,7 +19,11 @@ export const adminReservationFiltersSchema = z.object({
   page: z.coerce.number().int().min(1).catch(1).default(1),
   // Un valor que no es una cola conocida hace fallar el parse a propósito: la pantalla avisa
   // "Revisá los filtros" en vez de mostrar todas las reservas como si el filtro se hubiera aplicado.
-  payment: z.union([z.literal(""), z.enum(ADMIN_PAYMENT_QUEUES)]).optional()
+  payment: z.union([z.literal(""), z.enum(ADMIN_PAYMENT_QUEUES)]).optional(),
+  // Orden por columna (issue #192): viaja como texto y lo valida la lista blanca del listado
+  // (`admin-reservation-sort.ts`). Un valor desconocido no rompe: cae al orden por defecto.
+  orden: z.string().trim().max(30).optional(),
+  dir: z.string().trim().max(8).optional()
 });
 export type AdminReservationFilters = z.input<typeof adminReservationFiltersSchema>;
 

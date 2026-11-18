@@ -15,7 +15,7 @@ import {
 } from "@/lib/vehicles/fleet-table";
 import { VencimientosDialog } from "./vencimientos-dialog";
 import "./naves.css";
-import "../reservas/pagination.css";
+import "@/components/admin-list/pagination.css";
 
 type AdminVehiclesPageProps = {
   searchParams?: Promise<{

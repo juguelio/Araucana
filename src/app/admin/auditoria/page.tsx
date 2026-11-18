@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { auditActionLabels, auditChangeLines, auditEntityLabels, auditRoleLabel, formatAuditDate } from "@/lib/audit/labels";
-import { AUDIT_PAGE_SIZE, auditPageHref, auditWhere, parseAuditFilters, type AuditFilters } from "@/lib/audit/query";
+import { AUDIT_PAGE_SIZE, auditOrderBy, auditPageHref, auditWhere, parseAuditFilters, type AuditFilters } from "@/lib/audit/query";
+import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
+import { rangoDePagina } from "@/lib/admin/list-order";
 import { auditActions, auditEntities, type AuditAction, type AuditEntity } from "@/lib/audit/record";
 import { getCurrentSuperAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
@@ -22,24 +25,26 @@ function entityHref(row: { entity: string; action: string; entityId: string | nu
 /** Sólo lectura y sólo para el super administrador: acá se ve quién hizo qué, no se edita nada. */
 export default async function AuditPage({ searchParams }: AuditPageProps) {
   const sessionUser = await getCurrentSuperAdminOrRedirect();
-  const filters = parseAuditFilters((await searchParams) ?? {});
+  const params = (await searchParams) ?? {};
+  const filters = parseAuditFilters(params);
   const where = auditWhere(filters);
 
-  const [rows, total] = await Promise.all([
-    prisma.auditLog.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: AUDIT_PAGE_SIZE,
-      skip: (filters.page - 1) * AUDIT_PAGE_SIZE
-    }),
-    prisma.auditLog.count({ where })
-  ]);
-  const pages = Math.max(Math.ceil(total / AUDIT_PAGE_SIZE), 1);
+  // Primero el total: una página pedida más allá de la última (un link viejo) muestra la última.
+  const total = await prisma.auditLog.count({ where });
+  const rango = rangoDePagina(total, filters.page, AUDIT_PAGE_SIZE);
+  const pages = rango.totalPages;
+  const rows = await prisma.auditLog.findMany({
+    where,
+    orderBy: auditOrderBy(filters.orden),
+    take: AUDIT_PAGE_SIZE,
+    skip: rango.skip
+  });
   const filtered = !!(filters.q || filters.entity || filters.action || filters.from || filters.to);
 
   return (
     <AdminShell role={sessionUser.role} title="Auditoría" eyebrow="Quién hizo qué">
       <form className="filter-bar" action="/admin/auditoria">
+        <OrdenOculto orden={filters.orden} />
         <label>
           Buscar
           <input name="q" type="search" defaultValue={filters.q} placeholder="Persona, email, código de reserva o IP" />
@@ -72,17 +77,17 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
 
       <p className="muted audit-count">
         {total === 0 ? "Sin registros" : `${total} ${total === 1 ? "registro" : "registros"}`}
-        {pages > 1 ? ` · página ${filters.page} de ${pages}` : ""}
+        {pages > 1 ? ` · página ${rango.page} de ${pages}` : ""}
       </p>
 
       <div className="audit-scroll">
         <table className="data-table audit-table">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Quién</th>
-              <th>Acción</th>
-              <th>Sobre</th>
+              <EncabezadoOrdenable etiqueta="Fecha" columna="fecha" orden={filters.orden} base="/admin/auditoria" params={params} />
+              <EncabezadoOrdenable etiqueta="Quién" columna="quien" orden={filters.orden} base="/admin/auditoria" params={params} />
+              <EncabezadoOrdenable etiqueta="Acción" columna="accion" orden={filters.orden} base="/admin/auditoria" params={params} />
+              <EncabezadoOrdenable etiqueta="Sobre" columna="sobre" orden={filters.orden} base="/admin/auditoria" params={params} />
               <th>Detalle</th>
             </tr>
           </thead>
@@ -129,12 +134,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
         </table>
       </div>
 
-      {pages > 1 ? (
-        <nav className="audit-pager" aria-label="Páginas">
-          {filters.page > 1 ? <Link className="ghost-button" href={auditPageHref(filters, filters.page - 1)}>Más recientes</Link> : <span />}
-          {filters.page < pages ? <Link className="ghost-button" href={auditPageHref(filters, filters.page + 1)}>Más antiguos</Link> : <span />}
-        </nav>
-      ) : null}
+      <Paginador {...rango} hrefPagina={(n) => auditPageHref(filters, n)} etiqueta="la auditoría" />
     </AdminShell>
   );
 }

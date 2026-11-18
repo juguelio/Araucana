@@ -2,6 +2,9 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { listAdminRoutes } from "@/lib/booking/repository";
+import { EncabezadoOrdenable } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
+import { hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado } from "@/lib/admin/list-order";
 import { deleteRouteAction, setRouteActiveAction } from "./actions";
 import "./rutas.css";
 
@@ -10,8 +13,18 @@ const MODO_LABEL: Record<string, string> = { AIRPORT: "Aeropuerto", REGULAR: "Re
 type AdminRoutesPageProps = {
   searchParams?: Promise<{
     notice?: string;
+    orden?: string;
+    dir?: string;
+    page?: string;
   }>;
 };
+
+const BASE = "/admin/rutas";
+const POR_PAGINA = 20;
+/** Columnas ordenables (issue #192). `defecto` es el orden de siempre del listado, sin encabezado propio. */
+const COLUMNAS = ["ruta", "via", "duracion", "precio", "estado", "salidas", "defecto"] as const;
+type Columna = (typeof COLUMNAS)[number];
+const POR_DEFECTO: OrdenDeListado<Columna> = { columna: "defecto", direccion: "asc" };
 
 function formatPrice(cents: number, currency: string) {
   if (cents <= 0) {
@@ -45,6 +58,23 @@ export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageP
   // en $0 y una activa sin salidas no aparece en la web. Son los mismos campos de la tabla, sumados.
   const sinPrecio = activas.filter((r) => r.priceCents <= 0 && r.bookingMode !== "AIRPORT");
   const sinSalidas = activas.filter((r) => r.scheduleCount === 0 && r.bookingMode !== "AIRPORT");
+  // Son pocas rutas: se ordenan y paginan en memoria, después de contar las tarjetas sobre todas.
+  const filtros = params ?? {};
+  const orden = leerOrden(COLUMNAS, POR_DEFECTO, filtros);
+  const ordenadas = ordenarEnMemoria(routes, orden, {
+    ruta: (route) => `${route.from} ${route.to}`,
+    via: (route) => route.via,
+    duracion: (route) => route.durationMin,
+    // Las de aeropuerto y las «Consultar» no tienen precio fijo: van al final.
+    precio: (route) => (route.priceCents > 0 ? route.priceCents : null),
+    estado: (route) => (route.isActive ? 0 : 1),
+    salidas: (route) => (route.bookingMode === "AIRPORT" ? null : route.scheduleCount),
+    defecto: () => 0
+  });
+  const pagina = paginar(ordenadas, leerPagina(filtros.page), POR_PAGINA);
+  const encabezado = (etiqueta: string, columna: Columna) => (
+    <EncabezadoOrdenable etiqueta={etiqueta} columna={columna} orden={orden} base={BASE} params={filtros} />
+  );
 
   return (
     <AdminShell role={sessionUser.role}
@@ -79,17 +109,17 @@ export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageP
       <table className="data-table rutas-tabla">
         <thead>
           <tr>
-            <th>Ruta</th>
-            <th>Vía</th>
-            <th>Duración</th>
-            <th>Precio</th>
-            <th>Estado</th>
-            <th>Salidas</th>
+            {encabezado("Ruta", "ruta")}
+            {encabezado("Vía", "via")}
+            {encabezado("Duración", "duracion")}
+            {encabezado("Precio", "precio")}
+            {encabezado("Estado", "estado")}
+            {encabezado("Salidas", "salidas")}
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
-          {routes.map((route) => {
+          {pagina.items.map((route) => {
             const esAeropuerto = route.bookingMode === "AIRPORT";
             const avisoPrecio = route.isActive && !esAeropuerto && route.priceCents <= 0;
             const avisoSalidas = route.isActive && !esAeropuerto && route.scheduleCount === 0;
@@ -145,6 +175,7 @@ export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageP
         </tbody>
       </table>
       </div>
+      <Paginador {...pagina} hrefPagina={(n) => hrefDePagina(BASE, filtros, n)} etiqueta="rutas" />
     </AdminShell>
   );
 }

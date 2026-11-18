@@ -7,12 +7,14 @@ import type { AdminReservationRowDto } from "@/lib/booking/types";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
+import { adminReservationOrder } from "@/lib/booking/admin-reservation-sort";
+import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
 import { RowModal } from "./row-modal";
 import { ReceiptUploadForm } from "./receipt-upload-form";
-import "./pagination.css";
+import "@/components/admin-list/pagination.css";
 import "./reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
 
@@ -25,6 +27,8 @@ type AdminReservationsPageProps = {
     scheduleId?: string;
     page?: string;
     payment?: string;
+    orden?: string;
+    dir?: string;
   }>;
 };
 
@@ -119,6 +123,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
   const hayFiltros = ["code", "date", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
+  // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
+  const orden = adminReservationOrder(parsed.success ? parsed.data : {});
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -137,6 +143,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           Filtros{hayFiltros ? <span className="reservas-filters-activos">activos</span> : null}
         </label>
         <form action="/admin/reservas" method="get" className="reservas-filter-grid">
+          {/* Filtrar no pierde el orden elegido: viaja en el formulario como cualquier otro filtro. */}
+          <OrdenOculto orden={orden} />
           <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} placeholder="Largo del link o corto" /></label>
           <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
           <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
@@ -162,15 +170,15 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
         <table className="data-table">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Pasajero</th>
-              <th>Creada por</th>
+              <EncabezadoOrdenable etiqueta="Código" columna="codigo" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Pasajero" columna="pasajero" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Creada por" columna="creadaPor" orden={orden} base="/admin/reservas" params={filtros} />
               <th>WhatsApp</th>
               <th>Ruta</th>
               <th>Fecha del viaje</th>
-              <th>Asiento</th>
-              <th>Estado</th>
-              <th>Pago</th>
+              <EncabezadoOrdenable etiqueta="Asiento" columna="asiento" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Estado" columna="estado" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Pago" columna="pago" orden={orden} base="/admin/reservas" params={filtros} />
               <th>Comprobante</th>
               <th>Acciones</th>
             </tr>
