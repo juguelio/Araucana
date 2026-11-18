@@ -158,7 +158,15 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
     }))
   });
 
-  const rows = onlyMissing ? board.rows.filter((row) => row.missingVehicle || row.missingDriver || row.overbooked) : board.rows;
+  // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
+  const serviceRows = board.rows.filter((row) => !row.programmed);
+  const programmedRows = board.rows.filter((row) => row.programmed);
+  const rows = onlyMissing ? serviceRows.filter((row) => row.missingVehicle || row.missingDriver || row.overbooked) : serviceRows;
+  const emptyMessage = onlyMissing && serviceRows.length
+    ? "Todo lo del día tiene nave y chofer."
+    : programmedRows.length
+      ? "No hay servicios con pasajeros para este día: abajo está la programación."
+      : "No hay servicios cargados para este día.";
   const vehicleOptions: Option[] = vehicles.map((vehicle) => ({
     id: vehicle.id,
     label: `${vehicle.name}${vehicle.internalNumber ? ` · Int. ${vehicle.internalNumber}` : ""} · ${seatsOf(vehicle)} lug.`
@@ -169,6 +177,56 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
   const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
   const dayHref = (key: string) => `/admin/salidas-del-dia?date=${key}${onlyMissing ? "&falta=1" : ""}`;
+
+  const renderRow = (row: BoardRow) => (
+    <li
+      key={row.key}
+      className="sd-row"
+      data-area={row.area}
+      data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
+    >
+      <div className="sd-time">
+        <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
+        <span>{row.atLabel}</span>
+      </div>
+
+      <div className="sd-service">
+        <p className="sd-tags">
+          <span className="sd-area">{AREA_LABEL[row.area]}</span>
+          {row.status ? <span className="pill pill-estado" data-tono={row.status === "Demorado" ? "atencion" : "grave"}>{row.status}</span> : null}
+          {row.missingVehicle ? <span className="pill pill-alerta">sin nave</span> : null}
+          {row.missingDriver ? <span className="pill pill-alerta">sin chofer</span> : null}
+          {row.overbooked ? <span className="pill pill-alerta">sobrecupo</span> : null}
+        </p>
+        <h3><Link href={row.href}>{row.title}</Link></h3>
+        {row.detail ? <p className="muted">{row.detail}</p> : null}
+        {row.area !== "RUTA" ? (
+          <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
+        ) : null}
+      </div>
+
+      <div className="sd-pax">
+        <strong>{row.passengers}</strong>
+        <span>{row.capacity !== null ? `de ${row.capacity} lugares` : "pasajeros"}</span>
+      </div>
+
+      <div className="sd-assign">
+        {row.area === "RUTA" ? (
+          canEditRoutes ? (
+            <RouteUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+          ) : (
+            <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
+          )
+        ) : row.area === "AEROPUERTO" ? (
+          <AirportUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+        ) : row.area === "CHAPELCO" ? (
+          <ChapelcoUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+        ) : (
+          <SpecialUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+        )}
+      </div>
+    </li>
+  );
 
   return (
     <AdminShell
@@ -202,6 +260,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
           <div data-alerta={board.summary.missingVehicle > 0 || undefined}><dt>Sin nave</dt><dd>{board.summary.missingVehicle}</dd></div>
           <div data-alerta={board.summary.missingDriver > 0 || undefined}><dt>Sin chofer</dt><dd>{board.summary.missingDriver}</dd></div>
           <div data-alerta={board.summary.overbooked > 0 || undefined}><dt>Sobrecupo</dt><dd>{board.summary.overbooked}</dd></div>
+          {board.summary.programmed > 0 ? <div><dt>Programadas</dt><dd>{board.summary.programmed}</dd></div> : null}
         </dl>
         <div className="sd-filter">
           <Link className={`pill${!onlyMissing ? " is-active" : ""}`} href={`/admin/salidas-del-dia?date=${dateKey}`}>Todos</Link>
@@ -262,55 +321,21 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         </p>
       ) : (
         <ol className="sd-list">
-          {rows.map((row) => (
-            <li
-              key={row.key}
-              className="sd-row"
-              data-area={row.area}
-              data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
-            >
-              <div className="sd-time">
-                <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
-                <span>{row.atLabel}</span>
-              </div>
+          {rows.length === 0 ? (
+        <p className="plain-card sd-empty">{emptyMessage}</p>
+      ) : (
+        <ol className="sd-list">{rows.map(renderRow)}</ol>
+      )}
 
-              <div className="sd-service">
-                <p className="sd-tags">
-                  <span className="sd-area">{AREA_LABEL[row.area]}</span>
-                  {row.status ? <span className="pill pill-estado" data-tono={row.status === "Demorado" ? "atencion" : "grave"}>{row.status}</span> : null}
-                  {row.missingVehicle ? <span className="pill pill-alerta">sin nave</span> : null}
-                  {row.missingDriver ? <span className="pill pill-alerta">sin chofer</span> : null}
-                  {row.overbooked ? <span className="pill pill-alerta">sobrecupo</span> : null}
-                </p>
-                <h3><Link href={row.href}>{row.title}</Link></h3>
-                {row.detail ? <p className="muted">{row.detail}</p> : null}
-                {row.area !== "RUTA" ? (
-                  <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
-                ) : null}
-              </div>
-
-              <div className="sd-pax">
-                <strong>{row.passengers}</strong>
-                <span>{row.capacity !== null ? `de ${row.capacity} lugares` : "pasajeros"}</span>
-              </div>
-
-              <div className="sd-assign">
-                {row.area === "RUTA" ? (
-                  canEditRoutes ? (
-                    <RouteUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                  ) : (
-                    <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
-                  )
-                ) : row.area === "AEROPUERTO" ? (
-                  <AirportUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                ) : row.area === "CHAPELCO" ? (
-                  <ChapelcoUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                ) : (
-                  <SpecialUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                )}
-              </div>
-            </li>
-          ))}
+      {programmedRows.length && !onlyMissing ? (
+        <details className="plain-card sd-programmed">
+          <summary>
+            <strong>Ver la programación del día ({programmedRows.length})</strong>
+            <span className="muted">salidas programadas sin pasajeros: no son un servicio hasta que tengan reservas</span>
+          </summary>
+          <ol className="sd-list sd-programmed-list">{programmedRows.map(renderRow)}</ol>
+        </details>
+      ) : null}
         </ol>
       )}
 

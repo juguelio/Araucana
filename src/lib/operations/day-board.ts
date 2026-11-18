@@ -52,6 +52,11 @@ export type BoardRow = {
   missingVehicle: boolean;
   missingDriver: boolean;
   overbooked: boolean;
+  /**
+   * Programación sin demanda: una salida programada que no tiene ninguna reserva ni pasajero.
+   * Se dibuja aparte porque no es un servicio del día (issue #258).
+   */
+  programmed: boolean;
   /** Cerrada, cancelada, demorada: lo que conviene ver antes de asignar. */
   status: string | null;
   href: string;
@@ -63,6 +68,8 @@ export type BoardRow = {
 
 export type BoardSummary = {
   services: number;
+  /** Filas que son sólo programación sin demanda: no cuentan como servicio del día. */
+  programmed: number;
   passengers: number;
   missingVehicle: number;
   missingDriver: number;
@@ -180,6 +187,8 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
       }))];
     });
     const passengers = group.reduce((sum, schedule) => sum + schedule.passengers, 0);
+    // Una salida programada sin un solo pasajero es programación, no servicio del día (issue #258).
+    const programmed = passengers === 0;
     const statuses = [...new Set(units.map((unit) => unit.status ?? null))];
     return {
       key: `ruta-${first.routeId}-${first.departureAt.toISOString()}`,
@@ -191,6 +200,7 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
       detail: units.length > 1 ? `${units.length} naves` : null,
       passengers,
       ...crewFlags(passengers, units, false),
+      programmed,
       units,
       // El estado va en la fila sólo si todas las unidades lo comparten; si no, en cada unidad.
       status: statuses.length === 1 ? statuses[0] : null,
@@ -228,6 +238,7 @@ export function flightRow(flight: FlightInput, dateKey: string): BoardRow {
     detail: departure ? "Hoteles → Aeropuerto Chapelco" : "Aeropuerto Chapelco → hoteles",
     passengers: flight.passengers,
     ...crewFlags(flight.passengers, units, flight.passengers > 0 && flight.status !== "CANCELLED"),
+    programmed: false,
     units,
     status: FLIGHT_STATUS[flight.status] ?? null,
     href: `/admin/aeropuerto?date=${dateKey}#vuelo-${flight.id}`,
@@ -255,6 +266,7 @@ export function chapelcoRow(day: ChapelcoInput): BoardRow {
     detail: null,
     passengers: day.passengers,
     ...crewFlags(day.passengers, units, day.passengers > 0 && day.status !== "CANCELLED"),
+    programmed: false,
     units,
     status: day.status === "CANCELLED" ? "Cancelada" : null,
     href: `/admin/chapelco?date=${day.dateKey}`,
@@ -285,6 +297,7 @@ export function specialTripRow(trip: SpecialTripInput): BoardRow {
     detail: "Viaje especial",
     passengers,
     ...crewFlags(passengers, units, true),
+    programmed: false,
     units,
     status: null,
     href: `/admin/viajes-especiales/${trip.id}`,
@@ -316,15 +329,18 @@ export function buildDayBoard(input: {
     ...input.chapelco.filter((day) => day.passengers > 0 || day.units.length > 0).map(chapelcoRow),
     ...input.specialTrips.filter((trip) => trip.status !== "CANCELLED").map(specialTripRow)
   ]);
+  // Los totales del día cuentan sólo servicios reales: la programación sin demanda se informa aparte
+  // y no suma pasajeros, naves ni «falta chofer» (issue #258).
   const summary = rows.reduce<BoardSummary>(
     (acc, row) => ({
-      services: acc.services + 1,
-      passengers: acc.passengers + row.passengers,
-      missingVehicle: acc.missingVehicle + (row.missingVehicle ? 1 : 0),
-      missingDriver: acc.missingDriver + (row.missingDriver ? 1 : 0),
-      overbooked: acc.overbooked + (row.overbooked ? 1 : 0)
+      services: acc.services + (row.programmed ? 0 : 1),
+      programmed: acc.programmed + (row.programmed ? 1 : 0),
+      passengers: acc.passengers + (row.programmed ? 0 : row.passengers),
+      missingVehicle: acc.missingVehicle + (!row.programmed && row.missingVehicle ? 1 : 0),
+      missingDriver: acc.missingDriver + (!row.programmed && row.missingDriver ? 1 : 0),
+      overbooked: acc.overbooked + (!row.programmed && row.overbooked ? 1 : 0)
     }),
-    { services: 0, passengers: 0, missingVehicle: 0, missingDriver: 0, overbooked: 0 }
+    { services: 0, programmed: 0, passengers: 0, missingVehicle: 0, missingDriver: 0, overbooked: 0 }
   );
   return { rows, summary };
 }
