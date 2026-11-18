@@ -26,14 +26,15 @@ const codigos = z.array(z.string().min(1).max(40)).min(1).max(200);
 const ORDEN_PATH = "/admin/aeropuerto/orden-de-servicio/ver";
 
 /**
- * Las reservas pedidas, siempre que sean todas del vuelo y del día, de aeropuerto y no canceladas.
- * Si falta una, nadie toca nada: o se movió de vuelo mientras el operador miraba, o el pedido es ajeno.
+ * Las reservas pedidas, siempre que sean todas del vuelo (o de los vuelos que la misma camioneta hace
+ * en la misma vuelta) y del día, de aeropuerto y no canceladas. Si falta una, nadie toca nada: o se
+ * movió de vuelo mientras el operador miraba, o el pedido es ajeno.
  */
-async function reservasDelVuelo(date: string, flightId: string, codes: string[]) {
+async function reservasDelVuelo(date: string, flightIds: string[], codes: string[]) {
   const { desde, hasta } = rangoDelDia(date);
   const detalles = await prisma.airportReservationDetails.findMany({
     where: {
-      flightId,
+      flightId: { in: flightIds },
       serviceDate: { gte: desde, lt: hasta },
       reservation: { code: { in: codes }, bookingMode: "AIRPORT", status: { not: "CANCELLED" } }
     },
@@ -43,10 +44,19 @@ async function reservasDelVuelo(date: string, flightId: string, codes: string[])
   return codes.every((code) => porCodigo.has(code)) ? porCodigo : null;
 }
 
-async function naveDelVuelo(flightId: string, assignmentId: string | null) {
+/**
+ * Los vuelos de la orden en la que está `flightId`: él solo, o todos los que la hoja une porque la
+ * misma camioneta los hace en la misma vuelta (ver `unirVuelosCoordinados`).
+ */
+async function vuelosDeLaOrden(date: string, flightId: string) {
+  const blocks = buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true });
+  return blocks.find((block) => block.flightIds.length > 1 && block.flightIds.includes(flightId))?.flightIds ?? [flightId];
+}
+
+async function naveDelVuelo(flightIds: string[], assignmentId: string | null) {
   if (!assignmentId) return { name: null };
   const asignacion = await prisma.airportVehicleAssignment.findFirst({
-    where: { id: assignmentId, flightId },
+    where: { id: assignmentId, flightId: { in: flightIds } },
     select: { vehicle: { select: { name: true } } }
   });
   return asignacion ? { name: asignacion.vehicle.name } : null;
@@ -56,9 +66,12 @@ async function guardar(
   actor: Awaited<ReturnType<typeof getCurrentReservationsUserOrRedirect>>,
   { date, flightId, assignmentId, codes }: { date: string; flightId: string; assignmentId: string | null; codes: string[] }
 ): Promise<RecorridoState> {
+  // En una orden que une varios vuelos sólo se guarda el orden: la nave de cada pasajero es la de su vuelo.
+  const flightIds = await vuelosDeLaOrden(date, flightId);
+  const unida = flightIds.length > 1;
   const [reservas, nave, vuelo] = await Promise.all([
-    reservasDelVuelo(date, flightId, codes),
-    naveDelVuelo(flightId, assignmentId),
+    reservasDelVuelo(date, flightIds, codes),
+    naveDelVuelo(flightIds, assignmentId),
     prisma.flight.findUnique({ where: { id: flightId }, select: { number: true, scheduledAt: true } })
   ]);
   if (!vuelo) return { error: "El vuelo ya no existe. Recargá la orden." };
@@ -70,7 +83,7 @@ async function guardar(
     codes.map((code, indice) =>
       prisma.airportReservationDetails.update({
         where: { id: reservas.get(code)!.id },
-        data: { routePosition: indice, assignmentId }
+        data: unida ? { routePosition: indice } : { routePosition: indice, assignmentId }
       })
     )
   );
@@ -144,7 +157,7 @@ export async function restablecerRecorridoAction(input: z.input<typeof restablec
   const { date, flightId, codes } = parsed.data;
 
   const [reservas, vuelo] = await Promise.all([
-    reservasDelVuelo(date, flightId, codes),
+    reservasDelVuelo(date, await vuelosDeLaOrden(date, flightId), codes),
     prisma.flight.findUnique({ where: { id: flightId }, select: { number: true, scheduledAt: true } })
   ]);
   if (!vuelo || !reservas) return { error: "Algún pasajero cambió de vuelo o se canceló. Recargá la orden." };

@@ -5,6 +5,7 @@ import {
   buildServiceOrderWorkbook,
   filtrarPorNave,
   naveDeLaOrden,
+  ordenesDelVuelo,
   serviceOrderFileName
 } from "@/lib/airport/service-order";
 import { recordDownload } from "@/lib/audit/download";
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
 
   const generatedAt = new Date();
   const reservas = await getAirportServiceOrderReservations(date, flightId);
-  const blocks = filtrarPorNave(buildServiceOrderBlocks(reservas), vehicle);
+  const blocks = filtrarPorNave(ordenesDelVuelo(buildServiceOrderBlocks(reservas), flightId), vehicle);
   const workbook = await buildServiceOrderWorkbook({ date, generatedAt }, blocks);
   const nave = vehicle && blocks[0] ? naveDeLaOrden(blocks[0]) : null;
   const referencia = flightId ? [blocks[0]?.flightNumber ?? flightId, nave].filter(Boolean).join(" ") : null;

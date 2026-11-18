@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { ImprimirButton } from "@/components/imprimir-button";
 import { ServiceOrderSheet } from "@/components/service-order-sheet";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
-import { buildServiceOrderBlocks, filtrarPorNave } from "@/lib/airport/service-order";
+import { buildServiceOrderBlocks, filtrarPorNave, ordenesDelVuelo } from "@/lib/airport/service-order";
 import { leerTokenDeOrden } from "@/lib/airport/service-order-link";
 import "@/components/service-order-sheet.css";
 
@@ -34,7 +34,7 @@ export default async function OrdenPublicaPage({ params }: PageProps) {
   }
 
   const blocks = filtrarPorNave(
-    buildServiceOrderBlocks(await getAirportServiceOrderReservations(payload.date, payload.flight)),
+    ordenesDelVuelo(buildServiceOrderBlocks(await getAirportServiceOrderReservations(payload.date, payload.flight)), payload.flight ?? null),
     payload.flight ? (payload.vehicle ?? null) : null
   );
 

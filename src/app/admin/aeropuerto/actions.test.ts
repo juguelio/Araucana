@@ -86,7 +86,7 @@ describe("aeropuerto: combi y chofer desde el modal «Asignar combi»", () => {
     // El chofer se controla en el tramo del arribo (media hora antes hasta terminar el reparto), sin contar esta misma combi.
     expect(mocks.driverConflicts).toHaveBeenCalledWith(expect.anything(), {
       driverId: "d1", startsAt: new Date("2026-11-20T13:30:00-03:00"), endsAt: new Date("2026-11-20T16:00:00-03:00")
-    }, { flightId: "f1", vehicleId: "v1" });
+    }, { flightId: "f1", vehicleId: "v1", sameTrip: [] });
     expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       entity: "AIRPORT", entityId: "f1", action: "CREATE", summary: "Combi Sprinter 1 asignada al vuelo.",
       before: null, after: { vehicle: "Sprinter 1", driver: "Ramón Paz" }

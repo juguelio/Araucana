@@ -61,6 +61,8 @@ export type ServiceOrderReservationInput = {
     scheduledAt: Date;
     estimatedAt: Date | null;
     pickupStartOverrideAt: Date | null;
+    /** Vuelos que hace la misma camioneta en la misma vuelta: la hoja los une en una orden. */
+    pickupGroupId?: string | null;
     /** Naves asignadas al vuelo, en el orden en que se asignaron. */
     vehicles?: ServiceOrderVehicle[];
   } | null;
@@ -104,8 +106,14 @@ export type ServiceOrderPassenger = {
 export type ServiceOrderBlock = {
   /** Vuelo + nave: una orden por nave cuando el vuelo sale con más de una. */
   key: string;
-  /** Id del vuelo cargado; `null` cuando la reserva no está atada a un vuelo del sistema. */
+  /** Id del vuelo cargado; `null` cuando la reserva no está atada a un vuelo del sistema. En una orden
+   *  que une varios vuelos (misma camioneta, misma vuelta) es el primero, y la URL de cualquiera de
+   *  ellos trae la orden unida. */
   flightId: string | null;
+  /** Todos los vuelos de la orden: uno, o varios si la camioneta los hace en la misma vuelta. */
+  flightIds: string[];
+  /** Número y hora de cada vuelo de la orden, para el rótulo. */
+  flights: Array<{ id: string; number: string; flightAt: Date; scheduledAt: Date }>;
   /** La nave de esta orden. `null` = el vuelo no tiene nave, o es el sobrante que no entró en ninguna. */
   vehicle: ServiceOrderVehicle | null;
   /** Cuántas naves tiene el vuelo: con dos o más, la orden se parte por nave. */
@@ -236,7 +244,48 @@ const direccionDelVuelo = (value: string): ServiceOrderDirection =>
 type GrupoDeVuelo = Omit<ServiceOrderBlock, "key" | "vehicle" | "manualOrder"> & {
   flightKey: string;
   vehicles: ServiceOrderVehicle[];
+  pickupGroupId: string | null;
 };
+
+/**
+ * Une en una sola orden los vuelos que la misma camioneta hace en la misma vuelta (`pickupGroupId`):
+ * mismo sentido y, entre todos, una sola nave. Si el grupo usa más de una nave, cada vuelo sigue con
+ * sus órdenes por nave. Cada pasajero lleva el número de su vuelo junto al nombre, así el chofer sabe
+ * a qué vuelo va (o de cuál baja).
+ */
+function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
+  const porGrupo = new Map<string, GrupoDeVuelo[]>();
+  for (const grupo of grupos.values()) {
+    if (!grupo.pickupGroupId || !grupo.flightId) continue;
+    porGrupo.set(grupo.pickupGroupId, [...(porGrupo.get(grupo.pickupGroupId) ?? []), grupo]);
+  }
+
+  for (const [pickupGroupId, miembros] of porGrupo) {
+    if (miembros.length < 2) continue;
+    if (new Set(miembros.map((miembro) => miembro.direction)).size > 1) continue;
+    const naves = new Set(miembros.flatMap((miembro) => miembro.vehicles.map((nave) => nave.vehicleId)));
+    if (naves.size > 1 || miembros.some((miembro) => miembro.vehicles.length > 1)) continue;
+
+    const ordenados = [...miembros].sort((a, b) => a.flightAt.getTime() - b.flightAt.getTime());
+    const primero = ordenados[0];
+    const vehicles = ordenados.find((miembro) => miembro.vehicles.length)?.vehicles ?? [];
+    const unido: GrupoDeVuelo = {
+      ...primero,
+      flightKey: `grupo:${pickupGroupId}`,
+      flightIds: ordenados.flatMap((miembro) => miembro.flightIds),
+      flights: ordenados.flatMap((miembro) => miembro.flights),
+      vehicles,
+      vehicleCount: vehicles.length,
+      flightNumber: ordenados.map((miembro) => miembro.flightNumber).join(" + "),
+      operationAt: new Date(Math.min(...ordenados.map((miembro) => miembro.operationAt.getTime()))),
+      passengers: ordenados.flatMap((miembro) =>
+        miembro.passengers.map((pasajero) => ({ ...pasajero, name: `${pasajero.name} · ${miembro.flightNumber}` }))
+      )
+    };
+    for (const miembro of miembros) grupos.delete(miembro.flightKey);
+    grupos.set(unido.flightKey, unido);
+  }
+}
 
 const lugaresDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.seats, 0);
 const totalDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.amountCents, 0);
@@ -354,6 +403,11 @@ export function buildServiceOrderBlocks(
     grupos.set(flightKey, {
       flightKey,
       flightId: reserva.flight?.id ?? null,
+      flightIds: reserva.flight ? [reserva.flight.id] : [],
+      flights: reserva.flight
+        ? [{ id: reserva.flight.id, number: reserva.flight.number, flightAt: vueloAt ?? operationAt, scheduledAt: scheduledAt ?? operationAt }]
+        : [],
+      pickupGroupId: reserva.flight?.pickupGroupId ?? null,
       vehicles,
       vehicleCount: vehicles.length,
       direction,
@@ -369,8 +423,10 @@ export function buildServiceOrderBlocks(
     });
   }
 
+  unirVuelosCoordinados(grupos);
+
   const ordenes: ServiceOrderBlock[] = [];
-  for (const { flightKey, vehicles, ...grupo } of grupos.values()) {
+  for (const { flightKey, vehicles, pickupGroupId: _grupo, ...grupo } of grupos.values()) {
     // La recorrida sale del aeropuerto y encadena el retiro más cercano, salvo lo que el operador ya
     // ordenó a mano. Los pasajeros sin ubicación en el mapa quedan al final (ver `ordenarPorRecorrido`).
     const recorrida = ordenDeLaRecorrida(grupo.passengers);
@@ -414,6 +470,16 @@ export function referenciaDeLaOrden(block: ServiceOrderBlock) {
   };
 }
 
+/**
+ * Las órdenes de la hoja de un vuelo. El repositorio trae a los vuelos de la misma vuelta para poder
+ * unirlos; si no se unieron (el grupo usa más de una nave), cada vuelo se queda sólo con sus órdenes:
+ * el chofer de uno no puede recibir los pasajeros del otro. Sin vuelo pedido devuelve todas.
+ */
+export function ordenesDelVuelo(blocks: ServiceOrderBlock[], flightId: string | null) {
+  if (!flightId) return blocks;
+  return blocks.filter((block) => block.flightIds.includes(flightId));
+}
+
 /** Deja sólo la orden de esa nave; sin nave pedida devuelve todas. */
 export function filtrarPorNave(blocks: ServiceOrderBlock[], vehicle: string | null) {
   if (!vehicle) return blocks;
@@ -444,6 +510,18 @@ export function inicioDeRecorrida(block: ServiceOrderBlock) {
  * afuera la hora de inicio de la recorrida, para cuando la hoja la muestra remarcada aparte.
  */
 export function blockTimeLabel(block: ServiceOrderBlock, { sinRecorrida = false }: { sinRecorrida?: boolean } = {}) {
+  if (block.flights.length > 1) {
+    // Varios vuelos en la misma vuelta: cada uno con su hora, en el orden en que salen o llegan.
+    const vuelos = block.flights
+      .map((vuelo) => {
+        const hora = horaEnSalta(vuelo.flightAt);
+        const programado = horaEnSalta(vuelo.scheduledAt);
+        return `${vuelo.number} ${block.direction === "DEPARTURE" ? "despegue" : "llega"} ${hora}${hora !== programado ? ` (programado ${programado})` : ""}`;
+      })
+      .join(" + ");
+    const recorrida = block.direction === "DEPARTURE" && !sinRecorrida ? ` · recorrida ${horaEnSalta(block.operationAt)}` : "";
+    return `${block.heading} ${vuelos}${recorrida}${conNave(block)}`;
+  }
   if (block.direction === "DEPARTURE") {
     const despegue = horaEnSalta(block.flightAt);
     const programado = horaEnSalta(block.scheduledAt);

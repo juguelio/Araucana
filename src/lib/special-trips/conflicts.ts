@@ -87,9 +87,13 @@ type DriverInterval = { driverId: string; startsAt: Date; endsAt: Date };
 /**
  * Dónde más maneja el chofer en ese tramo: salidas de ruta (como nave principal o sumada), viajes
  * especiales, otros vuelos (y otras combis del mismo vuelo) y Chapelco ese día. `excludeAirport` deja
- * afuera la combi que se está guardando, para que no choque consigo misma.
+ * afuera la combi que se está guardando y, con `sameTrip`, los vuelos que hace en la misma vuelta.
  */
-export async function driverConflicts(tx: Prisma.TransactionClient, interval: DriverInterval, excludeAirport?: { flightId: string; vehicleId: string }) {
+export async function driverConflicts(
+  tx: Prisma.TransactionClient,
+  interval: DriverInterval,
+  excludeAirport?: { flightId: string; vehicleId: string; sameTrip?: string[] }
+) {
   const { driverId, startsAt, endsAt } = interval;
   const first = localInput(startsAt).slice(0, 10);
   const last = localInput(new Date(+endsAt - 1)).slice(0, 10);
@@ -110,7 +114,10 @@ export async function driverConflicts(tx: Prisma.TransactionClient, interval: Dr
     }),
     tx.airportVehicleAssignment.findMany({
       where: {
-        driverId, ...(excludeAirport ? { NOT: excludeAirport } : {}),
+        driverId,
+        // La combi que se guarda no choca consigo misma, ni con los vuelos que hace en la misma vuelta.
+        ...(excludeAirport ? { NOT: { flightId: excludeAirport.flightId, vehicleId: excludeAirport.vehicleId } } : {}),
+        ...(excludeAirport?.sameTrip?.length ? { flightId: { notIn: excludeAirport.sameTrip } } : {}),
         flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }] }
       },
       include: { flight: true }
