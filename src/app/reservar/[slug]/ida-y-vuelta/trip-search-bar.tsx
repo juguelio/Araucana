@@ -157,8 +157,11 @@ export function TripSearchBar({
   const sentidoBase: Sentido = orden ?? tramos[0]?.sentido ?? "ARRIVAL";
   const desde: Lugar = sentidoBase === "ARRIVAL" ? "CPC" : "SMA";
   const hacia: Lugar = sentidoBase === "ARRIVAL" ? "SMA" : "CPC";
-  /** Un solo tramo: el sentido vino elegido del paso anterior, así que Desde/Hacia no se editan. */
-  const lugaresFijos = tramos.length === 1;
+  /**
+   * Desde/Hacia se editan si el formulario deja cambiar el sentido (`onPedirOrden`). Desde el 18-nov
+   * la reserva de un tramo también: es el mismo recuadro que el ida y vuelta, con las mismas flechas.
+   */
+  const lugaresFijos = !onPedirOrden;
 
   // Se cierra con Escape o tocando fuera de la barra, como cualquier menú.
   useEffect(() => {
@@ -225,8 +228,7 @@ export function TripSearchBar({
         </span>
       </>
     );
-    // Con un solo tramo el sentido ya está elegido en las tarjetas del paso 1: el lugar se muestra
-    // como dato del viaje (no como botón), para que no quede un sentido distinto del elegido.
+    // Sin `onPedirOrden` el sentido no se puede cambiar acá: el lugar se muestra como dato del viaje.
     if (lugaresFijos) {
       return (
         <div className="trip-search-field trip-search-place" data-campo={campo} data-fijo="true">
@@ -397,8 +399,8 @@ export function TripSearchBar({
       <div className="trip-search-bar" data-tramos={tramos.length}>
         <div className="trip-search-places-row">
           {campoLugar("desde")}
-          {/* Invertir sólo tiene sentido con dos tramos; con uno, el sentido ya está elegido. */}
-          {tramos.length > 1 && onPedirOrden ? (
+          {/* Invertir: con dos tramos cambia el orden del viaje; con uno, pasa de llegada a salida. */}
+          {onPedirOrden ? (
             <button
               type="button"
               className="trip-search-swap"

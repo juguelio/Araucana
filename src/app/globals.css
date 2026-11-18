@@ -2414,8 +2414,8 @@ a.wizard-option { text-decoration: none; }
   .trip-search-confirm-actions > * { flex: 1 1 100%; }
 }
 
-/* Barra con un solo tramo: Desde/Hacia + el vuelo, sin el hueco del segundo tramo ni el botón de
-   invertir (que sólo existe con dos). El ancho sigue el mismo criterio que la barra de ida y vuelta. */
+/* Barra con un solo tramo: Desde ⇄ Hacia + el vuelo, sin el hueco del segundo tramo. El ancho sigue el
+   mismo criterio que la barra de ida y vuelta. */
 @container (min-width: 861px) {
   .trip-search-bar[data-tramos="1"] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 }
@@ -2423,9 +2423,10 @@ a.wizard-option { text-decoration: none; }
   .trip-search-bar[data-tramos="1"] .trip-search-leg { grid-column: 1 / -1; }
 }
 @container (max-width: 600px) {
-  /* Sin botón de invertir no hace falta dejarle el lugar a la derecha. */
-  .trip-search-bar[data-tramos="1"] .trip-search-places-row .trip-search-place:first-child,
-  .trip-search-bar[data-tramos="1"] .trip-search-places-row .trip-search-place:last-child { padding: 10px 16px; }
+  /* Sin botón de invertir (lugares fijos) no hace falta dejarle el lugar a la derecha. Desde el 18-nov
+     la reserva de un tramo tiene ⇄ como el ida y vuelta, así que eso sólo vale si los lugares son fijos. */
+  .trip-search-places-row:has(.trip-search-place[data-fijo]) .trip-search-place:first-child,
+  .trip-search-places-row:has(.trip-search-place[data-fijo]) .trip-search-place:last-child { padding: 10px 16px; }
 }
 
 /* Los lugares aparecen debajo de la barra apenas están los dos vuelos, sin otro paso (pedido de Jugue,
@@ -2739,3 +2740,22 @@ a.wizard-option { text-decoration: none; }
 /* Ida y vuelta: el indicador de pasos no se toca (se completa solo), así que el hecho no lleva botón. */
 .checkout-progress li[data-done="true"] { padding: 5px 11px; color: var(--primary); }
 .checkout-progress li[data-done="true"] span { background: var(--primary); }
+
+/* «¿Ida y vuelta?» debajo de la barra (pedido de Jugue, 18-nov): un interruptor grande que suma o
+   saca la vuelta. Tildado se ve como el campo elegido; destildado, como una opción para sumar. */
+.round-trip-toggle {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 72px; margin: 0; padding: 12px 16px;
+  border: 2px dashed var(--line-strong); border-radius: 14px; background: #fff; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease;
+}
+.round-trip-toggle:hover { border-color: var(--primary); background: #f7faf8; }
+.round-trip-toggle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.round-trip-toggle[data-activo] { border-style: solid; border-color: var(--primary); background: #eaf3ee; }
+.round-trip-toggle-box {
+  display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border: 2px solid var(--line-strong);
+  border-radius: 8px; background: #fff; color: #fff; font-size: 18px; font-weight: 800;
+}
+.round-trip-toggle[data-activo] .round-trip-toggle-box { border-color: var(--primary); background: var(--primary); }
+.round-trip-toggle-text { display: grid; gap: 2px; min-width: 0; }
+.round-trip-toggle-text b { font-size: 18px; }
+.round-trip-toggle-text small { font-size: 15px; color: var(--ink-soft); }

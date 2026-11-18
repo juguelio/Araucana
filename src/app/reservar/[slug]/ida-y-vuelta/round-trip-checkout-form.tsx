@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { AirportTripOptions } from "../airport-trip-options";
+import { IdaYVueltaToggle, hrefConViaje } from "../airport-trip-options";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { orderedRoundTrip, roundTripOrderValid, roundTripQuote } from "@/lib/airport/round-trip-summary";
@@ -83,6 +83,9 @@ type RoundTripCheckoutFormProps = {
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   /** A dónde llevan las tarjetas «Llegada» y «Salida»: la reserva de un tramo, con ese sentido elegido. */
   singleHrefs?: { ARRIVAL: string; DEPARTURE: string };
+  /** Al venir de la reserva de un tramo («¿Ida y vuelta?»): el sentido y el vuelo ya elegidos. */
+  initialOrder?: "ARRIVAL" | "DEPARTURE";
+  initialFirstFlightId?: string;
   /** Alta desde el panel: identidad opcional, sin freno por IP y vuelve a la reserva del panel. */
   fromAdmin?: boolean;
 };
@@ -152,12 +155,14 @@ function descripcionVuelo(vuelo: FlightOption) {
   return partes.join(" · ");
 }
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs }: RoundTripCheckoutFormProps) {
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs, initialOrder = "ARRIVAL", initialFirstFlightId }: RoundTripCheckoutFormProps) {
   /**
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
    */
-  const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">("ARRIVAL");
+  const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">(initialOrder);
+  // El vuelo que ya traía la reserva de un tramo queda elegido como primer tramo, si sigue en la lista.
+  const vueloQueVino = initialFlights.find((vuelo) => vuelo.id === initialFirstFlightId && vuelo.direction === initialOrder)?.id ?? "";
   /** Cambiar el orden borra los vuelos elegidos: si ya hay alguno, primero se pregunta. */
   const [confirmarCambio, setConfirmarCambio] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -166,8 +171,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const [fechaVuelta, setFechaVuelta] = useState(initialDate);
   const [vuelosLlegada, setVuelosLlegada] = useState<FlightOption[]>(initialFlights);
   const [vuelosVuelta, setVuelosVuelta] = useState<FlightOption[]>(initialFlights);
-  const [llegadaId, setLlegadaId] = useState("");
-  const [vueltaId, setVueltaId] = useState("");
+  const [llegadaId, setLlegadaId] = useState(initialOrder === "ARRIVAL" ? vueloQueVino : "");
+  const [vueltaId, setVueltaId] = useState(initialOrder === "DEPARTURE" ? vueloQueVino : "");
   const [cargandoLlegada, setCargandoLlegada] = useState(false);
   const [cargandoVuelta, setCargandoVuelta] = useState(false);
 
@@ -684,20 +689,6 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
           {error ? <p className="error" role="alert" ref={errorRef}>{error}</p> : null}
 
-          {/* Las mismas tres opciones que la reserva de un tramo, con «Ida y vuelta» marcada: llegada o
-              salida llevan a la reserva de un tramo con ese sentido ya elegido. */}
-          <div>
-            <h2 className="route-title">¿Llegás o te vas?</h2>
-          </div>
-          <AirportTripOptions
-            fares={fares}
-            selected="ROUND_TRIP"
-            hrefs={{
-              ARRIVAL: singleHrefs?.ARRIVAL ?? `/reservar/${route.slug}?date=${initialDate}&sentido=ARRIVAL`,
-              DEPARTURE: singleHrefs?.DEPARTURE ?? `/reservar/${route.slug}?date=${initialDate}&sentido=DEPARTURE`
-            }}
-          />
-
           <>
               <div>
                 <p className="eyebrow">Los vuelos</p>
@@ -739,6 +730,20 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   else setVueltaId(vueloId);
                   setError("");
                 }}
+              />
+              {/* Destildar vuelve a la reserva de un tramo con el primer tramo ya elegido (18-nov). */}
+              <IdaYVueltaToggle
+                activo
+                sentido={orden}
+                fares={fares}
+                href={hrefConViaje(
+                  singleHrefs?.[orden] ?? `/reservar/${route.slug}?sentido=${orden}`,
+                  {
+                    date: orden === "ARRIVAL" ? fechaLlegada : fechaVuelta,
+                    sentido: orden,
+                    vuelo: (orden === "ARRIVAL" ? llegadaId : vueltaId) || undefined
+                  }
+                )}
               />
               <p className="trip-search-hint"><strong>{fraseOrden}.</strong></p>
               {/* Con el vuelo de salida elegido, a qué hora pasa la camioneta (#206): 2 h 30 antes. */}

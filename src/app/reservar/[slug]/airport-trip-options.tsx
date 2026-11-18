@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 /** Las tres formas de reservar el aeropuerto, en el mismo orden y con el mismo aspecto en todas partes. */
 export type OpcionDeViaje = "ARRIVAL" | "DEPARTURE" | "ROUND_TRIP";
@@ -104,4 +105,57 @@ export function AirportTripOptions({ fares, selected, onSelect = {}, hrefs = {} 
       })}
     </div>
   );
+}
+
+/**
+ * «¿Ida y vuelta?» debajo de la barra (pedido de Jugue, 18-nov): la reserva de un tramo y la de ida y
+ * vuelta son el mismo recuadro; este interruptor suma o saca la vuelta. Navega a la otra pantalla
+ * llevando el día, el sentido y el vuelo ya elegidos, para no empezar de cero.
+ */
+export function IdaYVueltaToggle({ activo, href, sentido, fares }: {
+  /** true en la pantalla de ida y vuelta. */
+  activo: boolean;
+  /** A dónde lleva el toque (con los parámetros ya armados). */
+  href: string;
+  /** El sentido del primer tramo: define qué se suma o qué queda. */
+  sentido: "ARRIVAL" | "DEPARTURE";
+  fares: { ARRIVAL?: Tarifa; DEPARTURE?: Tarifa };
+}) {
+  const router = useRouter();
+  const otro = sentido === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL";
+  const tarifaOtro = fares[otro];
+  // Sin tarifa activa para el otro sentido no hay ida y vuelta que ofrecer.
+  if (!activo && !tarifaOtro) return null;
+  const nombreOtro = otro === "ARRIVAL" ? "la llegada a Chapelco" : "la salida desde San Martín";
+  const nombrePropio = sentido === "ARRIVAL" ? "la llegada" : "la salida";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={activo}
+      className="round-trip-toggle"
+      data-activo={activo || undefined}
+      onClick={() => router.push(href, { scroll: false })}
+    >
+      <span className="round-trip-toggle-box" aria-hidden="true">{activo ? "✓" : ""}</span>
+      <span className="round-trip-toggle-text">
+        <b>{activo ? "Ida y vuelta" : "¿Ida y vuelta?"}</b>
+        <small>
+          {activo
+            ? `Son dos tramos. Destildalo para reservar sólo ${nombrePropio}.`
+            : `Sumá la vuelta: ${nombreOtro}${tarifaOtro ? `, ${precio(tarifaOtro.priceCents, tarifaOtro.currency)} más por persona` : ""}.`}
+        </small>
+      </span>
+    </button>
+  );
+}
+
+/** Arma el link de la otra pantalla conservando lo elegido: `base` es el href de esa pantalla. */
+export function hrefConViaje(base: string, datos: { date: string; sentido: "ARRIVAL" | "DEPARTURE"; vuelo?: string }) {
+  const url = new URL(base, "http://x");
+  url.searchParams.set("date", datos.date);
+  url.searchParams.set("sentido", datos.sentido);
+  if (datos.vuelo) url.searchParams.set("vuelo", datos.vuelo);
+  else url.searchParams.delete("vuelo");
+  return `${url.pathname}?${url.searchParams.toString()}`;
 }

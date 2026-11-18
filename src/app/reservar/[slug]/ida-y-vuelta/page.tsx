@@ -26,7 +26,8 @@ function formatPrice(cents: number, currency: string) {
 
 type RutaPageProps = {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ date?: string }>;
+  /** `sentido` y `vuelo`: lo que ya estaba elegido al tildar «¿Ida y vuelta?» en la reserva de un tramo. */
+  searchParams?: Promise<{ date?: string; sentido?: string; vuelo?: string }>;
 };
 
 /**
@@ -99,6 +100,8 @@ export default async function AirportRoundTripPage({ params, searchParams }: Rut
             fares={tarifas}
             initialDate={fecha}
             initialFlights={vuelos}
+            initialOrder={query?.sentido === "DEPARTURE" ? "DEPARTURE" : "ARRIVAL"}
+            initialFirstFlightId={typeof query?.vuelo === "string" && /^[\w-]{1,64}$/.test(query.vuelo) ? query.vuelo : undefined}
             coverage={coverage}
             extras={extras}
             officePickup={officePickupReady(officePickup) ? officePickup : null}
