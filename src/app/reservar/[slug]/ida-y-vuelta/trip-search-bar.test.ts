@@ -143,3 +143,18 @@ describe("TripSearchBar: sacar la vuelta", () => {
     expect(html.indexOf("trip-search-remove")).toBeGreaterThan(cierre);
   });
 });
+
+describe("TripSearchBar: el panel dice en qué tramo se está", () => {
+  it("con ida y vuelta, cada tramo lleva «Tramo N de 2» y el paso a la vuelta arranca sin anuncio", () => {
+    const html = render({
+      ...manejadores,
+      orden: "ARRIVAL",
+      tramos: [tramo({ etapa: "Ida" }), tramo({ sentido: "DEPARTURE", etapa: "Vuelta", titulo: "Salida desde San Martín" })],
+      onPedirOrden: () => {}
+    });
+    // Sin panel abierto no hay anuncio ni casillero que late.
+    expect(html).not.toContain("trip-search-handoff");
+    expect(html).not.toContain("data-siguiente");
+    expect(html).not.toContain('data-paso="siguiente"');
+  });
+});

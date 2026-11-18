@@ -159,6 +159,11 @@ export function TripSearchBar({
   const [abierto, setAbierto] = useState<Campo | null>(null);
   /** El primer día de la tira de cada tramo: se corre de a una semana con las flechas. */
   const [inicioTira, setInicioTira] = useState<Partial<Record<Sentido, string>>>({});
+  /**
+   * El tramo al que se acaba de pasar solo (con la ida elegida se abre la vuelta). Mientras siga abierto,
+   * el panel lo anuncia bien a la vista (pedido de Jugue, 18-nov: «la transición tiene que ser mucho más notable»).
+   */
+  const [recienPaso, setRecienPaso] = useState<Sentido | null>(null);
 
   // Con un solo tramo el sentido es el del tramo; con dos manda el orden del viaje.
   const sentidoBase: Sentido = orden ?? tramos[0]?.sentido ?? "ARRIVAL";
@@ -199,8 +204,18 @@ export function TripSearchBar({
     destino?.focus({ preventScroll: true });
   }, [abierto]);
 
+  // Al pasar solo a la vuelta, la pantalla se acomoda: el casillero de la vuelta arriba y el panel debajo,
+  // con el anuncio a la vista (en el celular quedaba tapado por el encabezado del sitio).
+  useEffect(() => {
+    if (!recienPaso) return;
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    raiz.current?.querySelector<HTMLElement>(`[data-campo="${recienPaso}"]`)
+      ?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+  }, [recienPaso]);
+
   function alternar(campo: Campo) {
     if (confirmarCambio) onCancelarCambio?.();
+    setRecienPaso(null);
     setAbierto((actual) => (actual === campo ? null : campo));
   }
 
@@ -217,7 +232,9 @@ export function TripSearchBar({
     // Después de la ida se abre la vuelta, si todavía no tiene vuelo; si no (o si es un solo
     // tramo), se cierra.
     const otro = tramos.find((t) => t.sentido !== tramo.sentido);
-    setAbierto(tramo === tramos[0] && otro && !otro.elegido ? otro.sentido : null);
+    const siguiente = tramo === tramos[0] && otro && !otro.elegido ? otro.sentido : null;
+    setAbierto(siguiente);
+    setRecienPaso(siguiente);
   }
 
   const tramoAbierto = tramos.find((tramo) => tramo.sentido === abierto) ?? null;
@@ -269,6 +286,7 @@ export function TripSearchBar({
           data-campo={tramo.sentido}
           data-abierto={abierto === tramo.sentido || undefined}
           data-listo={Boolean(vuelo) || undefined}
+          data-siguiente={(recienPaso === tramo.sentido && abierto === tramo.sentido) || undefined}
           aria-expanded={abierto === tramo.sentido}
           aria-controls={panelId}
           onClick={() => alternar(tramo.sentido)}
@@ -353,8 +371,27 @@ export function TripSearchBar({
     const anterior = sumarDias(inicio, -7);
     const puedeVolver = !minimo || sumarDias(inicio, -1) >= minimo;
     const mover = (desdeDia: string) => setInicioTira((actual) => ({ ...actual, [tramo.sentido]: desdeDia }));
+    const indice = tramos.indexOf(tramo);
+    const previo = indice > 0 ? tramos[indice - 1] : null;
+    const vueloPrevio = previo?.opciones.find((opcion) => opcion.id === previo.elegido) ?? null;
+    const recienLlegado = recienPaso === tramo.sentido && previo && vueloPrevio;
     return (
       <>
+        {/* Con la ida recién elegida, la vuelta se anuncia: lo que ya quedó listo y lo que sigue. */}
+        {recienLlegado ? (
+          <div className="trip-search-handoff" role="status">
+            <span className="trip-search-handoff-check" aria-hidden="true">✓</span>
+            <span className="trip-search-handoff-text">
+              <b>{previo.etapa} lista</b>
+              <span>{diaCorto(previo.fecha)} · {hora(vueloPrevio.estimatedAt ?? vueloPrevio.scheduledAt)} {vueloPrevio.number}</span>
+            </span>
+          </div>
+        ) : null}
+        {tramos.length > 1 ? (
+          <p className="trip-search-panel-kicker">
+            {recienLlegado ? `Ahora, la ${tramo.etapa.toLowerCase()}` : `Tramo ${indice + 1} de ${tramos.length} · ${tramo.etapa}`}
+          </p>
+        ) : null}
         <p className="trip-search-panel-title">{tramo.titulo}</p>
         <p className="trip-search-panel-help">{tramo.pregunta}</p>
 
@@ -470,7 +507,15 @@ export function TripSearchBar({
       ) : null}
 
       {abierto && !confirmarCambio ? (
-        <div className="trip-search-panel" id={panelId} role="group" aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? "Desde" : "Hacia"}>
+        <div
+          // La clave cambia con el campo: al pasar de la ida a la vuelta el panel vuelve a entrar, con su animación.
+          key={abierto}
+          className="trip-search-panel"
+          id={panelId}
+          role="group"
+          data-paso={recienPaso && abierto === recienPaso ? "siguiente" : undefined}
+          aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? "Desde" : "Hacia"}
+        >
           <button type="button" className="trip-search-close" aria-label="Cerrar" onClick={() => setAbierto(null)}>✕</button>
           {abierto === "desde" || abierto === "hacia" ? panelLugar(abierto) : tramoAbierto ? panelTramo(tramoAbierto) : null}
         </div>

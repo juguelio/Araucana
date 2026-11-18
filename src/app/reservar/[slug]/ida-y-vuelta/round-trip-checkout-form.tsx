@@ -335,7 +335,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   useEffect(() => {
     if (vuelosListos && !vuelosListosAntes.current) {
       const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      lugaresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+      // La barra arriba y los lugares justo debajo: no se pierde de vista lo que se eligió (18-nov).
+      const barra = lugaresRef.current?.closest("form")?.querySelector<HTMLElement>(".trip-search") ?? lugaresRef.current;
+      barra?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
       lugaresRef.current?.querySelector<HTMLElement>("#pickup-flow-titulo")?.focus({ preventScroll: true });
     }
     vuelosListosAntes.current = vuelosListos;
@@ -756,11 +758,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               {/* Con los dos vuelos elegidos aparecen los lugares, sin apretar «Continuar». */}
               {lugaresAbiertos ? (
                 <section className="pickup-flow" ref={lugaresRef} aria-labelledby="pickup-flow-titulo">
-                  <div>
-                    <p className="eyebrow">Los lugares</p>
-                    <h2 className="route-title" id="pickup-flow-titulo" tabIndex={-1}>{textosLugar.titulo}</h2>
-                    <p className="muted">{textosLugar.ayuda}</p>
-                  </div>
+                  {/* Sin encabezado a la vista (pedido de Jugue, 18-nov): así la barra de los vuelos sigue en pantalla.
+                      El título queda para el lector de pantalla y para llevarle el foco. */}
+                  <h2 className="sr-only" id="pickup-flow-titulo" tabIndex={-1}>{textosLugar.titulo}</h2>
 
                   {tarjetaLugar(orden, textosLugar.primero, 1, false)}
 

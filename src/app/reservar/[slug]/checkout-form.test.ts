@@ -288,6 +288,16 @@ describe("checkout de un solo tramo del aeropuerto", () => {
       .toBe("/reservar/aeropuerto/ida-y-vuelta?date=2026-11-19&sentido=ARRIVAL");
   });
 
+  it("los lugares se abren sin encabezado a la vista, con el título sólo para el lector de pantalla", () => {
+    // Pedido de Jugue (18-nov): sin «Los lugares / ¿Adónde te llevamos…?» para que la barra siga a la vista.
+    const html = renderToStaticMarkup(createElement(AirportCheckoutForm, { ...props, initialFlightId: "vuelo-llegada" }));
+    expect(html).toContain('class="pickup-flow"');
+    expect(html).toContain("Punto de destino");
+    expect(html).not.toContain('<p class="eyebrow">Los lugares</p>');
+    expect(html).not.toContain("te acercamos hasta la puerta");
+    expect(html).toMatch(/<h2 class="sr-only" id="pickup-flow-titulo" tabindex="-1">¿Adónde te llevamos cuando llegás\?<\/h2>/);
+  });
+
   it("con el vuelo elegido se abre «Los lugares» y con el lugar, los datos", () => {
     // El modelo es el que decide qué sección se muestra: no hay estado «paso» que avanzar a mano.
     expect(seccionesDelCheckoutUnTramo({ vueloListo: false, lugarListo: false })).toMatchObject({
