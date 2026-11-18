@@ -68,8 +68,8 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
                   <input name="email" type="email" autoComplete="email" />
                 </label>
                 <label>
-                  Teléfono
-                  <input name="phone" type="tel" autoComplete="tel" placeholder="+54 9..." required />
+                  Teléfono (opcional)
+                  <input name="phone" type="tel" autoComplete="tel" placeholder="+54 9..." />
                 </label>
                 <label>
                   Tipo de documento
