@@ -11,6 +11,7 @@ function nave(over: Partial<NaveDelListado> & { id: string }): NaveDelListado {
     brand: "Mercedes",
     model: "Sprinter",
     licensePlate: null,
+    year: null,
     owner: null,
     insurer: null,
     isActive: true,
@@ -54,6 +55,12 @@ describe("orden del listado de naves", () => {
     const naves = [nave({ id: "a", internalNumber: "1910" }), nave({ id: "b", internalNumber: "243" }), nave({ id: "c", internalNumber: "152" })];
     expect(ids(ordenarNaves(naves, "unidad", "asc", hoy))).toEqual(["c", "b", "a"]);
     expect(ids(ordenarNaves(naves, "unidad", "desc", hoy))).toEqual(["a", "b", "c"]);
+  });
+
+  it("año: la más vieja primero y las que no tienen año cargado al final, en los dos sentidos", () => {
+    const naves = [nave({ id: "2019", year: 2019 }), nave({ id: "sin-anio" }), nave({ id: "2012", year: 2012 })];
+    expect(ids(ordenarNaves(naves, "anio", "asc", hoy))).toEqual(["2012", "2019", "sin-anio"]);
+    expect(ids(ordenarNaves(naves, "anio", "desc", hoy))).toEqual(["2019", "2012", "sin-anio"]);
   });
 
   it("vencimientos: lo vencido primero y las unidades sin fechas al final, en los dos sentidos", () => {

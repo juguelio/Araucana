@@ -11,7 +11,7 @@ import { peorVencimiento, type UnidadConVencimientos } from "./compliance";
 
 export const NAVES_POR_PAGINA = 20;
 
-export const COLUMNAS_ORDENABLES = ["unidad", "vehiculo", "titular", "seguro", "vencimientos", "capacidad", "estado"] as const;
+export const COLUMNAS_ORDENABLES = ["unidad", "vehiculo", "anio", "titular", "seguro", "vencimientos", "capacidad", "estado"] as const;
 export type ColumnaNaves = (typeof COLUMNAS_ORDENABLES)[number];
 export type Direccion = "asc" | "desc";
 
@@ -22,6 +22,8 @@ export type NaveDelListado = UnidadConVencimientos & {
   brand: string;
   model: string;
   licensePlate: string | null;
+  /** Año de fabricación/modelo; la antigüedad define qué restricciones tiene la unidad. */
+  year: number | null;
   owner: string | null;
   insurer: string | null;
   isActive: boolean;
@@ -55,6 +57,9 @@ function valor(nave: NaveDelListado, columna: ColumnaNaves, hoy: Date): string |
       return claveUnidad(nave);
     case "vehiculo":
       return `${nave.brand} ${nave.model} ${nave.licensePlate ?? ""}`.trim();
+    case "anio":
+      // Sin año cargado va al final, como el resto de los datos faltantes.
+      return nave.year ?? null;
     case "titular":
       return nave.owner?.trim() || null;
     case "seguro":
