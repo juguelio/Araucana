@@ -64,7 +64,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     vehicle
   );
   const blocks = flightIdsPedidos.length
-    ? todas.filter((block) => block.flightId && flightIdsPedidos.includes(block.flightId))
+    ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
     : todas;
   const cabeceras = await headers();
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
@@ -74,7 +74,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
   // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
-  const flightIds = [...new Set(blocks.flatMap((block) => (block.flightId ? [block.flightId] : [])))];
+  const flightIds = [...new Set(blocks.flatMap((block) => block.flightIds))];
   const [vuelos, { naves, choferes }] = await Promise.all([
     prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
     opcionesDeCombi()
@@ -102,27 +102,32 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       ? new URLSearchParams({ date, flight: ref.flight, ...(ref.vehicle ? { vehicle: ref.vehicle } : {}) })
       : null;
     const codes = block.passengers.map((pasajero) => pasajero.code);
-    const vuelo = block.flightId ? vueloPorId.get(block.flightId) : undefined;
-    // La nave de esta orden (si el vuelo sale con varias) o todas las del vuelo.
-    const propias = vuelo?.assignments.filter((a) => !block.vehicle || a.id === block.vehicle.assignmentId) ?? [];
+    // Una orden puede unir varios vuelos (misma camioneta, misma vuelta): cada uno tiene su botón.
+    const vuelosDeLaOrden = block.flightIds.flatMap((id) => vueloPorId.get(id) ?? []);
+    const unida = vuelosDeLaOrden.length > 1;
     return (
       <>
-      {vuelo ? (
-        <div className="no-print orden-asignar">
-          <CombiDelVueloModal
-            vuelo={vuelo}
-            naves={naves}
-            choferes={choferes}
-            resetKey={params?.notice ?? ""}
-            volverAOrden={volverAOrden}
-            trigger={propias.length
-              ? `Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
-              : "Asignar nave y chofer"}
-            triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelo.number}`}
-            triggerClassName="ghost-button"
-          />
-        </div>
-      ) : null}
+      {vuelosDeLaOrden.map((vuelo) => {
+        // La nave de esta orden (si el vuelo sale con varias) o todas las del vuelo.
+        const propias = vuelo.assignments.filter((a) => !block.vehicle || unida || a.id === block.vehicle.assignmentId);
+        const prefijo = unida ? `${vuelo.number} · ` : "";
+        return (
+          <div className="no-print orden-asignar" key={vuelo.id}>
+            <CombiDelVueloModal
+              vuelo={vuelo}
+              naves={naves}
+              choferes={choferes}
+              resetKey={params?.notice ?? ""}
+              volverAOrden={volverAOrden}
+              trigger={propias.length
+                ? `${prefijo}Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
+                : `${prefijo}Asignar nave y chofer`}
+              triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelo.number}`}
+              triggerClassName="ghost-button"
+            />
+          </div>
+        );
+      })}
       <OrdenAcciones
         ordenId={idDeLaOrden(block)}
         excelHref={query && codes.length ? `/admin/aeropuerto/orden-de-servicio?${query}` : null}

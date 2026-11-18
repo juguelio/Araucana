@@ -37,6 +37,7 @@ const CAMPOS = {
   lastCheckedAt: true,
   notes: true,
   pickupStartOverrideAt: true,
+  pickupGroupId: true,
   passengers: true,
   _count: { select: { reservations: true, assignments: true } }
 } satisfies Prisma.FlightSelect;
@@ -127,6 +128,8 @@ export async function unificarFilasDeVuelo(
           lastCheckedAt: fuente.lastCheckedAt,
           notes: destino.notes ?? fuente.notes,
           pickupStartOverrideAt: destino.pickupStartOverrideAt ?? fuente.pickupStartOverrideAt,
+          // Si el duplicado estaba en una recorrida compartida, el que queda sigue en ella.
+          pickupGroupId: destino.pickupGroupId ?? fuente.pickupGroupId,
           passengers: destino.passengers ?? fuente.passengers
         }
       });

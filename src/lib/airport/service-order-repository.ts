@@ -10,18 +10,30 @@ import type { ServiceOrderReservationInput } from "./service-order";
  * se cargaron. Las canceladas quedan afuera —no se le entregan al chofer— pero las que están con el
  * pago pendiente sí entran: el chofer cobra contra esa hoja.
  */
+/**
+ * El vuelo y los que hace la misma camioneta en la misma vuelta (`pickupGroupId`): pedir la hoja de
+ * cualquiera de ellos trae la orden de todos juntos (panel, Excel y link del chofer).
+ */
+export async function vuelosDelGrupo(flightId: string): Promise<string[]> {
+  const vuelo = await prisma.flight.findUnique({ where: { id: flightId }, select: { pickupGroupId: true } });
+  if (!vuelo?.pickupGroupId) return [flightId];
+  const grupo = await prisma.flight.findMany({ where: { pickupGroupId: vuelo.pickupGroupId }, select: { id: true } });
+  return [...new Set([flightId, ...grupo.map((miembro) => miembro.id)])];
+}
+
 export async function getAirportServiceOrderReservations(
   date: string,
   flightId?: string | null
 ): Promise<ServiceOrderReservationInput[]> {
   const { desde, hasta } = rangoDelDia(date);
+  const flightIds = flightId ? await vuelosDelGrupo(flightId) : null;
 
   const reservas = await prisma.reservation.findMany({
     where: {
       bookingMode: "AIRPORT",
       status: { not: "CANCELLED" },
       airportDetails: {
-        is: { serviceDate: { gte: desde, lt: hasta }, ...(flightId ? { flightId } : {}) }
+        is: { serviceDate: { gte: desde, lt: hasta }, ...(flightIds ? { flightId: { in: flightIds } } : {}) }
       }
     },
     orderBy: [{ createdAt: "asc" }],
@@ -39,6 +51,7 @@ export async function getAirportServiceOrderReservations(
               scheduledAt: true,
               estimatedAt: true,
               pickupStartOverrideAt: true,
+              pickupGroupId: true,
               // Las naves del vuelo: con dos o más, la orden se parte por nave.
               assignments: {
                 orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -93,6 +106,7 @@ export async function getAirportServiceOrderReservations(
               scheduledAt: detalle.flight.scheduledAt,
               estimatedAt: detalle.flight.estimatedAt,
               pickupStartOverrideAt: detalle.flight.pickupStartOverrideAt,
+              pickupGroupId: detalle.flight.pickupGroupId,
               vehicles: detalle.flight.assignments.map((asignacion) => ({
                 assignmentId: asignacion.id,
                 vehicleId: asignacion.vehicle.id,
