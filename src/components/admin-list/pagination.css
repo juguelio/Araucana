@@ -32,9 +32,42 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Números de página y selector de filas: mismos botones, en fila y sin saltos. */
+.pagination-numeros,
+.pagination-tamano {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.pagination-numeros .pagination-link {
+  padding: 8px 11px;
+  min-width: 36px;
+  text-align: center;
+}
+
+.pagination-actual {
+  background: var(--ink);
+  color: #fffaf1;
+  border-color: var(--ink);
+}
+
+.pagination-corte {
+  padding: 0 2px;
+  opacity: .6;
+}
+
+.pagination-tamano {
+  gap: 6px;
+  font-weight: 600;
+}
+
 @media (max-width: 640px) {
   .pagination { justify-content: center; text-align: center; }
   .pagination-status { order: -1; width: 100%; text-align: center; }
+  .pagination-numeros { order: 2; }
+  .pagination-tamano { order: 3; width: 100%; justify-content: center; }
 }
 
 /* --- Encabezado ordenable (`<EncabezadoOrdenable>`): el título es un link y la flecha dice el estado --- */

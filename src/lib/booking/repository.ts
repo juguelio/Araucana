@@ -1,5 +1,5 @@
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
-import { ADMIN_RESERVATIONS_PAGE_SIZE, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
+import { adminReservationsPageSize, normalizarBusqueda, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { adminReservationOrderBy } from "./admin-reservation-sort";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createReservationShortCode as defaultCreateReservationShortCode, createTicketCode } from "./codes";
@@ -204,6 +204,8 @@ type BookingTransactionClient = {
 };
 
 export type BookingClient = BookingTransactionClient & {
+  // Búsqueda sin tildes (ver listAdminReservations): Prisma no expone translate() en el where.
+  $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
   $transaction<T>(callback: (client: BookingTransactionClient) => Promise<T>, options?: { isolationLevel: "Serializable" }): Promise<T>;
 };
 
@@ -1177,8 +1179,20 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
      * porque un filtro achicó el total) se devuelve la última existente en vez de una tabla vacía.
      */
     async listAdminReservations(filters: AdminReservationFilters = {}): Promise<AdminReservationsPageDto> {
-      const where = adminReservationWhere(filters);
-      const pageSize = ADMIN_RESERVATIONS_PAGE_SIZE;
+      // Si se busca un apellido, se resuelve antes sin tildes: ILIKE no las ignora y "perez" no
+      // encuentra a "Pérez". Se pide la lista de ids y el where la usa como una alternativa más.
+      const passengerIds = filters.q
+        ? (
+            await client.$queryRaw<Array<{ id: string }>>`
+              SELECT id FROM "Passenger"
+              WHERE translate(lower("firstName" || ' ' || "lastName" || ' ' || "documentId" || ' ' || email || ' ' || phone), 'áéíóúüñ', 'aeiouun')
+                LIKE ${"%" + normalizarBusqueda(filters.q) + "%"}
+              LIMIT 500
+            `
+          ).map((fila) => fila.id)
+        : [];
+      const where = adminReservationWhere(filters, passengerIds);
+      const pageSize = adminReservationsPageSize(filters);
       const pedida = adminReservationsPage(filters);
       // Orden por columna desde la URL (issue #192), saneado contra la lista blanca del listado.
       const orderBy = adminReservationOrderBy(filters);

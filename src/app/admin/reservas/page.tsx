@@ -6,9 +6,10 @@ import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import type { AdminReservationRowDto } from "@/lib/booking/types";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
-import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, ADMIN_RESERVATIONS_PAGE_SIZES, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
 import { adminReservationOrder } from "@/lib/booking/admin-reservation-sort";
 import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
@@ -21,11 +22,14 @@ import { isAdminRole } from "@/lib/auth/roles";
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
     notice?: string;
+    q?: string;
     code?: string;
     date?: string;
+    until?: string;
     route?: string;
     scheduleId?: string;
     page?: string;
+    pageSize?: string;
     payment?: string;
     orden?: string;
     dir?: string;
@@ -82,6 +86,16 @@ function paginaHref(destino: number, params: Record<string, string | undefined>)
   return `/admin/reservas?${query.toString()}`;
 }
 
+/** Cambiar las filas por página conserva la búsqueda y vuelve a la primera página. */
+function tamanoHref(tamano: number, params: Record<string, string | undefined>) {
+  const query = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(params)) {
+    if (valor && clave !== "notice" && clave !== "page" && clave !== "pageSize") query.set(clave, valor);
+  }
+  query.set("pageSize", String(tamano));
+  return `/admin/reservas?${query.toString()}`;
+}
+
 function formatTotal(reservation: AdminReservationRowDto) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.totalCents / 100);
 }
@@ -122,7 +136,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
-  const hayFiltros = ["code", "date", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
+  const hayFiltros = ["q", "code", "date", "until", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
   // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
   const orden = adminReservationOrder(parsed.success ? parsed.data : {});
 
@@ -143,10 +157,22 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           Filtros{hayFiltros ? <span className="reservas-filters-activos">activos</span> : null}
         </label>
         <form action="/admin/reservas" method="get" className="reservas-filter-grid">
-          {/* Filtrar no pierde el orden elegido: viaja en el formulario como cualquier otro filtro. */}
+          {/* Filtrar no pierde el orden elegido ni las filas por página. */}
           <OrdenOculto orden={orden} />
+          {params?.pageSize ? <input type="hidden" name="pageSize" value={params.pageSize} /> : null}
+          <label className="reservas-filter-buscar">
+            Buscar
+            <input
+              name="q"
+              type="search"
+              defaultValue={params?.q}
+              maxLength={100}
+              placeholder="Apellido, DNI, código, email o teléfono"
+            />
+          </label>
           <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} placeholder="Largo del link o corto" /></label>
-          <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
+          <label>Desde<input type="date" name="date" defaultValue={params?.date} /></label>
+          <label>Hasta<input type="date" name="until" defaultValue={params?.until} /></label>
           <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
           <label>ID de salida<input name="scheduleId" defaultValue={params?.scheduleId} maxLength={100} /></label>
           <label>
@@ -395,31 +421,18 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           </tbody>
         </table>
       </div>
-      {total > 0 ? (
-        <nav className="pagination" aria-label="Paginación de reservas">
-          {page > 1 ? (
-            <Link className="pagination-link" href={paginaHref(page - 1, filtros)} rel="prev">
-              ← Anterior
-            </Link>
-          ) : (
-            <span aria-disabled="true" className="pagination-link">
-              ← Anterior
-            </span>
-          )}
-          <span className="pagination-status">
-            Mostrando {desde}–{hasta} de {total} · página {page} de {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link className="pagination-link" href={paginaHref(page + 1, filtros)} rel="next">
-              Siguiente →
-            </Link>
-          ) : (
-            <span aria-disabled="true" className="pagination-link">
-              Siguiente →
-            </span>
-          )}
-        </nav>
-      ) : null}
+      <Paginador
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        desde={desde}
+        hasta={hasta}
+        hrefPagina={(numero) => paginaHref(numero, filtros)}
+        etiqueta="reservas"
+        pageSize={pageSize}
+        tamanos={ADMIN_RESERVATIONS_PAGE_SIZES}
+        hrefTamano={(filas) => tamanoHref(filas, filtros)}
+      />
     </AdminShell>
   );
 }
