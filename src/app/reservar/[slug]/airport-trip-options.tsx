@@ -105,3 +105,23 @@ export function AirportTripOptions({ fares, selected, onSelect = {}, hrefs = {} 
     </div>
   );
 }
+
+/**
+ * Lo que dice el casillero «Agregar vuelta» de la reserva de un tramo: cuánto suma por persona. `null` si el
+ * otro sentido no tiene tarifa activa (entonces no hay ida y vuelta que ofrecer).
+ */
+export function detalleDeLaVuelta(sentido: "ARRIVAL" | "DEPARTURE", fares: { ARRIVAL?: Tarifa; DEPARTURE?: Tarifa }) {
+  const tarifa = fares[sentido === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL"];
+  if (!tarifa) return null;
+  return `${precio(tarifa.priceCents, tarifa.currency)} más por persona`;
+}
+
+/** Arma el link de la otra pantalla conservando lo elegido: `base` es el href de esa pantalla. */
+export function hrefConViaje(base: string, datos: { date: string; sentido: "ARRIVAL" | "DEPARTURE"; vuelo?: string }) {
+  const url = new URL(base, "http://x");
+  url.searchParams.set("date", datos.date);
+  url.searchParams.set("sentido", datos.sentido);
+  if (datos.vuelo) url.searchParams.set("vuelo", datos.vuelo);
+  else url.searchParams.delete("vuelo");
+  return `${url.pathname}?${url.searchParams.toString()}`;
+}

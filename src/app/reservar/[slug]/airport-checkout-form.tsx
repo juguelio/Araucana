@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
-import { AirportTripOptions } from "./airport-trip-options";
+import { detalleDeLaVuelta, hrefConViaje } from "./airport-trip-options";
 import { statusLabel } from "@/lib/airport/flights";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
@@ -57,8 +57,8 @@ const AIRPORT_FIELD_ORDER = [
 
 /**
  * Checkout del aeropuerto de **un solo tramo**, en una sola página que se va abriendo sola, igual que
- * el ida y vuelta: primero la llegada o la salida con las tres tarjetas (`AirportTripOptions`),
- * después el día y su vuelo en la barra estilo Kiwi con un solo tramo, **después el lugar** (el
+ * el ida y vuelta: el mismo recuadro (Desde ⇄ Hacia, el día y el vuelo) con un solo tramo, y abajo
+ * «¿Ida y vuelta?» para sumar la vuelta (pedido de Jugue, 18-nov), **después el lugar** (el
  * destino si llega, el punto de búsqueda si se va) y al final los datos del pasajero. No hay botón
  * «Continuar»: cada sección aparece cuando la anterior está resuelta (pedido de Jugue, 17-nov).
  */
@@ -108,6 +108,8 @@ type AirportCheckoutFormProps = {
   roundTripHref?: string;
   /** El sentido ya viene elegido (tarjeta «Llegada» o «Salida» de otra pantalla): se baja a la barra. */
   startAtFlights?: boolean;
+  /** Vuelo ya elegido al venir del ida y vuelta (destildar «¿Ida y vuelta?»): se conserva. */
+  initialFlightId?: string;
 };
 
 /** Las etapas del indicador, en el orden en que se van abriendo. */
@@ -187,7 +189,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
@@ -195,7 +197,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     // Si el sentido con el que entra la página no tiene tarifa activa, se arranca por el otro.
     fares[initialDirection] ? initialDirection : fares.DEPARTURE ? "DEPARTURE" : "ARRIVAL"
   );
-  const [selectedId, setSelectedId] = useState<string>("");
+  const [selectedId, setSelectedId] = useState<string>(
+    // Al volver del ida y vuelta se conserva el vuelo de ese sentido, si sigue en la lista del día.
+    () => initialFlights.find((vuelo) => vuelo.id === initialFlightId && vuelo.direction === initialDirection)?.id ?? ""
+  );
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
   // Derivación de otra agencia (#109): sólo existe en el alta del panel.
@@ -270,7 +275,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
    */
   const tramoDeLaBarra: TramoDeLaBarra = {
     sentido,
-    etapa: "Tu vuelo",
+    // Igual que el primer casillero del ida y vuelta: «Ida · Llegada» / «Ida · Salida».
+    etapa: "Ida",
     titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín",
     pregunta: sentido === "ARRIVAL"
       ? "¿Qué día aterriza en Chapelco y en qué vuelo?"
@@ -326,7 +332,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   useEffect(() => {
     if (puedeSeguir && !vueloListoAntes.current) {
       const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      lugaresRef.current?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
+      // La barra arriba y los lugares justo debajo: no se pierde de vista lo que se eligió (18-nov).
+      const barra = lugaresRef.current?.closest("form")?.querySelector<HTMLElement>(".trip-search") ?? lugaresRef.current;
+      barra?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "start" });
       lugaresRef.current?.querySelector<HTMLElement>("#pickup-flow-titulo")?.focus({ preventScroll: true });
     }
     vueloListoAntes.current = puedeSeguir;
@@ -587,59 +595,39 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           <FormErrorSummary fieldErrors={fieldErrors} order={AIRPORT_FIELD_ORDER} />
           {error ? <p className="error" role="alert" ref={errorRef}>{error} {error === OUTSIDE_PICKUP_ZONE ? <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a> : null}</p> : null}
 
-          {/* Las tres opciones, siempre a la vista: elegir llegada o salida fija el sentido del único
-              tramo y la barra de abajo busca sólo esos vuelos. Llegada y salida siguen en este
-              formulario; ida y vuelta tiene su propia pantalla. */}
-          <div>
-            <h2 className="route-title">¿Llegás o te vas?</h2>
-            <p className="muted">
-              Elegí para qué lado viajás: con eso te mostramos <strong>sólo los vuelos de ese sentido</strong>,
-              con el estado que informa la aerolínea.
-            </p>
-          </div>
-          <AirportTripOptions
-            fares={fares}
-            selected={sentido}
-            onSelect={Object.fromEntries(
-              (["ARRIVAL", "DEPARTURE"] as const).map((code) => [
-                code,
-                () => {
-                  // Ya elegido: no se borra el vuelo ni el lugar, sólo se baja a la barra del vuelo.
-                  if (code === sentido) {
-                    vueloRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                    return;
-                  }
-                  useAddress();
-                  setPickupAddress("");
-                  setSentido(code);
-                  setSelectedId("");
-                  setError("");
-                }
-              ])
-            )}
-            hrefs={{ ROUND_TRIP: roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta?date=${date}` }}
-          />
-
           <div ref={vueloRef}>
-            <p className="eyebrow">Tu vuelo · {sentidoTexto(sentido)}</p>
-            <h2 className="route-title">Tu vuelo</h2>
+            <p className="eyebrow">Tu vuelo</p>
+            <h2 className="route-title">{sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín"}</h2>
             <p className="muted">
-              {sentido === "ARRIVAL"
-                ? "Tocá el recuadro «Tu vuelo» para elegir el día y el vuelo de llegada a Chapelco (CPC)."
-                : "Tocá el recuadro «Tu vuelo» para elegir el día y el vuelo de salida desde Chapelco (CPC)."}
+              Tocá cada recuadro para elegir: desde dónde sale, adónde va, y el día y el vuelo. Con ⇄ pasás
+              de llegada a salida, y con «Agregar vuelta» sumás el regreso.
             </p>
           </div>
 
-          {/* El día y el vuelo se eligen en la misma barra que el ida y vuelta (pedido de Jugue,
-              17-nov), con un solo tramo. El sentido ya viene de las tarjetas de arriba: Desde/Hacia
-              se muestran fijos, sin botón de invertir. */}
+          {/* El mismo recuadro que el ida y vuelta (pedido de Jugue, 18-nov): Desde ⇄ Hacia cambia
+              entre llegada y salida, y al lado de la fecha está la vuelta, apagada, para sumarla. */}
           <TripSearchBar
             tramos={[tramoDeLaBarra]}
             routeSlug={route.slug}
+            onPedirOrden={(nuevo) => {
+              // Pasar de llegada a salida (o al revés) es otro viaje: se borra el vuelo y el lugar.
+              if (nuevo === sentido || !fares[nuevo]) return;
+              useAddress();
+              setPickupAddress("");
+              setSentido(nuevo);
+              setSelectedId("");
+              setEsPrivado(false);
+              setError("");
+            }}
             onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
             onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
+            agregarVuelta={detalleDeLaVuelta(sentido, fares) === null ? undefined : {
+              href: hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined }),
+              detalle: detalleDeLaVuelta(sentido, fares) ?? undefined
+            }}
           />
           {fieldErrors.flight ? <p className="field-error" role="alert">{fieldErrors.flight}</p> : null}
+
 
           <div className="private-flight" data-open={esPrivado}>
             <button
@@ -696,11 +684,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           {/* Con el vuelo elegido aparecen los lugares, sin apretar «Continuar». */}
           {lugaresAbiertos ? (
             <section className="pickup-flow" ref={lugaresRef} aria-labelledby="pickup-flow-titulo">
-              <div>
-                <p className="eyebrow">Los lugares</p>
-                <h2 className="route-title" id="pickup-flow-titulo" tabIndex={-1}>{textoDelLugar.titulo}</h2>
-                <p className="muted">{textoDelLugar.ayuda}</p>
-              </div>
+              {/* Sin encabezado a la vista (pedido de Jugue, 18-nov): así la barra de los vuelos sigue en pantalla.
+                  El título queda para el lector de pantalla y para llevarle el foco. */}
+              <h2 className="sr-only" id="pickup-flow-titulo" tabIndex={-1}>{textoDelLugar.titulo}</h2>
 
               <section className="leg-card" data-done={lugarListo}>
                 <header className="leg-head">

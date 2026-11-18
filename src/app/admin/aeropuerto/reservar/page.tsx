@@ -10,9 +10,11 @@ import { getAirportOfficePickup, officePickupReady } from "@/lib/airport/office-
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 
-export default async function NewAirportReservationPage({ searchParams }: { searchParams: Promise<{ date?: string; tramos?: string; sentido?: string }> }) {
+export default async function NewAirportReservationPage({ searchParams }: { searchParams: Promise<{ date?: string; tramos?: string; sentido?: string; vuelo?: string }> }) {
   const user = await getCurrentReservationsUserOrRedirect();
-  const { date, tramos, sentido } = await searchParams;
+  const { date, tramos, sentido, vuelo } = await searchParams;
+  // El vuelo ya elegido al pasar de un tramo a ida y vuelta (o al revés) con «¿Ida y vuelta?».
+  const vueloElegido = typeof vuelo === "string" && /^[\w-]{1,64}$/.test(vuelo) ? vuelo : undefined;
   const sentidoPedido = sentido === "ARRIVAL" || sentido === "DEPARTURE" ? sentido : null;
   const idaYVuelta = tramos === "ida-y-vuelta";
   const today = argentinaDateKey(new Date());
@@ -41,6 +43,8 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
           fares={fares}
           initialDate={initialDate}
           initialFlights={checkout.flights}
+          initialOrder={sentidoPedido ?? "ARRIVAL"}
+          initialFirstFlightId={vueloElegido}
           coverage={checkout.coverage}
           extras={checkout.extras}
           officePickup={officePickupReady(checkout.officePickup) ? checkout.officePickup : null}
@@ -52,7 +56,8 @@ export default async function NewAirportReservationPage({ searchParams }: { sear
           fares={fares}
           initialDirection={sentidoPedido ?? (fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE")}
           startAtFlights={Boolean(sentidoPedido)}
-          // Las tres opciones como en la web: «Ida y vuelta» lleva al alta de ida y vuelta del panel.
+          initialFlightId={vueloElegido}
+          // «¿Ida y vuelta?» lleva al alta de ida y vuelta del panel, con el día, el sentido y el vuelo.
           roundTripHref={`/admin/aeropuerto/reservar?date=${initialDate}&tramos=ida-y-vuelta`}
           initialDate={initialDate}
           initialFlights={checkout.flights}

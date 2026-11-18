@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { hrefConViaje } from "./airport-trip-options";
 import {
   buildPassengerPayload,
   filterBookableSchedules,
@@ -232,14 +233,18 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     return html.split(fragmento).length - 1;
   }
 
-  it("las tres tarjetas y la barra del vuelo están a la vista, sin pasos ni botón «Continuar»", () => {
+  it("el mismo recuadro que el ida y vuelta, sin tarjetas, con la vuelta apagada al lado de la fecha", () => {
     const html = renderToStaticMarkup(createElement(AirportCheckoutForm, props));
-    // Tres tarjetas: llegada y salida como botones (aria-pressed) e ida y vuelta como link.
-    expect(veces(html, 'aria-pressed="')).toBe(2);
-    expect(veces(html, "wizard-option-route")).toBe(3);
+    // Pedido de Jugue (18-nov): ya no están las tres tarjetas «¿Llegás o te vas?»; el sentido se
+    // elige en el recuadro (Desde ⇄ Hacia) y la segunda fecha es la vuelta, apagada, para sumarla.
+    expect(html).not.toContain("wizard-option");
+    expect(html).not.toContain("¿Llegás o te vas?");
+    expect(html).not.toContain('role="switch"');
     expect(html).toContain("Llegada a Chapelco");
-    expect(html).toContain("Salida desde San Martín");
-    expect(html).toContain("Ida y vuelta");
+    expect(veces(html, 'data-vacio="true"')).toBe(1);
+    expect(html).toContain("Vuelta · Salida");
+    expect(html).toContain("Agregar vuelta");
+    expect(html).toContain("más por persona");
     // Una sola página que se despliega sola: no quedan los «Paso N de 3» ni los botones de avance.
     expect(html).not.toContain("Paso 1 de 3");
     expect(html).not.toContain("Paso 2 de 3");
@@ -261,17 +266,36 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     expect(html).not.toContain("Reservar</button>");
   });
 
-  it("el vuelo usa la barra con un solo tramo y sin botón de invertir", () => {
-    // `startAtFlights` es el camino real de la tarjeta «Llegada»/«Salida»: entra con el sentido ya
-    // elegido y la barra a la vista.
+  it("el vuelo usa la barra con un solo tramo, con las flechas para invertir como el ida y vuelta", () => {
     const html = renderToStaticMarkup(createElement(AirportCheckoutForm, { ...props, startAtFlights: true }));
-    expect(html).toContain("Tu vuelo · Llegada");
-    expect(veces(html, "trip-search-leg")).toBe(1);
-    expect(html).not.toContain("Invertir");
-    // Desde/Hacia se muestran fijos: el sentido lo eligió la tarjeta de arriba.
-    expect(veces(html, 'data-fijo="true"')).toBe(2);
+    // El casillero se llama igual que el primero del ida y vuelta.
+    expect(html).toContain("Ida · Llegada");
+    expect(veces(html, 'class="trip-search-field trip-search-leg"')).toBe(1);
+    // Desde y Hacia se editan, y ⇄ pasa de llegada a salida (antes eran fijos, sin invertir).
+    expect(html).toContain("Invertir");
+    expect(veces(html, 'data-fijo="true"')).toBe(0);
+    expect(veces(html, 'data-campo="desde"')).toBe(1);
+    expect(veces(html, 'data-campo="hacia"')).toBe(1);
     // La lista suelta de vuelos del paso 2 ya no está.
     expect(html).not.toContain("flight-options");
+  });
+
+  it("«¿Ida y vuelta?» lleva al ida y vuelta con el día, el sentido y el vuelo elegidos", () => {
+    expect(hrefConViaje("/admin/aeropuerto/reservar?date=2026-11-19&tramos=ida-y-vuelta", { date: "2026-11-20", sentido: "DEPARTURE", vuelo: "fl-1" }))
+      .toBe("/admin/aeropuerto/reservar?date=2026-11-20&tramos=ida-y-vuelta&sentido=DEPARTURE&vuelo=fl-1");
+    // Sin vuelo elegido no queda un `vuelo` viejo colgado.
+    expect(hrefConViaje("/reservar/aeropuerto/ida-y-vuelta?vuelo=viejo", { date: "2026-11-19", sentido: "ARRIVAL" }))
+      .toBe("/reservar/aeropuerto/ida-y-vuelta?date=2026-11-19&sentido=ARRIVAL");
+  });
+
+  it("los lugares se abren sin encabezado a la vista, con el título sólo para el lector de pantalla", () => {
+    // Pedido de Jugue (18-nov): sin «Los lugares / ¿Adónde te llevamos…?» para que la barra siga a la vista.
+    const html = renderToStaticMarkup(createElement(AirportCheckoutForm, { ...props, initialFlightId: "vuelo-llegada" }));
+    expect(html).toContain('class="pickup-flow"');
+    expect(html).toContain("Punto de destino");
+    expect(html).not.toContain('<p class="eyebrow">Los lugares</p>');
+    expect(html).not.toContain("te acercamos hasta la puerta");
+    expect(html).toMatch(/<h2 class="sr-only" id="pickup-flow-titulo" tabindex="-1">¿Adónde te llevamos cuando llegás\?<\/h2>/);
   });
 
   it("con el vuelo elegido se abre «Los lugares» y con el lugar, los datos", () => {
