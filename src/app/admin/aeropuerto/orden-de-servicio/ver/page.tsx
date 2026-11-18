@@ -14,8 +14,10 @@ import {
   serviceOrderRow,
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
-import { linkDeLaOrden, rutaDeAsignacion } from "@/lib/airport/service-order-link";
+import { linkDeLaOrden } from "@/lib/airport/service-order-link";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { prisma } from "@/lib/db/prisma";
+import { CombiDelVueloModal, INCLUDE_COMBIS_DEL_VUELO, nombreDeChofer, opcionesDeCombi } from "../../combi-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +29,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; vehicle?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; vehicle?: string; notice?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -63,6 +65,16 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     cabeceras.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
   const origen = `${protocolo}://${host}`;
 
+  // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
+  // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
+  const flightIds = [...new Set(blocks.flatMap((block) => (block.flightId ? [block.flightId] : [])))];
+  const [vuelos, { naves, choferes }] = await Promise.all([
+    prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
+    opcionesDeCombi()
+  ]);
+  const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
+  const volverAOrden = new URLSearchParams({ date, ...(flightId ? { flight: flightId } : {}), ...(vehicle ? { vehicle } : {}) }).toString();
+
   // Las naves de cada vuelo, para pasar un pasajero de una a otra desde cualquier orden del vuelo.
   const navesPorVuelo = new Map<string, Array<{ assignmentId: string; name: string }>>();
   for (const block of blocks) {
@@ -78,13 +90,34 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       ? new URLSearchParams({ date, flight: ref.flight, ...(ref.vehicle ? { vehicle: ref.vehicle } : {}) })
       : null;
     const codes = block.passengers.map((pasajero) => pasajero.code);
+    const vuelo = block.flightId ? vueloPorId.get(block.flightId) : undefined;
+    // La nave de esta orden (si el vuelo sale con varias) o todas las del vuelo.
+    const propias = vuelo?.assignments.filter((a) => !block.vehicle || a.id === block.vehicle.assignmentId) ?? [];
     return (
+      <>
+      {vuelo ? (
+        <div className="no-print orden-asignar">
+          <CombiDelVueloModal
+            vuelo={vuelo}
+            naves={naves}
+            choferes={choferes}
+            resetKey={params?.notice ?? ""}
+            volverAOrden={volverAOrden}
+            trigger={propias.length
+              ? `Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
+              : "Asignar nave y chofer"}
+            triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelo.number}`}
+            triggerClassName="ghost-button"
+          />
+        </div>
+      ) : null}
       <OrdenAcciones
         ordenId={idDeLaOrden(block)}
         excelHref={query && codes.length ? `/admin/aeropuerto/orden-de-servicio?${query}` : null}
         link={ref.flight && codes.length ? linkDeLaOrden(origen, date, ref.flight, ref.vehicle) : null}
         restablecer={block.manualOrder && block.flightId ? { date, flightId: block.flightId, codes } : null}
       />
+      </>
     );
   }
 
@@ -109,11 +142,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       title="Orden de servicio"
       eyebrow="Operación"
       role={usuario.role}
+      notice={params?.notice}
       action={
         <div className="form-actions no-print">
-          {/* Nave y chofer se asignan en un solo lugar, para todas las áreas: la orden lleva ahí con
-              su fecha ya puesta, en vez de obligar a buscarla de nuevo en el panel (#248). */}
-          <Link className="ghost-button" href={rutaDeAsignacion(date)}>Asignar naves y choferes</Link>
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
         </div>
       }
