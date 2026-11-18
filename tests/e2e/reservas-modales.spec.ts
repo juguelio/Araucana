@@ -125,10 +125,14 @@ test("Editar reserva da acceso a cargar el pago y, ya pagada, no lo vuelve a ofr
   await expect(seccion).toContainText("$ 15.000");
   await seccion.getByLabel("Forma de pago").fill("Transferencia");
   await seccion.getByLabel("Referencia (opcional)").fill("OP-123");
+  // El comprobante se adjunta al registrar el pago. Sin almacenamiento de archivos (como en esta base
+  // local) el pago se registra igual y el aviso dice que falta el comprobante.
+  await seccion.getByLabel("Comprobante (opcional)").setInputFiles({ name: "comprobante.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%comprobante\n") });
   await page.screenshot({ path: "/tmp/araucana-editar-pago.png", fullPage: true });
   await seccion.getByRole("button", { name: "Registrar pago" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/admin/reservas/${codes.editar}\\?`));
+  await expect(page.getByRole("status")).toContainText("Pago registrado, pero el comprobante no se adjuntó");
   const pagada = await db.reservation.findUniqueOrThrow({ where: { code: codes.editar }, include: { payment: true } });
   expect(pagada.payment?.status).toBe("APPROVED");
   expect(pagada.payment?.method).toBe("Transferencia");

@@ -117,6 +117,11 @@ function RegistrarPagoForm({ reservation, listQuery }: { reservation: AdminReser
       <p>Registrá el pago cuando hayas recibido el total de <strong>{formatTotal(reservation)}</strong>.</p>
       <label>Forma de pago<input name="method" maxLength={60} placeholder="Efectivo, transferencia, tarjeta…" /></label>
       <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
+      <label>
+        Comprobante (opcional)
+        <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
+      </label>
+      <small className="muted">PDF, JPG, PNG o WEBP. Queda guardado junto al pago.</small>
       <button className="button" type="submit">Registrar pago</button>
     </form>
   );

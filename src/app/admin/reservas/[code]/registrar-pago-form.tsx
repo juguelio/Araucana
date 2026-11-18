@@ -13,6 +13,11 @@ export function RegistrarPagoForm({ code, total }: { code: string; total: string
         <input type="hidden" name="operation" value="payment" />
         <label>Forma de pago<input name="method" maxLength={60} placeholder="Efectivo, transferencia, tarjeta…" /></label>
         <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
+        <label>
+          Comprobante (opcional)
+          <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
+          <small className="muted">PDF, JPG, PNG o WEBP. Queda guardado junto al pago.</small>
+        </label>
         <button className="button" type="submit">Registrar pago</button>
       </form>
     </>
