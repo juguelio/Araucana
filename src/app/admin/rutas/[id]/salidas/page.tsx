@@ -1,19 +1,42 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { EncabezadoOrdenable } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
+import { hrefDePagina, leerOrden, leerPagina, paginar } from "@/lib/admin/list-order";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { listAdminSchedules } from "@/lib/booking/repository";
 import { vehicleLabel } from "@/lib/booking/schedule-vehicle";
 import { prisma } from "@/lib/db/prisma";
 import { deleteScheduleAction, setScheduleStatusAction } from "../../../salidas/actions";
-import { ScheduleCard } from "./schedule-card";
+import { ScheduleCard, statusLabel } from "./schedule-card";
+import {
+  COLUMNAS_SALIDAS,
+  ORDEN_INICIAL_SALIDAS,
+  ordenarSalidas,
+  vistaDeSalidas,
+  vistasDeSalidas,
+  type VistaSalidas,
+  type ColumnaSalida
+} from "./lista";
 import "./salidas.css";
 
 const weekdayShort = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZone: "UTC" });
 
+/** Salidas por página de la lista (issue #192): la ruta más cargada tiene 124 en un mes. */
+const POR_PAGINA = 50;
+
+/** Cómo se nombra cada columna en el resumen de la lista («ordenada por…»). */
+const etiquetasDeOrden: Record<ColumnaSalida, string> = {
+  fecha: "fecha y hora",
+  nave: "nave",
+  estado: "estado",
+  cupo: "lugares libres"
+};
+
 type RouteSchedulesPageProps = {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ month?: string; notice?: string }>;
+  searchParams?: Promise<{ month?: string; notice?: string; vista?: string; orden?: string; dir?: string; page?: string }>;
 };
 
 const shortDateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -118,6 +141,16 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
     schedulesByDay.set(key, daySchedules);
   }
 
+  // Issue #192: la misma lista de salidas, en calendario (programar) o en lista paginada (encontrar).
+  const urlParams = query ?? {};
+  const texto = (valor: string | undefined) => (typeof valor === "string" ? valor : undefined);
+  const base = `/admin/rutas/${route.id}/salidas`;
+  const vista = vistaDeSalidas(texto(urlParams.vista));
+  const orden = leerOrden(COLUMNAS_SALIDAS, ORDEN_INICIAL_SALIDAS, { orden: texto(urlParams.orden), dir: texto(urlParams.dir) });
+  const rango = paginar(ordenarSalidas(routeSchedules, orden), leerPagina(urlParams.page), POR_PAGINA);
+  const hrefVista = (destino: VistaSalidas) =>
+    hrefDePagina(base, { ...urlParams, vista: destino === "calendario" ? "" : destino }, 1);
+
   return (
     <AdminShell role={sessionUser.role}
       title={`${route.from} → ${route.to}`}
@@ -149,6 +182,65 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
         <div><span>Cupos libres</span><strong>{availableSeats}/{totalSeats}</strong><small>Sumatoria de la ruta</small></div>
       </section>
 
+      <ul className="salidas-vistas" aria-label="Cómo ver las salidas">
+        {(Object.keys(vistasDeSalidas) as VistaSalidas[]).map((opcion) => (
+          <li key={opcion}>
+            <Link
+              className={`dia-chip${opcion === vista ? " activo" : ""}`}
+              href={hrefVista(opcion)}
+              aria-current={opcion === vista ? "page" : undefined}
+            >
+              {vistasDeSalidas[opcion]}
+            </Link>
+          </li>
+        ))}
+      </ul>
+
+      {vista === "lista" ? (
+        <section className="plain-card admin-section route-schedule-list">
+          <div className="admin-edit-head">
+            <div>
+              <p className="eyebrow">Historial completo</p>
+              <h2>Lista de salidas</h2>
+            </div>
+            <p className="salidas-lista-resumen">
+              {rango.total === 1 ? "1 salida" : `${rango.total} salidas`} · ordenada por{" "}
+              {etiquetasDeOrden[orden.columna]}, {orden.direccion === "asc" ? "de menor a mayor" : "de mayor a menor"}
+            </p>
+          </div>
+          <div className="table-scroll">
+            <table className="data-table salidas-lista" aria-label={`Salidas de ${route.from} a ${route.to}`}>
+              <thead><tr>
+                <EncabezadoOrdenable etiqueta="Fecha y hora" columna="fecha" orden={orden} base={base} params={urlParams} />
+                <EncabezadoOrdenable etiqueta="Nave" columna="nave" orden={orden} base={base} params={urlParams} />
+                <EncabezadoOrdenable etiqueta="Estado" columna="estado" orden={orden} base={base} params={urlParams} />
+                <EncabezadoOrdenable etiqueta="Lugares libres" columna="cupo" orden={orden} base={base} params={urlParams} />
+                <th>Acciones</th>
+              </tr></thead>
+              <tbody>
+                {rango.items.map((schedule) => (
+                  <tr key={schedule.id}>
+                    <th scope="row" data-hoy={dateKey(schedule.departureAt) === today || undefined}>
+                      {shortDateFormatter.format(schedule.departureAt)} · {timeFormatter.format(schedule.departureAt)}
+                    </th>
+                    <td>
+                      {vehicleLabel({ name: schedule.vehicleName, licensePlate: schedule.vehiclePlate, internalNumber: schedule.vehicleInternalNumber })}
+                      {schedule.extraVehicleNames?.length ? <small>+ {schedule.extraVehicleNames.join(" + ")}</small> : null}
+                    </td>
+                    <td>{statusLabel(schedule.status)}</td>
+                    <td>{schedule.availableSeats}/{schedule.totalSeats}</td>
+                    <td><Link className="table-link" href={`${base}/${schedule.id}`}>Ver salida</Link></td>
+                  </tr>
+                ))}
+                {rango.items.length === 0 && (
+                  <tr><td colSpan={5}>Todavía no hay salidas cargadas para esta ruta.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <Paginador {...rango} hrefPagina={(numero) => hrefDePagina(base, urlParams, numero)} etiqueta="salidas de la ruta" />
+        </section>
+      ) : (
       <section className="plain-card admin-section route-schedule-list">
         <div className="admin-edit-head">
           <div>
@@ -201,6 +293,7 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
           })}
         </div>
       </section>
+      )}
     </AdminShell>
   );
 }

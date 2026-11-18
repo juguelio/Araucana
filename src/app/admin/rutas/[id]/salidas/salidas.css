@@ -59,3 +59,14 @@
   .route-schedule-list .calendar-day-schedules { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
   .route-schedule-list .calendar-schedule-actions a, .route-schedule-list .calendar-schedule-actions button { font-size: 13px; padding: 4px 0; }
 }
+
+/* Issue #192: la misma ruta en calendario (programar la semana) o en lista paginada (encontrar una
+   salida entre cientos). La lista usa el paginador y los encabezados ordenables del resto del panel. */
+.salidas-vistas { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.salidas-lista-resumen { margin: 0; max-width: 46ch; color: var(--ink-muted); font-size: 13px; font-weight: 700; text-align: right; }
+.salidas-lista th[scope="row"] { color: var(--ink); font-size: 13px; font-weight: 700; letter-spacing: 0; text-transform: none; white-space: nowrap; }
+.salidas-lista td small { display: block; color: var(--ink-muted); }
+.salidas-lista th[data-hoy="true"] { color: var(--accent); }
+@media (max-width: 760px) {
+  .salidas-lista-resumen { text-align: left; }
+}
