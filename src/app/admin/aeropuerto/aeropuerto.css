@@ -93,43 +93,18 @@
 .aero-tablero .flight-actions-body form:last-child .ghost-button { width: 100%; justify-content: center; color: var(--accent); }
 
 /* Coordinar inicio de recorrida: un renglón finito en vez de una tarjeta grande. */
-.aero-coordinar { padding: 0; }
-.aero-coordinar > summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  font-size: 14px;
-  cursor: pointer;
-  list-style: none;
-}
-.aero-coordinar > summary::-webkit-details-marker { display: none; }
-.aero-coordinar > summary::before { content: "▸"; font-size: 11px; color: var(--ink-muted); transition: transform .15s ease; }
-.aero-coordinar[open] > summary::before { transform: rotate(90deg); }
-.aero-coordinar > summary .muted { font-size: 12px; }
-.aero-coordinar[open] > summary { border-bottom: 1px dashed var(--line); }
-.aero-coordinar > p, .aero-coordinar > form { margin: 12px 18px; }
+.aero-coordinar-modal { width: min(600px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.aero-coordinar-modal .reservas-modal-body { margin-top: 16px; }
+.aero-coordinar-form fieldset { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.aero-coordinar-form legend { margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+.aero-coordinar-form .aero-coordinar-vuelo { display: flex; align-items: flex-start; gap: 8px; font-weight: 500; font-size: 14px; }
+.aero-coordinar-form .aero-coordinar-vuelo input { margin-top: 3px; }
+.aero-coordinar-form input[type="datetime-local"] { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; }
 
 /* Cargar vuelo a mano: título del tamaño del resto y el botón del alto de los campos. */
 .aero-carga-modal { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
 .aero-carga .admin-form-grid { align-items: end; }
 .aero-carga .admin-form-grid > button { align-self: end; min-height: 46px; height: 46px; }
-
-/* Clave de AirLabs: el campo con el mismo estilo que los demás. */
-.key-box .checkout-fields { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
-.key-box .checkout-fields > label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
-.key-box .checkout-fields input[type="password"] {
-  width: 100%;
-  min-height: 46px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--bg);
-  font: inherit;
-  font-size: 14px;
-  color: var(--ink);
-}
-.key-box .checkout-fields .quantity-help { grid-column: 1 / -1; }
 
 @media (max-width: 760px) {
   /* Resumen: 3 arriba y 2 abajo a lo ancho, sin hueco al final. */
@@ -142,7 +117,6 @@
   .aero-tablero .flight-card-actions .ghost-button,
   .aero-tablero .flight-card-actions .flight-actions > summary { justify-content: center; width: 100%; min-height: 36px; padding: 0 8px; }
   .aero-tablero .flight-actions-body { width: min(280px, calc(100vw - 48px)); }
-  .key-box .checkout-fields { grid-template-columns: minmax(0, 1fr); }
 }
 .aero-carga-modal .reservas-modal-body { margin-top: 16px; }
 .aero-carga-modal .admin-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -151,3 +125,30 @@
 @media (max-width: 560px) {
   .aero-carga-modal .admin-form-grid { grid-template-columns: minmax(0, 1fr); }
 }
+.aero-coordinar-form { display: grid; gap: 14px; }
+.aero-coordinar-form > label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.aero-coordinar-form .form-actions { margin: 0; }
+
+/* Combi del vuelo: la etiqueta es el botón que abre el modal con el buscador de naves. */
+.aero-combi-boton { cursor: pointer; background: transparent; font: inherit; font-size: 11px; font-weight: 700; }
+.aero-combi-boton:hover { border-color: var(--primary); color: var(--primary); }
+.aero-combi-boton.aero-combi-ok { color: var(--moss); border-color: var(--moss); }
+.aero-combi-boton.aero-combi-vacia { color: var(--ink-muted); border-style: dashed; }
+.aero-combi-modal { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.aero-combi-modal .reservas-modal-body { margin-top: 16px; display: grid; gap: 16px; }
+.aero-combi-modal fieldset.inline-actions { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; }
+.aero-combi-modal fieldset.inline-actions > .button { justify-self: start; }
+.aero-combi-asignadas { display: grid; gap: 8px; font-size: 13px; }
+.aero-combi-asignada { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.nave-buscador { display: grid; gap: 10px; }
+.nave-buscador-campo { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.nave-buscador-campo input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
+.nave-buscador-lista { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; padding-right: 2px; }
+.nave-buscador-opcion { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.nave-buscador-opcion:has(input:checked) { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, transparent); }
+.nave-buscador-opcion > span { display: grid; gap: 2px; }
+.nave-buscador-opcion small { font-size: 12px; }
+
+/* Día anterior / siguiente a los costados del selector de fecha. */
+.flights-date { flex-wrap: wrap; }
+.flights-date .flights-dia-paso { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }

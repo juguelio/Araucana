@@ -51,11 +51,27 @@ test("una fecha futura muestra los vuelos estimados en el panel", async ({ page 
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
   await page.goto(`/admin/aeropuerto?date=${futureDate}`);
   await expect(page.getByText(`No hay vuelos cargados para ${futureDate}.`)).toHaveCount(0);
-  await expect(page.getByText(/Ningún vuelo de este día está confirmado todavía/)).toBeVisible();
+  // Las proyecciones se ven con su rótulo en cada tarjeta, sin el aviso largo arriba.
+  await expect(page.getByText(/Ningún vuelo de este día está confirmado todavía/)).toHaveCount(0);
   for (const id of futureIds) {
     await expect(page.locator(`#vuelo-${id}`).getByText(/Proyección histórica/)).toBeVisible();
   }
   await expect(page.getByRole("heading", { name: "Arribos 1" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Partidas 1" })).toBeVisible();
   await page.screenshot({ path: "/tmp/araucana-airport-future-date.png", fullPage: true });
+});
+
+test("siempre hay día anterior y siguiente, y no aparece el botón «Hoy»", async ({ page }) => {
+  expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
+  await page.goto(`/admin/aeropuerto?date=${date}`);
+  await expect(page.getByRole("link", { name: "Hoy", exact: true })).toHaveCount(0);
+  await page.getByRole("link", { name: "Día siguiente" }).click();
+  await expect(page).toHaveURL(new RegExp(`date=${futureDate}`));
+  await expect(page.locator(`#vuelo-${futureIds[0]}`)).toBeVisible();
+  await page.getByRole("link", { name: "Día anterior" }).click();
+  await expect(page).toHaveURL(new RegExp(`date=${date}`));
+  await page.getByRole("link", { name: "Día anterior" }).click();
+  await expect(page).toHaveURL(/date=2031-11-13/);
+  await expect(page.getByRole("link", { name: "Día siguiente" })).toBeVisible();
+  await page.screenshot({ path: "/tmp/araucana-aeropuerto-dias.png" });
 });

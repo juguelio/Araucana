@@ -5,15 +5,12 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { detectFlightChange, FLIGHT_STATUSES, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { fechaLocal } from "@/lib/airport/projection";
-import { syncAirportFlights } from "@/lib/airport/sync";
-import { mensajeDeRefresco } from "@/lib/airport/sync-summary";
-import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
 import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
 import { formatAuditDate } from "@/lib/audit/labels";
-import { AIRLABS_KEY_SETTING, setSetting } from "@/lib/settings/app-settings";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
 
@@ -309,6 +306,8 @@ export async function removeAssignmentAction(formData: FormData) {
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
   if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.");
+  // Vuelve al día del vuelo: quitar una combi desde el modal no puede dejar al operador en otro día.
+  if (removed) redirect(`/admin/aeropuerto?${new URLSearchParams({ date: localInput(removed.flight.scheduledAt).slice(0, 10), notice: "Combi quitada del vuelo." })}`);
   notice("Combi quitada del vuelo.");
 }
 
@@ -321,49 +320,3 @@ export async function deleteFlightAction(formData: FormData) {
   notice("Vuelo borrado.");
 }
 
-/**
- * Modo degradado: si todavía no hay proveedor de datos en vivo, el botón no rompe nada
- * y lo dice. Una combi no puede depender de un servicio externo.
- */
-export async function refreshFlightsAction() {
-  const actor = await getCurrentReservationsUserOrRedirect();
-  const r = await syncAirportFlights({ actor });
-  revalidatePath("/admin/aeropuerto");
-  // Un solo aviso con todo: el modo degradado no puede esconder la intervención manual pendiente.
-  notice(mensajeDeRefresco(r));
-}
-
-/**
- * Guarda la clave de AirLabs desde el panel y la prueba en el momento. Antes vivía sólo en una
- * variable de entorno del hosting: así se puede resolver sin depender de nadie más. Sólo ADMIN.
- */
-export async function saveAirLabsKeyAction(formData: FormData) {
-  const usuario = await getCurrentAdminOrRedirect();
-  const borrar = value(formData, "borrar");
-  const apiKey = value(formData, "apiKey");
-
-  if (borrar) {
-    await setSetting(AIRLABS_KEY_SETTING, null, usuario.email);
-    await auditAirport({ actor: usuario, action: "DELETE", entityLabel: "Clave de AirLabs", summary: "Clave de AirLabs borrada: los vuelos dejan de actualizarse solos." });
-    revalidatePath("/admin/aeropuerto");
-    notice("Clave borrada: los vuelos se siguen viendo, pero ya no se actualizan solos.");
-  }
-
-  if (apiKey.length < 8) {
-    notice("Esa clave no parece válida (es muy corta). No se guardó nada.");
-  }
-
-  await setSetting(AIRLABS_KEY_SETTING, apiKey, usuario.email);
-  // Sólo el hecho: la clave no se copia a la auditoría.
-  await auditAirport({ actor: usuario, action: "UPDATE", entityLabel: "Clave de AirLabs", summary: "Clave de AirLabs guardada." });
-  const r = await syncAirportFlights({ actor: usuario });
-  revalidatePath("/admin/aeropuerto");
-
-  if (r.errores.length > 0) {
-    notice(`La clave se guardó, pero AirLabs no respondió: ${r.errores[0]}`);
-  }
-
-  notice(
-    `Clave guardada y probada: ${r.creados} vuelos nuevos, ${r.actualizados} revisados, ${r.proyectados} proyectados.`
-  );
-}

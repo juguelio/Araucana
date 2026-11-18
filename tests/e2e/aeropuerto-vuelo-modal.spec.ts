@@ -28,6 +28,9 @@ test.beforeEach(async ({ page }) => {
 test("el formulario de carga manual está detrás de un botón y se abre en un modal", async ({ page }) => {
   await page.goto("/admin/aeropuerto?date=2031-05-20");
   await expect(page.getByLabel("Número de vuelo")).toHaveCount(0);
+  // Ni la clave de AirLabs ni «Actualizar ahora»: los vuelos de hoy se refrescan solos al abrir la pantalla.
+  await expect(page.getByText("Clave de AirLabs")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Actualizar ahora" })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Cargar vuelo a mano" }).click();
   const modal = page.getByRole("dialog", { name: "Cargar vuelo a mano" });
@@ -43,6 +46,12 @@ test("el formulario de carga manual está detrás de un botón y se abre en un m
   await expect(page.getByText(`Vuelo ${numero} cargado.`)).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await db.flight.count({ where: { number: numero, source: "MANUAL" } })).toBe(1);
+});
+
+test("la pantalla de hoy abre aunque AirLabs no responda (refresco automático)", async ({ page }) => {
+  await page.goto("/admin/aeropuerto");
+  await expect(page.getByRole("heading", { name: "Aeropuerto" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cargar vuelo a mano" })).toBeVisible();
 });
 
 test("un error de carga se muestra dentro del modal, sin cerrarlo", async ({ page }) => {
