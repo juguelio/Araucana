@@ -21,6 +21,7 @@ import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import { chargesZoneExtra, isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import { airportExtrasBreakdown, MAX_SPORTS_LUGGAGE, type AirportExtras } from "@/lib/airport/extras";
+import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -38,6 +39,21 @@ type AirportFieldErrors = PassengerFieldErrors & {
   customPrice?: string;
   pickupAddress?: string;
 };
+
+/** Orden en que se ven los campos del aeropuerto: define a cuál va el foco (#242). */
+const AIRPORT_FIELD_ORDER = [
+  "flight",
+  "pickupAddress",
+  "passengerCount",
+  "firstName",
+  "lastName",
+  "email",
+  "phoneCountryCode",
+  "phone",
+  "documentType",
+  "documentId",
+  "customPrice"
+] as const;
 
 /**
  * Checkout del aeropuerto de **un solo tramo**, en una sola página que se va abriendo sola, igual que
@@ -207,6 +223,10 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<AirportFieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // El error tiene que quedar a la vista y el foco ir al campo culpable, no a un cartel lejano.
+  useFocusFirstError(fieldErrors, AIRPORT_FIELD_ORDER, formRef);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [cargandoVuelos, setCargandoVuelos] = useState(false);
@@ -548,7 +568,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }
 
   return (
-    <form className="checkout-layout" onSubmit={handleSubmit} noValidate>
+    <form className="checkout-layout" onSubmit={handleSubmit} ref={formRef} noValidate>
       <div className="checkout-main">
         <section className="form-panel checkout-panel">
           {/* Indicador de por dónde va: se completa solo, no hay que tocarlo. */}
@@ -564,6 +584,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             })}
           </ol>
 
+          <FormErrorSummary fieldErrors={fieldErrors} order={AIRPORT_FIELD_ORDER} />
           {error ? <p className="error" role="alert" ref={errorRef}>{error} {error === OUTSIDE_PICKUP_ZONE ? <a href="https://wa.me/5492944649049" target="_blank" rel="noreferrer">Consultar por WhatsApp ↗</a> : null}</p> : null}
 
           {/* Las tres opciones, siempre a la vista: elegir llegada o salida fija el sentido del único
