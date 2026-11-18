@@ -6,7 +6,8 @@ import { z } from "zod";
 import { detectFlightChange, FLIGHT_STATUSES, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { fechaLocal } from "@/lib/airport/projection";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { conflictKey, dayInterval, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
+import { conflictKey, dayInterval, driverConflicts, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
+import { airportServiceWindow } from "@/lib/airport/service-window";
 import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
 import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
@@ -183,82 +184,50 @@ export async function updateFlightAction(formData: FormData) {
 }
 
 /**
- * El operador confirma que el avión aterrizó o que salió, con la hora real. Es la salida cuando la
- * fuente no la da: Chapelco en temporada baja no aparece en AirLabs, y sin esto el tablero se queda
- * con vuelos «sin confirmar» que el operador ya vio llegar.
+ * Asigna una combi a un vuelo, con su chofer, o le cambia el chofer a una combi que ya tiene. Se puede
+ * cambiar hasta último momento: agregar, cambiar o quitar. Si la nave o el chofer ya están ocupados
+ * en ese tramo, avisa y pide confirmar (como el resto del panel).
+ *
+ * Sin el campo `driverId` en el formulario (el tablero de salidas sólo manda la nave) el chofer de una
+ * combi ya asignada no se toca.
  */
-export async function confirmFlightAction(formData: FormData) {
-  const actor = await getCurrentReservationsUserOrRedirect();
-
-  const id = value(formData, "id");
-  const prev = await prisma.flight.findUnique({ where: { id } });
-  if (!prev) return notice("El vuelo ya no existe.");
-
-  // Copia local para que el narrowing sobreviva al `redirect` del final.
-  const vuelo = prev;
-
-  // El estado lo decide la dirección: un arribo aterriza, una partida sale. No se elige a mano.
-  const status = vuelo.direction === "ARRIVAL" ? "LANDED" : "EN_ROUTE";
-  const horaIngresada = value(formData, "actualAt");
-  const actualAt = horaIngresada ? localDateTime(horaIngresada, argentina) : new Date();
-  if (!actualAt) redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(vuelo.scheduledAt), notice: "La hora no se entiende." })}#vuelo-${id}`);
-
-  const cambio = detectFlightChange(
-    { status: vuelo.status, scheduledAt: vuelo.scheduledAt, estimatedAt: vuelo.estimatedAt },
-    { status, scheduledAt: vuelo.scheduledAt, estimatedAt: vuelo.estimatedAt }
-  );
-
-  const updated = await prisma.flight.update({
-    where: { id },
-    data: {
-      status,
-      actualAt,
-      ...(cambio
-        ? { events: { create: { kind: cambio.kind, fromValue: cambio.fromValue, toValue: cambio.toValue } } }
-        : {})
-    }
-  });
-  await auditAirport({
-    actor,
-    entityId: id,
-    entityLabel: flightLabel(vuelo),
-    summary: vuelo.direction === "ARRIVAL" ? "Aterrizaje confirmado a mano." : "Salida confirmada a mano.",
-    before: { status: vuelo.status, actualAt: vuelo.actualAt },
-    after: { status: updated.status, actualAt: updated.actualAt }
-  });
-
-  revalidatePath("/admin/aeropuerto");
-  revalidatePath("/admin/aeropuerto/orden-de-servicio");
-  const hora = actualAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: argentina });
-  notice(`${vuelo.number}: ${status === "LANDED" ? "aterrizaje" : "salida"} confirmada a las ${hora}.`);
-  redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(vuelo.scheduledAt) })}#vuelo-${id}`);
-}
-
-/** Asigna una combi a un vuelo. Se puede cambiar hasta último momento: agregar, cambiar o quitar. */
 export async function assignVehicleAction(_state: unknown, formData: FormData): Promise<{ error?: string; conflicts?: FleetConflict[]; confirmation?: string }> {
   const user = await getCurrentReservationsUserOrRedirect();
 
   const flightId = value(formData, "flightId");
   const vehicleId = value(formData, "vehicleId");
-  const driverId = value(formData, "driverId") || null;
+  const sendsDriver = formData.has("driverId");
+  const requestedDriver = value(formData, "driverId") || null;
   if (!flightId || !vehicleId) return { error: "Elegí una combi para asignar." };
 
   const result = await prisma.$transaction(async (tx) => {
     await lockFleet(tx, [vehicleId]);
     const flight = await tx.flight.findUnique({ where: { id: flightId } });
     if (!flight) return { error: "El vuelo ya no existe." };
-    const days = new Set([flight.scheduledAt, flight.estimatedAt, flight.pickupStartOverrideAt]
-      .flatMap((date) => date ? [localInput(date).slice(0, 10)] : []));
-    const hits = ["CANCELLED", "DIVERTED"].includes(flight.status) ? [] : (await Promise.all(
-      [...days].map((day) => specialConflicts(tx, { vehicleId, ...dayInterval(day) }, undefined, true))
-    )).flat();
-    const conflicts = [...new Map(hits.map((hit) => [hit.id, hit])).values()];
-    const confirmation = conflictKey(conflicts, [flightId, vehicleId]);
-    if (conflicts.length && value(formData, "confirmation") !== confirmation) return { conflicts, confirmation };
-
     const previous = await tx.airportVehicleAssignment.findUnique({
       where: { flightId_vehicleId: { flightId, vehicleId } }, select: { driverId: true }
     });
+    const driverId = sendsDriver ? requestedDriver : previous?.driverId ?? null;
+    const driverChanged = driverId !== (previous?.driverId ?? null);
+    if (previous && !driverChanged) return { error: "La combi ya tenía ese chofer." };
+    if (driverId && driverChanged && !(await tx.user.findFirst({ where: { id: driverId, role: "DRIVER", isActive: true }, select: { id: true } }))) {
+      return { error: "Ese chofer no está disponible: elegí un chofer activo." };
+    }
+
+    const active = !["CANCELLED", "DIVERTED"].includes(flight.status);
+    // La nave se controla al sumarla; al cambiar sólo el chofer, ya estaba en el vuelo.
+    const days = new Set([flight.scheduledAt, flight.estimatedAt, flight.pickupStartOverrideAt]
+      .flatMap((date) => date ? [localInput(date).slice(0, 10)] : []));
+    const vehicleHits = active && !previous ? (await Promise.all(
+      [...days].map((day) => specialConflicts(tx, { vehicleId, ...dayInterval(day) }, undefined, true))
+    )).flat() : [];
+    const driverHits = active && driverId && driverChanged
+      ? await driverConflicts(tx, { driverId, ...airportServiceWindow(flight) }, { flightId, vehicleId })
+      : [];
+    const conflicts = [...new Map([...vehicleHits, ...driverHits].map((hit) => [hit.id, hit])).values()];
+    const confirmation = conflictKey(conflicts, [flightId, vehicleId, driverId]);
+    if (conflicts.length && value(formData, "confirmation") !== confirmation) return { conflicts, confirmation };
+
     const assignment = await tx.airportVehicleAssignment.upsert({
       where: { flightId_vehicleId: { flightId, vehicleId } },
       update: { driverId },
@@ -273,20 +242,24 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
       const found = drivers.find((item) => item.id === driver);
       return found ? found.name ?? found.email : null;
     };
+    const vehicleName = vehicle?.name ?? vehicleId;
     await recordEntityAudit(tx, {
       actor: user, entity: "AIRPORT", entityId: flightId, entityLabel: flightLabel(flight),
       action: previous ? "UPDATE" : "CREATE",
-      summary: previous ? `Chofer de la combi ${vehicle?.name ?? vehicleId} cambiado en el vuelo.` : `Combi ${vehicle?.name ?? vehicleId} asignada al vuelo.`,
-      before: previous ? { driver: driverName(previous.driverId) } : null,
-      after: { vehicle: vehicle?.name ?? vehicleId, driver: driverName(driverId) }
+      summary: !previous ? `Combi ${vehicleName} asignada al vuelo.`
+        : driverId ? `Chofer de la combi ${vehicleName} cambiado en el vuelo.` : `Chofer de la combi ${vehicleName} quitado del vuelo.`,
+      before: previous ? { vehicle: vehicleName, driver: driverName(previous.driverId) } : null,
+      after: { vehicle: vehicleName, driver: driverName(driverId) }
     });
-    return { day: localInput(flight.scheduledAt).slice(0, 10) };
+    const message = !previous ? "Combi asignada al vuelo." : driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.";
+    return { day: localInput(flight.scheduledAt).slice(0, 10), message };
   });
-  if (!result.day) return result;
+  const { day, message } = result;
+  if (!day || !message) return result;
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
-  if (returnsToBoard(formData)) redirectToBoard(result.day, "Combi asignada al vuelo.");
-  redirect(`/admin/aeropuerto?date=${result.day}&notice=${encodeURIComponent("Combi asignada al vuelo.")}`);
+  if (returnsToBoard(formData)) redirectToBoard(day, message);
+  redirect(`/admin/aeropuerto?date=${day}&notice=${encodeURIComponent(message)}`);
 }
 
 export async function removeAssignmentAction(formData: FormData) {

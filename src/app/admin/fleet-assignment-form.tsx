@@ -7,8 +7,11 @@ type ConflictState = { error?: string; conflicts?: FleetConflict[]; confirmation
 
 export function FleetConflictWarning({ conflicts, confirmation }: { conflicts?: FleetConflict[]; confirmation?: string }) {
   if (!conflicts?.length) return null;
+  const driver = conflicts.some((conflict) => conflict.subject === "driver");
+  const vehicle = conflicts.some((conflict) => conflict.subject !== "driver");
+  const title = driver && vehicle ? "Revisá la ocupación de la nave y del chofer." : driver ? "Revisá la ocupación del chofer." : "Revisá la ocupación de la nave.";
   return <div className="form-alert error span-2" role="alert">
-    <p>Revisá la ocupación de la nave.</p>
+    <p>{title}</p>
     <ul>{conflicts.map((conflict) => <li key={conflict.id}>
       <a href={conflict.href} target="_blank" rel="noreferrer">{conflict.possible ? "Posible cruce" : "Superposición"} · {conflict.label}</a>
     </li>)}</ul>

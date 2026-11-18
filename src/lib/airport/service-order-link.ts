@@ -115,6 +115,18 @@ export function linkDeLaOrden(origen: string, date: string, flight: string | nul
 }
 
 /**
+ * La pantalla donde se asignan **naves y choferes** del día (issue #248), con la fecha de la hoja puesta.
+ *
+ * Es una sola pantalla para todas las áreas —Salidas del día—, así que el botón de la orden no arma
+ * una vista nueva: lleva ahí sin que el operador tenga que volver a elegir el día a mano.
+ * `soloFaltantes` deja sólo los servicios a los que les falta nave o chofer (`&falta=1`).
+ */
+export function rutaDeAsignacion(date: string, soloFaltantes = false) {
+  const query = `date=${encodeURIComponent(date)}${soloFaltantes ? "&falta=1" : ""}`;
+  return `/admin/salidas-del-dia?${query}`;
+}
+
+/**
  * La planilla de excursiones del día (#110), con el mismo esquema de token que la orden del chofer.
  * Reusa el campo `flight` del payload para el id de la excursión cuando la planilla es de una sola.
  */

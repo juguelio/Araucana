@@ -5,7 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
-import { horaDeReferencia, separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
+import { separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -13,7 +13,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
-import { assignVehicleAction, confirmFlightAction, createFlightAction, removeAssignmentAction, savePickupStartAction } from "./actions";
+import { assignVehicleAction, createFlightAction, removeAssignmentAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
@@ -29,7 +29,7 @@ type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo
 const INCLUDE_VUELO = {
   events: { orderBy: { detectedAt: "desc" }, take: 1 },
   reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
-  assignments: { include: { vehicle: { include: { seats: true } }, driver: { select: { name: true, email: true } } } }
+  assignments: { orderBy: { createdAt: "asc" }, include: { vehicle: { include: { seats: true } }, driver: { select: { id: true, name: true, email: true } } } }
 } satisfies Prisma.FlightInclude;
 
 type VueloDelDia = Prisma.FlightGetPayload<{ include: typeof INCLUDE_VUELO }>;
@@ -44,6 +44,8 @@ function rangoDelDia(fecha: string) {
   const desde = new Date(`${fecha}T00:00:00.000-03:00`);
   return { desde, hasta: new Date(desde.getTime() + 24 * 3600 * 1000) };
 }
+
+const nombreDeChofer = (chofer: { name: string | null; email: string }) => chofer.name?.trim() || chofer.email;
 
 const hhmm = (d: Date) => new Date(d.getTime() + TZ_OFFSET_MIN * 60000).toISOString().slice(11, 16);
 
@@ -92,6 +94,18 @@ export default async function AirportPage({ searchParams }: PageProps) {
     licensePlate: nave.licensePlate,
     seats: butacasParaAeropuerto(nave._count.seats)
   }));
+
+  // Choferes para el modal de la combi: los mismos que ofrece «Salidas del día».
+  const choferes = (await prisma.user.findMany({
+    where: { role: "DRIVER", isActive: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+    select: { id: true, name: true, email: true }
+  })).map((chofer) => ({ id: chofer.id, label: nombreDeChofer(chofer) }));
+  // Si la combi tiene un chofer que ya no está activo, se sigue mostrando para no borrarlo sin querer.
+  const choferesCon = (actual: { id: string; name: string | null; email: string } | null) =>
+    actual && !choferes.some((chofer) => chofer.id === actual.id)
+      ? [{ id: actual.id, label: `${nombreDeChofer(actual)} (inactivo)` }, ...choferes]
+      : choferes;
 
   // En un día con vuelos confirmados, una proyeccion es un vuelo fantasma: no entra al tablero y, si
   // tiene reservas encima, se avisa abajo como reserva a reasignar. En un día sin ningún vuelo
@@ -146,7 +160,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
     // el operador puede confirmarlo él.
     const confirmado = v.status === "LANDED" || (v.direction === "DEPARTURE" && v.status === "EN_ROUTE");
     const sinConfirmar = pasado && !confirmado;
-    const puedeConfirmar = !confirmado && horaDeReferencia(snapshot) <= ahora;
     const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart({ ...v, estimatedAt: snapshot.estimatedAt });
 
     return (
@@ -191,7 +204,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 ? ocupados > 0
                   ? `sin combi · conviene ${combisSugeridas(ocupados)} ${combisSugeridas(ocupados) === 1 ? "combi" : "combis"}`
                   : "sin combi asignada"
-                : v.assignments.map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)})`).join(" · ")
+                : v.assignments.map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)}) · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")
             }
             triggerLabel={v.assignments.length === 0 ? `Asignar combi al ${v.number}` : `Cambiar combi del ${v.number}`}
             triggerClassName={`pill pill-combi aero-combi-boton${v.assignments.length ? " aero-combi-ok" : ocupados > 0 ? " pill-alerta" : " aero-combi-vacia"}`}
@@ -204,11 +217,23 @@ export default async function AirportPage({ searchParams }: PageProps) {
               <div className="aero-combi-asignadas">
                 <strong>Asignadas</strong>
                 {v.assignments.map((a) => (
-                  <form key={a.id} action={removeAssignmentAction} className="aero-combi-asignada">
-                    <input type="hidden" name="id" value={a.id} />
-                    <span>{a.vehicle.name} · {butacasParaAeropuerto(a.vehicle.seats.length)} lugares</span>
-                    <button className="ghost-button" type="submit">Quitar</button>
-                  </form>
+                  <div key={a.id} className="aero-combi-asignada">
+                    <span>{a.vehicle.name} · {butacasParaAeropuerto(a.vehicle.seats.length)} lugares · {a.driver ? `chofer ${nombreDeChofer(a.driver)}` : "sin chofer"}</span>
+                    {/* El chofer de una combi ya asignada se cambia acá mismo: avisa si está ocupado en otra salida. */}
+                    <FleetAssignmentForm action={assignVehicleAction}>
+                      <input type="hidden" name="flightId" value={v.id} />
+                      <input type="hidden" name="vehicleId" value={a.vehicle.id} />
+                      <select name="driverId" defaultValue={a.driver?.id ?? ""} aria-label={`Chofer de ${a.vehicle.name}`}>
+                        <option value="">Sin chofer</option>
+                        {choferesCon(a.driver).map((chofer) => <option key={chofer.id} value={chofer.id}>{chofer.label}</option>)}
+                      </select>
+                      <button className="ghost-button" type="submit">Guardar chofer</button>
+                    </FleetAssignmentForm>
+                    <form action={removeAssignmentAction}>
+                      <input type="hidden" name="id" value={a.id} />
+                      <button className="ghost-button" type="submit">Quitar</button>
+                    </form>
+                  </div>
                 ))}
               </div>
             ) : null}
@@ -218,6 +243,13 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 flightNumber={v.number}
                 naves={naves.filter((nave) => !v.assignments.some((a) => a.vehicle.id === nave.id))}
               />
+              <label className="aero-combi-chofer">
+                Chofer
+                <select name="driverId" defaultValue="" aria-label={`Chofer para ${v.number}`}>
+                  <option value="">Sin chofer</option>
+                  {choferes.map((chofer) => <option key={chofer.id} value={chofer.id}>{chofer.label}</option>)}
+                </select>
+              </label>
               <button className="button" type="submit">{v.assignments.length ? "Sumar nave" : "Asignar nave"}</button>
             </FleetAssignmentForm>
           </RowModal>
@@ -225,18 +257,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
           <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>
           </div>
           <div className="flight-card-actions">
-          {/* La fuente no siempre confirma: Chapelco en temporada baja no aparece en AirLabs. El
-              operador lo vio llegar, así que lo confirma él y el tablero se actualiza. */}
-          {!puedeConfirmar ? null : (
-            <form action={confirmFlightAction} className="flight-confirmar">
-              <input type="hidden" name="id" value={v.id} />
-              <label>
-                <span className="muted">{v.direction === "ARRIVAL" ? "Aterrizó a las" : "Salió a las"}</span>
-                <input type="datetime-local" name="actualAt" defaultValue={localInput(snapshot.estimatedAt ?? v.scheduledAt)} required />
-              </label>
-              <button className="button" type="submit">{v.direction === "ARRIVAL" ? "Confirmar aterrizaje" : "Confirmar salida"}</button>
-            </form>
-          )}
           {ocupados > 0 ? (
             <>
               <Link
