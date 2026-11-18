@@ -142,7 +142,9 @@
 .aero-combi-asignada { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 .aero-combi-asignada > span { flex: 1 1 100%; }
 .aero-combi-asignada > form:first-of-type { flex: 1 1 auto; }
-.aero-combi-asignada fieldset { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.aero-combi-modal .aero-combi-asignada fieldset.inline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.aero-combi-asignada fieldset.inline-actions > select { flex: 1 1 200px; width: auto; }
+.aero-combi-asignada fieldset.inline-actions > button { width: auto; }
 .aero-combi-asignada select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
 /* Buscador de naves a la izquierda y de choferes a la derecha; en pantallas angostas, apilados. */
 .aero-combi-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; align-items: start; }

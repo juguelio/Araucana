@@ -14,6 +14,7 @@ import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type Ent
 import { formatAuditDate } from "@/lib/audit/labels";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
+import { orderReturnHref } from "./return-to-order";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -258,7 +259,10 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   if (!day || !message) return result;
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
+  revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
   if (returnsToBoard(formData)) redirectToBoard(day, message);
+  const toOrder = orderReturnHref(formData, message);
+  if (toOrder) redirect(toOrder);
   redirect(`/admin/aeropuerto?date=${day}&notice=${encodeURIComponent(message)}`);
 }
 
@@ -278,7 +282,10 @@ export async function removeAssignmentAction(formData: FormData) {
   }
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
+  revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
   if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.");
+  const toOrder = orderReturnHref(formData, "Combi quitada del vuelo.");
+  if (toOrder) redirect(toOrder);
   // Vuelve al día del vuelo: quitar una combi desde el modal no puede dejar al operador en otro día.
   if (removed) redirect(`/admin/aeropuerto?${new URLSearchParams({ date: localInput(removed.flight.scheduledAt).slice(0, 10), notice: "Combi quitada del vuelo." })}`);
   notice("Combi quitada del vuelo.");
