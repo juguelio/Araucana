@@ -260,6 +260,9 @@ model Flight {
   scheduledAt   DateTime
   estimatedAt   DateTime?
   pickupStartOverrideAt DateTime?
+  /// Vuelos del mismo día y sentido que hace una sola camioneta en la misma vuelta («Coordinar
+  /// recorrida» / «Juntar arribos»). Comparten este id y la hoja del chofer los une en una orden.
+  pickupGroupId         String?
   actualAt      DateTime?
   status        String        @default("SCHEDULED")
   passengers    Int?
@@ -278,6 +281,7 @@ model Flight {
   @@unique([number, scheduledAt, direction])
   @@index([scheduledAt])
   @@index([status])
+  @@index([pickupGroupId])
 }
 
 /// Lo que dijo cada fuente (AirLabs, tablero del aeropuerto) en cada sincronización, tal como vino.

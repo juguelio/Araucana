@@ -6,25 +6,36 @@ import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import type { AdminReservationRowDto } from "@/lib/booking/types";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
-import { ADMIN_RESERVATIONS_PAGE_SIZE, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
+import { ADMIN_RESERVATIONS_PAGE_SIZE, ADMIN_RESERVATIONS_PAGE_SIZES, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
+import { adminReservationOrder } from "@/lib/booking/admin-reservation-sort";
+import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
+import { CopiarVoucher } from "@/components/copiar-voucher";
+import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
+import { siteOrigin } from "@/lib/site-origin";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
 import { RowModal } from "./row-modal";
 import { ReceiptUploadForm } from "./receipt-upload-form";
-import "./pagination.css";
+import "@/components/admin-list/pagination.css";
 import "./reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
     notice?: string;
+    q?: string;
     code?: string;
     date?: string;
+    until?: string;
     route?: string;
     scheduleId?: string;
     page?: string;
+    pageSize?: string;
     payment?: string;
+    orden?: string;
+    dir?: string;
   }>;
 };
 
@@ -63,11 +74,6 @@ function tonoPago(status: string | null, disabilityFare: boolean) {
   return status === "APPROVED" ? "ok" : status === "REJECTED" ? "grave" : status === "PENDING" ? "atencion" : "normal";
 }
 
-function whatsappHref(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  return digits ? `https://wa.me/${digits}` : null;
-}
-
 /** Link de página que arrastra los filtros activos (menos `notice`, que es un mensaje de una acción). */
 function paginaHref(destino: number, params: Record<string, string | undefined>) {
   const query = new URLSearchParams();
@@ -75,6 +81,16 @@ function paginaHref(destino: number, params: Record<string, string | undefined>)
     if (valor && clave !== "notice") query.set(clave, valor);
   }
   query.set("page", String(destino));
+  return `/admin/reservas?${query.toString()}`;
+}
+
+/** Cambiar las filas por página conserva la búsqueda y vuelve a la primera página. */
+function tamanoHref(tamano: number, params: Record<string, string | undefined>) {
+  const query = new URLSearchParams();
+  for (const [clave, valor] of Object.entries(params)) {
+    if (valor && clave !== "notice" && clave !== "page" && clave !== "pageSize") query.set(clave, valor);
+  }
+  query.set("pageSize", String(tamano));
   return `/admin/reservas?${query.toString()}`;
 }
 
@@ -101,6 +117,11 @@ function RegistrarPagoForm({ reservation, listQuery }: { reservation: AdminReser
       <p>Registrá el pago cuando hayas recibido el total de <strong>{formatTotal(reservation)}</strong>.</p>
       <label>Forma de pago<input name="method" maxLength={60} placeholder="Efectivo, transferencia, tarjeta…" /></label>
       <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
+      <label>
+        Comprobante (opcional)
+        <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
+      </label>
+      <small className="muted">PDF, JPG, PNG o WEBP. Queda guardado junto al pago.</small>
       <button className="button" type="submit">Registrar pago</button>
     </form>
   );
@@ -118,7 +139,11 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
-  const hayFiltros = ["code", "date", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
+  const hayFiltros = ["q", "code", "date", "until", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
+  // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
+  const orden = adminReservationOrder(parsed.success ? parsed.data : {});
+  // El voucher se comparte fuera de la app, así que el link del mensaje tiene que ser absoluto (#243).
+  const origen = await siteOrigin();
 
   return (
     <AdminShell title="Reservas" notice={params?.notice} role={user.role}>
@@ -137,8 +162,22 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           Filtros{hayFiltros ? <span className="reservas-filters-activos">activos</span> : null}
         </label>
         <form action="/admin/reservas" method="get" className="reservas-filter-grid">
+          {/* Filtrar no pierde el orden elegido ni las filas por página. */}
+          <OrdenOculto orden={orden} />
+          {params?.pageSize ? <input type="hidden" name="pageSize" value={params.pageSize} /> : null}
+          <label className="reservas-filter-buscar">
+            Buscar
+            <input
+              name="q"
+              type="search"
+              defaultValue={params?.q}
+              maxLength={100}
+              placeholder="Apellido, DNI, código, email o teléfono"
+            />
+          </label>
           <label>Código de reserva<input name="code" defaultValue={params?.code} maxLength={100} placeholder="Largo del link o corto" /></label>
-          <label>Fecha del viaje<input type="date" name="date" defaultValue={params?.date} /></label>
+          <label>Desde<input type="date" name="date" defaultValue={params?.date} /></label>
+          <label>Hasta<input type="date" name="until" defaultValue={params?.until} /></label>
           <label>Ruta (origen, destino o identificador)<input name="route" defaultValue={params?.route} maxLength={100} /></label>
           <label>ID de salida<input name="scheduleId" defaultValue={params?.scheduleId} maxLength={100} /></label>
           <label>
@@ -162,15 +201,15 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
         <table className="data-table">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Pasajero</th>
-              <th>Creada por</th>
+              <EncabezadoOrdenable etiqueta="Código" columna="codigo" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Pasajero" columna="pasajero" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Creada por" columna="creadaPor" orden={orden} base="/admin/reservas" params={filtros} />
               <th>WhatsApp</th>
               <th>Ruta</th>
               <th>Fecha del viaje</th>
-              <th>Asiento</th>
-              <th>Estado</th>
-              <th>Pago</th>
+              <EncabezadoOrdenable etiqueta="Asiento" columna="asiento" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Estado" columna="estado" orden={orden} base="/admin/reservas" params={filtros} />
+              <EncabezadoOrdenable etiqueta="Pago" columna="pago" orden={orden} base="/admin/reservas" params={filtros} />
               <th>Comprobante</th>
               <th>Acciones</th>
             </tr>
@@ -179,7 +218,15 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             {reservations.map((reservation) => {
               const disabilityFare = reservation.paymentProvider === DISABILITY_DOCUMENT_PROVIDER;
               const canViewReceipt = !disabilityFare || isAdminRole(user.role);
-              const whatsappUrl = whatsappHref(reservation.passengerPhone);
+              const voucherUrl = absoluteUrl(voucherPath(reservation.code), origen);
+              const whatsappUrl = whatsappShareUrl(
+                reservation.passengerPhone,
+                voucherMessage({
+                  firstName: reservation.passenger.split(" ")[0],
+                  shortCode: formatShortCode(reservation.shortCode),
+                  url: voucherUrl
+                })
+              );
               const detailPath = `/admin/reservas/${reservation.code}`;
               const porValidar = reservation.hasReceipt && canViewReceipt && reservation.paymentStatus === "PENDING" &&
                 (disabilityFare ? reservation.status === DISABILITY_PENDING_STATUS : reservation.status === "PENDING_PAYMENT");
@@ -212,20 +259,23 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                   </td>
                   <td data-label="Creada por">{reservation.creatorLabel}</td>
                   <td data-label="WhatsApp">
-                    {whatsappUrl ? (
-                      <a
-                        aria-label={`Enviar WhatsApp a ${reservation.passenger}`}
-                        className="whatsapp-link"
-                        href={whatsappUrl}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                        title={`Enviar WhatsApp a ${reservation.passenger}`}
-                      >
-                        W
-                      </a>
-                    ) : (
-                      <span className="muted">-</span>
-                    )}
+                    <span className="reserva-compartir">
+                      {whatsappUrl ? (
+                        <a
+                          aria-label={`Enviar el voucher por WhatsApp a ${reservation.passenger}`}
+                          className="whatsapp-link"
+                          href={whatsappUrl}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                          title={`Enviar el voucher por WhatsApp a ${reservation.passenger}`}
+                        >
+                          W
+                        </a>
+                      ) : (
+                        <span className="muted" title="La reserva no tiene teléfono cargado">-</span>
+                      )}
+                      <CopiarVoucher url={voucherUrl} />
+                    </span>
                   </td>
                   <td data-label="Ruta">
                     {reservation.route}
@@ -387,31 +437,18 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
           </tbody>
         </table>
       </div>
-      {total > 0 ? (
-        <nav className="pagination" aria-label="Paginación de reservas">
-          {page > 1 ? (
-            <Link className="pagination-link" href={paginaHref(page - 1, filtros)} rel="prev">
-              ← Anterior
-            </Link>
-          ) : (
-            <span aria-disabled="true" className="pagination-link">
-              ← Anterior
-            </span>
-          )}
-          <span className="pagination-status">
-            Mostrando {desde}–{hasta} de {total} · página {page} de {totalPages}
-          </span>
-          {page < totalPages ? (
-            <Link className="pagination-link" href={paginaHref(page + 1, filtros)} rel="next">
-              Siguiente →
-            </Link>
-          ) : (
-            <span aria-disabled="true" className="pagination-link">
-              Siguiente →
-            </span>
-          )}
-        </nav>
-      ) : null}
+      <Paginador
+        page={page}
+        totalPages={totalPages}
+        total={total}
+        desde={desde}
+        hasta={hasta}
+        hrefPagina={(numero) => paginaHref(numero, filtros)}
+        etiqueta="reservas"
+        pageSize={pageSize}
+        tamanos={ADMIN_RESERVATIONS_PAGE_SIZES}
+        hrefTamano={(filas) => tamanoHref(filas, filtros)}
+      />
     </AdminShell>
   );
 }

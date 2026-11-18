@@ -86,3 +86,60 @@ describe("validación de reservas con tarifas por edad", () => {
     expect(pasaporte.success).toBe(true);
   });
 });
+
+describe("carga desde el panel sin contacto (#241)", () => {
+  it("acepta una reserva sin email ni teléfono y los guarda vacíos", () => {
+    const sinContacto = adminReservationSchema.safeParse(
+      reserva({ passenger: { ...pasajero, email: "", phone: "" } })
+    );
+
+    expect(sinContacto.success).toBe(true);
+    if (sinContacto.success) {
+      expect(sinContacto.data.passenger.email).toBe("");
+      expect(sinContacto.data.passenger.phone).toBe("");
+    }
+  });
+
+  it("si el email viene cargado, lo sigue validando", () => {
+    const malo = adminReservationSchema.safeParse(
+      reserva({ passenger: { ...pasajero, email: "ana@" } })
+    );
+
+    expect(malo.success).toBe(false);
+  });
+
+  it("si el teléfono viene cargado, lo sigue validando", () => {
+    const malo = adminReservationSchema.safeParse(
+      reserva({ passenger: { ...pasajero, phone: "12" } })
+    );
+
+    expect(malo.success).toBe(false);
+  });
+
+  it("los checkouts públicos siguen exigiendo email y teléfono", () => {
+    expect(createReservationSchema.safeParse(reserva({ passenger: { ...pasajero, email: "" } })).success).toBe(false);
+    expect(createReservationSchema.safeParse(reserva({ passenger: { ...pasajero, phone: "" } })).success).toBe(false);
+  });
+});
+
+describe("errores por campo para el formulario del panel (#242)", () => {
+  const campoDelError = (passenger: Record<string, unknown>) => {
+    const parsed = adminReservationSchema.safeParse(reserva({ passenger: { ...pasajero, ...passenger } }));
+    return parsed.success ? null : parsed.error.issues[0]?.path.at(-1);
+  };
+
+  it("el nombre vacío apunta al input `firstName`", () => {
+    expect(campoDelError({ firstName: "" })).toBe("firstName");
+  });
+
+  it("un documento inválido apunta al input `documentId`", () => {
+    expect(campoDelError({ documentId: "12" })).toBe("documentId");
+  });
+
+  it("un precio inválido queda identificado para marcarlo en el campo del precio", () => {
+    // El esquema lo llama `overrideTotalCents`; el formulario lo muestra como `customPrice`.
+    const parsed = adminReservationSchema.safeParse(reserva({ overrideTotalCents: null, passenger: pasajero }));
+    if (parsed.success) throw new Error("el precio inválido debería fallar");
+    expect(parsed.error.issues[0]?.path.at(-1)).toBe("overrideTotalCents");
+  });
+});

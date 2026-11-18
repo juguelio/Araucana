@@ -5,7 +5,6 @@ import { getCurrentAdminOrRedirect, getCurrentReservationsUserOrRedirect } from 
 import { prisma } from "@/lib/db/prisma";
 import { recordScheduleAudit } from "@/lib/audit/schedule";
 import { recordEntityAuditAfterCommit } from "@/lib/audit/entity";
-import { formatAuditDate } from "@/lib/audit/labels";
 import { vehicleConflictNotice } from "@/lib/booking/schedule-vehicle";
 import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
 import type { Prisma } from "@prisma/client";
@@ -115,36 +114,6 @@ export async function saveScheduleCrewAction(_state: CrewState, formData: FormDa
     revalidatePath(`/reservar/${current.route.slug}`);
   }
   redirectToBoard(dateKey, vehicleChanged ? "Salida actualizada." : driverId ? "Chofer asignado a la salida." : "Chofer quitado de la salida.", formData);
-}
-
-/** Chofer de una combi ya asignada a un vuelo. Agregar o quitar la combi sigue en las acciones del aeropuerto. */
-export async function setAirportDriverAction(formData: FormData) {
-  const actor = await getCurrentReservationsUserOrRedirect();
-  const id = value(formData, "id");
-  const driverId = value(formData, "driverId") || null;
-  const assignment = await prisma.airportVehicleAssignment.findUnique({
-    where: { id },
-    select: { driverId: true, flight: { select: { id: true, number: true, scheduledAt: true } }, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
-  });
-  const fallbackDate = boardDate(formData, new Date());
-  if (!assignment) redirectToBoard(fallbackDate, "Esa combi ya no está asignada al vuelo.", formData);
-  const dateKey = boardDate(formData, assignment.flight.scheduledAt);
-  if (assignment.driverId === driverId) redirectToBoard(dateKey, "La combi ya tenía ese chofer.", formData);
-  const driver = driverId ? await activeDriver(driverId) : null;
-  if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.", formData);
-
-  await prisma.airportVehicleAssignment.update({ where: { id }, data: { driverId } });
-  await recordEntityAuditAfterCommit(prisma, {
-    actor, entity: "AIRPORT", entityId: assignment.flight.id,
-    entityLabel: `${assignment.flight.number} · ${formatAuditDate(assignment.flight.scheduledAt)}`,
-    action: "UPDATE",
-    summary: `Chofer de la combi ${assignment.vehicle.name} cambiado en el vuelo.`,
-    before: { driver: personLabel(assignment.driver) },
-    after: { driver: personLabel(driver) }
-  });
-  revalidatePath("/admin/aeropuerto");
-  revalidatePath("/admin/salidas-del-dia");
-  redirectToBoard(dateKey, driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.", formData);
 }
 
 /** Chofer de una nave del día de Chapelco. Agregar o quitar la nave sigue en las acciones de Chapelco. */

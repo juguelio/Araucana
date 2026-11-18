@@ -7,6 +7,8 @@ import { LogoutButton } from "../logout-button";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
 import { butacasParaAeropuerto, pasajerosOcupados } from "@/lib/airport/booking";
+import { airportServiceWindow } from "@/lib/airport/service-window";
+import { esUnaRecorrida } from "@/lib/airport/service-order";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
@@ -15,7 +17,7 @@ import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
-import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
+import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
 import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
@@ -179,6 +181,17 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const runsByDuty = new Map(chapelcoRoutes.flatMap(route =>
     route.chapelcoOperationDays.flatMap(day => day.vehicleDuties.map(duty => [duty.id, duty.runs] as const))
   ));
+  const flightById = new Map(flights.map(flight => [flight.id, flight]));
+  const pickupGroups = new Map<string, typeof flights>();
+  for (const flight of flights) {
+    if (!flight.pickupGroupId) continue;
+    const group = pickupGroups.get(flight.pickupGroupId) ?? [];
+    group.push(flight);
+    pickupGroups.set(flight.pickupGroupId, group);
+  }
+  const sharedPickups = new Set([...pickupGroups].filter(([, members]) =>
+    esUnaRecorrida(members.map(f => ({ direction: f.direction, vehicles: f.assignments })))
+  ).map(([id]) => id));
   const assignments = board.rows.flatMap(row => row.units.flatMap(unit => {
     const item = {
       key: unit.id, title: row.title, area: AREA_LABEL[row.area], href: row.href,
@@ -186,6 +199,12 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       start: (unit.from ?? row.at)?.getTime() ?? null,
       end: unit.to?.getTime() ?? arrivalBySchedule.get(unit.scheduleId ?? "") ?? null
     };
+    const flight = row.area === "AEROPUERTO" && flightById.get(row.serviceId);
+    if (flight) {
+      const { startsAt, endsAt } = airportServiceWindow(flight);
+      return [{ ...item, start: startsAt.getTime(), end: endsAt.getTime(), estimatedWindow: true,
+        sharedPickupId: flight.pickupGroupId && sharedPickups.has(flight.pickupGroupId) ? flight.pickupGroupId : null }];
+    }
     if (row.area !== "CHAPELCO") return [item];
     const runs = runsByDuty.get(unit.id) ?? [];
     if (!runs.length) return [{ ...item, start: null }];
@@ -421,17 +440,23 @@ type UnitProps = {
 
 const BoardReturn = () => <input type="hidden" name={BOARD_RETURN_FIELD} value={BOARD_RETURN_VALUE} />;
 
+function DriverFields({ unit, options }: { unit: BoardUnit; options: Option[] }) {
+  return <>
+      <DropSelect name="driverId" defaultValue={unit.driverId ?? ""} aria-label={`Chofer de ${unit.vehicleName}`} data-falta={!unit.driverId || undefined}>
+        <option value="">Sin chofer</option>
+        {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+      </DropSelect>
+      <button className="ghost-button" type="submit">Guardar</button>
+  </>;
+}
+
 function DriverForm({ unit, action, dateKey, options }: { unit: BoardUnit; action: (formData: FormData) => Promise<void>; dateKey: string; options: Option[] }) {
   return (
     <form action={action} className="sd-driver">
         <OriginField />
       <input type="hidden" name="id" value={unit.id} />
       <input type="hidden" name="date" value={dateKey} />
-      <DropSelect name="driverId" defaultValue={unit.driverId ?? ""} aria-label={`Chofer de ${unit.vehicleName}`} data-falta={!unit.driverId || undefined}>
-        <option value="">Sin chofer</option>
-        {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-      </DropSelect>
-      <button className="ghost-button" type="submit">Guardar</button>
+      <DriverFields unit={unit} options={options} />
     </form>
   );
 }
@@ -440,7 +465,7 @@ function UnitHead({ unit }: { unit: BoardUnit }) {
   return <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{unit.seats} lug.</span></p>;
 }
 
-function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
+function AirportUnits({ row, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
   const free = vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id));
   return (
     <div className="sd-units">
@@ -460,7 +485,16 @@ function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
       {row.units.map((unit) => (
         <div className="sd-unit" key={unit.id}>
           <UnitHead unit={unit} />
-          <DriverForm unit={unit} action={setAirportDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+          <div className="sd-airport-driver sd-driver">
+            <FleetAssignmentForm action={assignVehicleAction}>
+              <OriginField />
+              <BoardReturn />
+              <input type="hidden" name="flightId" value={row.serviceId} />
+              <input type="hidden" name="vehicleId" value={unit.vehicleId} />
+              <input type="hidden" name="assignmentId" value={unit.id} />
+              <DriverFields unit={unit} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+            </FleetAssignmentForm>
+          </div>
           <form action={removeAssignmentAction} className="sd-remove">
         <OriginField />
             <input type="hidden" name="id" value={unit.id} />

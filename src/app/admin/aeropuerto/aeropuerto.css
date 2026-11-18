@@ -134,12 +134,20 @@
 .aero-combi-boton:hover { border-color: var(--primary); color: var(--primary); }
 .aero-combi-boton.aero-combi-ok { color: var(--moss); border-color: var(--moss); }
 .aero-combi-boton.aero-combi-vacia { color: var(--ink-muted); border-style: dashed; }
-.aero-combi-modal { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.aero-combi-modal { width: min(880px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
 .aero-combi-modal .reservas-modal-body { margin-top: 16px; display: grid; gap: 16px; }
 .aero-combi-modal fieldset.inline-actions { display: grid; gap: 12px; margin: 0; padding: 0; border: 0; }
 .aero-combi-modal fieldset.inline-actions > .button { justify-self: start; }
 .aero-combi-asignadas { display: grid; gap: 8px; font-size: 13px; }
-.aero-combi-asignada { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.aero-combi-asignada { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.aero-combi-asignada > span { flex: 1 1 100%; }
+.aero-combi-asignada > form:first-of-type { flex: 1 1 auto; }
+.aero-combi-modal .aero-combi-asignada fieldset.inline-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 0; border: 0; }
+.aero-combi-asignada fieldset.inline-actions > select { flex: 1 1 200px; width: auto; }
+.aero-combi-asignada fieldset.inline-actions > button { width: auto; }
+.aero-combi-asignada select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
+/* Buscador de naves a la izquierda y de choferes a la derecha; en pantallas angostas, apilados. */
+.aero-combi-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; align-items: start; }
 .nave-buscador { display: grid; gap: 10px; }
 .nave-buscador-campo { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
 .nave-buscador-campo input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
@@ -152,3 +160,10 @@
 /* Día anterior / siguiente a los costados del selector de fecha. */
 .flights-date { flex-wrap: wrap; }
 .flights-date .flights-dia-paso { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* Casilla para juntar varias hojas del chofer en una sola impresión. */
+.aero-marcar { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.aero-marcar input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+/* Vuelos que hace la misma camioneta en la misma vuelta: la hoja del chofer los une en una orden. */
+.aero-misma-vuelta { font-size: 11px; font-weight: 700; color: var(--primary); border-color: var(--primary); background: transparent; }

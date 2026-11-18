@@ -23,8 +23,10 @@ const pasajeros = {
   ceci: { firstName: "Ceci", seats: 2, lat: -40.157, lng: -71.353, code: "" }
 };
 let flightId = "";
+const chofer = `Rosa ${suffix}`;
 
 test.beforeAll(async () => {
+  await db.user.create({ data: { email: `chofer-${suffix}@example.com`, name: chofer, role: "DRIVER", isActive: true } });
   await db.user.create({ data: { email, name: "Admin orden", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 10) } });
   const flight = await db.flight.create({ data: {
     number: `AR${1000 + Math.floor(Math.random() * 8999)}`, origin: "Aeroparque", direction: "DEPARTURE",
@@ -151,6 +153,33 @@ test("el link copiado abre sólo la orden de esa nave, sin usuario", async ({ pa
   await expect(chofer.locator("section.orden-bloque")).toContainText(`Ana ${suffix}`);
   await expect(chofer.locator("section.orden-bloque")).not.toContainText(`Beto ${suffix}`);
   await anonimo.close();
+});
+
+test("cada orden tiene su «Nave y chofer», que abre el modal de la combi y vuelve a la orden", async ({ page }) => {
+  await abrir(page);
+  // Ya no hay un botón general que mandaba a «Salidas del día».
+  await expect(page.getByRole("link", { name: "Asignar naves y choferes" })).toHaveCount(0);
+  const b = orden(page, naves.b.name);
+  const boton = b.getByRole("button", { name: /nave y chofer del/ });
+  await expect(boton).toHaveText(`Nave y chofer: ${naves.b.name} · sin chofer`);
+  await expect(orden(page, naves.a.name).getByRole("button", { name: /nave y chofer del/ })).toHaveText(`Nave y chofer: ${naves.a.name} · sin chofer`);
+
+  await boton.click();
+  const modal = page.getByRole("dialog", { name: /Combi del/ });
+  // El mismo modal que en Aeropuerto: las combis del vuelo y los dos buscadores, nave y chofer.
+  await expect(modal.getByLabel(/Buscar nave para/)).toBeVisible();
+  await expect(modal.getByLabel(/Buscar chofer para/)).toBeVisible();
+  await page.screenshot({ path: "/tmp/araucana-orden-modal.png" });
+  await modal.getByLabel(`Chofer de ${naves.b.name}`).selectOption({ label: chofer });
+  await modal.getByRole("button", { name: "Guardar chofer" }).nth(1).click();
+
+  await expect(page.getByText("Chofer asignado a la combi.")).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/aeropuerto\/orden-de-servicio\/ver\?date=2031-03-14&flight=/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(orden(page, naves.b.name).getByRole("button", { name: /nave y chofer del/ })).toHaveText(`Nave y chofer: ${naves.b.name} · ${chofer}`);
+  expect((await db.airportVehicleAssignment.findUniqueOrThrow({ where: { id: naves.b.assignment }, include: { driver: true } })).driver?.name).toBe(chofer);
+  await page.screenshot({ path: "/tmp/araucana-orden-asignada.png", fullPage: true });
+  await db.airportVehicleAssignment.update({ where: { id: naves.b.assignment }, data: { driverId: null } });
 });
 
 test("Imprimir de una orden deja sólo esa orden en el papel", async ({ page }) => {

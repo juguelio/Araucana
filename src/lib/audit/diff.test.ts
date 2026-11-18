@@ -3,7 +3,7 @@ import { diffRecords, flattenRecord, hasChanges, HIDDEN_VALUE } from "./diff";
 import { auditRow } from "./record";
 import { reservationAuditSnapshot } from "./reservation";
 import { auditChangeLines } from "./labels";
-import { auditWhere, parseAuditFilters } from "./query";
+import { auditOrderBy, auditPageHref, auditWhere, parseAuditFilters } from "./query";
 
 describe("diferencia para la auditoría", () => {
   it("guarda sólo los campos que cambiaron, con el antes y el después", () => {
@@ -85,11 +85,19 @@ describe("lectura en pantalla", () => {
 describe("filtros de la pantalla", () => {
   it("descarta valores inválidos y arma el rango por día argentino", () => {
     const filters = parseAuditFilters({ entity: "OTRA", action: "LOGIN", from: "2026-11-16", to: "2026-11-16", page: "-3", q: "  ana " });
-    expect(filters).toEqual({ q: "ana", entity: "", action: "LOGIN", from: "2026-11-16", to: "2026-11-16", page: 1 });
+    expect(filters).toEqual({ q: "ana", entity: "", action: "LOGIN", from: "2026-11-16", to: "2026-11-16", page: 1, orden: { columna: "fecha", direccion: "desc" } });
     const where = auditWhere(filters);
     expect(where.action).toBe("LOGIN");
     expect(where.createdAt).toEqual({ gte: new Date("2026-11-16T03:00:00.000Z"), lt: new Date("2026-11-17T03:00:00.000Z") });
     expect(where.OR).toHaveLength(5);
     expect(auditWhere(parseAuditFilters({}))).toEqual({});
+  });
+
+  it("ordena sólo por columnas declaradas y la paginación conserva filtros y orden", () => {
+    expect(parseAuditFilters({ orden: "summary", dir: "asc" }).orden).toEqual({ columna: "fecha", direccion: "desc" });
+    const filters = parseAuditFilters({ q: "ana", orden: "quien", dir: "asc", page: "2" });
+    expect(auditOrderBy(filters.orden)[0]).toEqual({ actorName: { sort: "asc", nulls: "last" } });
+    expect(auditOrderBy(filters.orden).at(-1)).toEqual({ id: "desc" });
+    expect(auditPageHref(filters, 3)).toBe("/admin/auditoria?q=ana&orden=quien&dir=asc&page=3");
   });
 });

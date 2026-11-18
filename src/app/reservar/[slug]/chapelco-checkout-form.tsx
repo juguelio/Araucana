@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { PublicRouteDto } from "@/lib/booking/types";
 import type { ChapelcoAvailabilityDto } from "@/lib/chapelco/types";
@@ -8,6 +8,23 @@ import { chapelcoAscentSlots, type ChapelcoAscentSlot } from "@/lib/chapelco/con
 import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { createChapelcoReservationAction } from "./chapelco-actions";
+import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
+
+/** Orden en que se ven los campos de Chapelco: define a cuál va el foco (#242). */
+const CHAPELCO_FIELD_ORDER = [
+  "serviceDate",
+  "ascentSlot",
+  "passengerCount",
+  "pickupName",
+  "pickupAddress",
+  "firstName",
+  "lastName",
+  "email",
+  "phoneCountryCode",
+  "phone",
+  "documentType",
+  "documentId"
+] as const;
 
 type ChapelcoCheckoutFormProps = {
   route: PublicRouteDto;
@@ -88,6 +105,10 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
   const [pickupNotes, setPickupNotes] = useState("");
   const [passenger, setPassenger] = useState<PassengerForm>(initialPassenger);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // El error tiene que quedar a la vista y el foco ir al campo culpable, no a un cartel lejano.
+  useFocusFirstError(fieldErrors as Record<string, string>, CHAPELCO_FIELD_ORDER, formRef);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const selectedAvailability = availability.slots.find((slot) => slot.slot === ascentSlot);
@@ -203,7 +224,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
   }
 
   return (
-    <form className="checkout-layout" onSubmit={handleSubmit} noValidate>
+    <form className="checkout-layout" onSubmit={handleSubmit} ref={formRef} noValidate>
       <div className="checkout-main">
         <section className="form-panel checkout-panel">
           <div>
@@ -435,6 +456,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
             <strong className="price">{formatPrice(totalCents, route.currency)}</strong>
           </div>
         </div>
+        <FormErrorSummary fieldErrors={fieldErrors as Record<string, string>} order={CHAPELCO_FIELD_ORDER} />
         {error ? (
           <p className="error" role="alert">
             {error}

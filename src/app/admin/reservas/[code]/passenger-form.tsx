@@ -8,7 +8,7 @@ const fields = [
   { name: "firstName", label: "Nombre", type: "text", required: true },
   { name: "lastName", label: "Apellido", type: "text", required: true },
   { name: "email", label: "Email (opcional)", type: "email", autoComplete: "email" },
-  { name: "phone", label: "Teléfono", type: "tel", autoComplete: "tel", required: true },
+  { name: "phone", label: "Teléfono (opcional)", type: "tel", autoComplete: "tel" },
   { name: "documentType", label: "Tipo de documento", type: "text", required: true },
   { name: "documentId", label: "Número de documento", type: "text", required: true },
   { name: "nationality", label: "Nacionalidad", type: "text" }

@@ -84,6 +84,7 @@
 .sd-unit-name { margin: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sd-unit-name .muted { font-size: 12px; }
 .sd-driver { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; margin: 0; }
+.sd-airport-driver.sd-driver { display: block; }
 .sd-remove { margin: 0; }
 .sd-remove .text-button { padding: 4px 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .sd-remove .text-button:hover { text-decoration: underline; }

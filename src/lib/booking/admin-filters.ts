@@ -10,29 +10,52 @@ import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disab
 export const ADMIN_PAYMENT_QUEUES = ["receipt-pending", "rejected", "documentation-pending"] as const;
 export type AdminPaymentQueue = (typeof ADMIN_PAYMENT_QUEUES)[number];
 
+/** Reservas por página en el panel: 25 filas entran sin scroll en un portátil. */
+export const ADMIN_RESERVATIONS_PAGE_SIZE = 25;
+
+/** Tamaños que ofrece el selector del listado. */
+export const ADMIN_RESERVATIONS_PAGE_SIZES = [25, 50, 100] as const;
+
 export const adminReservationFiltersSchema = z.object({
+  // Búsqueda libre: sirve para encontrar una reserva sin saber en qué campo está el dato.
+  // Apellido, DNI, código corto, email o teléfono del pasajero caen todos acá.
+  q: z.string().trim().max(100).optional(),
   code: z.string().trim().max(100).optional(),
   route: z.string().trim().max(100).optional(),
   scheduleId: z.string().trim().max(100).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
+  // Hasta qué día buscar: sin esto, el filtro de fecha mostraba un solo día y para ver una
+  // semana había que cambiar la URL a mano.
+  until: z.union([z.literal(""), z.iso.date()]).optional(),
   // `?page=abc` o `?page=0` no pueden romper la búsqueda: caen en la primera página.
   page: z.coerce.number().int().min(1).catch(1).default(1),
+  // Cuántas filas por página. Un valor raro no rompe nada: vuelve al tamaño por defecto.
+  pageSize: z.coerce.number().int().catch(ADMIN_RESERVATIONS_PAGE_SIZE).default(ADMIN_RESERVATIONS_PAGE_SIZE),
   // Un valor que no es una cola conocida hace fallar el parse a propósito: la pantalla avisa
   // "Revisá los filtros" en vez de mostrar todas las reservas como si el filtro se hubiera aplicado.
-  payment: z.union([z.literal(""), z.enum(ADMIN_PAYMENT_QUEUES)]).optional()
+  payment: z.union([z.literal(""), z.enum(ADMIN_PAYMENT_QUEUES)]).optional(),
+  // Orden por columna (issue #192): viaja como texto y lo valida la lista blanca del listado
+  // (`admin-reservation-sort.ts`). Un valor desconocido no rompe: cae al orden por defecto.
+  orden: z.string().trim().max(30).optional(),
+  dir: z.string().trim().max(8).optional()
 });
 export type AdminReservationFilters = z.input<typeof adminReservationFiltersSchema>;
+
+/** Filas por página, con la misma normalización que el schema. */
+export function adminReservationsPageSize(input: AdminReservationFilters): number {
+  const { pageSize } = adminReservationFiltersSchema.parse(input);
+  return ADMIN_RESERVATIONS_PAGE_SIZES.includes(pageSize as (typeof ADMIN_RESERVATIONS_PAGE_SIZES)[number])
+    ? pageSize
+    : ADMIN_RESERVATIONS_PAGE_SIZE;
+}
 
 /** Página pedida, normalizada con la misma regla que el schema (1 si viene rota o vacía). */
 export function adminReservationsPage(input: AdminReservationFilters): number {
   return adminReservationFiltersSchema.parse(input).page;
 }
 
-/** Reservas por página en el panel: 25 filas entran sin scroll en un portátil. */
-export const ADMIN_RESERVATIONS_PAGE_SIZE = 25;
-
 // The date is the travel day, not the date on which the reservation was created.
-export function adminReservationWhere(input: AdminReservationFilters): Prisma.ReservationWhereInput {
+export function adminReservationWhere(input: AdminReservationFilters, passengerIds: string[] = []): Prisma.ReservationWhereInput {
   const filters = adminReservationFiltersSchema.parse(input);
   const AND: Prisma.ReservationWhereInput[] = [];
   if (filters.code) {
@@ -42,6 +65,29 @@ export function adminReservationWhere(input: AdminReservationFilters): Prisma.Re
     const shortCode = normalizeShortCode(filters.code);
     const matches: Prisma.ReservationWhereInput[] = [{ code: { contains: filters.code, mode: "insensitive" } }];
     if (shortCode) matches.push({ shortCode: { contains: shortCode, mode: "insensitive" } });
+    AND.push({ OR: matches });
+  }
+  if (filters.q) {
+    // Una sola caja para todo: el que atiende el teléfono escribe "Perez", "30.123.456" o
+    // "ABCD-2345" sin tener que decidir en qué filtro va.
+    const term = filters.q;
+    const texto = { contains: term, mode: "insensitive" as const };
+    const matches: Prisma.ReservationWhereInput[] = [
+      { code: texto },
+      { passenger: { is: { OR: [
+        { firstName: texto },
+        { lastName: texto },
+        { documentId: texto },
+        { email: texto },
+        { phone: texto }
+      ] } } },
+      { route: { is: { OR: [{ from: texto }, { to: texto }, { slug: texto }] } } }
+    ];
+    const shortCode = normalizeShortCode(term);
+    if (shortCode) matches.push({ shortCode: { contains: shortCode, mode: "insensitive" } });
+    // Los apellidos llevan tilde ("Pérez") y el que atiende escribe sin ella. ILIKE no la ignora,
+    // así que la búsqueda por pasajero llega ya resuelta desde el repositorio (ids sin acentos).
+    if (passengerIds.length) matches.push({ passengerId: { in: passengerIds } });
     AND.push({ OR: matches });
   }
   if (filters.scheduleId) AND.push({ scheduleId: filters.scheduleId });
@@ -63,17 +109,27 @@ export function adminReservationWhere(input: AdminReservationFilters): Prisma.Re
   if (filters.payment === "rejected") {
     AND.push({ payment: { is: { status: "REJECTED" } } });
   }
-  if (filters.date) {
-    const gte = new Date(`${filters.date}T00:00:00-03:00`);
-    const lt = new Date(gte.getTime() + 86400000);
-    // Chapelco stores a calendar date at UTC midnight; AIRPORT stores Argentine midnight.
+  if (filters.date || filters.until) {
+    // El rango va del día "desde" al día "hasta" inclusive. Con un solo campo se busca ese día.
+    const desde = filters.date || filters.until!;
+    const hasta = filters.until && filters.until >= desde ? filters.until : desde;
+    const gte = new Date(`${desde}T00:00:00-03:00`);
+    const lt = new Date(new Date(`${hasta}T00:00:00-03:00`).getTime() + 86400000);
+    // Chapelco guarda la fecha como día calendario a medianoche UTC; AIRPORT, a medianoche argentina.
+    const calendarFrom = new Date(`${desde}T00:00:00Z`);
+    const calendarTo = new Date(new Date(`${hasta}T00:00:00Z`).getTime() + 86400000);
     AND.push({ OR: [
       { schedule: { is: { departureAt: { gte, lt } } } },
       { airportDetails: { is: { serviceDate: { gte, lt } } } },
-      { chapelcoDetails: { is: { serviceDate: new Date(`${filters.date}T00:00:00Z`) } } }
+      { chapelcoDetails: { is: { serviceDate: { gte: calendarFrom, lt: calendarTo } } } }
     ] });
   }
   return AND.length ? { AND } : {};
+}
+
+/** Texto sin tildes ni mayúsculas, para comparar "Perez" con "Pérez". */
+export function normalizarBusqueda(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
 // Argentina no tiene horario de verano: el día del viaje arranca siempre a las 00:00 -03:00.

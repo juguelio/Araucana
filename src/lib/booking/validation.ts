@@ -30,16 +30,46 @@ function validatePassengerDocument<T extends { documentType: string; documentId:
 export const passengerSchema = passengerFieldsSchema.transform((passenger, ctx) => validatePassengerDocument(passenger, ctx));
 
 /**
- * El traslado al aeropuerto se reserva sin documento (#206, #208): el checkout lo muestra como
- * «(opcional)». Si viene cargado se valida igual; vacío, pasa. Chapelco y las rutas lo siguen
- * exigiendo con `passengerSchema`.
+ * El traslado al aeropuerto se reserva sin documento (#206, #208) y, desde el 18-nov, sin email
+ * (#239): el pasajero se toma por teléfono o en el mostrador y el correo no siempre lo tienen a
+ * mano. El checkout muestra los dos campos como «(opcional)». Si vienen cargados se validan igual
+ * que siempre; vacíos pasan, y el email queda `""` como ya lo guarda el alta del panel.
+ * Chapelco y las rutas los siguen exigiendo con `passengerSchema`.
  */
-export const optionalDocumentPassengerSchema = passengerFieldsSchema.extend({
-  documentId: passengerFieldsSchema.shape.documentId.default("")
-}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
+export const optionalContactPassengerSchema = passengerFieldsSchema
+  .extend({
+    email: passengerFieldsSchema.shape.email.or(z.literal("")).default(""),
+    documentId: passengerFieldsSchema.shape.documentId.default("")
+  })
+  .transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
+
+/**
+ * El panel carga reservas de pasajeros que se toman por teléfono o en el mostrador, y muchas veces
+ * no hay email ni teléfono a mano: inventarlos es peor que dejarlos vacíos (#241). Hasta que no
+ * existan los avisos automáticos al pasajero, los dos son opcionales desde el panel y se guardan
+ * como `""`.
+ *
+ * Cuando empiecen los emails automáticos de reserva, esto pasa a `true` y los dos campos vuelven a
+ * ser obligatorios en el alta y en la edición, **en un solo lugar**: ningún formulario repite la
+ * condición. Los checkouts públicos no dependen de esta constante.
+ */
+export const PANEL_EXIGE_CONTACTO = false;
+
+/** Email del panel: válido si viene, vacío si no hay dato (#241). */
+const adminEmailField = passengerFieldsSchema.shape.email.or(z.literal(""));
+
+/** Teléfono del panel: mismo formato que siempre cuando viene, vacío cuando no hay dato (#241). */
+const adminPhoneField = z.string().transform((value, ctx) => {
+  if (!value.trim() && !PANEL_EXIGE_CONTACTO) return "";
+  const phone = normalizePassengerPhone(value);
+  if (phone) return phone;
+  ctx.addIssue({ code: "custom", message: phoneFormatError });
+  return z.NEVER;
+});
 
 const adminPassengerFields = passengerFieldsSchema.extend({
-  email: passengerFieldsSchema.shape.email.or(z.literal(""))
+  email: adminEmailField,
+  phone: adminPhoneField
 });
 
 export const adminPassengerPatchSchema = adminPassengerFields.partial();

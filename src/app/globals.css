@@ -2300,7 +2300,7 @@ a.wizard-option { text-decoration: none; }
    panel con los lugares, o con los días y los vuelos. Botones grandes, letra grande, nada que tipear. */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .trip-search { position: relative; display: grid; gap: 10px; container-type: inline-size; }
-.trip-search-bar { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 10px 30px rgba(23, 40, 34, 0.08); }
+.trip-search-bar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 10px 30px rgba(23, 40, 34, 0.08); }
 .trip-search-places-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .trip-search-field {
   display: flex; flex-direction: column; justify-content: center; gap: 6px; min-width: 0; min-height: 76px;
@@ -2388,10 +2388,9 @@ a.wizard-option { text-decoration: none; }
   .trip-search-panel { animation: none; }
   .trip-search-swap, .trip-search-swap:hover { transition: none; }
 }
-/* Columna mediana (la reserva pública, ~760 px): Desde/Hacia arriba, Ida/Vuelta abajo. */
+/* Columna mediana (la reserva pública, ~760 px): Desde/Hacia arriba, las dos fechas abajo. */
 @container (max-width: 860px) {
-  .trip-search-bar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .trip-search-places-row { grid-column: 1 / -1; }
+  .trip-search-bar { grid-template-columns: minmax(0, 1fr); }
 }
 /* Angosto (el formulario del panel, ~550 px, y el celular): todo de arriba a abajo; el botón de invertir queda a la derecha, entre los dos lugares. */
 @container (max-width: 600px) {
@@ -2414,18 +2413,11 @@ a.wizard-option { text-decoration: none; }
   .trip-search-confirm-actions > * { flex: 1 1 100%; }
 }
 
-/* Barra con un solo tramo: Desde/Hacia + el vuelo, sin el hueco del segundo tramo ni el botón de
-   invertir (que sólo existe con dos). El ancho sigue el mismo criterio que la barra de ida y vuelta. */
-@container (min-width: 861px) {
-  .trip-search-bar[data-tramos="1"] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
-}
-@container (min-width: 601px) and (max-width: 860px) {
-  .trip-search-bar[data-tramos="1"] .trip-search-leg { grid-column: 1 / -1; }
-}
 @container (max-width: 600px) {
-  /* Sin botón de invertir no hace falta dejarle el lugar a la derecha. */
-  .trip-search-bar[data-tramos="1"] .trip-search-places-row .trip-search-place:first-child,
-  .trip-search-bar[data-tramos="1"] .trip-search-places-row .trip-search-place:last-child { padding: 10px 16px; }
+  /* Sin botón de invertir (lugares fijos) no hace falta dejarle el lugar a la derecha. Desde el 18-nov
+     la reserva de un tramo tiene ⇄ como el ida y vuelta, así que eso sólo vale si los lugares son fijos. */
+  .trip-search-places-row:has(.trip-search-place[data-fijo]) .trip-search-place:first-child,
+  .trip-search-places-row:has(.trip-search-place[data-fijo]) .trip-search-place:last-child { padding: 10px 16px; }
 }
 
 /* Los lugares aparecen debajo de la barra apenas están los dos vuelos, sin otro paso (pedido de Jugue,
@@ -2712,10 +2704,6 @@ a.wizard-option { text-decoration: none; }
 .flight-card-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: auto; align-items: center; }
 /* Confirmar a mano: la fuente no siempre sabe que el avión llegó. Se ve como una acción más, con la
    hora a la vista para que el operador la corrija si el vuelo no fue puntual. */
-.flight-confirmar { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 4px 8px; border: 1px dashed var(--line-strong); border-radius: 10px; }
-.flight-confirmar label { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
-.flight-confirmar input[type="datetime-local"] { width: 168px; padding: 3px 6px; font-size: 11px; border: 1px solid var(--line); border-radius: 8px; }
-.flight-confirmar .button { padding: 5px 10px; font-size: 11px; }
 .flight-card-actions .ghost-button, .flight-foot .flight-actions summary { padding: 4px 10px; font-size: 11px; }
 .flight-actions { margin-left: 0; }
 .flight-card:hover { border-color: var(--line-strong); }
@@ -2739,3 +2727,87 @@ a.wizard-option { text-decoration: none; }
 /* Ida y vuelta: el indicador de pasos no se toca (se completa solo), así que el hecho no lleva botón. */
 .checkout-progress li[data-done="true"] { padding: 5px 11px; color: var(--primary); }
 .checkout-progress li[data-done="true"] span { background: var(--primary); }
+
+/* Las dos fechas siempre mitad y mitad (pedido de Jugue, 18-nov): en un tramo, la segunda es la vuelta
+   apagada para sumarla; en el ida y vuelta, la vuelta tiene una cruz arriba a la derecha para sacarla. */
+.trip-search-dates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; min-width: 0; }
+.trip-search-dates > :only-child { grid-column: 1 / -1; }
+.trip-search-leg-slot { position: relative; display: grid; min-width: 0; }
+.trip-search-leg[data-con-cruz] .trip-search-label { padding-right: 34px; }
+.trip-search-remove {
+  position: absolute; top: 6px; right: 6px; z-index: 1; display: grid; place-items: center; width: 34px; height: 34px;
+  border: 1px solid var(--line-strong); border-radius: 50%; background: #fff; color: var(--ink-soft);
+  font-size: 15px; font-weight: 700; line-height: 1; text-decoration: none;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+.trip-search-remove:hover { border-color: #c96a5a; background: #fbecea; color: #9a3324; }
+.trip-search-remove:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.trip-search-add { border-style: dashed; background: #f4f5f4; color: var(--ink-muted); text-decoration: none; }
+.trip-search-add .trip-search-value { color: var(--ink-muted); }
+.trip-search-add:hover { border-style: dashed; color: var(--ink); }
+.trip-search-add:hover .trip-search-value { color: var(--primary); }
+.trip-search-add-icon {
+  display: grid; place-items: center; flex: 0 0 auto; width: 26px; height: 26px; border: 2px solid currentColor;
+  border-radius: 50%; font-size: 18px; font-weight: 800; line-height: 1;
+}
+.trip-search-add-detail { font-size: 14px; color: var(--ink-soft); }
+.trip-search-add:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+@container (max-width: 600px) {
+  .trip-search-dates { gap: 8px; }
+  .trip-search-dates .trip-search-field { padding: 10px 12px; }
+  /* Media fila en el celular: logo (o calendario) arriba, el día, y la hora con el vuelo abajo. */
+  .trip-search-dates .trip-search-leg .trip-search-value { flex-direction: column; align-items: flex-start; gap: 4px; font-size: 16px; }
+  .trip-search-dates .trip-search-leg .trip-search-value b,
+  .trip-search-dates .trip-search-leg .trip-search-value em { display: block; white-space: nowrap; }
+  .trip-search-dates .trip-search-leg .trip-search-sep { display: none; }
+  .trip-search-dates .trip-search-add .trip-search-value { flex-direction: row; align-items: center; }
+}
+
+/* Paso de la ida a la vuelta, bien a la vista (pedido de Jugue, 18-nov): el panel entra desde el costado
+   con un borde de color, arriba dice qué quedó listo y qué sigue, y el casillero de la vuelta late. */
+.trip-search, .trip-search-leg { scroll-margin-top: 96px; }
+@media (max-width: 760px) { .trip-search, .trip-search-leg { scroll-margin-top: 150px; } }
+.trip-search-panel-kicker { margin: 0 0 -6px; padding-right: 48px; font-size: 13px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-muted); }
+.trip-search-panel[data-paso="siguiente"] { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(162, 40, 27, 0.12), 0 18px 40px rgba(23, 40, 34, 0.16); animation: trip-search-siguiente .45s cubic-bezier(.2, .8, .2, 1); }
+.trip-search-panel[data-paso="siguiente"] .trip-search-panel-kicker { font-size: 15px; color: var(--accent); }
+.trip-search-panel[data-paso="siguiente"] .trip-search-panel-title { font-size: 24px; }
+.trip-search-handoff {
+  display: flex; align-items: center; gap: 12px; margin: 0 48px 4px 0; padding: 10px 14px; border-radius: 12px;
+  background: var(--primary); color: #fff; animation: trip-search-handoff .5s ease both;
+}
+.trip-search-handoff-check { display: grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: #fff; color: var(--primary); font-size: 17px; font-weight: 900; }
+.trip-search-handoff-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; font-size: 16px; }
+.trip-search-handoff-text b { font-size: 17px; }
+.trip-search-handoff-text span { color: rgba(255, 255, 255, .88); }
+.trip-search-leg[data-siguiente] { border-color: var(--accent); background: #fff6f4; animation: trip-search-late 1s ease 2; }
+@keyframes trip-search-siguiente { from { opacity: 0; transform: translateX(36px); } to { opacity: 1; transform: none; } }
+@keyframes trip-search-handoff { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes trip-search-late { 0%, 100% { box-shadow: 0 0 0 0 rgba(162, 40, 27, .45); } 50% { box-shadow: 0 0 0 8px rgba(162, 40, 27, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  .trip-search-panel[data-paso="siguiente"], .trip-search-handoff, .trip-search-leg[data-siguiente] { animation: none; }
+}
+
+/* Los lugares, compactos: sin encabezado, tarjeta más baja y atajos en una fila, para que la barra de
+   los vuelos siga a la vista mientras se elige dónde buscar o dejar al pasajero (18-nov). */
+.pickup-flow { gap: 10px; margin-top: 2px; padding-top: 12px; }
+.pickup-flow .leg-card { gap: 10px; padding: 12px 14px 14px; border-radius: 14px; }
+.pickup-flow .leg-head { align-items: center; gap: 10px; }
+.pickup-flow .leg-badge { margin-top: 0; }
+.pickup-flow .leg-head-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+.pickup-flow .leg-title { font-size: 19px; }
+.pickup-flow .leg-check { margin-top: 0; }
+.pickup-flow .place-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pickup-flow .place-shortcut { gap: 10px; min-height: 52px; padding: 7px 10px; }
+.pickup-flow .place-shortcut-icon { width: 32px; height: 32px; }
+.pickup-flow .place-shortcut-icon svg { width: 18px; height: 18px; }
+.pickup-flow .place-shortcut-text b { font-size: 15px; line-height: 1.2; }
+.pickup-flow .place-shortcut-text small { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.pickup-flow .place-or { display: none; }
+.pickup-flow .same-place { padding: 12px; }
+.pickup-flow .same-place-question { font-size: 18px; }
+@container (max-width: 600px) { .trip-search-handoff { margin-right: 44px; } }
+@media (max-width: 560px) {
+  .pickup-flow .place-shortcut-icon { display: none; }
+  .pickup-flow .place-shortcut { padding: 7px 10px; }
+  .trip-search-panel[data-paso="siguiente"] .trip-search-panel-title { font-size: 21px; }
+}

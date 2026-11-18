@@ -2,6 +2,10 @@
 
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { del } from "@vercel/blob";
+import { ApiError } from "@/lib/api/responses";
+import { AuthorizationError } from "@/lib/auth/service";
+import { uploadReservationReceipt } from "@/lib/payments/receipt-upload";
+import { validateReceiptFile } from "@/lib/payments/receipt-storage";
 import { manageReservation, reservationManagementSchema } from "@/lib/booking/admin-management";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -14,17 +18,42 @@ import {
   type AdminFormState
 } from "../form-state";
 
+const INVALID_RECEIPT = "invalid:";
+
+function receiptFile(formData: FormData) {
+  const entry = formData.get("receipt");
+  return entry instanceof File && entry.size > 0 ? entry : null;
+}
+
+/**
+ * Sube el comprobante antes de registrar el pago. Devuelve `null` si quedó adjunto, el motivo si la
+ * reserva no lo admite (el pago se registra igual y se avisa) o `INVALID_RECEIPT` + motivo si el
+ * archivo es inválido (no se registra nada, para que el operador elija otro).
+ */
+async function attachReceiptBeforePayment(code: string, receipt: File): Promise<string | null> {
+  try {
+    await uploadReservationReceipt(code, receipt);
+    return null;
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "VALIDATION_ERROR") return `${INVALID_RECEIPT}${error.message}`;
+    if (error instanceof ApiError || error instanceof BookingError || error instanceof AuthorizationError) return error.message;
+    return "No pudimos subir el archivo.";
+  }
+}
+
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
   return typeof entry === "string" ? entry.trim() : "";
 }
 
-export async function createAdminReservationAction(formData: FormData) {
+export async function createAdminReservationAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
   const creator = await getCurrentReservationsUserOrRedirect();
 
   const customPrice = value(formData, "customPrice");
   const overrideTotalCents = customPrice ? parseReservationPrice(customPrice) : undefined;
-  if (overrideTotalCents === null) redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(reservationPriceError)}`);
+  // Los errores vuelven como estado del formulario, no como `?notice=`: el usuario ve el campo
+  // marcado, el foco va ahí y no pierde lo que ya cargó (#242).
+  if (overrideTotalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
   const parsed = adminReservationSchema.safeParse({
     overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
@@ -44,7 +73,10 @@ export async function createAdminReservationAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.")}`);
+    const fieldErrors = fieldErrorsFromZodError(parsed.error);
+    const cantidad = Object.keys(fieldErrors).length;
+    const primero = parsed.error.issues[0]?.message ?? "Revisá los datos de la reserva.";
+    return errorState(cantidad > 1 ? `Hay ${cantidad} datos para revisar.` : primero, fieldErrors);
   }
 
   let reservation: Awaited<ReturnType<typeof createWebReservation>>;
@@ -62,7 +94,7 @@ export async function createAdminReservationAction(formData: FormData) {
         : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
         ? "La parada seleccionada ya no está disponible. Volvé a elegir."
         : "No pudimos crear la reserva. Intentalo nuevamente.";
-    redirect(`/admin/reservas/nueva?notice=${encodeURIComponent(message)}`);
+    return errorState(message);
   }
 
   revalidatePath("/admin/reservas");
@@ -209,6 +241,19 @@ export async function manageReservationAction(formData: FormData) {
     redirect(reservationNotice(returnPath, invalidReason ? "Escribí el motivo de la cancelación (al menos 3 caracteres)." : invalidPrice ? reservationPriceError : "Revisá los datos ingresados.", listQuery ?? ""));
   }
 
+  // Registrar el pago con su comprobante: el archivo se adjunta primero, mientras el pago todavía está
+  // pendiente (después de aprobado ya no admite comprobantes), y recién después se aprueba el pago.
+  const receipt = command.data.operation === "payment" ? receiptFile(formData) : null;
+  let receiptProblem: string | null = null;
+  if (receipt) {
+    const invalid = validateReceiptFile(receipt);
+    if (invalid) redirect(reservationNotice(returnPath, invalid, listQuery ?? ""));
+    receiptProblem = await attachReceiptBeforePayment(code, receipt);
+    if (receiptProblem?.startsWith(INVALID_RECEIPT)) {
+      redirect(reservationNotice(returnPath, receiptProblem.slice(INVALID_RECEIPT.length), listQuery ?? ""));
+    }
+  }
+
   let result: Awaited<ReturnType<typeof manageReservation>>;
   try {
     result = await manageReservation(
@@ -238,7 +283,9 @@ export async function manageReservationAction(formData: FormData) {
     restore: "Reserva restituida.",
     delete: receiptCleanupFailed ? "Reserva borrada. No pudimos eliminar el archivo del comprobante." : "Reserva borrada.",
     confirm: "Reserva confirmada.",
-    payment: "Pago registrado.",
+    payment: !receipt ? "Pago registrado." : receiptProblem
+      ? `Pago registrado, pero el comprobante no se adjuntó: ${receiptProblem} Podés subirlo desde el listado.`
+      : "Pago registrado con su comprobante.",
     correctPayment: "Datos del pago actualizados.",
     price: "Precio actualizado."
   };

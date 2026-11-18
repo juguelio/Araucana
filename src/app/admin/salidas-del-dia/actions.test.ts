@@ -7,8 +7,6 @@ const mocks = vi.hoisted(() => ({
   findVehicle: vi.fn(),
   findDriver: vi.fn(),
   updateSchedule: vi.fn(),
-  findAssignment: vi.fn(),
-  updateAssignment: vi.fn(),
   findDuty: vi.fn(),
   updateDuty: vi.fn(),
   lockFleet: vi.fn(),
@@ -48,7 +46,6 @@ vi.mock("@/lib/db/prisma", () => ({
     specialTrip: { findUnique: mocks.findTrip },
     specialTripAssignment: { findUnique: mocks.findSpecialAssignment },
     user: { findFirst: mocks.findDriver },
-    airportVehicleAssignment: { findUnique: mocks.findAssignment, update: mocks.updateAssignment },
     chapelcoVehicleDuty: { findUnique: mocks.findDuty, update: mocks.updateDuty },
     $transaction: (run: (tx: unknown) => unknown) => run({
       schedule: { update: mocks.updateSchedule, findUnique: mocks.findSchedule, create: mocks.createSchedule, delete: mocks.deleteSchedule },
@@ -76,7 +73,7 @@ vi.mock("@/lib/booking/schedule-unit-service", () => ({
 
 import {
   addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction,
-  saveScheduleCrewAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction
+  saveScheduleCrewAction, setChapelcoDriverAction, setSpecialDriverAction
 } from "./actions";
 
 const salida = {
@@ -174,42 +171,7 @@ describe("salidas del día: nave y chofer de una salida de ruta (issue #174)", (
   });
 });
 
-describe("salidas del día: chofer de una combi del aeropuerto y de una nave de Chapelco", () => {
-  it("la secretaría asigna el chofer de una combi ya asignada al vuelo", async () => {
-    mocks.findAssignment.mockResolvedValue({
-      driverId: null, flight: { id: "f1", number: "AR1656", scheduledAt: new Date("2026-11-17T08:30:00-03:00") },
-      vehicle: { name: "Combi 243" }, driver: null
-    });
-    const url = await redirectTo(setAirportDriverAction(form({ id: "a1", driverId: "d1" })));
-    expect(mocks.updateAssignment).toHaveBeenCalledWith({ where: { id: "a1" }, data: { driverId: "d1" } });
-    expect(url).toBe("redirect:/admin/salidas-del-dia?date=2026-11-17&notice=Chofer asignado a la combi.");
-    expect(mocks.auditAfterCommit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      entity: "AIRPORT", entityId: "f1", before: { driver: null }, after: { driver: "Ramón Paz" }
-    }));
-  });
-
-  it("quitar el chofer de la combi no consulta choferes", async () => {
-    mocks.findAssignment.mockResolvedValue({
-      driverId: "d1", flight: { id: "f1", number: "AR1656", scheduledAt: new Date("2026-11-17T08:30:00-03:00") },
-      vehicle: { name: "Combi 243" }, driver: { name: "Ramón Paz", email: "ramon@ejemplo.test" }
-    });
-    const url = await redirectTo(setAirportDriverAction(form({ id: "a1", driverId: "" })));
-    expect(mocks.findDriver).not.toHaveBeenCalled();
-    expect(mocks.updateAssignment).toHaveBeenCalledWith({ where: { id: "a1" }, data: { driverId: null } });
-    expect(url).toContain("Chofer quitado de la combi.");
-  });
-
-  it("no asigna un chofer inactivo a la combi", async () => {
-    mocks.findDriver.mockResolvedValue(null);
-    mocks.findAssignment.mockResolvedValue({
-      driverId: null, flight: { id: "f1", number: "AR1656", scheduledAt: new Date("2026-11-17T08:30:00-03:00") },
-      vehicle: { name: "Combi 243" }, driver: null
-    });
-    const url = await redirectTo(setAirportDriverAction(form({ id: "a1", driverId: "u9" })));
-    expect(mocks.updateAssignment).not.toHaveBeenCalled();
-    expect(url).toContain("Ese chofer no está disponible");
-  });
-
+describe("salidas del día: chofer de una nave de Chapelco", () => {
   it("asigna el chofer de una nave del día de Chapelco", async () => {
     mocks.findDuty.mockResolvedValue({
       driverId: null, operationDayId: "o1", operationDay: { serviceDate: new Date("2026-07-12T00:00:00Z") },

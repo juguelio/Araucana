@@ -8,13 +8,30 @@ import { createExpenseAction, createSalaryPaymentAction } from "./actions";
 import { AccountingDisclosure } from "./accounting-disclosure";
 import { ExpenseForm } from "./expense-form";
 import { SalaryPaymentForm } from "./salary-payment-form";
+import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
+import { Paginador } from "@/components/admin-list/paginador";
+import { hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado } from "@/lib/admin/list-order";
 
 type AccountingPageProps = {
   searchParams?: Promise<{
     month?: string;
     notice?: string;
+    orden?: string;
+    dir?: string;
+    page?: string;
   }>;
 };
+
+const BASE = "/admin/contabilidad";
+const POR_PAGINA = 25;
+/** Columnas ordenables de los egresos (issue #192). Por defecto, el más reciente arriba. */
+const COLUMNAS = ["fecha", "categoria", "monto", "nave", "persona", "nota"] as const;
+type Columna = (typeof COLUMNAS)[number];
+const POR_DEFECTO: OrdenDeListado<Columna> = { columna: "fecha", direccion: "desc" };
+
+function categoriaLabel(category: string) {
+  return ACCOUNTING_CATEGORY_LABELS[category as keyof typeof ACCOUNTING_CATEGORY_LABELS] ?? category;
+}
 
 function formatDate(date: Date) {
   return date.toLocaleDateString("es-AR", { timeZone: "UTC" });
@@ -52,9 +69,27 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
     })
   ]);
 
+  // Los egresos del mes ya vienen enteros (el informe los suma): se ordenan y paginan en memoria.
+  const filtros = params ?? {};
+  const orden = leerOrden(COLUMNAS, POR_DEFECTO, filtros);
+  const egresos = ordenarEnMemoria(report.expenses, orden, {
+    fecha: (entry) => entry.occurredAt,
+    categoria: (entry) => categoriaLabel(entry.category),
+    // Montos de monedas distintas no se comparan: primero la moneda, después el importe.
+    monto: (entry) => `${entry.currency} ${String(entry.amountCents).padStart(15, "0")}`,
+    nave: (entry) => entry.vehicle?.name,
+    persona: (entry) => entry.user?.name ?? entry.user?.email,
+    nota: (entry) => entry.notes
+  });
+  const pagina = paginar(egresos, leerPagina(filtros.page), POR_PAGINA);
+  const encabezado = (etiqueta: string, columna: Columna) => (
+    <EncabezadoOrdenable etiqueta={etiqueta} columna={columna} orden={orden} base={BASE} params={filtros} />
+  );
+
   return (
     <AdminShell role={sessionUser.role} title="Contabilidad" eyebrow={period.label} notice={params?.notice}>
       <form className="filter-bar" action="/admin/contabilidad">
+        <OrdenOculto orden={orden} />
         <label>
           Mes
           <input name="month" type="month" defaultValue={params?.month ?? new Date().toISOString().slice(0, 7)} />
@@ -98,19 +133,19 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         <table className="data-table embedded-table">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Categoria</th>
-              <th>Monto</th>
-              <th>Nave</th>
-              <th>Persona</th>
-              <th>Nota</th>
+              {encabezado("Fecha", "fecha")}
+              {encabezado("Categoria", "categoria")}
+              {encabezado("Monto", "monto")}
+              {encabezado("Nave", "nave")}
+              {encabezado("Persona", "persona")}
+              {encabezado("Nota", "nota")}
             </tr>
           </thead>
           <tbody>
-            {report.expenses.map((entry) => (
+            {pagina.items.map((entry) => (
               <tr key={entry.id}>
                 <td>{formatDate(entry.occurredAt)}</td>
-                <td>{ACCOUNTING_CATEGORY_LABELS[entry.category as keyof typeof ACCOUNTING_CATEGORY_LABELS] ?? entry.category}</td>
+                <td>{categoriaLabel(entry.category)}</td>
                 <td>{formatCurrency(entry.amountCents, entry.currency)}</td>
                 <td>{entry.vehicle?.name ?? "-"}</td>
                 <td>{entry.user?.name ?? entry.user?.email ?? "-"}</td>
@@ -124,6 +159,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
             ) : null}
           </tbody>
         </table>
+        <Paginador {...pagina} hrefPagina={(n) => hrefDePagina(BASE, filtros, n)} etiqueta="egresos" />
       </section>
     </AdminShell>
   );

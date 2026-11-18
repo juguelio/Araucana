@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { AuditActor } from "@/lib/audit/record";
 import { recordScheduleAudit } from "@/lib/audit/schedule";
-import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
+import { conflictKey, driverConflicts, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
 import type { UnitResult } from "./schedule-unit-service";
 import { extraUnitsSeatsInclude, scheduleSeatPool } from "./schedule-units";
 
@@ -79,14 +79,14 @@ export async function replaceRouteVehicle(input: Replacement): Promise<UnitResul
       const capacity = kept.reduce((sum, unit) => sum + (unit.vehicle.isActive ? unit.vehicle.seats.length : 0), 0) + vehicles.reduce((sum,v) => sum + v._count.seats, 0);
       if (capacity < passengers) return { error: `Hay ${passengers} pasajeros y quedarían ${capacity} lugares. Faltan ${passengers - capacity}.` };
       const interval = { startsAt: before.departureAt, endsAt: before.arrivalAt };
-      const resources = [
-        ...vehicles.map(v => ({ target: { vehicleId: v.id }, label: v.name })),
-        ...drivers.map(d => ({ target: { driverId: d.id }, label: d.name || d.email }))
-      ];
       const conflicts: FleetConflict[] = [];
-      for (const { target, label } of resources) {
-        const found = await fleetConflicts(tx, { ...interval, ...target }, undefined, scheduleId);
-        conflicts.push(...found.map(c => ({ ...c, label: label + " · " + c.label })));
+      for (const vehicle of vehicles) {
+        const hits = await fleetConflicts(tx, { ...interval, vehicleId: vehicle.id }, undefined, scheduleId);
+        conflicts.push(...hits.map(hit => ({ ...hit, id: vehicle.id + ":" + hit.id, label: vehicle.name + " · " + hit.label })));
+      }
+      for (const driver of drivers) {
+        const hits = await driverConflicts(tx, { ...interval, driverId: driver.id, excludeScheduleId: scheduleId });
+        conflicts.push(...hits.map(hit => ({ ...hit, id: driver.id + ":" + hit.id, label: (driver.name || driver.email) + " · " + hit.label })));
       }
       const busy = conflicts.filter(c => !c.possible);
       if (busy.length) return { error: "Hay un cruce de horario: " + busy.map(c => c.label).join(", ") };

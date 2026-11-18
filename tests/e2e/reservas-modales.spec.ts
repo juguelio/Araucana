@@ -14,7 +14,7 @@ const db = new PrismaClient({ datasourceUrl: process.env.E2E_DATABASE_URL });
 const suffix = randomUUID();
 const email = `modales-${suffix}@example.com`;
 const password = `Test-${suffix}`;
-const codes = { pago: "", estado: "", comprobante: "", borrar: "" };
+const codes = { pago: "", estado: "", comprobante: "", borrar: "", editar: "" };
 
 test.beforeAll(async () => {
   await db.user.create({ data: { email, name: "Admin modales", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 10) } });
@@ -117,4 +117,26 @@ test("Borrar está dentro de Editar", async ({ page }) => {
   await seccion.getByRole("button", { name: "Borrar reserva" }).click();
   await expect(page).toHaveURL(/\/admin\/reservas\?notice=/);
   expect(await db.reservation.findUnique({ where: { code: codes.borrar } })).toBeNull();
+});
+
+test("Editar reserva da acceso a cargar el pago y, ya pagada, no lo vuelve a ofrecer", async ({ page }) => {
+  await page.goto(`/admin/reservas/${codes.editar}/editar`);
+  const seccion = page.getByRole("region", { name: "Cargar pago" });
+  await expect(seccion).toContainText("$ 15.000");
+  await seccion.getByLabel("Forma de pago").fill("Transferencia");
+  await seccion.getByLabel("Referencia (opcional)").fill("OP-123");
+  // El comprobante se adjunta al registrar el pago. Sin almacenamiento de archivos (como en esta base
+  // local) el pago se registra igual y el aviso dice que falta el comprobante.
+  await seccion.getByLabel("Comprobante (opcional)").setInputFiles({ name: "comprobante.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%comprobante\n") });
+  await page.screenshot({ path: "/tmp/araucana-editar-pago.png", fullPage: true });
+  await seccion.getByRole("button", { name: "Registrar pago" }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/admin/reservas/${codes.editar}\\?`));
+  await expect(page.getByRole("status")).toContainText("Pago registrado, pero el comprobante no se adjuntó");
+  const pagada = await db.reservation.findUniqueOrThrow({ where: { code: codes.editar }, include: { payment: true } });
+  expect(pagada.payment?.status).toBe("APPROVED");
+  expect(pagada.payment?.method).toBe("Transferencia");
+
+  await page.goto(`/admin/reservas/${codes.editar}/editar`);
+  await expect(page.getByRole("region", { name: "Cargar pago" })).toHaveCount(0);
 });
