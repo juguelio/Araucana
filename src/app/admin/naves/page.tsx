@@ -13,6 +13,7 @@ import {
   paginarNaves,
   type ColumnaNaves
 } from "@/lib/vehicles/fleet-table";
+import { butacasParaAeropuerto, tienePlanoDeButacas } from "@/lib/airport/capacity";
 import { VencimientosDialog } from "./vencimientos-dialog";
 import "./naves.css";
 import "@/components/admin-list/pagination.css";
@@ -201,7 +202,20 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                       )}
                     </div>
                   </td>
-                  <td data-label="Capacidad">{vehicle._count.seats} pasajeros</td>
+                  <td data-label="Capacidad">
+                    {tienePlanoDeButacas(vehicle._count.seats) ? (
+                      <div className="fleet-capacity">
+                        <span>{vehicle._count.seats} pasajeros</span>
+                        <small className="muted">{butacasParaAeropuerto(vehicle._count.seats)} en el aeropuerto</small>
+                      </div>
+                    ) : (
+                      /* Sin plano de butacas la unidad no vende nada: «0 pasajeros» se lee como dato
+                         válido y el operador no sabe que le falta cargar la capacidad. */
+                      <Link className="fleet-capacity-missing" href={`/admin/naves/${vehicle.id}`}>
+                        Falta cargar la capacidad
+                      </Link>
+                    )}
+                  </td>
                   <td data-label="Estado">
                     <span className={`status-pill ${vehicle.isActive ? "active" : "inactive"}`}>
                       {vehicle.isActive ? "Activa" : "Inactiva"}
