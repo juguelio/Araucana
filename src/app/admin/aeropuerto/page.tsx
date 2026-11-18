@@ -5,7 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
-import { horaDeReferencia, separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
+import { separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -13,7 +13,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
-import { assignVehicleAction, confirmFlightAction, createFlightAction, removeAssignmentAction, savePickupStartAction } from "./actions";
+import { assignVehicleAction, createFlightAction, removeAssignmentAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
@@ -160,7 +160,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
     // el operador puede confirmarlo él.
     const confirmado = v.status === "LANDED" || (v.direction === "DEPARTURE" && v.status === "EN_ROUTE");
     const sinConfirmar = pasado && !confirmado;
-    const puedeConfirmar = !confirmado && horaDeReferencia(snapshot) <= ahora;
     const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart({ ...v, estimatedAt: snapshot.estimatedAt });
 
     return (
@@ -258,18 +257,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
           <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>
           </div>
           <div className="flight-card-actions">
-          {/* La fuente no siempre confirma: Chapelco en temporada baja no aparece en AirLabs. El
-              operador lo vio llegar, así que lo confirma él y el tablero se actualiza. */}
-          {!puedeConfirmar ? null : (
-            <form action={confirmFlightAction} className="flight-confirmar">
-              <input type="hidden" name="id" value={v.id} />
-              <label>
-                <span className="muted">{v.direction === "ARRIVAL" ? "Aterrizó a las" : "Salió a las"}</span>
-                <input type="datetime-local" name="actualAt" defaultValue={localInput(snapshot.estimatedAt ?? v.scheduledAt)} required />
-              </label>
-              <button className="button" type="submit">{v.direction === "ARRIVAL" ? "Confirmar aterrizaje" : "Confirmar salida"}</button>
-            </form>
-          )}
           {ocupados > 0 ? (
             <>
               <Link
