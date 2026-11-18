@@ -472,8 +472,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     event.preventDefault();
     setError("");
 
-    // El traslado al aeropuerto no exige documento (17-nov): se pide nombre y teléfono, nada más.
-    const errors: Record<string, string> = { ...validateCheckoutPassenger(passenger, fromAdmin, true) };
+    // El traslado al aeropuerto no exige documento (17-nov) ni email (18-nov): nombre y teléfono alcanzan.
+    const errors: Record<string, string> = { ...validateCheckoutPassenger(passenger, true, true) };
     if (overrideTotalCents === null) errors.customPrice = reservationPriceError;
     if (esPrivado) {
       if (!privadoListo) errors.flight = "Completá el número o matrícula y la hora de tu vuelo privado.";
@@ -807,7 +807,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               <PassengerFields
                 passenger={passenger}
                 fieldErrors={fieldErrors}
-                optionalIdentity={fromAdmin}
+                optionalIdentity
                 optionalDocument
                 disabled={isSubmitting}
                 onChange={updatePassenger}

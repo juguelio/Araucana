@@ -15,7 +15,28 @@ import {
   seccionesDelCheckoutUnTramo,
   textoDelLugarDe
 } from "./airport-checkout-form";
+import { PassengerFields, initialPassenger } from "./passenger-fields";
 import type { PublicRouteDto, ScheduleOptionDto, SeatMapDto } from "@/lib/booking/types";
+
+describe("el email del checkout es opcional en el aeropuerto (#239)", () => {
+  const props = {
+    passenger: { ...initialPassenger, firstName: "Jesica", lastName: "Dos", phoneCountryCode: "+54", phone: "3512316331" },
+    fieldErrors: {},
+    onChange: () => {}
+  };
+
+  it("con `optionalIdentity` el campo dice «(opcional)» y no es obligatorio", () => {
+    const html = renderToStaticMarkup(createElement(PassengerFields, { ...props, optionalIdentity: true, optionalDocument: true }));
+    expect(html).toContain("Email (opcional)");
+    expect(html).not.toMatch(/required="" name="email"/);
+  });
+
+  it("sin `optionalIdentity` el email sigue siendo obligatorio (rutas y Chapelco)", () => {
+    const html = renderToStaticMarkup(createElement(PassengerFields, props));
+    expect(html).toContain(">Email<");
+    expect(html).toMatch(/required="" name="email"/);
+  });
+});
 
 // El formulario usa el router para volver a la reserva creada; en el test no hay navegación.
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));

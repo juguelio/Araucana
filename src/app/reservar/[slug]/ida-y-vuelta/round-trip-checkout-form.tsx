@@ -581,8 +581,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     if (problemaVuelos) { mostrarProblema(problemaVuelos); return; }
     const problemaPickups = validarPaso2();
     if (problemaPickups) { mostrarProblema(problemaPickups); return; }
-    // El documento es opcional en el ida y vuelta (#206; el servidor lo acepta desde el fix del 17-nov).
-    const erroresPasajero = validateCheckoutPassenger(passenger, fromAdmin, true);
+    // El documento (#206) y el email (#239) son opcionales en el ida y vuelta: nombre y teléfono alcanzan.
+    const erroresPasajero = validateCheckoutPassenger(passenger, true, true);
     if (Object.keys(erroresPasajero).length > 0) {
       setFieldErrors(erroresPasajero);
       mostrarProblema("Revisá los datos del pasajero.");
@@ -829,7 +829,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                 passenger={passenger}
                 fieldErrors={fieldErrors}
                 onChange={updatePassenger}
-                optionalIdentity={fromAdmin}
+                optionalIdentity
                 optionalDocument
               />
 
