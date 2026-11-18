@@ -11,6 +11,7 @@ import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetCon
 import type { Prisma } from "@prisma/client";
 import { isDateKey, localDateKey } from "@/lib/operations/day-board";
 import { redirectToBoard } from "./return-to";
+import { replaceRouteVehicle } from "@/lib/booking/replace-route-vehicle";
 import { addScheduleUnit, primaryVehicleProblem, removeScheduleUnit, updateScheduleUnit, type UnitResult } from "@/lib/booking/schedule-unit-service";
 
 export type CrewState = { error?: string; conflicts?: FleetConflict[]; confirmation?: string };
@@ -408,4 +409,19 @@ export async function removeSpecialVehicleAction(formData: FormData) {
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath(`/admin/viajes-especiales/${assignment.tripId}`);
   redirectToBoard(dateKey, "Nave quitada del viaje.", formData);
+}
+
+export async function replaceBoardVehicleAction(_state: CrewState, form: FormData): Promise<CrewState> {
+  const actor = await getCurrentAdminOrRedirect();
+  const ids = form.getAll("vehicleId");
+  const drivers = form.getAll("driverId");
+  if (ids.length !== drivers.length || [...ids, ...drivers].some(entry => typeof entry !== "string")) {
+    return { error: "Revisá las naves y sus choferes." };
+  }
+  const result = await replaceRouteVehicle({
+    actor, scheduleId: value(form, "scheduleId"), outgoingId: value(form, "outgoingId"),
+    replacements: ids.map((id, i) => ({ vehicleId: String(id), driverId: String(drivers[i]) || null })),
+    confirmation: value(form, "confirmation")
+  });
+  return afterUnitChange(result, form);
 }

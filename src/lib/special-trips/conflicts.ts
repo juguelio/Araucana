@@ -2,7 +2,14 @@ import type { Prisma } from "@prisma/client";
 import { airportServiceWindow } from "@/lib/airport/service-window";
 import { dateOnly, localInput } from "./data";
 
-type Interval = { vehicleId: string; startsAt: Date; endsAt: Date };
+// La rama generalizó el intervalo para que sirva tanto para la nave como para el chofer; main sumó
+// `subject` para distinguir un choque de chofer de uno de nave. Se quedan las dos cosas.
+type Interval = { startsAt: Date; endsAt: Date } & ({ vehicleId: string } | { driverId: string });
+
+function resource(interval: Interval) {
+  return "vehicleId" in interval ? { vehicleId: interval.vehicleId } : { driverId: interval.driverId };
+}
+
 export type FleetConflict = {
   id: string;
   label: string;
@@ -27,7 +34,7 @@ export async function lockFleet(tx: Prisma.TransactionClient, ids: string[]) {
 export async function specialConflicts(tx: Prisma.TransactionClient, interval: Interval, excludeTrip?: string, possible = false) {
   const hits = await tx.specialTripAssignment.findMany({
     where: {
-      vehicleId: interval.vehicleId, startsAt: { lt: interval.endsAt }, endsAt: { gt: interval.startsAt },
+      ...resource(interval), startsAt: { lt: interval.endsAt }, endsAt: { gt: interval.startsAt },
       trip: { id: { not: excludeTrip }, status: { not: "CANCELLED" } }
     },
     include: { trip: { select: { client: true } } }
@@ -47,7 +54,8 @@ export async function fleetConflicts(
   excludeTrip?: string,
   excludeSchedule?: string
 ) {
-  const { vehicleId, startsAt, endsAt } = interval;
+  const { startsAt, endsAt } = interval;
+  const assigned = resource(interval);
   const first = localInput(startsAt).slice(0, 10);
   const last = localInput(new Date(+endsAt - 1)).slice(0, 10);
   const dateRange = { gte: dateOnly(first)!, lte: dateOnly(last)! };
@@ -57,7 +65,7 @@ export async function fleetConflicts(
     tx.schedule.findMany({
       where: {
         // La nave puede ser la principal de la salida o una de las que se le sumaron.
-        OR: [{ vehicleId }, { extraUnits: { some: { vehicleId } } }],
+        OR: [assigned, { extraUnits: { some: assigned } }],
         departureAt: { lt: endsAt },
         arrivalAt: { gt: startsAt },
         ...(excludeSchedule ? { id: { not: excludeSchedule } } : {}),
@@ -66,11 +74,11 @@ export async function fleetConflicts(
       include: { route: { select: { from: true, to: true } } }
     }),
     tx.chapelcoVehicleDuty.findMany({
-      where: { vehicleId, status: "ACTIVE", operationDay: { serviceDate: dateRange, status: { not: "CANCELLED" } } },
+      where: { ...assigned, status: "ACTIVE", operationDay: { serviceDate: dateRange, status: { not: "CANCELLED" } } },
       include: { operationDay: true }
     }),
     tx.airportVehicleAssignment.findMany({
-      where: { vehicleId, flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }] } },
+      where: { ...assigned, flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }] } },
       include: { flight: true }
     })
   ]);
