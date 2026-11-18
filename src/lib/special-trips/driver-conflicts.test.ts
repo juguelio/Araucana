@@ -27,7 +27,7 @@ const tramo = { driverId: "d1", startsAt: at("11:30"), endsAt: at("14:00") };
 describe("driverConflicts: dónde más maneja el chofer en ese tramo", () => {
   it("busca al chofer en salidas de ruta, naves sumadas, viajes especiales, Chapelco y otros vuelos", async () => {
     const { client, calls } = tx();
-    expect(await driverConflicts(client, tramo, "f1")).toEqual([]);
+    expect(await driverConflicts(client, tramo, { flightId: "f1", vehicleId: "v1" })).toEqual([]);
     const overlap = { departureAt: { lt: tramo.endsAt }, arrivalAt: { gt: tramo.startsAt }, status: { notIn: ["CANCELLED", "CANCELED", "CLOSED"] } };
     expect(calls.schedule).toHaveBeenCalledWith(expect.objectContaining({ where: { driverId: "d1", ...overlap } }));
     expect(calls.scheduleUnit).toHaveBeenCalledWith(expect.objectContaining({ where: { driverId: "d1", schedule: overlap } }));
@@ -35,8 +35,8 @@ describe("driverConflicts: dónde más maneja el chofer en ese tramo", () => {
       where: expect.objectContaining({ driverId: "d1", startsAt: { lt: tramo.endsAt }, endsAt: { gt: tramo.startsAt } })
     }));
     expect(calls.chapelcoVehicleDuty).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ driverId: "d1", status: "ACTIVE" }) }));
-    // El vuelo que se está guardando no choca consigo mismo.
-    expect(calls.airportVehicleAssignment).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ driverId: "d1", flightId: { not: "f1" } }) }));
+    // La combi que se está guardando no choca consigo misma; las otras combis del mismo vuelo sí cuentan.
+    expect(calls.airportVehicleAssignment).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ driverId: "d1", NOT: { flightId: "f1", vehicleId: "v1" } }) }));
   });
 
   it("marca como del chofer cada cruce y sólo cuenta los vuelos cuya ventana se superpone", async () => {
@@ -52,7 +52,7 @@ describe("driverConflicts: dónde más maneja el chofer en ese tramo", () => {
         { id: "a2", flightId: "f3", flight: { number: "AR 1660", direction: "ARRIVAL", scheduledAt: at("20:00"), estimatedAt: null, pickupStartOverrideAt: null, status: "SCHEDULED" } }
       ]
     });
-    const conflicts = await driverConflicts(client, tramo, "f1");
+    const conflicts = await driverConflicts(client, tramo, { flightId: "f1", vehicleId: "v1" });
     expect(conflicts.map((c) => [c.id, c.label, c.possible, c.subject])).toEqual([
       ["chofer:s1", "Chofer · Servicio público · SMA → Villa Traful", false, "driver"],
       ["chofer:u1", "Chofer · Servicio público · SMA → Bariloche", false, "driver"],

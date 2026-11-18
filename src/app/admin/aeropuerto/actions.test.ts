@@ -83,10 +83,10 @@ describe("aeropuerto: combi y chofer desde el modal «Asignar combi»", () => {
     const url = await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
     expect(mocks.findDriver).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "d1", role: "DRIVER", isActive: true } }));
     expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f1", vehicleId: "v1", driverId: "d1" } }));
-    // El chofer se controla en el tramo del arribo (media hora antes hasta terminar el reparto), sin contar este vuelo.
+    // El chofer se controla en el tramo del arribo (media hora antes hasta terminar el reparto), sin contar esta misma combi.
     expect(mocks.driverConflicts).toHaveBeenCalledWith(expect.anything(), {
       driverId: "d1", startsAt: new Date("2026-11-20T13:30:00-03:00"), endsAt: new Date("2026-11-20T16:00:00-03:00")
-    }, "f1");
+    }, { flightId: "f1", vehicleId: "v1" });
     expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       entity: "AIRPORT", entityId: "f1", action: "CREATE", summary: "Combi Sprinter 1 asignada al vuelo.",
       before: null, after: { vehicle: "Sprinter 1", driver: "Ramón Paz" }

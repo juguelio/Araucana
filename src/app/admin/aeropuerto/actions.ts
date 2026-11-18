@@ -274,7 +274,7 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
       [...days].map((day) => specialConflicts(tx, { vehicleId, ...dayInterval(day) }, undefined, true))
     )).flat() : [];
     const driverHits = active && driverId && driverChanged
-      ? await driverConflicts(tx, { driverId, ...airportServiceWindow(flight) }, flightId)
+      ? await driverConflicts(tx, { driverId, ...airportServiceWindow(flight) }, { flightId, vehicleId })
       : [];
     const conflicts = [...new Map([...vehicleHits, ...driverHits].map((hit) => [hit.id, hit])).values()];
     const confirmation = conflictKey(conflicts, [flightId, vehicleId, driverId]);

@@ -86,15 +86,16 @@ type DriverInterval = { driverId: string; startsAt: Date; endsAt: Date };
 
 /**
  * Dónde más maneja el chofer en ese tramo: salidas de ruta (como nave principal o sumada), viajes
- * especiales, otros vuelos y Chapelco ese día. `excludeFlight` deja afuera el vuelo que se está
- * guardando, para que la combi no choque con su propio vuelo.
+ * especiales, otros vuelos (y otras combis del mismo vuelo) y Chapelco ese día. `excludeAirport` deja
+ * afuera la combi que se está guardando, para que no choque consigo misma.
  */
-export async function driverConflicts(tx: Prisma.TransactionClient, interval: DriverInterval, excludeFlight?: string) {
+export async function driverConflicts(tx: Prisma.TransactionClient, interval: DriverInterval, excludeAirport?: { flightId: string; vehicleId: string }) {
   const { driverId, startsAt, endsAt } = interval;
   const first = localInput(startsAt).slice(0, 10);
   const last = localInput(new Date(+endsAt - 1)).slice(0, 10);
-  // Los vuelos se traen con un día de margen y se filtran por su propia ventana de servicio.
-  const flightRange = { gte: dayInterval(first).startsAt, lt: new Date(+dayInterval(last).endsAt + 86_400_000) };
+  // Los vuelos se traen con un día de margen para cada lado (un arribo de la noche anterior reparte
+  // pasada la medianoche) y se filtran por su propia ventana de servicio.
+  const flightRange = { gte: new Date(+dayInterval(first).startsAt - 86_400_000), lt: new Date(+dayInterval(last).endsAt + 86_400_000) };
   const activeSchedule = { departureAt: { lt: endsAt }, arrivalAt: { gt: startsAt }, status: { notIn: ["CANCELLED", "CANCELED", "CLOSED"] } };
   const [schedules, units, special, chapelco, airport] = await Promise.all([
     tx.schedule.findMany({ where: { driverId, ...activeSchedule }, include: { route: { select: { from: true, to: true } } } }),
@@ -109,7 +110,7 @@ export async function driverConflicts(tx: Prisma.TransactionClient, interval: Dr
     }),
     tx.airportVehicleAssignment.findMany({
       where: {
-        driverId, ...(excludeFlight ? { flightId: { not: excludeFlight } } : {}),
+        driverId, ...(excludeAirport ? { NOT: excludeAirport } : {}),
         flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }] }
       },
       include: { flight: true }
