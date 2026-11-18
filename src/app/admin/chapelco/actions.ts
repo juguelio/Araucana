@@ -112,7 +112,7 @@ export async function assignChapelcoVehicle(_state: unknown, form: FormData): Pr
   if (!result.saved) return result;
   revalidatePath("/admin/chapelco");
   revalidatePath("/admin/salidas-del-dia");
-  if (returnsToBoard(form)) redirectToBoard(day, "Nave asignada a Chapelco.");
+  if (returnsToBoard(form)) redirectToBoard(day, "Nave asignada a Chapelco.", form);
   return chapelcoRedirect(day, "Nave asignada a Chapelco.");
 }
 
@@ -125,7 +125,7 @@ export async function releaseChapelcoVehicle(form: FormData) {
   if (!duty) return;
   const day = duty.operationDay.serviceDate.toISOString().slice(0, 10);
   if (duty._count.runs) {
-    if (returnsToBoard(form)) redirectToBoard(day, "La nave tiene recorridos cargados para ese día.");
+    if (returnsToBoard(form)) redirectToBoard(day, "La nave tiene recorridos cargados para ese día.", form);
     chapelcoRedirect(day, "La nave tiene recorridos cargados para ese día.");
   }
   await prisma.chapelcoVehicleDuty.update({ where: { id }, data: { status: "INACTIVE" } });
@@ -136,6 +136,6 @@ export async function releaseChapelcoVehicle(form: FormData) {
   });
   revalidatePath("/admin/chapelco");
   revalidatePath("/admin/salidas-del-dia");
-  if (returnsToBoard(form)) redirectToBoard(day, "Nave quitada de la operación.");
+  if (returnsToBoard(form)) redirectToBoard(day, "Nave quitada de la operación.", form);
   chapelcoRedirect(day, "Nave quitada de la operación.");
 }

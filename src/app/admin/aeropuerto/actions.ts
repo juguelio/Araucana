@@ -358,7 +358,7 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
-  if (returnsToBoard(formData)) redirectToBoard(day, message);
+  if (returnsToBoard(formData)) redirectToBoard(day, message, formData);
   const toOrder = orderReturnHref(formData, message);
   if (toOrder) redirect(toOrder);
   const toNaves = navesStepHref(formData, day, message);
@@ -406,7 +406,7 @@ export async function removeAssignmentAction(formData: FormData) {
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
-  if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.");
+  if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.", formData);
   const toOrder = orderReturnHref(formData, "Combi quitada del vuelo.");
   if (toOrder) redirect(toOrder);
   const toNaves = removed ? navesStepHref(formData, localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada de la recorrida.") : null;
