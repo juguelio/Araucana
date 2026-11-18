@@ -14,7 +14,7 @@ import {
   serviceOrderRow,
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
-import { linkDeLaOrden } from "@/lib/airport/service-order-link";
+import { linkDeLaOrden, rutaDeAsignacion } from "@/lib/airport/service-order-link";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 
 export const dynamic = "force-dynamic";
@@ -111,6 +111,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       role={usuario.role}
       action={
         <div className="form-actions no-print">
+          {/* Nave y chofer se asignan en un solo lugar, para todas las áreas: la orden lleva ahí con
+              su fecha ya puesta, en vez de obligar a buscarla de nuevo en el panel (#248). */}
+          <Link className="ghost-button" href={rutaDeAsignacion(date)}>Asignar naves y choferes</Link>
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
         </div>
       }

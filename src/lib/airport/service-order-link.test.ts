@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { crearTokenDeOrden, leerTokenDeOrden, linkDeLaOrden, vencimientoDelLink } from "./service-order-link";
+import { crearTokenDeOrden, leerTokenDeOrden, linkDeLaOrden, rutaDeAsignacion, vencimientoDelLink } from "./service-order-link";
 
 const SECRETO = "secreto-de-prueba-con-mas-de-32-bytes-1234";
 
@@ -96,6 +96,16 @@ describe("link de la orden para el chofer (issue #118)", () => {
     expect(link.startsWith("https://araucana.vercel.app/orden/")).toBe(true);
     const token = link.split("/orden/")[1];
     expect(leerTokenDeOrden(token, ahora)?.date).toBe("2026-11-13");
+  });
+});
+
+describe("la orden lleva a asignar naves y choferes (issue #248)", () => {
+  it("va a Salidas del día con la fecha de la orden", () => {
+    expect(rutaDeAsignacion("2026-11-18")).toBe("/admin/salidas-del-dia?date=2026-11-18");
+  });
+
+  it("puede caer sólo en lo que falta asignar", () => {
+    expect(rutaDeAsignacion("2026-11-18", true)).toBe("/admin/salidas-del-dia?date=2026-11-18&falta=1");
   });
 });
 
