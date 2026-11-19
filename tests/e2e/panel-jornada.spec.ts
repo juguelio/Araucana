@@ -13,6 +13,11 @@ const adminEmail = "panel-" + suffix + "@example.com";
 const driverName = "Chofer prueba " + suffix;
 const route = { from: "Centro", to: "Terminal", via: "", durationMin: 60, priceCents: 100, category: "Regular", description: "", stops: [] };
 async function abrirServicio(row: Locator) {
+  await expect(row).toBeAttached();
+  const programacion = row.locator('xpath=ancestor::details[contains(@class,"sd-programmed")]');
+  if (await programacion.count() && await programacion.getAttribute("open") === null) {
+    await programacion.locator(":scope > summary").click();
+  }
   const fold = row.locator(".plan-service-fold");
   if (await fold.getAttribute("open") === null) await fold.locator(":scope > summary").click();
 }
@@ -64,7 +69,10 @@ test("la misma nave y chofer cubren aeropuerto, cerro y ruta desde el panel", as
     await expect(page.getByRole("button", { name: "Equipo del día" })).toHaveAttribute("aria-expanded", "true");
     await page.getByRole("button", { name: "Choferes", exact: true }).click();
     await page.getByRole("button", { name: driverName }).click();
-    await expect(page.locator(".desk-agenda a")).toHaveCount(3);
+    await expect(page.locator(".desk-agenda a").filter({ has: page.locator("strong") })).toHaveCount(3);
+    await page.getByRole("link", { name: "Órdenes de aeropuerto" }).click();
+    await expect(page.getByText(`Sin órdenes de aeropuerto con pasajeros para ${driverName} en esta fecha.`)).toBeVisible();
+    await page.getByRole("link", { name: "Volver al panel" }).click();
     await page.setViewportSize({ width:390, height:844 });
     await expect(page.getByRole("heading",{name:"Naves y choferes"})).toBeVisible();
   } finally {
@@ -93,18 +101,26 @@ test("cuatro naves en la ida y dos en la vuelta de una ruta se gestionan por sep
   try {
     expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
     await page.goto("/admin?date=" + date);
+    await expect(page.locator(".plan-heading")).toContainText("0 servicios");
+    await expect(page.getByText("Ver la programación del día (2)")).toBeVisible();
+    await page.getByRole("link", { name: /Pendientes/ }).click();
+    await expect(page.locator(".sd-programmed")).toHaveCount(0);
+    await page.getByRole("link", { name: "Todos", exact: true }).click();
     for (const [index, trip] of routes.entries()) {
       const row = page.locator('.sd-row[data-area="RUTA"]').filter({ hasText: trip.from + " → " + trip.to });
       for (const [n, vehicle] of fleet.slice(1, index ? 2 : 4).entries()) {
         await abrirServicio(row);
         await row.getByLabel("Nave para sumar a la salida").selectOption(vehicle.id);
         await row.getByRole("button", { name: "Sumar", exact: true }).click();
+        await expect(row.getByText(`${n + 2} naves asignadas`)).toBeAttached();
+        await abrirServicio(row);
         await expect(row.getByText(`${n + 2} naves asignadas`)).toBeVisible();
       }
     }
     await page.reload();
     for (const [i, trip] of routes.entries()) {
       const row = page.locator('.sd-row[data-area="RUTA"]').filter({ hasText: trip.from + " → " + trip.to });
+      await abrirServicio(row);
       await expect(row.getByText(i ? "2 naves asignadas" : "4 naves asignadas")).toBeVisible();
       const extras = await db.scheduleUnit.findMany({ where: { scheduleId: trip.schedules[0].id } });
       expect(extras.map(x => x.vehicleId).sort()).toEqual(fleet.slice(1, i ? 2 : 4).map(x => x.id).sort());

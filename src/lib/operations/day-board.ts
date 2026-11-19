@@ -9,6 +9,7 @@
  */
 
 export type BoardArea = "RUTA" | "AEROPUERTO" | "CHAPELCO" | "ESPECIAL";
+export const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial" };
 
 export type BoardPerson = { id: string; name: string | null; email: string };
 

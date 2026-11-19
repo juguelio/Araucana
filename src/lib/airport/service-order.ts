@@ -253,6 +253,16 @@ type GrupoDeVuelo = Omit<ServiceOrderBlock, "key" | "vehicle" | "manualOrder"> &
 };
 
 /**
+ * Una vuelta es «recorrida compartida» cuando lleva al menos dos vuelos del mismo sentido. No se pide
+ * una sola nave: desde #271/#272 una vuelta puede salir con dos combis y los pasajeros se reparten por
+ * zona entre ellas (`repartirEnNaves`). La comparte la hoja del chofer con la agenda del panel.
+ */
+export function esUnaRecorrida(miembros: { direction: string | null }[]) {
+  if (miembros.length < 2) return false;
+  return miembros.every((miembro) => miembro.direction === miembros[0].direction);
+}
+
+/**
  * Une en una sola orden los vuelos que se hacen en la misma vuelta (`pickupGroupId`), del mismo sentido.
  * Si la vuelta sale con más de una nave (dos vuelos llenos, dos trafics) los pasajeros de todos los vuelos
  * se juntan y después se reparten por zona entre las naves (`repartirEnNaves`): cada nave sale con su

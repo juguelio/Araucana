@@ -21,4 +21,10 @@ describe("volver a la orden de servicio después de asignar desde su modal", () 
     expect(orderReturnHref(form("date=2026-11-18&flight=//evil.com&next=https://evil.com"), "x"))
       .toBe("/admin/aeropuerto/orden-de-servicio/ver?date=2026-11-18&notice=x");
   });
+
+  it.each(["vehicleId", "driverId"])("mantiene el filtro de equipo %s al guardar desde la orden", (key) => {
+    expect(orderReturnHref(form(`date=2026-11-19&${key}=equipo-1`), "Listo."))
+      .toBe(`/admin/aeropuerto/orden-de-servicio/ver?date=2026-11-19&${key}=equipo-1&notice=Listo.`);
+    expect(orderReturnHref(form(`date=2026-11-19&${key}=`), "x")).toBeNull();
+  });
 });

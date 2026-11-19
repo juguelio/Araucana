@@ -7,15 +7,17 @@ import { LogoutButton } from "../logout-button";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
 import { butacasParaAeropuerto, pasajerosOcupados } from "@/lib/airport/booking";
+import { airportServiceWindow } from "@/lib/airport/service-window";
+import { esUnaRecorrida } from "@/lib/airport/service-order";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
-import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardArea, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
+import { AREA_LABEL, buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
-import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
+import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
 import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
@@ -23,7 +25,6 @@ import "./panel-jornada.css";
 
 export type DayParams = { date?: string; falta?: string; notice?: string };
 
-const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial" };
 const ACTIVE_RESERVATION = { notIn: ["CANCELLED"] };
 
 const hourFormat = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
@@ -164,8 +165,11 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     }))
   });
 
-  const pendingRows = board.rows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
-  const rows = onlyMissing ? pendingRows : board.rows;
+  // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
+  const serviceRows = board.rows.filter((row) => !row.programmed);
+  const programmedRows = board.rows.filter((row) => row.programmed);
+  const pendingRows = serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
+  const rows = onlyMissing ? pendingRows : serviceRows;
   const vehicleOptions: VehicleOption[] = vehicles.map((vehicle) => ({
     id: vehicle.id, seats: seatsOf(vehicle), publicTransport: vehicle.publicTransport, kind: vehicle.kind,
     label: `${vehicle.name}${vehicle.internalNumber ? ` · Int. ${vehicle.internalNumber}` : ""} · ${seatsOf(vehicle)} lug.`
@@ -179,13 +183,28 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const runsByDuty = new Map(chapelcoRoutes.flatMap(route =>
     route.chapelcoOperationDays.flatMap(day => day.vehicleDuties.map(duty => [duty.id, duty.runs] as const))
   ));
+  const flightById = new Map(flights.map(flight => [flight.id, flight]));
+  const pickupGroups = new Map<string, typeof flights>();
+  for (const flight of flights) {
+    if (!flight.pickupGroupId) continue;
+    const group = pickupGroups.get(flight.pickupGroupId) ?? [];
+    group.push(flight);
+    pickupGroups.set(flight.pickupGroupId, group);
+  }
+  const sharedPickups = new Set([...pickupGroups].filter(([, members]) => esUnaRecorrida(members)).map(([id]) => id));
   const assignments = board.rows.flatMap(row => row.units.flatMap(unit => {
     const item = {
-      key: unit.id, title: row.title, area: AREA_LABEL[row.area], href: row.href,
+      key: unit.id, title: row.title, area: row.area, href: row.href,
       vehicleId: unit.vehicleId, driverId: unit.driverId,
       start: (unit.from ?? row.at)?.getTime() ?? null,
       end: unit.to?.getTime() ?? arrivalBySchedule.get(unit.scheduleId ?? "") ?? null
     };
+    const flight = row.area === "AEROPUERTO" && flightById.get(row.serviceId);
+    if (flight) {
+      const { startsAt, endsAt } = airportServiceWindow(flight);
+      return [{ ...item, start: startsAt.getTime(), end: endsAt.getTime(), estimatedWindow: true,
+        sharedPickupId: flight.pickupGroupId && sharedPickups.has(flight.pickupGroupId) ? flight.pickupGroupId : null }];
+    }
     if (row.area !== "CHAPELCO") return [item];
     const runs = runsByDuty.get(unit.id) ?? [];
     if (!runs.length) return [{ ...item, start: null }];
@@ -195,6 +214,65 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     }));
   }));
   const dayHref = (key: string) => `${path}?date=${key}${onlyMissing ? "&falta=1" : ""}`;
+
+  const renderRow = (row: BoardRow) => (
+            <li
+              key={row.key}
+              className="sd-row"
+              data-area={row.area}
+              data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
+            >
+              <ServiceDisclosure panel={panel} summary={panel && <ServiceSummary row={row} />}>
+              {panel ? <div className="plan-detail-links">
+                <Link href={row.href}>Ver servicio</Link>
+                {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
+              </div> : <>
+              <div className="sd-time">
+                <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
+                <span>{row.atLabel}</span>
+              </div>
+
+              <div className="sd-service">
+                <p className="sd-tags">
+                  <span className="sd-area">{AREA_LABEL[row.area]}</span>
+                  {row.status ? <span className="pill pill-estado" data-tono={row.status === "Demorado" ? "atencion" : "grave"}>{row.status}</span> : null}
+                  {row.missingVehicle ? <span className="pill pill-alerta">sin nave</span> : null}
+                  {row.missingDriver ? <span className="pill pill-alerta">sin chofer</span> : null}
+                  {row.overbooked ? <span className="pill pill-alerta">sobrecupo</span> : null}
+                </p>
+                <h3><Link href={row.href}>{row.title}</Link></h3>
+                {row.area !== "RUTA" && row.detail ? <p className="muted">{row.detail}</p> : null}
+                {row.units.length > 0 && <p className="muted">{row.units.length === 1 ? "1 nave asignada" : `${row.units.length} naves asignadas`}</p>}
+                {row.area !== "RUTA" ? (
+                  <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
+                ) : null}
+              </div>
+
+              <div className="sd-pax">
+                <strong>{row.passengers}</strong>
+                <span>{row.capacity !== null ? `de ${row.capacity} lugares` : "pasajeros"}</span>
+              </div>
+
+              </>}
+              <div className="sd-assign">
+                {row.area === "RUTA" ? (
+                  canEditRoutes ? (
+                    <RouteUnits publicRoute={routes.find(r => r.id === row.routeId)?.bookingMode === "SEATED"} row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+                  ) : (
+                    <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
+                  )
+                ) : row.area === "AEROPUERTO" ? (
+                  <AirportUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+                ) : row.area === "CHAPELCO" ? (
+                  <ChapelcoUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+                ) : (
+                  <SpecialUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+                )}
+              </div>
+              </ServiceDisclosure>
+            </li>
+  );
+
 
   const dateForm = (
     <form className="sd-date" action={path}>
@@ -245,6 +323,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           <div data-alerta={board.summary.missingVehicle > 0 || undefined}><dt>Sin nave</dt><dd>{board.summary.missingVehicle}</dd></div>
           <div data-alerta={board.summary.missingDriver > 0 || undefined}><dt>Sin chofer</dt><dd>{board.summary.missingDriver}</dd></div>
           <div data-alerta={board.summary.overbooked > 0 || undefined}><dt>Sobrecupo</dt><dd>{board.summary.overbooked}</dd></div>
+          {board.summary.programmed > 0 ? <div><dt>Programadas</dt><dd>{board.summary.programmed}</dd></div> : null}
         </dl>
         <div className="sd-filter">
           <Link className={`pill${!onlyMissing ? " is-active" : ""}`} href={`${path}?date=${dateKey}`}>Todos</Link>
@@ -312,72 +391,27 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       </details>}>
       {rows.length === 0 ? (
         <p className="plain-card sd-empty">
-          {onlyMissing && board.rows.length ? "Todo lo del día tiene nave y chofer." : "No hay servicios cargados para este día."}
+          {onlyMissing
+            ? "No hay servicios pendientes de asignación."
+            : programmedRows.length
+              ? "Las salidas programadas para este día todavía no tienen pasajeros."
+              : "No hay servicios cargados para este día."}
         </p>
       ) : (
         <div className={panel ? "plan-sheet" : undefined}>
-        {panel && <div className="plan-columns" aria-hidden="true"><span>Hora</span><span>Servicio</span><span>Equipo asignado</span><span>Pasajeros</span><span /></div>}
-        <ol className="sd-list">
-          {rows.map((row) => (
-            <li
-              key={row.key}
-              className="sd-row"
-              data-area={row.area}
-              data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
-            >
-              <ServiceDisclosure panel={panel} summary={panel && <ServiceSummary row={row} />}>
-              {panel ? <div className="plan-detail-links">
-                <Link href={row.href}>Ver servicio</Link>
-                {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
-              </div> : <>
-              <div className="sd-time">
-                <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
-                <span>{row.atLabel}</span>
-              </div>
-
-              <div className="sd-service">
-                <p className="sd-tags">
-                  <span className="sd-area">{AREA_LABEL[row.area]}</span>
-                  {row.status ? <span className="pill pill-estado" data-tono={row.status === "Demorado" ? "atencion" : "grave"}>{row.status}</span> : null}
-                  {row.missingVehicle ? <span className="pill pill-alerta">sin nave</span> : null}
-                  {row.missingDriver ? <span className="pill pill-alerta">sin chofer</span> : null}
-                  {row.overbooked ? <span className="pill pill-alerta">sobrecupo</span> : null}
-                </p>
-                <h3><Link href={row.href}>{row.title}</Link></h3>
-                {row.area !== "RUTA" && row.detail ? <p className="muted">{row.detail}</p> : null}
-                {row.units.length > 0 && <p className="muted">{row.units.length === 1 ? "1 nave asignada" : `${row.units.length} naves asignadas`}</p>}
-                {row.area !== "RUTA" ? (
-                  <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
-                ) : null}
-              </div>
-
-              <div className="sd-pax">
-                <strong>{row.passengers}</strong>
-                <span>{row.capacity !== null ? `de ${row.capacity} lugares` : "pasajeros"}</span>
-              </div>
-
-              </>}
-              <div className="sd-assign">
-                {row.area === "RUTA" ? (
-                  canEditRoutes ? (
-                    <RouteUnits publicRoute={routes.find(r => r.id === row.routeId)?.bookingMode === "SEATED"} row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                  ) : (
-                    <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
-                  )
-                ) : row.area === "AEROPUERTO" ? (
-                  <AirportUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                ) : row.area === "CHAPELCO" ? (
-                  <ChapelcoUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                ) : (
-                  <SpecialUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
-                )}
-              </div>
-              </ServiceDisclosure>
-            </li>
-          ))}
-        </ol>
+          {panel && <div className="plan-columns" aria-hidden="true"><span>Hora</span><span>Servicio</span><span>Equipo asignado</span><span>Pasajeros</span><span /></div>}
+          <ol className="sd-list">{rows.map(renderRow)}</ol>
         </div>
       )}
+      {programmedRows.length > 0 && !onlyMissing ? (
+        <details className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
+          <summary>
+            <strong>Ver la programación del día ({programmedRows.length})</strong>
+            <span className="muted">Salidas que todavía no tienen pasajeros.</span>
+          </summary>
+          <ol className="sd-list sd-programmed-list">{programmedRows.map(renderRow)}</ol>
+        </details>
+      ) : null}
 
       {driverOptions.length === 0 ? (
         <p className="muted sd-footnote">No hay choferes activos: se cargan en <Link href="/admin/choferes">Choferes</Link>.</p>
@@ -421,17 +455,23 @@ type UnitProps = {
 
 const BoardReturn = () => <input type="hidden" name={BOARD_RETURN_FIELD} value={BOARD_RETURN_VALUE} />;
 
+function DriverFields({ unit, options }: { unit: BoardUnit; options: Option[] }) {
+  return <>
+      <DropSelect name="driverId" defaultValue={unit.driverId ?? ""} aria-label={`Chofer de ${unit.vehicleName}`} data-falta={!unit.driverId || undefined}>
+        <option value="">Sin chofer</option>
+        {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+      </DropSelect>
+      <button className="ghost-button" type="submit">Guardar</button>
+  </>;
+}
+
 function DriverForm({ unit, action, dateKey, options }: { unit: BoardUnit; action: (formData: FormData) => Promise<void>; dateKey: string; options: Option[] }) {
   return (
     <form action={action} className="sd-driver">
         <OriginField />
       <input type="hidden" name="id" value={unit.id} />
       <input type="hidden" name="date" value={dateKey} />
-      <DropSelect name="driverId" defaultValue={unit.driverId ?? ""} aria-label={`Chofer de ${unit.vehicleName}`} data-falta={!unit.driverId || undefined}>
-        <option value="">Sin chofer</option>
-        {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-      </DropSelect>
-      <button className="ghost-button" type="submit">Guardar</button>
+      <DriverFields unit={unit} options={options} />
     </form>
   );
 }
@@ -440,7 +480,7 @@ function UnitHead({ unit }: { unit: BoardUnit }) {
   return <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{unit.seats} lug.</span></p>;
 }
 
-function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
+function AirportUnits({ row, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
   const free = vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id));
   return (
     <div className="sd-units">
@@ -460,7 +500,16 @@ function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
       {row.units.map((unit) => (
         <div className="sd-unit" key={unit.id}>
           <UnitHead unit={unit} />
-          <DriverForm unit={unit} action={setAirportDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+          <div className="sd-airport-driver sd-driver">
+            <FleetAssignmentForm action={assignVehicleAction}>
+              <OriginField />
+              <BoardReturn />
+              <input type="hidden" name="flightId" value={row.serviceId} />
+              <input type="hidden" name="vehicleId" value={unit.vehicleId} />
+              <input type="hidden" name="assignmentId" value={unit.id} />
+              <DriverFields unit={unit} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+            </FleetAssignmentForm>
+          </div>
           <form action={removeAssignmentAction} className="sd-remove">
         <OriginField />
             <input type="hidden" name="id" value={unit.id} />
