@@ -22,6 +22,8 @@ import {
 } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
 import "./detalle.css";
+// El visor del comprobante comparte los estilos del listado.
+import "../reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
 
 type AdminPassengerPageProps = {

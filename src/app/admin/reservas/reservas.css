@@ -297,8 +297,12 @@
 .comprobante-viewer { display: grid; gap: 6px; margin: 0; }
 .comprobante-viewer-img {
   display: block;
-  width: 100%;
-  max-height: 460px;
+  /* La foto del celular es vertical: se centra y se limita a 620px de alto, sin estirarse a
+     lo ancho del contenedor (que en el detalle es toda la página). */
+  margin: 0 auto;
+  width: auto;
+  max-width: min(100%, 560px);
+  max-height: 620px;
   object-fit: contain;
   background: var(--surface);
   border: 1px solid var(--line);
