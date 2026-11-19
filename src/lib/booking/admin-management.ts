@@ -52,7 +52,16 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("edit"),
     passenger: adminPassengerPatchSchema,
-    pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema }).optional(),
+    /**
+     * `point` puede faltar: el alojamiento que ningún geocoder ubica se carga como texto y queda
+     * sin coordenadas (#268), el mismo camino que ya existía para una dirección sin geometría.
+     */
+    pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema.nullish() })
+      .refine(({ address, point }) => Boolean(point) || address.length > 0, {
+        path: ["address"],
+        message: "Escribí el domicilio o marcá el punto en el mapa."
+      })
+      .optional(),
     notes: z.string().trim().max(300).optional(),
     /** Quién derivó la venta (#109). Vacío borra el dato: la columna del Excel vuelve a salir vacía. */
     referredBy: referredBySchema,
@@ -508,8 +517,12 @@ export async function manageReservation(code: string, command: ReservationOperat
             const notesData = notes === undefined ? {} : { pickupNotes: notes || null };
             const addressData = pickup && {
               pickupAddress: pickup.address,
-              pickupLatitude: pickup.point[0],
-              pickupLongitude: pickup.point[1]
+              // Sin punto (#268) las coordenadas quedan en null: no se inventan.
+              pickupLatitude: pickup.point ? pickup.point[0] : null,
+              pickupLongitude: pickup.point ? pickup.point[1] : null,
+              // Un domicilio escrito a mano no tiene nombre de lugar: si quedara el anterior, la
+              // orden del chofer imprimiría «Hotel viejo · Hostal del Esquiador».
+              ...(pickup.point ? {} : { pickupName: null })
             };
 
             if (reservation.bookingMode === "AIRPORT") {
@@ -517,21 +530,33 @@ export async function manageReservation(code: string, command: ReservationOperat
                 if (pickup.address.length > 160) {
                   throw new BookingError("INVALID_PICKUP_ADDRESS", "La dirección puede tener hasta 160 caracteres.");
                 }
-                const coverage = await getAirportCoverage(tx);
-                if (coverage.enabled && !isInsideAirportPickupZone(pickup.point, coverage)) {
-                  throw new BookingError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE);
+                // La zona sólo se puede validar con un punto. Sin coordenadas el domicilio se guarda
+                // igual —el alojamiento cargado como texto (#268)— y el cálculo de zona no aplica.
+                if (pickup.point) {
+                  const coverage = await getAirportCoverage(tx);
+                  if (coverage.enabled && !isInsideAirportPickupZone(pickup.point, coverage)) {
+                    throw new BookingError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE);
+                  }
                 }
               }
               await tx.airportReservationDetails.update({
                 where, data: { ...notesData, ...(addressData && { ...addressData, pickupAddress: addressData.pickupAddress || null }) }
               });
             } else if (reservation.bookingMode === "CHAPELCO") {
-              if (addressData && addressData.pickupAddress.length < 4) {
-                throw new BookingError("INVALID_PICKUP_ADDRESS", "Ingresá una dirección para el traslado.");
-              }
-              await tx.chapelcoReservationDetails.update({ where, data: { ...notesData, ...addressData } });
-              if (addressData) {
-                await tx.chapelcoManifestStop.updateMany({ where: { ...where, status: "PENDING" }, data: addressData });
+              if (pickup) {
+                const { address, point } = pickup;
+                // Las columnas del traslado de Chapelco no admiten nulos: ahí el punto sigue siendo obligatorio.
+                if (!point) {
+                  throw new BookingError("INVALID_PICKUP_POINT", "Marcá el punto del traslado en el mapa.");
+                }
+                if (address.length < 4) {
+                  throw new BookingError("INVALID_PICKUP_ADDRESS", "Ingresá una dirección para el traslado.");
+                }
+                const chapelcoData = { pickupAddress: address, pickupLatitude: point[0], pickupLongitude: point[1] };
+                await tx.chapelcoReservationDetails.update({ where, data: { ...notesData, ...chapelcoData } });
+                await tx.chapelcoManifestStop.updateMany({ where: { ...where, status: "PENDING" }, data: chapelcoData });
+              } else {
+                await tx.chapelcoReservationDetails.update({ where, data: notesData });
               }
             } else {
               throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene datos de traslado.");

@@ -8,6 +8,7 @@ import type { PassengerDto } from "@/lib/booking/types";
 import { AdminFormAlert, FieldError } from "../../form-ui";
 import { errorState, initialAdminFormState, type AdminFormState } from "../../form-state";
 import { PassengerFields, type PassengerDraft } from "./passenger-form";
+import { canSavePickup, pickupFormFields } from "./pickup-address";
 import { PickupAddressFields, type PickupAddressDraft } from "./pickup-address-form";
 
 type ReservationEditFormProps = {
@@ -91,8 +92,8 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const needsAcknowledgement = Boolean(counts?.paymentApproved && totalChanged && !priceChanged);
   const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || referredByChanged
     || countChanged || luggageChanged || priceChanged || methodChanged || referenceChanged;
-  const canSave = hasChanges && countsValid && (!needsAcknowledgement || acknowledged)
-    && (!addressChanged || Boolean(pickup.point && pickup.confirmed && !outside));
+  const savePickup = canSavePickup(addressChanged, pickup, { airport: Boolean(transfer?.airport), outside });
+  const canSave = hasChanges && countsValid && (!needsAcknowledgement || acknowledged) && savePickup;
 
   const [state, formAction, pending] = useActionState(async (previous: AdminFormState, _formData: FormData) => {
     if (!canSave) {
@@ -110,11 +111,9 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     if (countChanged) changes.set("passengerCount", String(parsedCount));
     if (luggageChanged) changes.set("sportsLuggageCount", String(parsedLuggage));
     if (needsAcknowledgement && acknowledged) changes.set("acknowledgeTotalChange", "on");
-    if (addressChanged && pickup.point && pickup.confirmed) {
-      changes.set("address", pickup.address);
-      changes.set("latitude", String(pickup.point[0]));
-      changes.set("longitude", String(pickup.point[1]));
-      changes.set("confirmed", "on");
+    // `pickupFormFields` decide si viajan coordenadas: sin punto va sólo el texto (#268).
+    if (addressChanged) {
+      for (const [field, value] of Object.entries(pickupFormFields(pickup))) changes.set(field, value);
     }
     if (financial && (priceChanged || methodChanged || referenceChanged)) {
       changes.set("financialOperation", financial.operation);

@@ -172,12 +172,24 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   const referredBy = formData.has("referredBy") ? value(formData, "referredBy") : undefined;
   let pickup;
   if (formData.has("address")) {
+    const address = value(formData, "address");
     const latitude = value(formData, "latitude");
     const longitude = value(formData, "longitude");
-    if (!latitude || !longitude || formData.get("confirmed") !== "on") {
+    if (Boolean(latitude) !== Boolean(longitude)) {
+      return errorState("El punto del mapa quedó incompleto. Marcá de nuevo el lugar.");
+    }
+    if (latitude && longitude) {
+      if (formData.get("confirmed") !== "on") {
+        return errorState("Confirmá el punto de traslado en el mapa.");
+      }
+      pickup = { address, point: [Number(latitude), Number(longitude)] };
+    } else if (address) {
+      // Sin coordenadas (#268): el alojamiento que no está en el mapa se guarda como texto, el
+      // mismo camino que una dirección sin geometría. La pantalla avisa que va sin punto.
+      pickup = { address, point: null };
+    } else {
       return errorState("Confirmá el punto de traslado en el mapa.");
     }
-    pickup = { address: value(formData, "address"), point: [Number(latitude), Number(longitude)] };
   }
   const priceChanged = formData.has("customPrice");
   const paymentChanged = formData.has("method") || formData.has("reference");

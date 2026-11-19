@@ -191,6 +191,44 @@ describe("edición de datos de la reserva", () => {
     expect(tx.payment.update).not.toHaveBeenCalled();
   });
 
+  /**
+   * Issue #268: el nombre del alojamiento no está en ningún geocoder. Se guarda como texto, sin
+   * coordenadas —el mismo camino que una dirección sin geometría— y la zona no se valida.
+   */
+  it("guarda el alojamiento como texto cuando no hay punto", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT", status: "CONFIRMED" });
+    // Con la cobertura prendida igual se guarda: sin punto no hay zona que validar.
+    vi.mocked(getAirportCoverage).mockResolvedValue({ ...initialAirportCoverage, enabled: true });
+
+    await manageReservation(code, {
+      operation: "edit", passenger: {}, pickup: { address: "Hostal del Esquiador", point: null }
+    });
+
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({
+      where,
+      data: { pickupAddress: "Hostal del Esquiador", pickupLatitude: null, pickupLongitude: null, pickupName: null }
+    });
+    expect(getAirportCoverage).not.toHaveBeenCalled();
+  });
+
+  it("acepta el domicilio sin punto en el esquema y exige el texto cuando falta", () => {
+    expect(reservationManagementSchema.parse({
+      operation: "edit", passenger: {}, pickup: { address: "Hostal del Esquiador" }
+    })).toMatchObject({ pickup: { address: "Hostal del Esquiador" } });
+    expect(reservationManagementSchema.safeParse({
+      operation: "edit", passenger: {}, pickup: { address: "  ", point: null }
+    }).success).toBe(false);
+  });
+
+  it("no deja guardar un traslado de Chapelco sin punto", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "CHAPELCO" });
+
+    await expect(manageReservation(code, {
+      operation: "edit", passenger: {}, pickup: { address: "Hostal del Esquiador", point: null }
+    })).rejects.toMatchObject({ code: "INVALID_PICKUP_POINT" });
+    expect(tx.chapelcoReservationDetails.update).not.toHaveBeenCalled();
+  });
+
   it("guarda precio, pasajero, dirección y notas con una sola operación", async () => {
     tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "AIRPORT" });
     tx.passenger.findUniqueOrThrow.mockResolvedValue({ documentType: "DNI", documentId: "30111222" });
