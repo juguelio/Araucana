@@ -72,20 +72,21 @@ const adminPassengerFields = passengerFieldsSchema.extend({
   phone: adminPhoneField
 });
 
-export const adminPassengerPatchSchema = adminPassengerFields.partial();
-
+/**
+ * El alta del panel acepta el DNI vacío (19-nov: «se guarda igual sin documento y la reserva queda
+ * marcada para completarla después»). Antes lo exigía el #122 porque la planilla del chofer salía
+ * con «—»; ahora se puede cargar sin DNI y la reserva queda marcada «Falta documento» hasta que
+ * alguien lo complete. Si viene cargado se valida igual que siempre.
+ */
 export const adminPassengerSchema = adminPassengerFields.extend({
   email: adminPassengerFields.shape.email.default(""),
   documentId: adminPassengerFields.shape.documentId.default("")
-  // El documento es obligatorio también desde el panel (#122): la orden de servicio del chofer
-  // imprimía «—» en la mayoría de las reservas cargadas a mano. Antes acá iba `optional = true`.
-}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx));
+}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
 
 /** Lo mismo desde el panel: el aeropuerto no exige documento, ni al pasajero ni al operador. */
-export const adminOptionalDocumentPassengerSchema = adminPassengerFields.extend({
-  email: adminPassengerFields.shape.email.default(""),
-  documentId: adminPassengerFields.shape.documentId.default("")
-}).transform((passenger, ctx) => validatePassengerDocument(passenger, ctx, true));
+export const adminOptionalDocumentPassengerSchema = adminPassengerSchema;
+
+export const adminPassengerPatchSchema = adminPassengerFields.partial();
 
 const fareCounter = z.coerce.number().int().min(0, "La cantidad no puede ser negativa.").max(24).default(0);
 

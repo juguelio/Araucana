@@ -526,7 +526,7 @@ function adminReservationListInclude() {
   return {
     schedule: { select: { departureAt: true, route: { select: { from: true, to: true } } } },
     route: { select: { from: true, to: true } },
-    passenger: { select: { firstName: true, lastName: true, phone: true } },
+    passenger: { select: { firstName: true, lastName: true, phone: true, documentId: true } },
     payment: { select: { provider: true, status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
     chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
     airportDetails: { select: { serviceDate: true, flightNumber: true, flight: { select: { scheduledAt: true } } } }
@@ -1343,6 +1343,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           shortCode: reservation.shortCode,
           passenger: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`,
           passengerPhone: reservation.passenger.phone,
+          passengerDocumentId: reservation.passenger.documentId,
           creatorLabel: reservationCreatorLabel(reservation),
           route: reservation.schedule
             ? `${reservation.schedule.route.from} -> ${reservation.dropoffStop ?? reservation.schedule.route.to}`

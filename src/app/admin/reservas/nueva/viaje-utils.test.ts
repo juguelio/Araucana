@@ -23,6 +23,23 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
     expect(viajeInicial(salidas)).toEqual({ origen: SMA, destino: "Villa Traful", dia: "2026-11-19" });
   });
 
+  it("abre desde San Martín aunque otra ruta tenga muchas más salidas (Villa Traful, 258)", () => {
+    // La operación real tiene 258 salidas de Villa Traful: así el «Desde» arrancaba en Villa Traful.
+    const muchasDeVillaTraful = [
+      ...salidas,
+      ...Array.from({ length: 258 }, (_, i) =>
+        salida(`vt${i}`, "Villa Traful", SMA, `2026-12-${String((i % 28) + 1).padStart(2, "0")}`, "16:30")
+      )
+    ];
+    expect(origenes(muchasDeVillaTraful)[0].nombre).toBe("Villa Traful");
+    expect(viajeInicial(muchasDeVillaTraful).origen).toBe(SMA);
+  });
+
+  it("si San Martín no tiene salidas, abre con el origen que haya", () => {
+    const soloJunin = [salida("j1", "Junín de los Andes", SMA, "2026-11-19", "09:30")];
+    expect(viajeInicial(soloJunin).origen).toBe("Junín de los Andes");
+  });
+
   it("la vuelta es la ruta inversa y sólo las salidas posteriores a la ida", () => {
     const ida = salidasDelTramo(salidas, SMA, "Villa Traful")[0];
     expect(vueltasPosibles(salidas, SMA, "Villa Traful").map((s) => s.id)).toEqual(["v0", "v1", "v2"]);

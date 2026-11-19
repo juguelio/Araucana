@@ -256,6 +256,11 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     <Link className="table-link" href={detailPath}>
                       {reservation.passenger}
                     </Link>
+                    {!reservation.passengerDocumentId.trim() ? (
+                      <div>
+                        <span className="pill pill-estado pill-tabla" data-tono="atencion" title="Se cargó sin DNI: se completa desde «Editar reserva».">Falta documento</span>
+                      </div>
+                    ) : null}
                   </td>
                   <td data-label="Creada por">{reservation.creatorLabel}</td>
                   <td data-label="WhatsApp">

@@ -122,9 +122,17 @@ export function totalDelViaje(
   return tramos.reduce((total, tramo) => total + reservationTotalCents(precioDelTramo(tramo.salida, tramo.parada), cuentas), 0);
 }
 
-/** El viaje que se propone al abrir: el origen y el destino con más salidas, y su primer día. */
+/**
+ * La agencia está en San Martín de los Andes: el viaje que se propone al abrir arranca ahí, aunque
+ * otra ruta tenga más salidas cargadas (Villa Traful tenía 258 y se llevaba el «Desde»).
+ */
+const ORIGEN_DE_LA_AGENCIA = "san martin de los andes";
+
+/** El viaje que se propone al abrir: desde San Martín, al destino con más salidas, y su primer día. */
 export function viajeInicial(salidas: SalidaOption[]) {
-  const origen = origenes(salidas)[0]?.nombre ?? "";
+  const lugares = origenes(salidas);
+  const deLaAgencia = lugares.find((lugar) => claveDeLugar(lugar.nombre) === ORIGEN_DE_LA_AGENCIA);
+  const origen = (deLaAgencia ?? lugares[0])?.nombre ?? "";
   const destino = destinosDesde(salidas, origen)[0]?.nombre ?? "";
   return { origen, destino, dia: primerDia(salidasDelTramo(salidas, origen, destino)) };
 }

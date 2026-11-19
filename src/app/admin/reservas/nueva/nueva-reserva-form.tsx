@@ -33,8 +33,9 @@ export type { SalidaOption } from "./salida-picker-utils";
  *
  * Los datos del titular son **el mismo formulario** que el del aeropuerto (`PassengerFields`, pedido
  * de Jugue, 19-nov: «quiero que sean iguales»): código de país con banderas, nacionalidad con buscador
- * y las mismas validaciones antes de mandar. Como el aeropuerto del panel, el email es opcional; acá el
- * documento sigue siendo obligatorio porque lo pide la orden de servicio (#122).
+ * y las mismas validaciones antes de mandar. Como el aeropuerto del panel, el email y el documento son
+ * opcionales (19-nov): el alta se guarda igual sin DNI y la reserva queda marcada «Falta documento»
+ * hasta que alguien lo complete (#122 pedía exigirlo; el mostrador no siempre lo tiene a mano).
  */
 const VACIOS = {
   customPrice: "",
@@ -79,7 +80,7 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
 
   /** Antes de mandar, el pasajero se revisa igual que en el aeropuerto: el error queda en su campo. */
   function revisarAntesDeMandar(event: React.FormEvent<HTMLFormElement>) {
-    const encontrados = validateCheckoutPassenger(pasajero, true, false);
+    const encontrados = validateCheckoutPassenger(pasajero, true, true);
     const cantidad = Object.keys(encontrados).length;
     if (!cantidad) return;
     event.preventDefault();
@@ -228,7 +229,8 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
     ? { detalle: precioVuelta ? `${destino} → ${origen} · ${formatPrice(precioVuelta, moneda)} más por persona` : `${destino} → ${origen}` }
     : null;
 
-  const datosListos = Boolean(pasajero.firstName.trim() && pasajero.lastName.trim() && pasajero.phone.trim() && pasajero.documentId.trim());
+  // El documento no entra acá: el alta se puede guardar sin DNI (19-nov) y la reserva queda marcada.
+  const datosListos = Boolean(pasajero.firstName.trim() && pasajero.lastName.trim() && pasajero.phone.trim());
   const etapas = [
     { titulo: "El viaje", hecha: viajeListo },
     { titulo: "Pasajeros", hecha: viajeListo },
@@ -407,6 +409,7 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
                   passenger={pasajero}
                   fieldErrors={errores as PassengerFieldErrors}
                   optionalIdentity
+                  optionalDocument
                   disabled={pending}
                   onChange={actualizarPasajero}
                 />
