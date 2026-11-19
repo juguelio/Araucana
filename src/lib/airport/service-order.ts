@@ -995,3 +995,9 @@ export async function buildServiceOrderWorkbook(
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer as ArrayBuffer);
 }
+
+/** ¿Esta orden es una de las elegidas en la hoja del chofer? (`vehicle` null = la única del vuelo, o todas). */
+export function esOrdenElegida(block: ServiceOrderBlock, ordenes: Array<{ flight: string; vehicle: string | null }>) {
+  const ref = referenciaDeLaOrden(block);
+  return ordenes.some((orden) => block.flightIds.includes(orden.flight) && (orden.vehicle === null || ref.vehicle === orden.vehicle));
+}

@@ -8,6 +8,7 @@ import { RecorridoEditable } from "@/components/recorrido-editable";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
 import {
   buildServiceOrderBlocks,
+  esOrdenElegida,
   filtrarPorNave,
   ordenesDelVuelo,
   referenciaDeLaOrden,
@@ -16,7 +17,7 @@ import {
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
 import { linkDeLaOrden } from "@/lib/airport/service-order-link";
-import { vuelosDeLaHoja } from "@/lib/airport/flight-selection";
+import { claveDeOrden, ordenesDeLaHoja, vuelosDeLaHoja } from "@/lib/airport/flight-selection";
 import { ImprimirTodas } from "@/components/imprimir-todas";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
@@ -32,7 +33,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; vehicle?: string; notice?: string; imprimir?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; notice?: string; imprimir?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -60,13 +61,18 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   // Varios vuelos marcados en Aeropuerto: sus órdenes juntas, para imprimirlas de una vez.
   const flightIdsPedidos = flightId ? [] : vuelosDeLaHoja(params?.flights);
+  // Órdenes puntuales elegidas en «Hoja del chofer»: en una recorrida con varias combis, la de cada combi.
+  const ordenesPedidas = flightId ? [] : ordenesDeLaHoja(params?.ordenes);
   const todas = filtrarPorNave(
     ordenesDelVuelo(buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }), flightId),
     vehicle
   );
-  const blocks = flightIdsPedidos.length
-    ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
-    : todas;
+  const blocks = ordenesPedidas.length
+    ? todas.filter((block) => esOrdenElegida(block, ordenesPedidas))
+    : flightIdsPedidos.length
+      ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
+      : todas;
+  const variasPedidas = flightIdsPedidos.length > 1 || ordenesPedidas.length > 1;
   const cabeceras = await headers();
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
   const protocolo =
@@ -85,7 +91,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     date,
     ...(flightId ? { flight: flightId } : {}),
     ...(vehicle ? { vehicle } : {}),
-    ...(flightIdsPedidos.length ? { flights: flightIdsPedidos.join(",") } : {})
+    ...(flightIdsPedidos.length ? { flights: flightIdsPedidos.join(",") } : {}),
+    ...(ordenesPedidas.length ? { ordenes: ordenesPedidas.map(claveDeOrden).join(",") } : {})
   }).toString();
 
   // Las naves de cada vuelo, para pasar un pasajero de una a otra desde cualquier orden del vuelo.
@@ -164,8 +171,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       action={
         <div className="form-actions no-print">
           {/* Con varios vuelos marcados puede salir una sola orden (si la misma camioneta los hace juntos). */}
-          {blocks.length > 1 || flightIdsPedidos.length > 1 ? (
-            <ImprimirTodas cantidad={blocks.length} alAbrir={flightIdsPedidos.length > 1 && params?.imprimir === "1" && !params?.notice} />
+          {blocks.length > 1 || variasPedidas ? (
+            <ImprimirTodas cantidad={blocks.length} alAbrir={variasPedidas && params?.imprimir === "1" && !params?.notice} />
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
         </div>

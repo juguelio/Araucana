@@ -16,7 +16,9 @@ import { createFlightAction, saveArrivalGroupAction, savePickupStartAction } fro
 import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
-import { HojaDelChoferModal, type VueloParaLaHoja } from "./hoja-del-chofer-modal";
+import { HojaDelChoferModal, type OrdenParaLaHoja } from "./hoja-del-chofer-modal";
+import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
+import { buildServiceOrderBlocks, lugaresDeLaOrden, naveDeLaOrden, referenciaDeLaOrden } from "@/lib/airport/service-order";
 import { CombiDelVueloModal, combisCortas, combisDelVuelo, INCLUDE_COMBIS_DEL_VUELO, opcionesDeCombi, vueloDeLaRecorrida } from "./combi-modal";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -113,15 +115,19 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const mismaVuelta = (a: { id: string; pickupGroupId: string | null }, b: { id: string; pickupGroupId: string | null }) =>
     a.id !== b.id && Boolean(a.pickupGroupId) && a.pickupGroupId === b.pickupGroupId;
   const companeros = (v: { id: string; pickupGroupId: string | null }) => vuelosDelTablero.filter((otro) => mismaVuelta(otro, v));
-  // Los vuelos que se pueden imprimir en la hoja del chofer: los del día con pasajeros, en orden.
-  const vuelosParaLaHoja: VueloParaLaHoja[] = vuelosDelTablero
-    .filter((vuelo) => pasajerosOcupados(vuelo.reservations.map((r) => r.reservation)) > 0)
-    .map((vuelo) => ({
-      id: vuelo.id,
-      number: vuelo.number,
-      hora: `${vuelo.direction === "ARRIVAL" ? "llega" : "sale"} ${hhmm(reliableEstimate(vuelo) ?? vuelo.scheduledAt)}`,
-      pasajeros: pasajerosOcupados(vuelo.reservations.map((r) => r.reservation)),
-      recorrida: companeros(vuelo).map((otro) => otro.number)
+  // Las órdenes del día tal como las imprime la hoja del chofer: una por vuelo, o una por combi en las
+  // recorridas que salen con varias (con gente de todos sus vuelos). Es lo que lista «Hoja del chofer».
+  const ordenesParaLaHoja: OrdenParaLaHoja[] = buildServiceOrderBlocks(await getAirportServiceOrderReservations(fecha))
+    .filter((block) => block.flightId && block.passengers.length)
+    .map((block) => ({
+      flight: block.flightId!,
+      vehicle: referenciaDeLaOrden(block).vehicle,
+      flightIds: block.flightIds,
+      vuelos: block.flightNumber,
+      // En las partidas, `operationAt` es cuándo empieza la recorrida; en los arribos, cuándo llega el vuelo.
+      hora: `${block.direction === "ARRIVAL" ? "llega" : "recorrida"} ${hhmm(block.operationAt)}`,
+      combi: naveDeLaOrden(block),
+      pasajeros: lugaresDeLaOrden(block)
     }));
   // Reservas que quedaron sobre un vuelo que nadie confirma: no se muestran como vuelo, pero
   // tampoco se esconden, porque son personas que hay que pasar a un vuelo real.
@@ -221,7 +227,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           {ocupados > 0 ? (
             // «Hoja del chofer» abre un modal para elegir qué vuelos del día imprimir juntos, con este (y
             // los de su recorrida) ya marcados.
-            <HojaDelChoferModal date={fecha} vuelo={vuelosParaLaHoja.find((item) => item.id === v.id)!} vuelos={vuelosParaLaHoja} />
+            <HojaDelChoferModal date={fecha} flightId={v.id} flightNumber={v.number} ordenes={ordenesParaLaHoja} />
           ) : null}
           {pickupStart && v.direction === "DEPARTURE" ? (
             // Coordinar la recorrida desde el vuelo: el modal trae este vuelo marcado y deja sumar otras

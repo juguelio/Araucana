@@ -3,7 +3,7 @@
  * la query de la orden (`date`, y opcionalmente `flight` y `vehicle`); se rearma sólo con esas
  * claves validadas, así un valor armado a mano no puede redirigir a otro lado.
  */
-import { vuelosDeLaHoja } from "@/lib/airport/flight-selection";
+import { claveDeOrden, ordenesDeLaHoja, vuelosDeLaHoja } from "@/lib/airport/flight-selection";
 
 export const ORDER_RETURN_FIELD = "volverAOrden";
 
@@ -25,6 +25,8 @@ export function orderReturnHref(formData: FormData, notice: string): string | nu
   }
   const flights = vuelosDeLaHoja(params.get("flights"));
   if (!flight && flights.length) query.set("flights", flights.join(","));
+  const ordenes = ordenesDeLaHoja(params.get("ordenes"));
+  if (!flight && ordenes.length) query.set("ordenes", ordenes.map(claveDeOrden).join(","));
   query.set("notice", notice);
   return `/admin/aeropuerto/orden-de-servicio/ver?${query.toString()}`;
 }

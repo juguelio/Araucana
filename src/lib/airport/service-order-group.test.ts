@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockTimeLabel, buildServiceOrderBlocks, filtrarPorNave, ordenesDelVuelo, type ServiceOrderReservationInput, type ServiceOrderVehicle } from "./service-order";
+import { blockTimeLabel, buildServiceOrderBlocks, esOrdenElegida, filtrarPorNave, ordenesDelVuelo, type ServiceOrderReservationInput, type ServiceOrderVehicle } from "./service-order";
 
 const nave = (assignmentId: string, vehicleId = "trafic"): ServiceOrderVehicle => ({ assignmentId, vehicleId, name: "Trafic 1", seats: 15, driver: "Rosa" });
 
@@ -91,6 +91,14 @@ describe("una sola camioneta para varios vuelos: la hoja los une en una orden", 
       }
       // Cada chofer recibe sólo su trafic, con los pasajeros de los dos vuelos.
       expect(filtrarPorNave(blocks, "t2-ar").map((block) => block.vehicle?.name)).toEqual(["Trafic 2"]);
+    });
+
+    it("la hoja del chofer elige la orden de una combi desde cualquiera de los vuelos", () => {
+      const blocks = buildServiceOrderBlocks(reservas());
+      const t2 = blocks.find((block) => block.vehicle?.vehicleId === "trafic-2")!;
+      expect(blocks.filter((block) => esOrdenElegida(block, [{ flight: "f-ja", vehicle: "t2-ar" }]))).toEqual([t2]);
+      // Sin combi elegida trae las dos órdenes de la recorrida.
+      expect(blocks.filter((block) => esOrdenElegida(block, [{ flight: "f-ar", vehicle: null }]))).toHaveLength(2);
     });
 
     it("una demora que da vuelta el orden de los vuelos no le cambia la zona ni el link a ningún chofer", () => {
