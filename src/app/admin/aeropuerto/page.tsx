@@ -17,7 +17,7 @@ import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
 import { HojaDelChofer, MarcarVuelo } from "./seleccion-de-vuelos";
-import { CombiDelVueloModal, combisDelVuelo, INCLUDE_COMBIS_DEL_VUELO, opcionesDeCombi } from "./combi-modal";
+import { CombiDelVueloModal, combisCortas, combisDelVuelo, INCLUDE_COMBIS_DEL_VUELO, opcionesDeCombi } from "./combi-modal";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import "./aeropuerto.css";
@@ -187,15 +187,18 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 ? ocupados > 0
                   ? `sin combi · conviene ${combisSugeridas(ocupados)} ${combisSugeridas(ocupados) === 1 ? "combi" : "combis"}`
                   : "sin combi asignada"
-                : combisDelVuelo(v)
+                : combisCortas(v)
             }
-            triggerLabel={v.assignments.length === 0 ? `Asignar combi al ${v.number}` : `Cambiar combi del ${v.number}`}
+            triggerLabel={v.assignments.length === 0 ? `Asignar combi al ${v.number}` : `Cambiar combi del ${v.number}: ${combisDelVuelo(v)}`}
             triggerClassName={`pill pill-combi aero-combi-boton${v.assignments.length ? " aero-combi-ok" : ocupados > 0 ? " pill-alerta" : " aero-combi-vacia"}`}
           />
-          {pickupStart ? <span className="muted flight-info-recorrida">Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
+          {pickupStart ? <span className="muted flight-info-recorrida" title={`Recorrida ${v.pickupStartOverrideAt ? "coordinada" : "estimada"}: ${airportPickupDateTime.format(pickupStart)}`}>Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
           {companeros(v).length ? (
-            <span className="pill aero-misma-vuelta" title="La hoja del chofer une estos vuelos en una sola orden">
-              Misma camioneta con {companeros(v).map((otro) => otro.number).join(", ")}
+            <span
+              className="pill aero-misma-vuelta"
+              title={`Misma recorrida con ${companeros(v).map((otro) => otro.number).join(", ")}: la orden de servicio junta a sus pasajeros y, si sale con varias combis, los reparte por zona`}
+            >
+              Recorrida con {companeros(v).map((otro) => otro.number).join(", ")}
             </span>
           ) : null}
           <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>
