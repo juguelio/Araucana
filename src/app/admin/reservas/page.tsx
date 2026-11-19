@@ -18,6 +18,7 @@ import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approv
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
 import { RowModal } from "./row-modal";
+import { ComprobanteViewer, fechaDeSubida } from "./comprobante-viewer";
 import { ReceiptUploadForm } from "./receipt-upload-form";
 import "@/components/admin-list/pagination.css";
 import "./reservas.css";
@@ -151,6 +152,9 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
+  // Volver a la misma lista y con los mismos filtros después de resolver un pago (19-nov): antes
+  // cada validación devolvía al listado pelado y había que volver a filtrar la cola.
+  const volverALaLista = listQuery ? `/admin/reservas?${listQuery}` : "/admin/reservas";
   const hayFiltros = ["q", "code", "date", "until", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
   // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
   const orden = adminReservationOrder(parsed.success ? parsed.data : {});
@@ -196,6 +200,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             Pago
             <select name="payment" defaultValue={params?.payment ?? ""}>
               <option value="">Todos</option>
+              <option value="pending-payment">Pago por confirmar</option>
               <option value="receipt-pending">Comprobante de pago por validar</option>
               {isAdminRole(user.role) && <option value="documentation-pending">Documentación por revisar</option>}
               <option value="rejected">Comprobante rechazado</option>
@@ -351,12 +356,16 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       eyebrow="Pago"
                       title={disabilityFare ? "Tarifa sin cargo" : `${formatPaymentStatus(reservation.paymentStatus)} · ${formatTotal(reservation)}`}
                       subtitle={subtitulo}
+                      modalClassName={reservation.hasReceipt ? "reservas-modal-comprobante" : undefined}
                     >
                       {validaPagoManual ? (
                         <form className="reservas-modal-form" action={approveManualPaymentAction}>
-                          <input type="hidden" name="code" value={reservation.code} />
-                          <p>El pasajero subió un comprobante: revisalo y validá o rechazá el pago.</p>
-                          <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
+                          <Ocultos code={reservation.code} listQuery={listQuery} />
+                          <ComprobanteViewer
+                            href={`${detailPath}/comprobante`}
+                            fileName={reservation.receiptFileName}
+                            subido={fechaDeSubida(reservation.receiptUploadedAt)}
+                          />
                           <div className="reservas-modal-acciones">
                             <button className="button" type="submit">Validar pago</button>
                             <button className="ghost-button" formAction={rejectManualPaymentAction} type="submit">Rechazar comprobante</button>
@@ -365,7 +374,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       ) : null}
                       {revisaDocumentacion ? (
                         <form className="reservas-modal-form" action={approveDisabilityDocumentAction}>
-                          <input type="hidden" name="code" value={reservation.code} />
+                          <Ocultos code={reservation.code} listQuery={listQuery} />
                           <input type="hidden" name="receiptVersion" value={new Date(reservation.receiptUploadedAt!).toISOString()} />
                           <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">Ver documentación</Link>
                           <div className="reservas-modal-acciones">
@@ -374,7 +383,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                           </div>
                         </form>
                       ) : null}
-                      {puedeRegistrarPago ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
+                      {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}
+                      {puedeRegistrarPago && !validaPagoManual ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
                       {!validaPagoManual && !revisaDocumentacion && !puedeRegistrarPago ? (
                         <p className="muted">
                           {pagada ? "El pago está aprobado. Para corregir la forma de pago o el precio, editá la reserva." : "No hay acciones de pago disponibles para esta reserva."}
@@ -392,9 +402,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                         eyebrow="Comprobante"
                         title={reservation.hasReceipt ? (reservation.receiptFileName ?? "Comprobante cargado") : "Sin comprobante"}
                         subtitle={subtitulo}
+                        modalClassName="reservas-modal-comprobante"
                       >
                         {reservation.hasReceipt && canViewReceipt ? (
-                          <Link className="ghost-button" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
+                          <ComprobanteViewer
+                            href={`${detailPath}/comprobante`}
+                            fileName={reservation.receiptFileName}
+                            subido={fechaDeSubida(reservation.receiptUploadedAt)}
+                          />
                         ) : null}
                         {puedeSubirComprobante ? (
                           <ReceiptUploadForm code={reservation.code} replace={reservation.hasReceipt} />
@@ -431,14 +446,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     </div>
                     {revisaDocumentacion ? (
                       <form className="reservas-actions" action={approveDisabilityDocumentAction}>
-                        <input type="hidden" name="code" value={reservation.code} />
+                        <Ocultos code={reservation.code} listQuery={listQuery} />
                         <input type="hidden" name="receiptVersion" value={new Date(reservation.receiptUploadedAt!).toISOString()} />
                         <button className="button table-action" type="submit">Aprobar documentación</button>
                         <button className="ghost-button table-action" formAction={rejectDisabilityDocumentAction} type="submit">Rechazar documentación</button>
                       </form>
                     ) : validaPagoManual ? (
                       <form className="reservas-actions" action={approveManualPaymentAction}>
-                        <input type="hidden" name="code" value={reservation.code} />
+                        <Ocultos code={reservation.code} listQuery={listQuery} />
                         <button className="button table-action" type="submit">
                           Validar pago
                         </button>

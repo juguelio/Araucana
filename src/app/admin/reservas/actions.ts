@@ -1,6 +1,7 @@
 "use server";
 
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
+import { reservationNotice } from "./notices";
 import { del } from "@vercel/blob";
 import { ApiError } from "@/lib/api/responses";
 import { AuthorizationError } from "@/lib/auth/service";
@@ -181,15 +182,26 @@ async function createAdminRouteRoundTrip(
   redirect(`/admin/reservas/${viaje.ida.code}`);
 }
 
+/**
+ * El listado del que vino la acción, con sus filtros: validar cinco comprobantes seguidos no puede
+ * obligar a rearmar la cola después de cada uno (19-nov). Sale del `listQuery` que mandan los
+ * formularios del listado, nunca de la URL del navegador.
+ */
+function listadoDeVuelta(formData: FormData) {
+  const query = formData.has("listQuery") ? value(formData, "listQuery").slice(0, 4096) : "";
+  return { path: "/admin/reservas", query };
+}
+
 async function reviewPaymentAction(formData: FormData, decision: "approve" | "reject") {
   const actor = await getCurrentReservationsUserOrRedirect();
   const code = value(formData, "code").toUpperCase();
-  if (!code) redirect(`/admin/reservas?notice=${encodeURIComponent("Falta el código de reserva.")}`);
+  const { path, query } = listadoDeVuelta(formData);
+  if (!code) redirect(reservationNotice(path, "Falta el código de reserva.", query));
   try {
     await (decision === "approve" ? approveManualPayment(code, actor) : rejectManualPayment(code, actor));
   } catch (error) {
     if (error instanceof BookingError) {
-      redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
+      redirect(reservationNotice(path, error.message, query));
     }
     throw error;
   }
@@ -198,16 +210,17 @@ async function reviewPaymentAction(formData: FormData, decision: "approve" | "re
   revalidatePath(`/reservas/${code}`);
   revalidatePath("/admin/contabilidad");
   revalidatePath("/admin/reportes");
-  redirect(`/admin/reservas?notice=${encodeURIComponent(decision === "approve" ? "Pago validado con éxito." : "Comprobante rechazado. El pasajero puede enviar uno nuevo.")}`);
+  redirect(reservationNotice(path, decision === "approve" ? "Pago validado con éxito." : "Comprobante rechazado. El pasajero puede enviar uno nuevo.", query));
 }
 
 async function reviewDisabilityDocumentAction(formData: FormData, decision: "APPROVED" | "REJECTED") {
   const actor = await getCurrentAdminOrRedirect();
   const code = value(formData, "code");
+  const { path, query } = listadoDeVuelta(formData);
   try {
     await reviewDisabilityDocument(code, decision, value(formData, "receiptVersion"), actor);
   } catch (error) {
-    if (error instanceof BookingError) redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
+    if (error instanceof BookingError) redirect(reservationNotice(path, error.message, query));
     throw error;
   }
 
@@ -215,7 +228,7 @@ async function reviewDisabilityDocumentAction(formData: FormData, decision: "APP
   revalidatePath(`/admin/reservas/${code}`);
   revalidatePath(`/reservas/${code}`);
   const message = decision === "APPROVED" ? "Documentación aprobada. Reserva sin cargo confirmada." : "Documentación rechazada. El pasajero puede subir un comprobante nuevo.";
-  redirect(`/admin/reservas?notice=${encodeURIComponent(message)}`);
+  redirect(reservationNotice(path, message, query));
 }
 
 export async function approveDisabilityDocumentAction(formData: FormData) {
@@ -331,11 +344,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   redirect(reservationNotice(`/admin/reservas/${code}`, "Cambios guardados."));
 }
 
-function reservationNotice(path: string, message: string, query = "") {
-  const params = new URLSearchParams(query);
-  params.set("notice", message);
-  return `${path}?${params.toString()}`;
-}
+
 
 export async function manageReservationAction(formData: FormData) {
   const command = reservationManagementSchema.safeParse({

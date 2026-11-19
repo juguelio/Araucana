@@ -43,6 +43,28 @@ export async function GET(request: Request, context: ReceiptRouteContext) {
     return new Response("Comprobante no encontrado", { status: 404 });
   }
 
+  // Sin Blob configurado no hay comprobantes posibles: el seed del panel usa `local/<archivo>` y
+  // el archivo se sirve desde `public/`. Con token (producción) esto no se toca nunca.
+  if (!process.env.BLOB_READ_WRITE_TOKEN && /^local\/[\w.-]+$/.test(pathname)) {
+    const { readFile } = await import("node:fs/promises");
+    const { join, extname } = await import("node:path");
+    try {
+      const file = await readFile(join(process.cwd(), "public", pathname));
+      const tipo = extname(pathname).toLowerCase();
+      const contentType = tipo === ".png" ? "image/png" : tipo === ".webp" ? "image/webp" : tipo === ".pdf" ? "application/pdf" : "image/jpeg";
+      return new Response(file, {
+        headers: {
+          "Content-Type": contentType,
+          "Content-Disposition": contentDisposition(reservation.payment?.receiptFileName),
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store"
+        }
+      });
+    } catch {
+      return new Response("Comprobante no encontrado", { status: 404 });
+    }
+  }
+
   const result = await get(pathname, {
     access: "private",
     ifNoneMatch: request.headers.get("if-none-match") ?? undefined
