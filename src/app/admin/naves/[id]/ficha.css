@@ -1,0 +1,84 @@
+/* === Ficha de una nave: encabezado, menú de secciones y panel de opciones === estilos propios */
+.nave-volver { margin: 0 0 10px; font-size: 13px; }
+.nave-volver a { color: var(--ink-muted); text-decoration: none; }
+.nave-volver a:hover { color: var(--primary); }
+
+.nave-cabecera { display: grid; gap: 14px; margin-bottom: 12px; }
+.nave-cabecera[data-nivel="vencido"] { box-shadow: inset 4px 0 0 #c0392b; }
+.nave-cabecera[data-nivel="proximo"] { box-shadow: inset 4px 0 0 var(--accent); }
+.nave-cabecera-titulo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.nave-cabecera-titulo h2 { margin: 0; }
+.nave-datos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 18px; margin: 0; }
+.nave-datos dt { color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.nave-datos dd { margin: 2px 0 0; overflow-wrap: anywhere; }
+
+.nave-papel[data-nivel="vencido"] { color: #c0392b; font-weight: 700; }
+.nave-papel[data-nivel="proximo"] { color: var(--accent); font-weight: 700; }
+.nave-papel[data-nivel="ok"] { color: var(--moss); }
+
+/* Menú de secciones: pestañas que en el celular se deslizan de costado. */
+.nave-menu { display: flex; gap: 6px; margin: 0 0 16px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: thin; }
+.nave-menu a { flex: 0 0 auto; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; color: inherit; font-size: 14px; font-weight: 700; text-decoration: none; white-space: nowrap; background: var(--surface); }
+.nave-menu a:hover { border-color: var(--primary); color: var(--primary); }
+.nave-menu a[aria-current="page"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* Panel de opciones: cada tarjeta lleva a una sección con su número principal a la vista. */
+.nave-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.nave-opcion { display: grid; gap: 4px; align-content: start; color: inherit; text-decoration: none; }
+a.nave-opcion:hover { border-color: var(--primary); }
+.nave-opcion-titulo { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.nave-opcion strong { font-size: 22px; line-height: 1.2; overflow-wrap: anywhere; }
+.nave-opcion-ir { margin-top: 4px; color: var(--primary); font-size: 13px; font-weight: 700; }
+.nave-opcion[data-nivel="vencido"] { border-color: #c0392b; }
+.nave-opcion[data-nivel="vencido"] strong { color: #c0392b; }
+.nave-opcion[data-nivel="proximo"] { border-color: var(--accent); }
+.nave-opcion[data-nivel="proximo"] strong { color: var(--accent); }
+
+.nave-columnas { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.nave-columnas > .admin-section { margin: 0; }
+.nave-seccion-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+.nave-seccion-top h2 { margin: 0; }
+.nave-seccion-top + .nave-lista, .nave-lista + .nave-seccion-top { margin-top: 0; }
+.nave-lista + .nave-seccion-top, .nave-vacio + .nave-seccion-top { margin-top: 18px; }
+
+.nave-lista { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.nave-lista li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; padding: 9px 0 9px 8px; border-top: 1px solid var(--line); }
+.nave-lista li:first-child { border-top: 0; }
+.nave-lista li[data-nivel="vencido"] { box-shadow: inset 3px 0 0 #c0392b; }
+.nave-lista li[data-nivel="proximo"] { box-shadow: inset 3px 0 0 var(--accent); }
+.nave-lista-fecha { color: var(--ink-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.nave-vacio { display: grid; gap: 4px; padding: 18px; border: 1px dashed var(--line); border-radius: 12px; text-align: center; }
+.nave-vacio p { margin: 0; }
+.nave-nota { margin: 10px 0 16px; font-size: 13px; }
+.nave-notas { white-space: pre-wrap; margin: 0; }
+
+.nave-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.nave-chip { padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; color: inherit; font-size: 13px; font-weight: 700; text-decoration: none; }
+.nave-chip:hover { border-color: var(--primary); }
+.nave-chip[aria-current="true"] { border-color: var(--primary); color: var(--primary); background: var(--primary-soft, transparent); }
+
+.nave-tabla tr[data-nivel="vencido"] td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
+.nave-tabla tr[data-nivel="proximo"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.nave-tabla .table-actions form { display: inline; }
+
+@media (max-width: 760px) {
+  .nave-columnas { grid-template-columns: minmax(0, 1fr); }
+  .nave-datos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .nave-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .nave-opcion { padding: 12px; }
+  .nave-opcion strong { font-size: 18px; }
+  .nave-lista li { grid-template-columns: 96px minmax(0, 1fr); }
+
+  /* Tablas de la ficha → tarjetas, igual que el listado de naves. */
+  .table-scroll .nave-tabla { min-width: 0; width: 100%; display: block; background: transparent; }
+  .nave-tabla thead { display: none; }
+  .nave-tabla tbody { display: grid; gap: 10px; }
+  .nave-tabla tr { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  .nave-tabla tr[data-nivel="vencido"] { border-color: #c0392b; }
+  .nave-tabla tr[data-nivel="proximo"] { border-color: var(--accent); }
+  .nave-tabla tr[data-nivel] td:first-child { box-shadow: none; }
+  .nave-tabla td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
+  .nave-tabla td::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  .nave-tabla .table-actions { flex-wrap: wrap; }
+}
