@@ -38,6 +38,14 @@
 .aero-tablero .flight-info { min-height: 26px; }
 .aero-tablero .flight-main { min-height: 44px; }
 .aero-tablero .flight-info-origen { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Una recorrida unida suma combi(s), horario y «Recorrida con…»: si no entran, se recortan (el texto completo
+   va en el title) en vez de pasar por debajo de los botones. La combi es lo último que se achica. */
+.aero-tablero .flight-info { overflow: hidden; }
+.aero-tablero .flight-info > .aero-combi-boton,
+.aero-tablero .flight-info > .flight-info-recorrida,
+.aero-tablero .flight-info > .aero-misma-vuelta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.aero-tablero .flight-info > .aero-combi-boton { flex-shrink: 0.3; min-width: 8em; }
+.aero-tablero .flight-info > .aero-misma-vuelta { min-width: 7em; }
 .aero-tablero .flight-info .pill-combi { padding: 3px 9px; }
 
 /* Acciones: los tres del mismo tamaño. */

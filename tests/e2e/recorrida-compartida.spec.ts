@@ -91,8 +91,8 @@ test("dos partidas coordinadas juntas salen en una sola orden, desde la hoja de 
   await modal.getByLabel("Hora en que los busca").fill(`${day}T11:30`);
   await modal.getByRole("button", { name: "Guardar horario" }).click();
   await expect(page.getByText("Se guardó el inicio de recorrida para las partidas seleccionadas.")).toBeVisible();
-  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Misma camioneta con ${ja.number}`);
-  await expect(page.locator(`#vuelo-${ja.id}`)).toContainText(`Misma camioneta con ${ar.number}`);
+  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida con ${ja.number}`);
+  await expect(page.locator(`#vuelo-${ja.id}`)).toContainText(`Recorrida con ${ar.number}`);
 
   // La hoja del segundo vuelo trae la orden de los dos.
   await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${ja.id}`);
@@ -145,7 +145,7 @@ test("dos arribos juntados salen en una sola orden, y «Separar» los vuelve a d
   await page.screenshot({ path: "/tmp/araucana-juntar-arribos.png" });
   await modal.getByRole("button", { name: "Juntar en una orden" }).click();
   await expect(page.getByText("Arribos juntados: la hoja del chofer los muestra en una sola orden.")).toBeVisible();
-  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Misma camioneta con ${ja.number}`);
+  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida con ${ja.number}`);
   await page.goto(`/admin?date=${day}`);
   await page.getByRole("button", { name: "Equipo del día" }).click();
   await page.getByRole("searchbox").fill(`Trafic ${suffix}`);

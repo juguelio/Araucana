@@ -107,7 +107,11 @@ test("el mismo chofer en dos combis del vuelo avisa y sólo se guarda al confirm
   // El aviso «Combi asignada» de la primera combi sigue en la URL: se espera a la base.
   await expect.poll(() => db.airportVehicleAssignment.count({ where: { flightId: doble.id } })).toBe(2);
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(tarjeta.getByRole("button", { name: `Cambiar combi del ${doble.number}` })).toContainText(`${naves.otra.name} (15) · ${choferes.ramon}`);
+  // Con dos combis la tarjeta muestra cuáles son; la combi con su chofer queda en el title (no entra en el renglón).
+  const conDos = tarjeta.getByRole("button", { name: `Cambiar combi del ${doble.number}` });
+  await expect(conDos).toContainText(`2 combis: `);
+  await expect(conDos).toContainText(naves.otra.name);
+  expect(await conDos.getAttribute("title")).toContain(`${naves.otra.name} (15) · ${choferes.ramon}`);
   const asignadas = await db.airportVehicleAssignment.findMany({ where: { flightId: doble.id }, include: { driver: true } });
   expect(asignadas.map((a) => a.driver?.name)).toEqual([choferes.ramon, choferes.ramon]);
   expect(await db.fleetConflictAcceptance.count({ where: { service: "AIRPORT", serviceId: { in: asignadas.map((a) => a.id) } } })).toBe(1);
