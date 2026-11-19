@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
-import { reagruparVuelos } from "./pickup-group";
+import { reagruparVuelos, vuelosDeLaRecorrida } from "./pickup-group";
 
 /** Una base en memoria con lo justo: vuelos con su grupo y el orden manual de las reservas. */
 function base(vuelos: Record<string, string | null>) {
@@ -63,5 +63,38 @@ describe("reagruparVuelos: los vuelos de una misma camioneta", () => {
     expect(grupos.a).toBeNull();
     expect(grupos.b).toBe(grupos.c);
     expect(grupos.b).not.toBe("g");
+  });
+});
+
+describe("vuelosDeLaRecorrida: la unidad con la que se asigna la flota", () => {
+  const ar = { id: "a", number: "AR1657", scheduledAt: new Date("2026-11-19T22:00:00-03:00") };
+  const ja = { id: "b", number: "JA3184", scheduledAt: new Date("2026-11-19T22:13:00-03:00") };
+
+  it("devuelve todos los vuelos del grupo, con el propio, en orden de horario", async () => {
+    const findMany = vi.fn(async () => [ar, ja]);
+    const recorrida = await vuelosDeLaRecorrida(
+      { flight: { findMany } } as unknown as Prisma.TransactionClient,
+      { ...ar, pickupGroupId: "g" }
+    );
+    expect(recorrida.map((vuelo) => vuelo.number)).toEqual(["AR1657", "JA3184"]);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { pickupGroupId: "g" }, orderBy: { scheduledAt: "asc" } }));
+  });
+
+  it("un vuelo sin grupo es una recorrida de uno solo y no consulta la base", async () => {
+    const findMany = vi.fn();
+    const recorrida = await vuelosDeLaRecorrida(
+      { flight: { findMany } } as unknown as Prisma.TransactionClient,
+      { ...ar, pickupGroupId: null }
+    );
+    expect(recorrida).toEqual([ar]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it("si el grupo quedó con un solo vuelo, la recorrida es ese vuelo", async () => {
+    const recorrida = await vuelosDeLaRecorrida(
+      { flight: { findMany: vi.fn(async () => [ar]) } } as unknown as Prisma.TransactionClient,
+      { ...ar, pickupGroupId: "g" }
+    );
+    expect(recorrida).toEqual([ar]);
   });
 });

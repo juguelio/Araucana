@@ -3,8 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   staff: vi.fn(),
   findFlight: vi.fn(),
+  findFlights: vi.fn(),
   findAssignment: vi.fn(),
+  findAssignments: vi.fn(),
   upsert: vi.fn(),
+  deleteAssignments: vi.fn(),
   findDriver: vi.fn(),
   findVehicle: vi.fn(),
   findUsers: vi.fn(),
@@ -32,8 +35,11 @@ vi.mock("@/lib/special-trips/conflicts", () => ({
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     $transaction: (run: (tx: unknown) => unknown) => run({
-      flight: { findUnique: mocks.findFlight },
-      airportVehicleAssignment: { findUnique: mocks.findAssignment, upsert: mocks.upsert },
+      flight: { findUnique: mocks.findFlight, findMany: mocks.findFlights },
+      airportVehicleAssignment: {
+        findUnique: mocks.findAssignment, findMany: mocks.findAssignments,
+        upsert: mocks.upsert, deleteMany: mocks.deleteAssignments
+      },
       vehicle: { findUnique: mocks.findVehicle },
       user: { findFirst: mocks.findDriver, findMany: mocks.findUsers }
     })
@@ -66,8 +72,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.staff.mockResolvedValue({ id: "secre", role: "SECRETARY" });
   mocks.findFlight.mockResolvedValue(vuelo);
+  mocks.findFlights.mockResolvedValue([]);
   mocks.findAssignment.mockResolvedValue(null);
+  mocks.findAssignments.mockResolvedValue([]);
   mocks.upsert.mockResolvedValue({ id: "asig1" });
+  mocks.deleteAssignments.mockResolvedValue({ count: 0 });
   mocks.findDriver.mockResolvedValue({ id: "d1" });
   mocks.findVehicle.mockResolvedValue({ name: "Sprinter 1" });
   mocks.findUsers.mockResolvedValue([{ id: "d1", name: "Ramón Paz", email: "ramon@ejemplo.test" }, { id: "d2", name: null, email: "lucia@ejemplo.test" }]);
@@ -144,5 +153,54 @@ describe("aeropuerto: combi y chofer desde el modal «Asignar combi»", () => {
     await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1" })));
     expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f1", vehicleId: "v1", driverId: null } }));
     expect(mocks.findDriver).not.toHaveBeenCalled();
+  });
+});
+
+describe("aeropuerto: la combi y el chofer son de la recorrida, no de un vuelo suelto", () => {
+  const ar = { id: "f1", number: "AR1657", scheduledAt: new Date("2026-11-19T22:00:00-03:00") };
+  const ja = { id: "f2", number: "JA3184", scheduledAt: new Date("2026-11-19T22:13:00-03:00") };
+
+  beforeEach(() => {
+    // Los dos vuelos comparten la vuelta (`pickupGroupId`), como AR1657 y JA3184 en producción.
+    mocks.findFlight.mockResolvedValue({ ...vuelo, ...ar, pickupGroupId: "recorrida-1" });
+    mocks.findFlights.mockResolvedValue([ar, ja]);
+  });
+
+  it("lleva la combi y el chofer a los dos vuelos, quita la otra nave y lo dice en el aviso", async () => {
+    mocks.findAssignments.mockResolvedValue([{
+      id: "asig-1913", vehicle: { name: "Sprinter 2" }, driver: { name: "Joel Escobar", email: "joel@ejemplo.test" }, flight: ja
+    }]);
+    const url = await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
+    // La nave va a los dos vuelos de la vuelta…
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f1", vehicleId: "v1", driverId: "d1" } }));
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f2", vehicleId: "v1", driverId: "d1" } }));
+    // …y la nave que tenía el otro vuelo se quita: una recorrida no puede ir con dos combis.
+    expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-1913"] } } });
+    expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      entityId: "f2", action: "CREATE", summary: expect.stringContaining("Combi Sprinter 1 asignada a la recorrida de AR1657")
+    }));
+    expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      entityId: "f2", action: "DELETE", summary: "Combi Sprinter 2 quitada del vuelo: la recorrida va con Sprinter 1."
+    }));
+    expect(url).toContain("recorrida AR1657 + JA3184");
+    expect(url).toContain("se quitó Sprinter 2");
+  });
+
+  it("si el grupo ya iba con esa combi y ese chofer pero quedó otra nave, ordena el grupo en vez de rechazar", async () => {
+    mocks.findAssignment.mockResolvedValue({ driverId: "d1" });
+    mocks.findAssignments.mockResolvedValue([{
+      id: "asig-1913", vehicle: { name: "Sprinter 2" }, driver: null, flight: ja
+    }]);
+    await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
+    expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-1913"] } } });
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f2", vehicleId: "v1", driverId: "d1" } }));
+  });
+
+  it("el vuelo sin recorrida sigue con el mensaje de siempre y no consulta el grupo", async () => {
+    mocks.findFlights.mockResolvedValue([]);
+    const url = await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
+    expect(mocks.findAssignments).not.toHaveBeenCalled();
+    expect(mocks.deleteAssignments).not.toHaveBeenCalled();
+    expect(url).toBe("redirect:/admin/aeropuerto?date=2026-11-19&notice=Combi asignada al vuelo.");
   });
 });

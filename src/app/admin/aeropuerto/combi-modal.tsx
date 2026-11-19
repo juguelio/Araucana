@@ -90,6 +90,12 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       title={`Combi del ${vuelo.number}`}
       subtitle={`${ocupados} ${ocupados === 1 ? "pasajero" : "pasajeros"} · ${vuelo.assignments.length ? `${capacidad} lugares en las combis asignadas` : "sin combi asignada"}`}
     >
+      {vuelo.pickupGroupId ? (
+        <p className="muted">
+          Este vuelo va en una recorrida con otros: la nave y el chofer se asignan a <strong>todos los vuelos de la
+          recorrida</strong> y se quitan las otras naves. Para manejarlos por separado, usá «Separar» en el vuelo.
+        </p>
+      ) : null}
       {vuelo.assignments.length ? (
         <div className="aero-combi-asignadas">
           <strong>Asignadas</strong>
