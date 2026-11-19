@@ -176,3 +176,9 @@
   .sd-window input { flex: 1; }
 }
 .sd-crew > .form-alert { grid-column: 1 / -1; margin: 0; }
+
+/* Programación sin demanda: colapsada y fuera de los totales del día (issue #258). */
+.sd-programmed { margin-top: 12px; }
+.sd-programmed > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.sd-programmed-list { margin-top: 10px; }
+.sd-programmed-list .sd-row { opacity: 0.82; }

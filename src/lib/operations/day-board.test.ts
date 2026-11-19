@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDayBoard, dayRange, flightRow, isDateKey, localDateKey, personName, scheduleRows, shiftDateKey, sortBoard, type BoardRow } from "./day-board";
+import { buildDayBoard, dayRange, flightRow, isDateKey, localDateKey, personName, scheduleRows, shiftDateKey, sortBoard, type BoardRow, type ScheduleInput } from "./day-board";
 
 const at = (hm: string) => new Date(`2026-11-17T${hm}:00-03:00`);
 const chofer = { id: "d1", name: "Ramón Paz", email: "ramon@ejemplo.test" };
@@ -35,7 +35,7 @@ describe("salidas del día (issue #174)", () => {
     expect(vuelo1325).toMatchObject({ missingVehicle: true, missingDriver: false, status: "Demorado", atLabel: "Aterriza" });
     expect(vuelo1325.at).toEqual(at("13:25"));
     expect(vuelo830).toMatchObject({ missingVehicle: false, missingDriver: false, overbooked: true, capacity: 19 });
-    expect(summary).toEqual({ services: 3, passengers: 33, missingVehicle: 1, missingDriver: 1, overbooked: 1 });
+    expect(summary).toEqual({ services: 3, programmed: 0, passengers: 33, missingVehicle: 1, missingDriver: 1, overbooked: 1 });
   });
 
   it("deja afuera los vuelos sin pasajeros ni combis y las salidas canceladas", () => {
@@ -70,7 +70,7 @@ describe("salidas del día (issue #174)", () => {
   });
 
   it("lo que no tiene hora va al final", () => {
-    const base: Omit<BoardRow, "title" | "at"> = { key: "", area: "RUTA", serviceId: "", atLabel: "", detail: null, passengers: 0, capacity: null, units: [], missingVehicle: false, missingDriver: false, overbooked: false, status: null, href: "", editHref: "" };
+    const base: Omit<BoardRow, "title" | "at"> = { key: "", area: "RUTA", serviceId: "", atLabel: "", detail: null, passengers: 0, capacity: null, units: [], missingVehicle: false, missingDriver: false, overbooked: false, programmed: false, status: null, href: "", editHref: "" };
     const rows: BoardRow[] = [{ ...base, title: "b", at: null }, { ...base, title: "a", at: at("10:00") }, { ...base, title: "c", at: at("09:00") }];
     expect(sortBoard(rows).map((row) => row.title)).toEqual(["c", "a", "b"]);
   });
@@ -119,5 +119,62 @@ describe("salidas del día (issue #174)", () => {
     ]);
     // Con una sola salida no se reparte la cuenta de pasajeros por nave: es de la salida entera.
     expect(row.units[0].passengers).toBeUndefined();
+  });
+});
+
+describe("salidas del día: la programación no es servicio (issue #258)", () => {
+  const salidaProgramada = (id: string, hm: string): ScheduleInput => ({
+    id,
+    routeId: "r1",
+    from: "San Martín de los Andes",
+    to: "Villa Traful",
+    departureAt: at(hm),
+    status: "OPEN",
+    passengers: 0,
+    reservations: 0,
+    vehicle: combi,
+    driver: null
+  });
+
+  it("un día con 9 salidas programadas y ninguna reserva no tiene ningún servicio", () => {
+    const { rows, summary } = buildDayBoard({
+      dateKey: "2026-11-17",
+      schedules: ["08:00", "09:00", "09:30", "10:00", "10:30", "11:00", "12:00", "14:00", "15:00"].map((hm, index) => salidaProgramada(`s${index}`, hm)),
+      flights: [],
+      chapelco: [],
+      specialTrips: []
+    });
+    expect(rows).toHaveLength(9);
+    expect(rows.every((row) => row.programmed)).toBe(true);
+    // Ni servicios, ni pasajeros, ni «falta chofer»: nada de eso es del día hasta que haya reservas.
+    expect(summary).toEqual({ services: 0, programmed: 9, passengers: 0, missingVehicle: 0, missingDriver: 0, overbooked: 0 });
+  });
+
+  it("la salida con reservas sigue siendo servicio y la programada no suma", () => {
+    const { rows, summary } = buildDayBoard({
+      dateKey: "2026-11-17",
+      schedules: [
+        { ...salidaProgramada("s1", "09:00"), passengers: 6, reservations: 3 },
+        salidaProgramada("s2", "10:00"),
+        salidaProgramada("s3", "11:00")
+      ],
+      flights: [],
+      chapelco: [],
+      specialTrips: []
+    });
+    expect(rows.filter((row) => row.programmed).map((row) => row.serviceId)).toEqual(["s2", "s3"]);
+    expect(rows.filter((row) => !row.programmed).map((row) => row.serviceId)).toEqual(["s1"]);
+    expect(summary).toMatchObject({ services: 1, programmed: 2, passengers: 6, missingDriver: 1 });
+  });
+
+  it("un vuelo o un viaje especial nunca se marcan como programación", () => {
+    const { rows } = buildDayBoard({
+      dateKey: "2026-11-17",
+      schedules: [],
+      flights: [{ id: "f1", number: "AR1657", direction: "DEPARTURE", scheduledAt: at("16:45"), estimatedAt: null, pickupStart: at("13:30"), status: "SCHEDULED", passengers: 4, units: [] }],
+      chapelco: [],
+      specialTrips: [{ id: "t1", client: "Colegio Nacional", passengers: 40, status: "CONFIRMED", firstLegAt: at("07:00"), units: [] }]
+    });
+    expect(rows.map((row) => row.programmed)).toEqual([false, false]);
   });
 });
