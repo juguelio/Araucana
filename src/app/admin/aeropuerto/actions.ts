@@ -8,7 +8,7 @@ import { fechaLocal } from "@/lib/airport/projection";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { conflictKey, dayInterval, driverConflicts, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { airportServiceWindow } from "@/lib/airport/service-window";
-import { companerosDeRecorrida, reagruparVuelos } from "@/lib/airport/pickup-group";
+import { companerosDeRecorrida, reagruparVuelos, vuelosDeLaRecorrida } from "@/lib/airport/pickup-group";
 import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
 import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
@@ -238,6 +238,10 @@ export async function updateFlightAction(formData: FormData) {
  * cambiar hasta último momento: agregar, cambiar o quitar. Si la nave o el chofer ya están ocupados
  * en ese tramo, avisa y pide confirmar (como el resto del panel).
  *
+ * Si el vuelo va en una recorrida (`pickupGroupId`), la asignación es de la recorrida: la combi y el chofer
+ * van a todos sus vuelos y las otras combis del grupo se quitan, porque la hoja del chofer une en una sola
+ * orden a los vuelos que comparten camioneta. Separar el grupo sigue siendo una acción explícita («Separar»).
+ *
  * Sin el campo `driverId` en el formulario (el tablero de salidas sólo manda la nave) el chofer de una
  * combi ya asignada no se toca.
  */
@@ -254,12 +258,27 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
     await lockFleet(tx, [vehicleId]);
     const flight = await tx.flight.findUnique({ where: { id: flightId } });
     if (!flight) return { error: "El vuelo ya no existe." };
+    // La recorrida es la unidad con la que se asigna la flota: la hoja del chofer une en una sola orden a
+    // los vuelos que comparten camioneta, así que si se asigna a un vuelo suelto el grupo queda con dos
+    // naves y vuelve a partirse en silencio.
+    const recorrida = await vuelosDeLaRecorrida(tx, flight);
+    const otras = recorrida.length > 1
+      ? await tx.airportVehicleAssignment.findMany({
+        where: { flight: { pickupGroupId: flight.pickupGroupId }, vehicleId: { not: vehicleId } },
+        select: {
+          id: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } },
+          flight: { select: { id: true, number: true, scheduledAt: true } }
+        }
+      })
+      : [];
     const previous = await tx.airportVehicleAssignment.findUnique({
       where: { flightId_vehicleId: { flightId, vehicleId } }, select: { driverId: true }
     });
     const driverId = sendsDriver ? requestedDriver : previous?.driverId ?? null;
     const driverChanged = driverId !== (previous?.driverId ?? null);
-    if (previous && !driverChanged) return { error: "La combi ya tenía ese chofer." };
+    // Re-guardar lo mismo sobre un vuelo suelto no hace nada; sobre una recorrida todavía puede ordenar el
+    // grupo cuando quedó con más de una nave.
+    if (previous && !driverChanged && otras.length === 0) return { error: "La combi ya tenía ese chofer." };
     if (driverId && driverChanged && !(await tx.user.findFirst({ where: { id: driverId, role: "DRIVER", isActive: true }, select: { id: true } }))) {
       return { error: "Ese chofer no está disponible: elegí un chofer activo." };
     }
@@ -284,6 +303,19 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
       create: { flightId, vehicleId, driverId }
     });
     await recordAcceptance(tx, "AIRPORT", assignment.id, user.id, conflicts);
+    // El resto de la recorrida lleva la misma combi y el mismo chofer: es una sola vuelta. Desde el
+    // tablero llega sólo la nave (`sinChofer`): ahí no se pisa el chofer que el vuelo ya tenía, para no
+    // borrar una asignación que el operador cargó a mano.
+    const companeros = recorrida.filter((vuelo) => vuelo.id !== flight.id);
+    for (const companero of companeros) {
+      await tx.airportVehicleAssignment.upsert({
+        where: { flightId_vehicleId: { flightId: companero.id, vehicleId } },
+        update: sendsDriver ? { driverId } : {},
+        create: { flightId: companero.id, vehicleId, driverId }
+      });
+    }
+    // Y las otras combis del grupo se quitan: una recorrida no puede ir con dos naves.
+    if (otras.length) await tx.airportVehicleAssignment.deleteMany({ where: { id: { in: otras.map((otra) => otra.id) } } });
     const [vehicle, drivers] = await Promise.all([
       tx.vehicle.findUnique({ where: { id: vehicleId }, select: { name: true } }),
       tx.user.findMany({ where: { id: { in: [previous?.driverId, driverId].filter((d): d is string => !!d) } }, select: { id: true, name: true, email: true } })
@@ -293,15 +325,36 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
       return found ? found.name ?? found.email : null;
     };
     const vehicleName = vehicle?.name ?? vehicleId;
+    const chofer = driverId ? driverName(driverId) : null;
     await recordEntityAudit(tx, {
       actor: user, entity: "AIRPORT", entityId: flightId, entityLabel: flightLabel(flight),
       action: previous ? "UPDATE" : "CREATE",
       summary: !previous ? `Combi ${vehicleName} asignada al vuelo.`
         : driverId ? `Chofer de la combi ${vehicleName} cambiado en el vuelo.` : `Chofer de la combi ${vehicleName} quitado del vuelo.`,
       before: previous ? { vehicle: vehicleName, driver: driverName(previous.driverId) } : null,
-      after: { vehicle: vehicleName, driver: driverName(driverId) }
+      after: { vehicle: vehicleName, driver: chofer }
     });
-    const message = !previous ? "Combi asignada al vuelo." : driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.";
+    for (const companero of companeros) {
+      await recordEntityAudit(tx, {
+        actor: user, entity: "AIRPORT", entityId: companero.id, entityLabel: flightLabel(companero),
+        action: "CREATE", summary: `Combi ${vehicleName} asignada a la recorrida de ${flightLabel(flight)}.`,
+        before: null, after: { vehicle: vehicleName, driver: chofer }
+      });
+    }
+    for (const otra of otras) {
+      await recordEntityAudit(tx, {
+        actor: user, entity: "AIRPORT", entityId: otra.flight.id, entityLabel: flightLabel(otra.flight),
+        action: "DELETE", summary: `Combi ${otra.vehicle.name} quitada del vuelo: la recorrida va con ${vehicleName}.`,
+        before: { vehicle: otra.vehicle.name, driver: otra.driver ? otra.driver.name ?? otra.driver.email : null }, after: null
+      });
+    }
+    const recorridaNombre = recorrida.map((vuelo) => vuelo.number).join(" + ");
+    const quitadas = [...new Set(otras.map((otra) => otra.vehicle.name))];
+    // Con la recorrida unida el aviso nombra los vuelos y las naves que se sacaron: el operador tiene que
+    // poder ver qué hizo la asignación más allá del vuelo donde la cargó.
+    const message = recorrida.length > 1
+      ? `Combi ${vehicleName} y ${chofer ? `chofer ${chofer}` : "sin chofer"} en la recorrida ${recorridaNombre}${quitadas.length ? `; se quitó ${quitadas.join(", ")}` : ""}.`
+      : !previous ? "Combi asignada al vuelo." : driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.";
     return { day: localInput(flight.scheduledAt).slice(0, 10), message };
   });
   const { day, message } = result;
