@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
-import { listAdminSchedules } from "@/lib/booking/repository";
+import { listAdminRoutes, listAdminSchedules } from "@/lib/booking/repository";
 import { NuevaReservaForm } from "./nueva-reserva-form";
 
 type NewReservationPageProps = {
@@ -19,6 +19,12 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
   // de historial con todas sus reservas. El cupo se calcula sobre las reservas, así que va acá.
   // `excludeAirport`: el aeropuerto se carga desde «Crear reserva de aeropuerto», eligiendo el
   // vuelo. Ofrecerlo por salida horaria creaba reservas sin número de vuelo (issue #79).
+  // Todas las rutas activas que se reservan por salida, tengan o no salidas cargadas (19-nov: «te
+  // están faltando rutas»): las que no tienen aparecen igual en Desde/Hacia, con el link para cargarlas.
+  // El aeropuerto y Chapelco tienen su propia pantalla.
+  const rutas = (await listAdminRoutes())
+    .filter((ruta) => ruta.isActive && ruta.bookingMode !== "AIRPORT" && ruta.bookingMode !== "CHAPELCO")
+    .map((ruta) => ({ id: ruta.id, from: ruta.from, to: ruta.to }));
   const schedules = (await listAdminSchedules({ bookableOnly: true, excludeAirport: true }))
     .filter((schedule) => schedule.availableSeats > 0)
     .map((schedule) => ({
@@ -45,7 +51,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
           ¿Es un traslado al aeropuerto? <Link className="table-link" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto ›</Link>
         </p>
         {schedules.length ? (
-          <NuevaReservaForm schedules={schedules} />
+          <NuevaReservaForm schedules={schedules} rutas={rutas} />
         ) : <p className="muted">No hay salidas futuras con lugares disponibles.</p>}
       </section>
     </AdminShell>

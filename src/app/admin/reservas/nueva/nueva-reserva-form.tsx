@@ -11,7 +11,8 @@ import {
 import type { SalidaOption } from "./salida-picker-utils";
 import { ViajeSearchBar, diaCorto, type ClaveTramo, type TramoDelViaje } from "./viaje-search-bar";
 import {
-  destinosDesde, origenes as listarOrigenes, precioDelTramo, primerDia, salidasDelTramo, totalDelViaje, vueltasPosibles, viajeInicial
+  destinosDesde, origenes as listarOrigenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, totalDelViaje, unificarLugares,
+  vueltasPosibles, viajeInicial, type RutaDelPanel
 } from "./viaje-utils";
 import "./salida-picker.css";
 import "./alta-template.css";
@@ -46,7 +47,10 @@ function formatPrice(cents: number, currency = "ARS") {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
+export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas = [] }: { schedules: SalidaOption[]; rutas?: RutaDelPanel[] }) {
+  // Un nombre por lugar (con o sin tilde es el mismo) y todas las rutas activas, aunque no tengan
+  // salidas cargadas (19-nov: «te están faltando rutas»).
+  const { salidas: schedules, rutas } = useMemo(() => unificarLugares(salidasCrudas, rutasCrudas), [salidasCrudas, rutasCrudas]);
   const [state, formAction, pending] = useActionState(createAdminReservationAction, initialAdminFormState);
   const [draft, setDraft] = useState<Draft>(VACIOS);
   const [pasajero, setPasajero] = useState<PassengerForm>(initialPassenger);
@@ -97,8 +101,8 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
   const [media, setMedia] = useState(0);
   const [sinCargo, setSinCargo] = useState(0);
 
-  const origenes = useMemo(() => listarOrigenes(schedules), [schedules]);
-  const destinos = useMemo(() => destinosDesde(schedules, origen), [schedules, origen]);
+  const origenes = useMemo(() => listarOrigenes(schedules, rutas), [schedules, rutas]);
+  const destinos = useMemo(() => destinosDesde(schedules, origen, rutas), [schedules, origen, rutas]);
   const salidasIda = useMemo(() => salidasDelTramo(schedules, origen, destino), [schedules, origen, destino]);
   const inversa = useMemo(() => salidasDelTramo(schedules, destino, origen), [schedules, origen, destino]);
   const salidaIda = salidasIda.find((salida) => salida.id === ida.salidaId) ?? null;
@@ -170,7 +174,7 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
 
   function elegirLugar(campoLugar: "desde" | "hacia", nombre: string) {
     if (campoLugar === "desde") {
-      const posibles = destinosDesde(schedules, nombre);
+      const posibles = destinosDesde(schedules, nombre, rutas);
       cambiarRuta(nombre, posibles.some((lugar) => lugar.nombre === destino) ? destino : posibles[0]?.nombre ?? "");
     } else {
       cambiarRuta(origen, nombre);
@@ -286,9 +290,10 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
             destinos={destinos}
             origen={origen}
             destino={destino}
-            puedeInvertir={inversa.length > 0}
+            puedeInvertir={inversa.length > 0 || Boolean(rutaEntre(rutas, destino, origen))}
             tramos={tramos}
             ofrecerVuelta={ofrecerVuelta}
+            rutaSinSalidas={salidasIda.length === 0 ? rutaEntre(rutas, origen, destino) : null}
             onLugar={elegirLugar}
             onInvertir={() => cambiarRuta(destino, origen)}
             onDia={elegirDia}

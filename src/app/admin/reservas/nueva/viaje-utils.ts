@@ -5,9 +5,40 @@
  */
 
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { claveDeLugar } from "@/lib/booking/place-names";
 import type { SalidaOption } from "./salida-picker-utils";
 
 export type Lugar = { nombre: string; salidas: number };
+
+/** Una ruta activa, tenga o no salidas cargadas (para listarla igual en Desde/Hacia). */
+export type RutaDelPanel = { id: string; from: string; to: string };
+
+/**
+ * Un solo nombre por lugar: «San Martin de los Andes» y «San Martín de los Andes» son el mismo (las
+ * rutas del repo lo escriben sin tilde). Se muestra la forma con tildes si existe; si no, la más usada.
+ */
+export function unificarLugares(salidas: SalidaOption[], rutas: RutaDelPanel[] = []) {
+  const variantes = new Map<string, Map<string, number>>();
+  for (const nombre of [...salidas.flatMap((s) => [s.from, s.to]), ...rutas.flatMap((r) => [r.from, r.to])]) {
+    const clave = claveDeLugar(nombre);
+    const formas = variantes.get(clave) ?? new Map<string, number>();
+    const limpio = nombre.trim().replace(/\s+/g, " ");
+    formas.set(limpio, (formas.get(limpio) ?? 0) + 1);
+    variantes.set(clave, formas);
+  }
+  const nombreDe = new Map<string, string>();
+  for (const [clave, formas] of variantes) {
+    const elegido = [...formas.entries()].sort(
+      (a, b) => Number(/[^\x00-\x7f]/.test(b[0])) - Number(/[^\x00-\x7f]/.test(a[0])) || b[1] - a[1] || a[0].localeCompare(b[0], "es")
+    )[0][0];
+    nombreDe.set(clave, elegido);
+  }
+  const nombre = (lugar: string) => nombreDe.get(claveDeLugar(lugar)) ?? lugar;
+  return {
+    salidas: salidas.map((salida) => ({ ...salida, from: nombre(salida.from), to: nombre(salida.to) })),
+    rutas: rutas.map((ruta) => ({ ...ruta, from: nombre(ruta.from), to: nombre(ruta.to) }))
+  };
+}
 
 /** Clave para ordenar y comparar salidas en el tiempo: el día y la hora de Argentina. */
 export function momento(salida: Pick<SalidaOption, "dayKey" | "timeLabel">) {
@@ -23,14 +54,29 @@ function contar(nombres: string[]): Lugar[] {
     .sort((a, b) => b.salidas - a.salidas || a.nombre.localeCompare(b.nombre, "es"));
 }
 
-/** Desde dónde se puede salir. */
-export function origenes(salidas: SalidaOption[]) {
-  return contar(salidas.map((salida) => salida.from));
+/** Suma con 0 salidas los lugares de rutas activas que todavía no tienen salidas cargadas. */
+function conRutasSinSalidas(lugares: Lugar[], nombres: string[]) {
+  const vistos = new Set(lugares.map((lugar) => lugar.nombre));
+  const faltan = [...new Set(nombres)].filter((nombre) => !vistos.has(nombre)).sort((a, b) => a.localeCompare(b, "es"));
+  return [...lugares, ...faltan.map((nombre) => ({ nombre, salidas: 0 }))];
 }
 
-/** Adónde se puede ir desde `origen`. */
-export function destinosDesde(salidas: SalidaOption[], origen: string) {
-  return contar(salidas.filter((salida) => salida.from === origen).map((salida) => salida.to));
+/** Desde dónde se puede salir (las rutas sin salidas cargadas, al final). */
+export function origenes(salidas: SalidaOption[], rutas: RutaDelPanel[] = []) {
+  return conRutasSinSalidas(contar(salidas.map((salida) => salida.from)), rutas.map((ruta) => ruta.from));
+}
+
+/** Adónde se puede ir desde `origen` (las rutas sin salidas cargadas, al final). */
+export function destinosDesde(salidas: SalidaOption[], origen: string, rutas: RutaDelPanel[] = []) {
+  return conRutasSinSalidas(
+    contar(salidas.filter((salida) => salida.from === origen).map((salida) => salida.to)),
+    rutas.filter((ruta) => ruta.from === origen).map((ruta) => ruta.to)
+  );
+}
+
+/** La ruta activa de `desde` a `hacia` (para ofrecer cargarle salidas si no tiene). */
+export function rutaEntre(rutas: RutaDelPanel[], desde: string, hacia: string) {
+  return rutas.find((ruta) => ruta.from === desde && ruta.to === hacia) ?? null;
 }
 
 /** Las salidas de un tramo, en orden. */

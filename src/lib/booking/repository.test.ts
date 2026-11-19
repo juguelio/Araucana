@@ -1334,6 +1334,14 @@ describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", (
     expect(client.passengers).toHaveLength(0);
   });
 
+  it("reconoce la vuelta aunque el lugar esté escrito con o sin tilde", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client, {}, { from: "bariloche", to: "SMA" });
+    client.scheduleRecord.route = { ...client.scheduleRecord.route, to: "Bariloche " };
+    await repositorio(client).createRouteRoundTripReservation(viaje);
+    expect(client.reservations).toHaveLength(2);
+  });
+
   it("rechaza una vuelta que sale antes que la ida", async () => {
     const client = new FakeBookingClient();
     conVuelta(client, { departureAt: new Date(client.scheduleRecord.departureAt.getTime() - 3600000) });

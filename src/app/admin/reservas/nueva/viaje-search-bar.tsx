@@ -94,7 +94,7 @@ function IconoCombi() {
 
 export function ViajeSearchBar({
   origenes, destinos, origen, destino, puedeInvertir, tramos, ofrecerVuelta,
-  onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
+  rutaSinSalidas, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
 }: {
   origenes: Lugar[];
   /** Los destinos del origen elegido. */
@@ -107,6 +107,8 @@ export function ViajeSearchBar({
   tramos: TramoDelViaje[];
   /** Con un tramo y vuelta posible: lo que dice el casillero apagado. */
   ofrecerVuelta: { detalle: string } | null;
+  /** La ruta elegida existe pero todavía no tiene salidas cargadas: se ofrece ir a cargarlas. */
+  rutaSinSalidas?: { id: string } | null;
   onLugar: (campo: "desde" | "hacia", nombre: string) => void;
   onInvertir: () => void;
   onDia: (tramo: ClaveTramo, dia: string) => void;
@@ -285,7 +287,7 @@ export function ViajeSearchBar({
               <span className="trip-search-option-icon"><IconoPin /></span>
               <span className="trip-search-option-text">
                 <b>{lugar.nombre}</b>
-                <small>{lugar.salidas} {lugar.salidas === 1 ? "salida" : "salidas"} con lugar</small>
+                <small>{lugar.salidas ? `${lugar.salidas} ${lugar.salidas === 1 ? "salida" : "salidas"} con lugar` : "Sin salidas cargadas"}</small>
               </span>
               {actual === lugar.nombre ? <span className="trip-search-tick" aria-hidden="true">✓</span> : null}
             </button>
@@ -360,7 +362,14 @@ export function ViajeSearchBar({
         </div>
 
         <p className="trip-search-step">2. La salida del {tramo.dia ? diaLargo(tramo.dia) : "día"}</p>
-        {delDia.length === 0 ? (
+        {tramo.salidas.length === 0 ? (
+          <p className="trip-search-empty">
+            Esta ruta todavía no tiene salidas cargadas con lugar.{" "}
+            {tramo.clave === "ida" && rutaSinSalidas ? (
+              <a className="viaje-proximo" href={`/admin/rutas/${rutaSinSalidas.id}/salidas/nueva`}>Cargar salidas de {tramo.desde} → {tramo.hacia} ›</a>
+            ) : null}
+          </p>
+        ) : delDia.length === 0 ? (
           <p className="trip-search-empty">
             No hay salidas con lugar ese día.{" "}
             {proximo ? (

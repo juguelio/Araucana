@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { mismoLugar } from "./place-names";
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { adminReservationsPageSize, normalizarBusqueda, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { adminReservationOrderBy } from "./admin-reservation-sort";
@@ -1041,7 +1042,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               tx.schedule.findUnique({ where: { id: parsed.returnScheduleId }, include: scheduleInclude() })
             ]);
             if (!ida || !vuelta) throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
-            if (vuelta.route.from !== ida.route.to || vuelta.route.to !== ida.route.from) {
+            // Sin tildes ni mayúsculas: «San Martin» y «San Martín» son el mismo lugar (19-nov).
+            if (!mismoLugar(vuelta.route.from, ida.route.to) || !mismoLugar(vuelta.route.to, ida.route.from)) {
               throw new BookingError(
                 "ROUND_TRIP_ROUTE_MISMATCH",
                 `La vuelta tiene que salir de ${ida.route.to} y llegar a ${ida.route.from}.`

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SalidaOption } from "./salida-picker-utils";
-import { destinosDesde, origenes, precioDelTramo, primerDia, salidasDelTramo, totalDelViaje, viajeInicial, vueltasPosibles } from "./viaje-utils";
+import { destinosDesde, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
 
 function salida(id: string, from: string, to: string, dayKey: string, timeLabel: string, extra: Partial<SalidaOption> = {}): SalidaOption {
   return { id, from, to, dayKey, dayLabel: dayKey, timeLabel, availableSeats: 10, status: "OPEN", priceCents: 3000000, currency: "ARS", ...extra };
@@ -45,5 +45,36 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
     // 2 adultos + 1 menor de media tarifa + 1 menor de 4 sin cargo, ida a Confluencia y vuelta entera.
     expect(totalDelViaje([{ salida: ida, parada: "Confluencia" }, { salida: vuelta, parada: "" }], { lugares: 4, media: 1, sinCargo: 1 }))
       .toBe((1500000 * 2 + 750000) + (3000000 * 2 + 1500000));
+  });
+});
+
+describe("todas las rutas y un nombre por lugar (19-nov: «te están faltando rutas»)", () => {
+  // Las rutas del repo (prisma/demo-routes.ts) escriben «San Martin» sin tilde.
+  const rutas = [
+    { id: "r1", from: "San Martin de los Andes", to: "Villa Traful" },
+    { id: "r2", from: "Villa Traful", to: "San Martin de los Andes" },
+    { id: "r3", from: "Villa La Angostura", to: "Villa Traful" },
+    { id: "r4", from: "Villa Traful", to: "Villa La Angostura" },
+    { id: "r5", from: "San Martin de los Andes", to: "Hua Hum" }
+  ];
+
+  it("con o sin tilde es el mismo lugar, y se muestra con tilde", () => {
+    const { salidas: unificadas, rutas: rutasUnificadas } = unificarLugares(salidas, rutas);
+    expect(new Set(unificadas.map((s) => s.from)).has("San Martin de los Andes")).toBe(false);
+    expect(rutasUnificadas[0].from).toBe(SMA);
+    // La vuelta escrita sin tilde se reconoce como la inversa de la ida con tilde.
+    expect(vueltasPosibles(unificadas, SMA, "Villa Traful").length).toBeGreaterThan(0);
+  });
+
+  it("las rutas sin salidas cargadas aparecen igual, al final y con 0", () => {
+    const { salidas: unificadas, rutas: rutasUnificadas } = unificarLugares(salidas, rutas);
+    expect(origenes(unificadas, rutasUnificadas).map((l) => [l.nombre, l.salidas])).toEqual([
+      [SMA, 3], ["Villa Traful", 3], ["Villa La Angostura", 0]
+    ]);
+    expect(destinosDesde(unificadas, "Villa Traful", rutasUnificadas).map((l) => [l.nombre, l.salidas])).toEqual([
+      [SMA, 3], ["Villa La Angostura", 0]
+    ]);
+    expect(destinosDesde(unificadas, SMA, rutasUnificadas).map((l) => l.nombre)).toEqual(["Villa Traful", "Junín de los Andes", "Hua Hum"]);
+    expect(rutaEntre(rutasUnificadas, "Villa La Angostura", "Villa Traful")?.id).toBe("r3");
   });
 });
