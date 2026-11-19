@@ -10,6 +10,8 @@ import { errorState, initialAdminFormState, type AdminFormState } from "../../fo
 import { PassengerFields, type PassengerDraft } from "./passenger-form";
 import { canSavePickup, pickupFormFields } from "./pickup-address";
 import { PickupAddressFields, type PickupAddressDraft } from "./pickup-address-form";
+import { ServiceMoveFields, type ServiceMoveDraft } from "./service-move-fields";
+import type { ServiceMove } from "./editar/service-options";
 
 type ReservationEditFormProps = {
   action: (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
@@ -45,10 +47,13 @@ type ReservationEditFormProps = {
     /** Hay un comprobante por revisar: la plata no se mueve hasta resolverlo. */
     paymentReceiptPending: boolean;
   };
+  /** Pasar a otra salida, vuelo o fecha. `undefined` en una reserva cancelada (primero se restituye). */
+  service?: ServiceMove;
   transfer?: { address: string; point: PickupPoint | null; notes: string; name: string; airport: boolean; direction?: string; coverage: AirportCoverage };
 };
 
-export function ReservationEditForm({ action, code, passenger, transfer, financial, referredBy: initialReferredBy, counts }: ReservationEditFormProps) {
+export function ReservationEditForm({ action, code, passenger, transfer, financial, referredBy: initialReferredBy, counts, service }: ReservationEditFormProps) {
+  const [move, setMove] = useState<ServiceMoveDraft>(null);
   const [draft, setDraft] = useState<PassengerDraft>({ ...passenger, nationality: passenger.nationality ?? "" });
   const [pickup, setPickup] = useState<PickupAddressDraft>({
     address: transfer?.address ?? "", point: transfer?.point ?? null, confirmed: false
@@ -92,7 +97,10 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const countTouched = Boolean(counts && parsedCount !== counts.price.passengerCount);
   const minorsTouched = Boolean(counts && (parsedHalf !== counts.price.halfFareCount || parsedFree !== counts.price.freeFareCount));
   const luggageTouched = Boolean(counts?.airport && parsedLuggage !== counts.price.sportsLuggageCount);
-  const dropoffChanged = Boolean(counts && dropoff !== counts.dropoffStop);
+  // Otra salida de otra ruta: las paradas de esta ruta ya no aplican y la bajada vuelve al destino final.
+  const otraRuta = move?.mode === "SEATED" && service?.mode === "SEATED" && move.routeId !== service.currentRouteId;
+  const dropoffFinal = otraRuta ? "" : dropoff;
+  const dropoffChanged = Boolean(counts && !otraRuta && dropoff !== counts.dropoffStop);
   // Pasajeros y menores se validan juntos: los menores van dentro del total y siempre queda un adulto.
   const minorsError = counts && countInRange && minorsInRange && (countTouched || minorsTouched)
     ? errorDeMenores({ passengerCount: parsedCount, halfFareCount: parsedHalf, freeFareCount: parsedFree })
@@ -114,6 +122,11 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     : zoneNow;
   const zoneChanged = zoneNext !== zoneNow;
   const stopPrice = (name: string) => counts?.stops.find((stop) => stop.name === name)?.priceCents ?? counts?.routePriceCents ?? 0;
+  // Tarifa por persona después del cambio de servicio: la de la ruta nueva o la del otro sentido.
+  const movedPrice = move?.mode === "SEATED" && otraRuta ? move.priceCents
+    : move?.mode === "AIRPORT" && service?.mode === "AIRPORT" && move.direction !== service.currentDirection
+      ? service.prices[move.direction] ?? undefined
+      : undefined;
   // Mismo cálculo que el servidor: si el total guardado fue corregido a mano, no se recalcula.
   const proposal = counts ? totalAlEditar({
     basis: counts.price,
@@ -123,14 +136,15 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     freeFareCount: countValid ? parsedFree : counts.price.freeFareCount,
     sportsLuggageCount: counts.airport && luggageValid ? parsedLuggage : counts.price.sportsLuggageCount,
     zoneExtraCents: zoneNext,
-    priceCents: stopPrice(dropoff)
+    priceCents: movedPrice ?? stopPrice(dropoffFinal)
   }) : null;
   const totalChanged = Boolean(proposal?.seRecalcula && proposal.totalCents !== counts?.totalCents);
-  const movesTotal = countChanged || minorsChanged || luggageChanged || dropoffChanged || zoneChanged;
+  const moved = move !== null;
+  const movesTotal = countChanged || minorsChanged || luggageChanged || dropoffChanged || zoneChanged || moved;
   // Un precio escrito a mano manda sobre la cuenta automática: ahí no hay diferencia que confirmar.
   const needsAcknowledgement = Boolean(counts?.paymentApproved && totalChanged && !priceChanged);
   const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || pickupNameChanged || referredByChanged
-    || countChanged || minorsChanged || luggageChanged || dropoffChanged || priceChanged || methodChanged || referenceChanged;
+    || countChanged || minorsChanged || luggageChanged || dropoffChanged || moved || priceChanged || methodChanged || referenceChanged;
   const savePickup = canSavePickup(addressChanged, pickup, { airport: Boolean(transfer?.airport), outside });
   const canSave = hasChanges && countsValid && (!needsAcknowledgement || acknowledged) && savePickup;
 
@@ -158,6 +172,12 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     }
     // Vacío = baja en el destino final: viaja igual para poder volver atrás una parada intermedia.
     if (dropoffChanged) changes.set("dropoffStop", dropoff);
+    if (move?.mode === "SEATED") changes.set("moveScheduleId", move.scheduleId);
+    if (move?.mode === "AIRPORT") changes.set("moveFlightId", move.flightId);
+    if (move?.mode === "CHAPELCO") {
+      changes.set("moveServiceDate", move.serviceDate);
+      changes.set("moveAscentSlot", move.ascentSlot);
+    }
     if (needsAcknowledgement && acknowledged) changes.set("acknowledgeTotalChange", "on");
     // `pickupFormFields` decide si viajan coordenadas: sin punto va sólo el texto (#268).
     if (addressChanged) {
@@ -177,6 +197,15 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
       <h3 className="reservation-edit-wide">Pasajero</h3>
       <PassengerFields passenger={draft} errors={state.fieldErrors} disabled={pending} optionalDocument={Boolean(transfer?.airport)}
         onChange={(field, value) => setDraft((current) => ({ ...current, [field]: value }))} />
+      {service ? (
+        <>
+          <h3 className="reservation-edit-wide">
+            {service.mode === "SEATED" ? "Salida" : service.mode === "AIRPORT" ? "Vuelo" : "Fecha y franja"}
+          </h3>
+          <ServiceMoveFields service={service} disabled={pending} error={state.fieldErrors.move}
+            onChange={(draft) => { setMove(draft); setAcknowledged(false); }} />
+        </>
+      ) : null}
       {counts ? (
         <>
           <h3 className="reservation-edit-wide">Cantidad de pasajeros</h3>
@@ -219,7 +248,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
               <FieldError id="reservation-minors-error" message={minorsError ?? state.fieldErrors.halfFareCount} />
             </>
           )}
-          {counts.stops.length > 0 ? (
+          {counts.stops.length > 0 && !otraRuta ? (
             <label className="span-2">
               Baja en
               <select name="dropoffStop" value={dropoff} disabled={pending || countsLocked}

@@ -165,6 +165,8 @@ export type ReservationDetailDto = {
     sportsLuggageCount?: number;
     sportsLuggageUnitCents?: number;
     zoneExtraCents?: number;
+    /** Vuelo de la reserva (puede faltar en reservas viejas o si el vuelo se borró). */
+    flightId?: string | null;
     flightNumber: string;
     direction: string;
     serviceDate: Date;

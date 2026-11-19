@@ -157,6 +157,7 @@ type ReservationRecord = {
     sportsLuggageCount?: number;
     sportsLuggageUnitCents?: number;
     zoneExtraCents?: number;
+    flightId?: string | null;
     flightNumber: string;
     direction: string;
     serviceDate: Date;
@@ -461,6 +462,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
           sportsLuggageCount: reservation.airportDetails.sportsLuggageCount ?? 0,
           sportsLuggageUnitCents: reservation.airportDetails.sportsLuggageUnitCents ?? 0,
           zoneExtraCents: reservation.airportDetails.zoneExtraCents ?? 0,
+          flightId: reservation.airportDetails.flightId ?? null,
           flightNumber: reservation.airportDetails.flightNumber,
           direction: reservation.airportDetails.direction,
           serviceDate: reservation.airportDetails.serviceDate,
