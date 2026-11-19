@@ -207,6 +207,8 @@ export type AdminReservationRowDto = {
   shortCode: string;
   passenger: string;
   passengerPhone: string;
+  /** DNI del pasajero; vacío = la reserva se cargó sin documento (19-nov) y queda marcada. */
+  passengerDocumentId: string;
   creatorLabel: string;
   route: string;
   departureAt: Date;

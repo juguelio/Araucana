@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SalidaOption } from "./salida-picker-utils";
-import { destinosDesde, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
+import { destinosDesde, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, tiraConServicio, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
 
 function salida(id: string, from: string, to: string, dayKey: string, timeLabel: string, extra: Partial<SalidaOption> = {}): SalidaOption {
   return { id, from, to, dayKey, dayLabel: dayKey, timeLabel, availableSeats: 10, status: "OPEN", priceCents: 3000000, currency: "ARS", ...extra };
@@ -21,6 +21,49 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
     expect(origenes(salidas)[0]).toEqual({ nombre: SMA, salidas: 3 });
     expect(destinosDesde(salidas, SMA).map((lugar) => lugar.nombre)).toEqual(["Villa Traful", "Junín de los Andes"]);
     expect(viajeInicial(salidas)).toEqual({ origen: SMA, destino: "Villa Traful", dia: "2026-11-19" });
+  });
+
+  it("abre desde San Martín aunque otra ruta tenga muchas más salidas (Villa Traful, 258)", () => {
+    // La operación real tiene 258 salidas de Villa Traful: así el «Desde» arrancaba en Villa Traful.
+    const muchasDeVillaTraful = [
+      ...salidas,
+      ...Array.from({ length: 258 }, (_, i) =>
+        salida(`vt${i}`, "Villa Traful", SMA, `2026-12-${String((i % 28) + 1).padStart(2, "0")}`, "16:30")
+      )
+    ];
+    expect(origenes(muchasDeVillaTraful)[0].nombre).toBe("Villa Traful");
+    expect(viajeInicial(muchasDeVillaTraful).origen).toBe(SMA);
+  });
+
+  it("si San Martín no tiene salidas, abre con el origen que haya", () => {
+    const soloJunin = [salida("j1", "Junín de los Andes", SMA, "2026-11-19", "09:30")];
+    expect(viajeInicial(soloJunin).origen).toBe("Junín de los Andes");
+  });
+
+  it("la tira de días muestra sólo los días con servicio", () => {
+    // Servicio martes, sábados y domingos: los días de la semana sin salidas no aparecen.
+    const conServicio = ["2027-01-02", "2027-01-03", "2027-01-05", "2027-01-09", "2027-01-10"];
+    const tira = tiraConServicio(conServicio, "2027-01-02");
+    expect(tira.dias).toEqual(conServicio);
+    expect([tira.hayAntes, tira.hayDespues]).toEqual([false, false]);
+  });
+
+  it("la tira avanza de siete en siete días con servicio, no de siete días de calendario", () => {
+    const dias = Array.from({ length: 12 }, (_, i) => `2027-02-${String(i + 1).padStart(2, "0")}`);
+    const primera = tiraConServicio(dias, dias[0]);
+    expect(primera.dias).toHaveLength(7);
+    expect([primera.base, primera.hayAntes, primera.hayDespues]).toEqual([0, false, true]);
+
+    const segunda = tiraConServicio(dias, dias[7]);
+    expect(segunda.base).toBe(7);
+    expect([segunda.hayAntes, segunda.hayDespues]).toEqual([true, false]);
+    expect(segunda.dias[0]).toBe(dias[7]);
+  });
+
+  it("si se pide una fecha posterior a la última, la tira muestra el final", () => {
+    const dias = ["2027-01-02", "2027-01-03"];
+    expect(tiraConServicio(dias, "2027-03-01").dias).toEqual(dias);
+    expect(tiraConServicio([], "2027-01-02")).toEqual({ dias: [], base: 0, hayAntes: false, hayDespues: false });
   });
 
   it("la vuelta es la ruta inversa y sólo las salidas posteriores a la ida", () => {

@@ -954,6 +954,9 @@ describe("booking repository", () => {
         hasReceipt: true
       })
     ]);
+    // El listado trae el DNI para poder marcar «Falta documento» (19-nov): si el `select` del include
+    // se lo olvida, la fila se cae al renderizar el listado entero.
+    expect(pagina.items[0].passengerDocumentId).toBeTruthy();
   });
 
   it("pagina el listado y devuelve el total sin paginar", async () => {

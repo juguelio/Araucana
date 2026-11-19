@@ -54,17 +54,32 @@ describe("validación de reservas con tarifas por edad", () => {
     expect(createReservationSchema.safeParse(reserva({ requestDisabilityFare: true, passengerCount: 2, freeFareCount: 1 })).success).toBe(true);
   });
 
-  // Issue #122: el cliente pidió que el DNI sea obligatorio al cargar. Antes, desde el panel se podía
-  // guardar una reserva sin documento y la orden de servicio del chofer salía con «—».
-  it("el alta del panel exige el documento del pasajero", () => {
+  // 19-nov: el alta del panel vuelve a aceptar el DNI vacío —el mostrador no siempre lo tiene a mano—
+  // y la reserva queda marcada «Falta documento» hasta que alguien lo complete. Si viene cargado, se
+  // valida igual que siempre. El checkout público lo sigue exigiendo (#122).
+  it("el alta del panel guarda la reserva sin documento y la deja marcada", () => {
     const sinDocumento = adminReservationSchema.safeParse(
       reserva({ passenger: { ...pasajero, documentId: "" } })
     );
 
-    expect(sinDocumento.success).toBe(false);
-    if (!sinDocumento.success) {
-      expect(sinDocumento.error.issues.map((issue) => issue.path.join("."))).toContain("passenger.documentId");
+    expect(sinDocumento.success).toBe(true);
+    if (sinDocumento.success) {
+      expect(sinDocumento.data.passenger.documentId).toBe("");
     }
+  });
+
+  it("sin documento igual se valida lo que venga cargado", () => {
+    const dniCorto = adminReservationSchema.safeParse(
+      reserva({ passenger: { ...pasajero, documentId: "123" } })
+    );
+    expect(dniCorto.success).toBe(false);
+    if (!dniCorto.success) {
+      expect(dniCorto.error.issues.map((issue) => issue.path.join("."))).toContain("passenger.documentId");
+    }
+  });
+
+  it("la reserva web sigue exigiendo el documento", () => {
+    expect(createReservationSchema.safeParse(reserva({ passenger: { ...pasajero, documentId: "" } })).success).toBe(false);
   });
 
   it("el alta del panel acepta el DNI con puntos y lo guarda normalizado", () => {

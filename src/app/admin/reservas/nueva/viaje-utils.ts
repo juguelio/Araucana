@@ -107,6 +107,26 @@ export function primerDia(salidas: SalidaOption[], minimo = "") {
   return salidas.find((salida) => salida.dayKey >= minimo)?.dayKey ?? "";
 }
 
+/**
+ * La tira del selector de día: **sólo los días que tienen servicio** (19-nov). Antes se mostraban
+ * siete días de calendario y los que no tenían salidas aparecían apagados; ahora la tira salta
+ * directo a los días con salidas, de siete en siete desde `inicio`.
+ *
+ * Devuelve también `base`, la posición en la lista completa, para que el componente sepa si puede
+ * retroceder o avanzar.
+ */
+export function tiraConServicio(dias: string[], inicio: string, cuantos = 7) {
+  if (!dias.length) return { dias: [] as string[], base: 0, hayAntes: false, hayDespues: false };
+  const encontrado = dias.findIndex((dia) => dia >= inicio);
+  const base = encontrado < 0 ? Math.max(0, dias.length - cuantos) : encontrado;
+  return {
+    dias: dias.slice(base, base + cuantos),
+    base,
+    hayAntes: base > 0,
+    hayDespues: base + cuantos < dias.length
+  };
+}
+
 /** Precio por persona de un tramo: el de la parada donde baja, o el de la salida. */
 export function precioDelTramo(salida: SalidaOption, parada: string) {
   const tarifa = parada ? salida.stopFares?.find((fare) => fare.name === parada) : undefined;
@@ -122,9 +142,17 @@ export function totalDelViaje(
   return tramos.reduce((total, tramo) => total + reservationTotalCents(precioDelTramo(tramo.salida, tramo.parada), cuentas), 0);
 }
 
-/** El viaje que se propone al abrir: el origen y el destino con más salidas, y su primer día. */
+/**
+ * La agencia está en San Martín de los Andes: el viaje que se propone al abrir arranca ahí, aunque
+ * otra ruta tenga más salidas cargadas (Villa Traful tenía 258 y se llevaba el «Desde»).
+ */
+const ORIGEN_DE_LA_AGENCIA = "san martin de los andes";
+
+/** El viaje que se propone al abrir: desde San Martín, al destino con más salidas, y su primer día. */
 export function viajeInicial(salidas: SalidaOption[]) {
-  const origen = origenes(salidas)[0]?.nombre ?? "";
+  const lugares = origenes(salidas);
+  const deLaAgencia = lugares.find((lugar) => claveDeLugar(lugar.nombre) === ORIGEN_DE_LA_AGENCIA);
+  const origen = (deLaAgencia ?? lugares[0])?.nombre ?? "";
   const destino = destinosDesde(salidas, origen)[0]?.nombre ?? "";
   return { origen, destino, dia: primerDia(salidasDelTramo(salidas, origen, destino)) };
 }
