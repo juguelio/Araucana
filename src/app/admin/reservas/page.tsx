@@ -18,21 +18,11 @@ import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approv
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
 import { RowModal } from "./row-modal";
-import { ComprobanteViewer } from "./comprobante-viewer";
+import { ComprobanteViewer, fechaDeSubida } from "./comprobante-viewer";
 import { ReceiptUploadForm } from "./receipt-upload-form";
 import "@/components/admin-list/pagination.css";
 import "./reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
-
-/** «19/11/2026, 14:52» para la fecha en que el pasajero subió el comprobante. */
-const fechaHoraDeCarga = new Intl.DateTimeFormat("es-AR", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "America/Argentina/Buenos_Aires"
-});
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
@@ -374,7 +364,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                           <ComprobanteViewer
                             href={`${detailPath}/comprobante`}
                             fileName={reservation.receiptFileName}
-                            subido={reservation.receiptUploadedAt ? fechaHoraDeCarga.format(new Date(reservation.receiptUploadedAt)) : null}
+                            subido={fechaDeSubida(reservation.receiptUploadedAt)}
                           />
                           <div className="reservas-modal-acciones">
                             <button className="button" type="submit">Validar pago</button>
@@ -393,7 +383,8 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                           </div>
                         </form>
                       ) : null}
-                      {puedeRegistrarPago ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
+                      {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}
+                      {puedeRegistrarPago && !validaPagoManual ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
                       {!validaPagoManual && !revisaDocumentacion && !puedeRegistrarPago ? (
                         <p className="muted">
                           {pagada ? "El pago está aprobado. Para corregir la forma de pago o el precio, editá la reserva." : "No hay acciones de pago disponibles para esta reserva."}
@@ -417,7 +408,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                           <ComprobanteViewer
                             href={`${detailPath}/comprobante`}
                             fileName={reservation.receiptFileName}
-                            subido={reservation.receiptUploadedAt ? fechaHoraDeCarga.format(new Date(reservation.receiptUploadedAt)) : null}
+                            subido={fechaDeSubida(reservation.receiptUploadedAt)}
                           />
                         ) : null}
                         {puedeSubirComprobante ? (

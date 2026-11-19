@@ -7,7 +7,7 @@ import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { getReservationByCode } from "@/lib/booking/repository";
-import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
 import { tarifaPorPersona } from "@/lib/booking/reservation-edit";
 import { getStopFares } from "@/lib/booking/stop-fares";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -16,6 +16,8 @@ import { ConfirmReservationButton } from "../confirm-reservation-button";
 import { ReservationEditForm } from "../reservation-edit-form";
 import { serviceMoveFor } from "./service-options";
 import { RegistrarPagoForm } from "../registrar-pago-form";
+import { ReceiptUploadForm } from "../../receipt-upload-form";
+import { ComprobanteViewer, fechaDeSubida } from "../../comprobante-viewer";
 import "../../reservas.css";
 
 export default async function EditReservationPage({ params }: { params: Promise<{ code: string }> }) {
@@ -32,6 +34,16 @@ export default async function EditReservationPage({ params }: { params: Promise<
   // Recargo vigente: si el operador mueve el punto a la zona con recargo, se cobra este monto.
   const zoneExtraConfigCents = airport ? (await getAirportExtras()).zoneExtraCents : 0;
   const service = await serviceMoveFor(reservation);
+
+  // Mismas reglas que el listado: el comprobante se sube mientras el pago está pendiente o
+  // rechazado, y la documentación de la tarifa sin cargo sólo la toca administración.
+  const esDocumentacion = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
+  const puedeVerComprobante = !esDocumentacion || isAdminRole(user.role);
+  const tieneComprobante = Boolean(reservation.payment?.receiptBlobPathname) && puedeVerComprobante;
+  const puedeSubirComprobante = Boolean(reservation.payment)
+    && reservation.status === receiptPendingStatus(reservation.payment?.provider ?? null)
+    && ["PENDING", "REJECTED"].includes(reservation.payment?.status ?? "")
+    && puedeVerComprobante;
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
   // Cargar el pago también desde acá (no sólo desde el detalle): mismas reglas que «Registrar pago».
@@ -63,6 +75,25 @@ export default async function EditReservationPage({ params }: { params: Promise<
         <section className="plain-card admin-section" aria-labelledby="cargar-pago">
           <h2 id="cargar-pago">Cargar pago</h2>
           <RegistrarPagoForm code={reservation.code} total={total} />
+        </section>
+      ) : null}
+      {tieneComprobante || puedeSubirComprobante ? (
+        <section className="plain-card admin-section" aria-labelledby="comprobante">
+          <h2 id="comprobante">{esDocumentacion ? "Documentación" : "Comprobante"}</h2>
+          {tieneComprobante ? (
+            <ComprobanteViewer
+              href={`${detailPath}/comprobante`}
+              fileName={reservation.payment?.receiptFileName}
+              subido={fechaDeSubida(reservation.payment?.receiptUploadedAt)}
+            />
+          ) : (
+            <p className="muted">Todavía no hay un comprobante cargado.</p>
+          )}
+          {puedeSubirComprobante ? (
+            <ReceiptUploadForm code={reservation.code} replace={tieneComprobante} />
+          ) : (
+            <p className="muted">El pago ya no admite un comprobante nuevo.</p>
+          )}
         </section>
       ) : null}
       <section className="plain-card admin-section">

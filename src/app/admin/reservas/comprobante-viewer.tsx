@@ -1,4 +1,20 @@
 const IMAGEN = /\.(jpe?g|png|webp|gif|avif)$/i;
+
+/** «19/11/2026, 12:07» para la fecha en que se subió el comprobante. */
+const fechaHora = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "America/Argentina/Buenos_Aires"
+});
+
+export function fechaDeSubida(valor?: Date | string | null) {
+  if (!valor) return null;
+  const fecha = valor instanceof Date ? valor : new Date(valor);
+  return Number.isNaN(fecha.getTime()) ? null : fechaHora.format(fecha);
+}
 const PDF = /\.pdf$/i;
 
 /**
