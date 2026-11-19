@@ -212,13 +212,17 @@ export default async function AirportPage({ searchParams }: PageProps) {
             triggerLabel={recorridaDelVuelo.assignments.length === 0 ? `Asignar combi al ${v.number}` : `Cambiar combi del ${v.number}: ${combisDelVuelo(recorridaDelVuelo)}`}
             triggerClassName={`pill pill-combi aero-combi-boton${recorridaDelVuelo.assignments.length ? " aero-combi-ok" : ocupados > 0 ? " pill-alerta" : " aero-combi-vacia"}`}
           />
-          {pickupStart ? <span className="muted flight-info-recorrida" title={`Recorrida ${v.pickupStartOverrideAt ? "coordinada" : "estimada"}: ${airportPickupDateTime.format(pickupStart)}`}>Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}</span> : null}
           {companeros(v).length ? (
+            // En una recorrida, un solo dato: con qué vuelos va y, en las partidas, a qué hora arranca.
             <span
               className="pill aero-misma-vuelta"
-              title={`Misma recorrida con ${companeros(v).map((otro) => otro.number).join(", ")}: la orden de servicio junta a sus pasajeros y, si sale con varias combis, los reparte por zona`}
+              title={`Recorrida ${pickupStart ? `${v.pickupStartOverrideAt ? "coordinada" : "estimada"} ${airportPickupDateTime.format(pickupStart)} ` : ""}con ${companeros(v).map((otro) => otro.number).join(", ")}: la orden de servicio junta a sus pasajeros y, si sale con varias combis, los reparte por zona`}
             >
-              Recorrida con {companeros(v).map((otro) => otro.number).join(", ")}
+              Recorrida {pickupStart ? `${hhmm(pickupStart)} ` : ""}con {companeros(v).map((otro) => otro.number).join(", ")}
+            </span>
+          ) : pickupStart ? (
+            <span className="muted flight-info-recorrida" title={`Recorrida ${v.pickupStartOverrideAt ? "coordinada" : "estimada"}: ${airportPickupDateTime.format(pickupStart)}`}>
+              Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}
             </span>
           ) : null}
           <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>

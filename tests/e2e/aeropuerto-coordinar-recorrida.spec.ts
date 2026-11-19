@@ -50,5 +50,5 @@ test("cada partida abre su modal, suma otra partida y fija la hora de la recorri
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const guardados = await db.flight.findMany({ where: { id: { in: [vuelos.a.id, vuelos.b.id] } }, select: { pickupStartOverrideAt: true } });
   for (const vuelo of guardados) expect(vuelo.pickupStartOverrideAt?.toISOString()).toBe(new Date(`${date}T12:10:00-03:00`).toISOString());
-  await expect(page.locator(`#vuelo-${vuelos.b.id}`)).toContainText("Recorrida coordinada");
+  await expect(page.locator(`#vuelo-${vuelos.b.id}`)).toContainText(`Recorrida 12:10 con ${vuelos.a.number}`);
 });

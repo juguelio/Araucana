@@ -92,8 +92,8 @@ test("dos partidas coordinadas juntas salen en una sola orden, desde la hoja de 
   await modal.getByRole("button", { name: "Siguiente: naves y choferes" }).click();
   await expect(page.getByText("Recorrida coordinada. Ahora elegí las naves y los choferes.")).toBeVisible();
   await page.getByRole("dialog").getByRole("link", { name: "Listo" }).click();
-  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida con ${ja.number}`);
-  await expect(page.locator(`#vuelo-${ja.id}`)).toContainText(`Recorrida con ${ar.number}`);
+  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida 11:30 con ${ja.number}`);
+  await expect(page.locator(`#vuelo-${ja.id}`)).toContainText(`Recorrida 11:30 con ${ar.number}`);
 
   // La hoja del segundo vuelo trae la orden de los dos.
   await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${ja.id}`);
@@ -104,8 +104,9 @@ test("dos partidas coordinadas juntas salen en una sola orden, desde la hoja de 
   expect((await pasajerosDeLaOrden(page)).sort()).toEqual([
     `Ana ${suffix} · ${ar.number}`, `Beto ${suffix} · ${ar.number}`, `Ceci ${suffix} · ${ja.number}`, `Dani ${suffix} · ${ja.number}`
   ]);
-  // Un botón «Nave y chofer» por cada vuelo de la orden.
-  await expect(orden.getByRole("button", { name: /nave y chofer del/ })).toHaveCount(2);
+  // Un solo botón «Nave y chofer» por orden: la orden es de una camioneta, no de un vuelo.
+  await expect(orden.getByRole("button", { name: /nave y chofer del/ })).toHaveCount(1);
+  await expect(orden.getByRole("button", { name: /nave y chofer del/ })).toHaveText(/^Nave y chofer: Trafic /);
   await page.screenshot({ path: "/tmp/araucana-recorrida-compartida.png", fullPage: true });
 
   // El orden de la recorrida se acomoda a mano entre pasajeros de los dos vuelos y queda guardado.
