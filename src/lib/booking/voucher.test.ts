@@ -8,6 +8,7 @@ import {
   documentoDelPasajero,
   estadoDelVoucher,
   importeDelVoucher,
+  lugarDeSalida,
   voucherMessage,
   voucherPath,
   whatsappShareUrl
@@ -84,7 +85,35 @@ describe("políticas de cancelación del voucher", () => {
   });
 });
 
+describe("lugarDeSalida", () => {
+  // El pasajero necesita saber en qué terminal esperar: es lo que muestra el voucher (19-nov).
+  it("los servicios regulares salen de la terminal de cada localidad", () => {
+    expect(lugarDeSalida("San Martin de los Andes")).toBe("Terminal de Ómnibus de San Martín de los Andes");
+    expect(lugarDeSalida("San Martín de los Andes")).toBe("Terminal de Ómnibus de San Martín de los Andes");
+    expect(lugarDeSalida("Villa Traful")).toBe("Terminal de Ómnibus de Villa Traful");
+    expect(lugarDeSalida("Villa La Angostura")).toBe("Terminal de Ómnibus de Villa La Angostura");
+  });
+
+  it("lo que no es una de esas localidades se imprime tal cual", () => {
+    expect(lugarDeSalida("Hua Hum")).toBe("Hua Hum");
+    expect(lugarDeSalida("Yuco")).toBe("Yuco");
+    expect(lugarDeSalida("")).toBe("");
+    expect(lugarDeSalida(null)).toBe("");
+  });
+});
+
 describe("buildVoucher", () => {
+  it("un viaje de ruta muestra la terminal como lugar de salida", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "SEATED",
+        route: { ...reserva().route, from: "San Martin de los Andes", to: "Villa Traful" },
+        dropoffStop: null
+      })
+    );
+    expect(voucher.rows[0].inicio).toBe("Terminal de Ómnibus de San Martín de los Andes");
+    expect(voucher.rows[0].fin).toBe("Villa Traful");
+  });
   it("toma fecha y horario de la salida en hora argentina", () => {
     const voucher = buildVoucher(reserva());
     expect(voucher.rows[0].fecha).toBe("01/06/2026");

@@ -1,3 +1,4 @@
+import { claveDeLugar } from "./place-names";
 import type { ReservationDetailDto } from "./types";
 
 /**
@@ -38,6 +39,26 @@ const ZONA_ARGENTINA = "America/Argentina/Salta";
 const AEROPUERTO = "Aeropuerto Chapelco (CPC)";
 const CERRO = "Cerro Chapelco";
 const CIUDAD = "San Martín de los Andes";
+
+/**
+ * De dónde sale cada servicio regular (19-nov). Los micros de las rutas salen de la **terminal** de
+ * cada localidad, no del «centro»: el voucher es lo que muestra el pasajero para saber dónde esperar.
+ * Lo que no es una de estas tres localidades se imprime tal cual (Hua Hum, Yuco, la terminal de
+ * ómnibus de otra ciudad o un domicilio).
+ */
+const TERMINALES: Record<string, string> = {
+  "san martin de los andes": "Terminal de Ómnibus de San Martín de los Andes",
+  "s. m. andes": "Terminal de Ómnibus de San Martín de los Andes",
+  "villa traful": "Terminal de Ómnibus de Villa Traful",
+  "villa la angostura": "Terminal de Ómnibus de Villa La Angostura"
+};
+
+/** El lugar de salida que va impreso en el voucher: la terminal de la localidad, si la conocemos. */
+export function lugarDeSalida(lugar: string | null | undefined) {
+  const nombre = (lugar ?? "").trim();
+  if (!nombre) return "";
+  return TERMINALES[claveDeLugar(nombre)] ?? nombre;
+}
 
 const dosDigitos = (valor: number) => String(valor).padStart(2, "0");
 
@@ -179,7 +200,7 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     rows.push({
       fecha: salida ? fechaArgentina(salida) : "A confirmar",
       horario: salida ? horaArgentina(salida) : "A confirmar",
-      inicio: reservation.route.from,
+      inicio: lugarDeSalida(reservation.route.from),
       fin: reservation.dropoffStop ?? reservation.route.to,
       observaciones: ""
     });
