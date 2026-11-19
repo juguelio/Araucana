@@ -391,7 +391,8 @@ describe("orden de servicio del aeropuerto", () => {
       expect(blocks.map((block) => block.vehicle?.name)).toEqual(["Sprinter 1910", "Master 243"]);
       // La ARA-2 no entra en los 4 lugares de la primera (3 + 2): pasa entera a la segunda.
       expect(blocks[0].passengers.map((p) => p.code)).toEqual(["ARA-1"]);
-      expect(blocks[1].passengers.map((p) => p.code)).toEqual(["ARA-2", "ARA-3"]);
+      // Es una partida: la recorrida termina en el aeropuerto, así que arranca por el más lejano.
+      expect(blocks[1].passengers.map((p) => p.code)).toEqual(["ARA-3", "ARA-2"]);
       expect(blocks[0].totalCents + blocks[1].totalCents).toBe(3 * 475000);
       expect(tituloDelTotal(blocks[1])).toBe("Total OUT 1671 · Master 243");
     });
@@ -423,8 +424,23 @@ describe("orden de servicio del aeropuerto", () => {
       // vez de mandar a la Sprinter a hacer otro viaje al mismo lugar.
       expect(primera.vehicle?.assignmentId).toBe("asig-a");
       expect(primera.passengers).toEqual([]);
-      expect(segunda.passengers.map((p) => p.code)).toEqual(["ARA-3", "ARA-1", "ARA-4", "ARA-2"]);
+      // Los fijados a mano, en su orden; después los nuevos, del más lejano al más cercano al aeropuerto.
+      expect(segunda.passengers.map((p) => p.code)).toEqual(["ARA-3", "ARA-1", "ARA-2", "ARA-4"]);
       expect(segunda.manualOrder).toBe(true);
+    });
+
+    it("en una partida el orden sugerido va del más lejano al aeropuerto; en un arribo, del más cercano", () => {
+      const sinNave = (extra: Partial<ServiceOrderReservationInput>, direction: string) =>
+        reserva({ flight: vuelo({ vehicles: [naves[0]], direction }), direction, ...extra });
+      const pasajeros = (direction: string) => buildServiceOrderBlocks([
+        sinNave({ code: "ARA-1", passengerCount: 1, ...cerca }, direction),
+        sinNave({ code: "ARA-SIN", passengerCount: 1 }, direction),
+        sinNave({ code: "ARA-3", passengerCount: 1, ...lejos }, direction),
+        sinNave({ code: "ARA-2", passengerCount: 1, ...medio }, direction)
+      ])[0].passengers.map((p) => p.code);
+      // El que no está ubicado en el mapa va al final en los dos casos.
+      expect(pasajeros("DEPARTURE")).toEqual(["ARA-3", "ARA-2", "ARA-1", "ARA-SIN"]);
+      expect(pasajeros("ARRIVAL")).toEqual(["ARA-1", "ARA-2", "ARA-3", "ARA-SIN"]);
     });
 
     it("ignora la nave guardada si ya no es del vuelo", () => {

@@ -71,7 +71,8 @@ async function abrir(page: Page) {
 test("un vuelo con dos naves da una orden por nave, repartida por capacidad en el orden de la recorrida", async ({ page }) => {
   await abrir(page);
   expect(await nombres(page, naves.a.name)).toEqual(["Ana"]);
-  expect(await nombres(page, naves.b.name)).toEqual(["Beto", "Ceci"]);
+  // Es una partida: la recorrida termina en el aeropuerto, así que arranca por la más lejana (Ceci).
+  expect(await nombres(page, naves.b.name)).toEqual(["Ceci", "Beto"]);
   // Naves de 8 butacas venden 4 para el aeropuerto (las de menos de 26 dejan 4 para el equipaje).
   await expect(orden(page, naves.a.name).locator(".orden-inicio-recorrida")).toContainText(/Inicio de recorrida\s*\d{2}:\d{2}/);
   await expect(orden(page, naves.b.name).locator("tfoot")).toContainText(`Total OUT`);
@@ -102,38 +103,38 @@ test("un vuelo con dos naves da una orden por nave, repartida por capacidad en e
 
 test("las flechas reordenan la recorrida y queda guardada para el chofer", async ({ page }) => {
   await abrir(page);
-  await orden(page, naves.b.name).getByRole("button", { name: `Bajar Beto ${suffix}` }).click();
+  await orden(page, naves.b.name).getByRole("button", { name: `Bajar Ceci ${suffix}` }).click();
   await expect(orden(page, naves.b.name).getByText("Recorrida guardada.")).toBeVisible();
   const guardado = await db.airportReservationDetails.findMany({ where: { flightId, assignmentId: naves.b.assignment }, orderBy: { routePosition: "asc" }, include: { reservation: { select: { code: true } } } });
-  expect(guardado.map((detalle) => detalle.reservation.code)).toEqual([pasajeros.ceci.code, pasajeros.beto.code]);
+  expect(guardado.map((detalle) => detalle.reservation.code)).toEqual([pasajeros.beto.code, pasajeros.ceci.code]);
 
   await page.reload();
-  expect(await nombres(page, naves.b.name)).toEqual(["Ceci", "Beto"]);
+  expect(await nombres(page, naves.b.name)).toEqual(["Beto", "Ceci"]);
   await expect(orden(page, naves.b.name).getByRole("button", { name: "Orden sugerido" })).toBeVisible();
   await orden(page, naves.b.name).getByRole("button", { name: "Orden sugerido" }).click();
-  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Beto", "Ceci"]);
+  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Ceci", "Beto"]);
 });
 
 test("arrastrar una fila cambia el orden, y soltarla en la otra nave la pasa a esa nave", async ({ page }) => {
   await abrir(page);
   const b = orden(page, naves.b.name);
-  await b.locator(`tr[data-codigo="${pasajeros.ceci.code}"]`).dragTo(b.locator(`tr[data-codigo="${pasajeros.beto.code}"]`), { targetPosition: { x: 20, y: 4 } });
-  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Ceci", "Beto"]);
+  await b.locator(`tr[data-codigo="${pasajeros.beto.code}"]`).dragTo(b.locator(`tr[data-codigo="${pasajeros.ceci.code}"]`), { targetPosition: { x: 20, y: 4 } });
+  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Beto", "Ceci"]);
   // Que el primer cambio termine de guardarse antes de arrastrar otra vez.
   await expect(b.getByText("Recorrida guardada.")).toBeVisible();
 
   const a = orden(page, naves.a.name);
-  await b.locator(`tr[data-codigo="${pasajeros.beto.code}"]`).dragTo(a.locator(`tr[data-codigo="${pasajeros.ana.code}"]`), { targetPosition: { x: 20, y: 4 } });
-  await expect.poll(() => nombres(page, naves.a.name)).toEqual(["Beto", "Ana"]);
-  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Ceci"]);
-  const beto = await db.airportReservationDetails.findFirstOrThrow({ where: { reservation: { code: pasajeros.beto.code } } });
-  expect(beto.assignmentId).toBe(naves.a.assignment);
+  await b.locator(`tr[data-codigo="${pasajeros.ceci.code}"]`).dragTo(a.locator(`tr[data-codigo="${pasajeros.ana.code}"]`), { targetPosition: { x: 20, y: 4 } });
+  await expect.poll(() => nombres(page, naves.a.name)).toEqual(["Ceci", "Ana"]);
+  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Beto"]);
+  const ceci = await db.airportReservationDetails.findFirstOrThrow({ where: { reservation: { code: pasajeros.ceci.code } } });
+  expect(ceci.assignmentId).toBe(naves.a.assignment);
 });
 
 test("«Nave» pasa al pasajero al final de la otra nave", async ({ page }) => {
   await abrir(page);
   await orden(page, naves.a.name).getByLabel(`Nave de Ana ${suffix}`).selectOption(naves.b.assignment);
-  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Beto", "Ceci", "Ana"]);
+  await expect.poll(() => nombres(page, naves.b.name)).toEqual(["Ceci", "Beto", "Ana"]);
   // La nave que quedó vacía sigue en pantalla para poder volver a soltar gente.
   await expect(orden(page, naves.a.name)).toContainText("Sin pasajeros en esta nave");
 });
