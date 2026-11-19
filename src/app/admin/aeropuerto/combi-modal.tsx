@@ -47,6 +47,15 @@ export async function opcionesDeCombi(): Promise<{ naves: NaveElegible[]; chofer
 }
 
 /** «Sprinter 1 (15) · Ramón Paz»: las combis del vuelo con su chofer, como se ven en el botón. */
+/**
+ * Rótulo corto para la tarjeta: con una combi, la combi y su chofer; con varias (una recorrida con dos
+ * trafics), sólo cuántas y cuáles, para que entre en el renglón. El detalle completo va en el `title`.
+ */
+export function combisCortas(vuelo: VueloConCombis) {
+  if (vuelo.assignments.length <= 1) return combisDelVuelo(vuelo);
+  return `${vuelo.assignments.length} combis: ${vuelo.assignments.map((a) => a.vehicle.name).join(" + ")}`;
+}
+
 export function combisDelVuelo(vuelo: VueloConCombis) {
   return vuelo.assignments
     .map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)}) · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`)
