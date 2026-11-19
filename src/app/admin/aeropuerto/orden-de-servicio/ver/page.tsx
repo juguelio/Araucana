@@ -5,6 +5,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { OrdenAcciones } from "@/components/orden-acciones";
 import { RecorridoEditable } from "@/components/recorrido-editable";
+import { VerRecorrido } from "@/components/recorrido-mapa";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
 import {
   buildServiceOrderBlocks,
@@ -150,6 +151,26 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     );
   }
 
+  // «Visualizar recorrido»: el mapa de las paradas de la orden, en el orden de la hoja.
+  function mapa(block: ServiceOrderBlock) {
+    if (!block.passengers.length) return null;
+    return (
+      <VerRecorrido
+        key={`mapa-${block.key}`}
+        sentido={block.direction}
+        titulo={[block.flightNumber, block.vehicle?.name].filter(Boolean).join(" · ")}
+        paradas={block.passengers.map((pasajero, indice) => ({
+          code: pasajero.code,
+          numero: indice + 1,
+          nombre: pasajero.name,
+          lugar: pasajero.lodging,
+          pasajeros: pasajero.seats,
+          punto: pasajero.pickup
+        }))}
+      />
+    );
+  }
+
   function filas(block: ServiceOrderBlock) {
     if (!block.flightId) return undefined;
     return (
@@ -193,6 +214,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
         variante="panel"
         accionesDeOrden={acciones}
         filasDeOrden={filas}
+        pieDeOrden={mapa}
       />
     </AdminShell>
   );

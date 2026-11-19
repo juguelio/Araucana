@@ -1,0 +1,16 @@
+/* «Visualizar recorrido» debajo de cada orden de servicio. No se imprime. */
+.recorrido-mapa { margin-top: 10px; display: grid; gap: 10px; justify-items: start; }
+.recorrido-mapa-cuerpo { width: 100%; display: grid; gap: 6px; }
+.recorrido-mapa-lienzo { width: 100%; height: 420px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.recorrido-mapa-nota { margin: 0; font-size: 12px; }
+.recorrido-mapa-sin-ubicar { margin: 0; font-size: 13px; }
+.recorrido-mapa-parada {
+  display: grid; place-items: center; border-radius: 50%; background: #1f5c4a; color: #fff;
+  font: 700 13px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+}
+.recorrido-mapa-aeropuerto {
+  display: grid; place-items: center; border-radius: 50%; background: #d07a12; color: #fff;
+  font-size: 16px; border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+}
+@media print { .recorrido-mapa { display: none; } }
+@media (max-width: 640px) { .recorrido-mapa-lienzo { height: 320px; } }

@@ -116,6 +116,9 @@ test("las flechas reordenan la recorrida y queda guardada para el chofer", async
 });
 
 test("arrastrar una fila cambia el orden, y soltarla en la otra nave la pasa a esa nave", async ({ page }) => {
+  // Las dos órdenes tienen que entrar en pantalla: un arrastre HTML que tiene que hacer scroll a mitad de
+  // camino no suelta en Chromium.
+  await page.setViewportSize({ width: 1280, height: 1400 });
   await abrir(page);
   const b = orden(page, naves.b.name);
   await b.locator(`tr[data-codigo="${pasajeros.beto.code}"]`).dragTo(b.locator(`tr[data-codigo="${pasajeros.ceci.code}"]`), { targetPosition: { x: 20, y: 4 } });
@@ -191,4 +194,19 @@ test("Imprimir de una orden deja sólo esa orden en el papel", async ({ page }) 
   await expect(orden(page, naves.b.name)).toBeVisible();
   await expect(orden(page, naves.a.name)).toBeHidden();
   await expect(page.locator(".orden-cabecera")).toBeVisible();
+});
+
+test("«Visualizar recorrido» muestra debajo de la orden el mapa con las paradas numeradas", async ({ page }) => {
+  await abrir(page);
+  const b = orden(page, naves.b.name);
+  await b.getByRole("button", { name: "Visualizar recorrido" }).click();
+  const mapa = b.getByRole("img", { name: /Mapa del recorrido/ });
+  await expect(mapa).toBeVisible();
+  // Una marca por parada, con su número en el orden de la hoja, y el aeropuerto donde termina la partida.
+  await expect(b.locator(".recorrido-mapa-parada")).toHaveText(["1", "2"]);
+  await expect(b.locator(".recorrido-mapa-aeropuerto")).toHaveCount(1);
+  await expect(b).toContainText("la línea termina en el aeropuerto");
+  await b.screenshot({ path: "/tmp/araucana-orden-mapa.png" });
+  await b.getByRole("button", { name: "Ocultar recorrido" }).click();
+  await expect(mapa).toHaveCount(0);
 });
