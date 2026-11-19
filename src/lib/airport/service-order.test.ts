@@ -416,13 +416,14 @@ describe("orden de servicio del aeropuerto", () => {
         conNaves({ code: "ARA-3", passengerCount: 1, ...lejos, assignmentId: "asig-b", routePosition: 0 }),
         conNaves({ code: "ARA-2", passengerCount: 1, ...medio }),
         conNaves({ code: "ARA-4", passengerCount: 1, ...cerca })
-      ]);
+      ], { incluirVacias: true });
 
       const [primera, segunda] = blocks;
+      // La Master ya pasa por la zona de los nuevos y tiene lugar: suben ahí, después de los fijados, en
+      // vez de mandar a la Sprinter a hacer otro viaje al mismo lugar.
       expect(primera.vehicle?.assignmentId).toBe("asig-a");
-      expect(primera.passengers.map((p) => p.code)).toEqual(["ARA-4", "ARA-2"]);
-      expect(primera.manualOrder).toBe(false);
-      expect(segunda.passengers.map((p) => p.code)).toEqual(["ARA-3", "ARA-1"]);
+      expect(primera.passengers).toEqual([]);
+      expect(segunda.passengers.map((p) => p.code)).toEqual(["ARA-3", "ARA-1", "ARA-4", "ARA-2"]);
       expect(segunda.manualOrder).toBe(true);
     });
 
