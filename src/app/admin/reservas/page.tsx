@@ -18,10 +18,21 @@ import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approv
 import { ConfirmReservationButton } from "./[code]/confirm-reservation-button";
 import { reservationRowClassName } from "./row-style";
 import { RowModal } from "./row-modal";
+import { ComprobanteViewer } from "./comprobante-viewer";
 import { ReceiptUploadForm } from "./receipt-upload-form";
 import "@/components/admin-list/pagination.css";
 import "./reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
+
+/** «19/11/2026, 14:52» para la fecha en que el pasajero subió el comprobante. */
+const fechaHoraDeCarga = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "America/Argentina/Buenos_Aires"
+});
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
@@ -355,12 +366,16 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       eyebrow="Pago"
                       title={disabilityFare ? "Tarifa sin cargo" : `${formatPaymentStatus(reservation.paymentStatus)} · ${formatTotal(reservation)}`}
                       subtitle={subtitulo}
+                      modalClassName={reservation.hasReceipt ? "reservas-modal-comprobante" : undefined}
                     >
                       {validaPagoManual ? (
                         <form className="reservas-modal-form" action={approveManualPaymentAction}>
                           <Ocultos code={reservation.code} listQuery={listQuery} />
-                          <p>El pasajero subió un comprobante: revisalo y validá o rechazá el pago.</p>
-                          <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
+                          <ComprobanteViewer
+                            href={`${detailPath}/comprobante`}
+                            fileName={reservation.receiptFileName}
+                            subido={reservation.receiptUploadedAt ? fechaHoraDeCarga.format(new Date(reservation.receiptUploadedAt)) : null}
+                          />
                           <div className="reservas-modal-acciones">
                             <button className="button" type="submit">Validar pago</button>
                             <button className="ghost-button" formAction={rejectManualPaymentAction} type="submit">Rechazar comprobante</button>
@@ -396,9 +411,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                         eyebrow="Comprobante"
                         title={reservation.hasReceipt ? (reservation.receiptFileName ?? "Comprobante cargado") : "Sin comprobante"}
                         subtitle={subtitulo}
+                        modalClassName="reservas-modal-comprobante"
                       >
                         {reservation.hasReceipt && canViewReceipt ? (
-                          <Link className="ghost-button" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
+                          <ComprobanteViewer
+                            href={`${detailPath}/comprobante`}
+                            fileName={reservation.receiptFileName}
+                            subido={reservation.receiptUploadedAt ? fechaHoraDeCarga.format(new Date(reservation.receiptUploadedAt)) : null}
+                          />
                         ) : null}
                         {puedeSubirComprobante ? (
                           <ReceiptUploadForm code={reservation.code} replace={reservation.hasReceipt} />
