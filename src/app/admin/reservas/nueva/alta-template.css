@@ -1,0 +1,56 @@
+/* === «Nueva reserva» con el template del aeropuerto (pedido de Jugue, 18-nov) ===
+   El recuadro del viaje usa las clases `trip-search-*` del aeropuerto (globals.css); acá va sólo lo
+   propio de las salidas: el ícono de la combi, los días sin salidas, las paradas y las secciones de
+   abajo, compactas como los lugares del aeropuerto. */
+
+.alta-pagina { display: grid; gap: 12px; }
+.alta-aeropuerto { margin: 0; font-size: 15px; }
+
+.alta-template .checkout-panel { display: grid; gap: 14px; }
+.alta-template .wizard-steps { margin-bottom: 0; }
+.alta-viaje-head { display: grid; gap: 2px; }
+.alta-viaje-head .eyebrow, .alta-viaje-head .route-title, .alta-viaje-head .muted { margin: 0; }
+
+/* Ícono de la combi: en el casillero elegido (chico) y en las tarjetas de salida (como el logo de la aerolínea). */
+.viaje-combi { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; background: var(--primary-soft, #e8efeb); color: var(--primary); }
+.viaje-combi svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.viaje-combi-grande { width: 44px; height: 44px; border-radius: 12px; }
+.viaje-combi-grande svg { width: 26px; height: 26px; }
+
+/* Días sin salidas: se ven, pero apagados (el panel del aeropuerto no los tiene porque hay vuelos todos los días). */
+.viaje-dia:disabled { opacity: .38; cursor: default; border-style: dashed; }
+.viaje-dia:disabled:hover { border-color: var(--line); }
+.viaje-dia small:last-child { font-size: 12px; }
+.viaje-dia[aria-pressed="true"] small:last-child { color: rgba(255, 255, 255, .9); }
+.viaje-proximo { margin: 0; padding: 0; border: 0; background: none; color: var(--primary); font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; }
+.viaje-search .trip-search-swap:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Las secciones que aparecen con el viaje elegido. */
+.alta-secciones { margin-top: 4px; }
+.alta-secciones .leg-card { gap: 12px; }
+.alta-paradas { display: grid; gap: 10px; }
+.alta-paradas + .alta-paradas { padding-top: 12px; border-top: 1px dashed var(--line); }
+.alta-paradas-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+.alta-parada {
+  display: grid; gap: 2px; min-height: 56px; margin: 0; padding: 8px 12px; border: 2px solid var(--line-strong);
+  border-radius: 12px; background: #fff; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.alta-parada b { font-size: 16px; }
+.alta-parada small { font-size: 13px; color: var(--ink-soft); }
+.alta-parada:hover { border-color: var(--primary); background: #f7faf8; }
+.alta-parada[aria-checked="true"] { border-color: var(--primary); background: #eaf3ee; box-shadow: inset 0 0 0 1px var(--primary); }
+.alta-parada:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.alta-pasajeros .salida-pie { margin: 0; padding: 0; border: 0; background: none; }
+.alta-nota { margin: 0; font-size: 13px; }
+.alta-titular .admin-form-grid.alta-campos { margin-top: 0; }
+
+.alta-template .checkout-summary .alta-cancelar { justify-self: center; }
+
+@media (max-width: 1080px) {
+  .alta-template.checkout-layout { grid-template-columns: minmax(0, 1fr); }
+  .alta-template .checkout-summary { position: static; }
+}
+
+.alta-paradas-tramo { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.alta-paradas-tramo b { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }

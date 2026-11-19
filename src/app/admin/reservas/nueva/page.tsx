@@ -38,13 +38,12 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
 
   return (
     <AdminShell title="Crear reserva" eyebrow="Nueva reserva" notice={params?.notice} role={user.role}>
-      <section className="plain-card admin-section create-reservation-card">
-        <div>
-          <p className="eyebrow">Carga manual</p>
-          <h2>Reservá lugares para un pasajero</h2>
-          <p className="muted">Elegí la salida y la cantidad de asientos. No se asignan números de asiento.</p>
-          <Link className="ghost-button" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto</Link>
-        </div>
+      {/* Con el template del aeropuerto (18-nov): el recuadro del viaje manda; el aeropuerto sigue
+          teniendo su propia pantalla porque se reserva por vuelo. */}
+      <section className="admin-section alta-pagina">
+        <p className="alta-aeropuerto muted">
+          ¿Es un traslado al aeropuerto? <Link className="table-link" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto ›</Link>
+        </p>
         {schedules.length ? (
           <NuevaReservaForm schedules={schedules} />
         ) : <p className="muted">No hay salidas futuras con lugares disponibles.</p>}
