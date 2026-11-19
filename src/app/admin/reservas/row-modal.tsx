@@ -16,6 +16,8 @@ type RowModalProps = {
   subtitle?: string;
   /** Los formularios del modal. Se arman en el servidor, con sus server actions. */
   children: ReactNode;
+  /** Abierto al cargar la página: el paso siguiente de un flujo (por ejemplo, naves después de coordinar). */
+  defaultOpen?: boolean;
 };
 
 /**
@@ -23,8 +25,8 @@ type RowModalProps = {
  * botón que abre las opciones de esa reserva sin salir del listado. Los formularios de adentro son
  * los mismos server actions del detalle, con `listQuery` para volver al listado filtrado.
  */
-export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-celda-boton", modalClassName, eyebrow, title, subtitle, children }: RowModalProps) {
-  const [abierto, setAbierto] = useState(false);
+export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-celda-boton", modalClassName, eyebrow, title, subtitle, children, defaultOpen = false }: RowModalProps) {
+  const [abierto, setAbierto] = useState(defaultOpen);
   const tituloId = useId();
 
   useEffect(() => {

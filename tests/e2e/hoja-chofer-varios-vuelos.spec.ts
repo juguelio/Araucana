@@ -5,8 +5,9 @@ import { expect, test } from "@playwright/test";
 import { createReservationShortCode } from "../../src/lib/booking/codes";
 
 /**
- * En Aeropuerto se marcan varios vuelos y «Hoja del chofer» de cualquiera de ellos abre las órdenes
- * de todos juntas, con el diálogo de impresión, para imprimirlas en las menos hojas posibles.
+ * En Aeropuerto, «Hoja del chofer» abre un modal donde se eligen las órdenes del día —una por vuelo, o
+ * una por combi en las recorridas que salen con varias— y las abre juntas, con el diálogo de impresión,
+ * para imprimirlas en las menos hojas posibles.
  */
 if (!process.env.E2E_DATABASE_URL || process.env.E2E_ISOLATED_DATABASE !== "1") throw new Error("Requires isolated E2E database");
 if (!["localhost", "127.0.0.1"].includes(new URL(process.env.E2E_DATABASE_URL).hostname)) throw new Error("Local database only");
@@ -44,6 +45,36 @@ test.beforeAll(async () => {
     }
   }
 });
+// Dos partidas llenas que se coordinan juntas, cada una con su trafic, y gente de dos zonas en cada vuelo.
+const recorrida: Array<{ id: string; number: string; hour: string; nave: string }> = [
+  { id: "", number: `JA${1000 + Math.floor(Math.random() * 4000)}`, hour: "21:00", nave: `Trafic Centro ${suffix}` },
+  { id: "", number: `JA${5000 + Math.floor(Math.random() * 4999)}`, hour: "21:20", nave: `Trafic Lago ${suffix}` }
+];
+
+test.beforeAll(async () => {
+  const grupo = `grupo-${suffix}`;
+  for (const [indice, vuelo] of recorrida.entries()) {
+    const nave = await db.vehicle.create({ data: { name: vuelo.nave, seats: { create: Array.from({ length: 12 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } });
+    const flight = await db.flight.create({ data: {
+      number: vuelo.number, airline: "JA", origin: "Aeroparque", direction: "DEPARTURE", source: "MANUAL", status: "SCHEDULED",
+      scheduledAt: new Date(`${day}T${vuelo.hour}:00-03:00`), pickupGroupId: grupo
+    } });
+    vuelo.id = flight.id;
+    await db.airportVehicleAssignment.create({ data: { flightId: flight.id, vehicleId: nave.id } });
+    // 8 lugares por vuelo: 16 en total no entran en una trafic de 8 (12 butacas menos 4 de equipaje).
+    for (const [n, [latitude, longitude]] of [[-40.157, -71.353], [-40.158, -71.352], [-40.18, -71.45], [-40.181, -71.449]].entries()) {
+      await db.reservation.create({ data: {
+        code: `ARA-2604-${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`, shortCode: createReservationShortCode(),
+        bookingMode: "AIRPORT", status: "CONFIRMED", passengerCount: 2, totalCents: 2000000, currency: "ARS",
+        passenger: { create: { firstName: `P${indice}${n}`, lastName: suffix, email: "hoja@example.com", phone: "+5492944000000", documentType: "DNI", documentId: "30111222" } },
+        airportDetails: { create: {
+          flightId: flight.id, flightNumber: flight.number, direction: "DEPARTURE", serviceDate: new Date(`${day}T12:00:00-03:00`),
+          pickupName: `Hotel ${n}`, pickupLatitude: latitude, pickupLongitude: longitude
+        } }
+      } });
+    }
+  }
+});
 test.afterAll(async () => { await db.$disconnect(); });
 
 test.beforeEach(async ({ page }) => {
@@ -51,29 +82,30 @@ test.beforeEach(async ({ page }) => {
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
 });
 
-test("marcando dos vuelos, «Hoja del chofer» abre las dos órdenes juntas e imprime", async ({ page, context }) => {
+test("«Hoja del chofer» abre un modal para elegir los vuelos y abre sus órdenes juntas e imprime", async ({ page, context }) => {
   await page.goto(`/admin/aeropuerto?date=${day}`);
-  const [a, b, c] = vuelos.map((vuelo) => page.locator(`#vuelo-${vuelo.id}`));
-  // Sin marcar, cada hoja es la de su vuelo.
-  await expect(a.getByRole("link", { name: "Hoja del chofer" })).toHaveAttribute("href", `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${vuelos[0].id}`);
+  const [, , c] = vuelos.map((vuelo) => page.locator(`#vuelo-${vuelo.id}`));
+  // Ya no hay casilla «Juntar» en las tarjetas.
+  await expect(page.getByLabel(/para la hoja del chofer/)).toHaveCount(0);
 
-  await a.getByLabel(`Seleccionar ${vuelos[0].number} para la hoja del chofer`).check();
-  // Con uno solo marcado no cambia nada.
-  await expect(a.getByRole("link", { name: "Hoja del chofer" })).toHaveAttribute("href", /flight=/);
-  await c.getByLabel(`Seleccionar ${vuelos[2].number} para la hoja del chofer`).check();
+  await c.getByRole("button", { name: `Hoja del chofer del ${vuelos[2].number}` }).click();
+  const modal = page.getByRole("dialog", { name: `Hoja del chofer · ${vuelos[2].number}` });
+  // Viene marcado sólo el vuelo propio: la hoja es la de ese vuelo.
+  await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos[2].number) })).toBeChecked();
+  await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos[0].number) })).not.toBeChecked();
+  await expect(modal.getByRole("link", { name: "Abrir hoja del chofer" })).toHaveAttribute("href", `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${vuelos[2].id}`);
 
-  const juntos = `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flights=${vuelos[0].id}%2C${vuelos[2].id}&imprimir=1`;
-  await expect(a.getByRole("link", { name: "Hoja del chofer (2 vuelos)" })).toHaveAttribute("href", juntos);
-  await expect(c.getByRole("link", { name: "Hoja del chofer (2 vuelos)" })).toHaveAttribute("href", juntos);
-  // Un vuelo no marcado sigue abriendo sólo su hoja.
-  await expect(b.getByRole("link", { name: "Hoja del chofer" })).toHaveAttribute("href", /flight=/);
+  await modal.getByRole("checkbox", { name: new RegExp(vuelos[0].number) }).check();
+  // En el orden del día, no en el que se marcaron.
+  const juntos = `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&ordenes=${vuelos[0].id}%7E%2C${vuelos[2].id}%7E&imprimir=1`;
+  await expect(modal.getByRole("link", { name: "Abrir hoja del chofer (2 órdenes)" })).toHaveAttribute("href", juntos);
   await page.screenshot({ path: "/tmp/araucana-hoja-marcar.png" });
 
   await context.addInitScript(() => {
     (window as unknown as { impresiones: number }).impresiones = 0;
     window.print = () => { (window as unknown as { impresiones: number }).impresiones += 1; };
   });
-  const [hoja] = await Promise.all([context.waitForEvent("page"), c.getByRole("link", { name: "Hoja del chofer (2 vuelos)" }).click()]);
+  const [hoja] = await Promise.all([context.waitForEvent("page"), modal.getByRole("link", { name: "Abrir hoja del chofer (2 órdenes)" }).click()]);
   await hoja.waitForLoadState();
   await expect(hoja.locator("section.orden-bloque")).toHaveCount(2);
   await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(vuelos[0].number);
@@ -89,4 +121,29 @@ test("marcando dos vuelos, «Hoja del chofer» abre las dos órdenes juntas e im
   const pdf = await hoja.pdf({ preferCSSPageSize: true, printBackground: true });
   const paginas = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
   expect(paginas).toBe(1);
+});
+
+test("en una recorrida con dos trafics, la hoja del chofer se elige por combi", async ({ page }) => {
+  const [primero, segundo] = recorrida;
+  await page.goto(`/admin/aeropuerto?date=${day}`);
+  await page.locator(`#vuelo-${segundo.id}`).getByRole("button", { name: `Hoja del chofer del ${segundo.number}` }).click();
+  const modal = page.getByRole("dialog", { name: `Hoja del chofer · ${segundo.number}` });
+  // Una orden por trafic, cada una con los dos vuelos y 8 pasajeros, las dos marcadas.
+  const centro = modal.getByRole("checkbox", { name: new RegExp(`Trafic Centro ${suffix}`) });
+  const lago = modal.getByRole("checkbox", { name: new RegExp(`Trafic Lago ${suffix}`) });
+  await expect(centro).toBeChecked();
+  await expect(lago).toBeChecked();
+  for (const fila of [centro, lago]) await expect(fila).toHaveAccessibleName(new RegExp(`${primero.number} \\+ ${segundo.number}.* 8 pasajeros`));
+  await page.screenshot({ path: "/tmp/araucana-hoja-por-combi.png" });
+
+  // Sólo la del lago: abre la orden de esa trafic, con gente de los dos vuelos.
+  await centro.uncheck();
+  const href = await modal.getByRole("link", { name: "Abrir hoja del chofer" }).getAttribute("href");
+  expect(href).toContain("&vehicle=");
+  await page.goto(href!);
+  await expect(page.locator("section.orden-bloque")).toHaveCount(1);
+  const orden = page.locator("section.orden-bloque");
+  await expect(orden).toContainText(`Trafic Lago ${suffix}`);
+  await expect(orden).toContainText(primero.number);
+  await expect(orden).toContainText(segundo.number);
 });

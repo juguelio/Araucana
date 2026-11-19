@@ -170,8 +170,6 @@
 .flights-date .flights-dia-paso { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
 
 /* Casilla para juntar varias hojas del chofer en una sola impresión. */
-.aero-marcar { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 13px; font-weight: 600; cursor: pointer; }
-.aero-marcar input { width: 18px; height: 18px; accent-color: var(--primary); }
 
 /* Vuelos que hace la misma camioneta en la misma vuelta: la hoja del chofer los une en una orden. */
 .aero-misma-vuelta { font-size: 11px; font-weight: 700; color: var(--primary); border-color: var(--primary); background: transparent; }
