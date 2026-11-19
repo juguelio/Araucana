@@ -183,17 +183,26 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   const paymentChanged = formData.has("method") || formData.has("reference");
   const totalCents = priceChanged ? parseReservationPrice(value(formData, "customPrice")) : undefined;
   if (totalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
+  // Cantidad de pasajeros y equipaje (#267): sólo viajan si el formulario los mandó, así una
+  // edición que no los toca no los reescribe.
+  const passengerCount = formData.has("passengerCount") ? value(formData, "passengerCount") : undefined;
+  const sportsLuggageCount = formData.has("sportsLuggageCount") ? value(formData, "sportsLuggageCount") : undefined;
   const financial = priceChanged || paymentChanged ? {
     operation: value(formData, "financialOperation"),
     totalCents,
     method: formData.has("method") ? value(formData, "method") : undefined,
     reference: formData.has("reference") ? value(formData, "reference") : undefined
   } : undefined;
-  if (!pickup && notes === undefined && referredBy === undefined && !financial && Object.keys(passenger).length === 0) {
+  if (!pickup && notes === undefined && referredBy === undefined && !financial
+    && passengerCount === undefined && sportsLuggageCount === undefined && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
-  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, referredBy, financial });
+  const command = reservationManagementSchema.safeParse({
+    operation: "edit", passenger, pickup, notes, referredBy, financial,
+    passengerCount, sportsLuggageCount,
+    acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
+  });
   if (!command.success) {
     return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
   }
@@ -203,7 +212,10 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
     return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
-      ? { documentId: message } : {});
+      ? { documentId: message }
+      : error instanceof BookingError && (error.code === "CAPACITY_FULL" || error.code === "INVALID_PASSENGER_COUNT")
+        ? { passengerCount: message }
+        : {});
   }
 
   for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {

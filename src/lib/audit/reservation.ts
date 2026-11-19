@@ -27,6 +27,8 @@ const RESERVATION_FIELDS = [
 const PAYMENT_FIELDS = ["provider", "status", "amountCents", "method", "externalRef"] as const;
 const PASSENGER_FIELDS = ["firstName", "lastName", "email", "phone", "documentType", "documentId", "nationality"] as const;
 const PICKUP_FIELDS = ["pickupName", "pickupAddress", "pickupLatitude", "pickupLongitude", "pickupNotes"] as const;
+/** Adicionales editables del aeropuerto (#267): sin esto, un cambio de equipaje no dejaba fila. */
+const AIRPORT_FIELDS = ["sportsLuggageCount"] as const;
 
 export function reservationAuditSnapshot(reservation: Loose): Record<string, unknown> | null {
   if (!reservation) return null;
@@ -34,7 +36,8 @@ export function reservationAuditSnapshot(reservation: Loose): Record<string, unk
     ...pick(reservation, RESERVATION_FIELDS, ""),
     ...pick(reservation.payment as Loose, PAYMENT_FIELDS, "payment"),
     ...pick(reservation.passenger as Loose, PASSENGER_FIELDS, "passenger"),
-    ...pick((reservation.airportDetails ?? reservation.chapelcoDetails) as Loose, PICKUP_FIELDS, "pickup")
+    ...pick((reservation.airportDetails ?? reservation.chapelcoDetails) as Loose, PICKUP_FIELDS, "pickup"),
+    ...pick(reservation.airportDetails as Loose, AIRPORT_FIELDS, "airport")
   };
 }
 
