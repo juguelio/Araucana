@@ -107,6 +107,26 @@ export function primerDia(salidas: SalidaOption[], minimo = "") {
   return salidas.find((salida) => salida.dayKey >= minimo)?.dayKey ?? "";
 }
 
+/**
+ * La tira del selector de día: **sólo los días que tienen servicio** (19-nov). Antes se mostraban
+ * siete días de calendario y los que no tenían salidas aparecían apagados; ahora la tira salta
+ * directo a los días con salidas, de siete en siete desde `inicio`.
+ *
+ * Devuelve también `base`, la posición en la lista completa, para que el componente sepa si puede
+ * retroceder o avanzar.
+ */
+export function tiraConServicio(dias: string[], inicio: string, cuantos = 7) {
+  if (!dias.length) return { dias: [] as string[], base: 0, hayAntes: false, hayDespues: false };
+  const encontrado = dias.findIndex((dia) => dia >= inicio);
+  const base = encontrado < 0 ? Math.max(0, dias.length - cuantos) : encontrado;
+  return {
+    dias: dias.slice(base, base + cuantos),
+    base,
+    hayAntes: base > 0,
+    hayDespues: base + cuantos < dias.length
+  };
+}
+
 /** Precio por persona de un tramo: el de la parada donde baja, o el de la salida. */
 export function precioDelTramo(salida: SalidaOption, parada: string) {
   const tarifa = parada ? salida.stopFares?.find((fare) => fare.name === parada) : undefined;

@@ -4,6 +4,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "@/lib/booking/disability-fare";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import type { AdminReservationRowDto } from "@/lib/booking/types";
+import { diaEnArgentina } from "@/lib/airport/freshness";
 import { listAdminReservations } from "@/lib/booking/repository";
 import { formatShortCode } from "@/lib/booking/codes";
 import { ADMIN_RESERVATIONS_PAGE_SIZE, ADMIN_RESERVATIONS_PAGE_SIZES, adminReservationFiltersSchema, formatTravelDay } from "@/lib/booking/admin-filters";
@@ -94,6 +95,16 @@ function tamanoHref(tamano: number, params: Record<string, string | undefined>) 
   return `/admin/reservas?${query.toString()}`;
 }
 
+/**
+ * El listado marca «Falta documento» sólo en los viajes de hoy en adelante (19-nov): las reservas
+ * viejas sin DNI son historia, no algo para completar.
+ */
+function faltaDocumento(reservation: AdminReservationRowDto, hoy: string) {
+  if (reservation.passengerDocumentId.trim()) return false;
+  const dia = reservation.travelDay ?? diaEnArgentina(new Date(reservation.departureAt));
+  return dia >= hoy;
+}
+
 function formatTotal(reservation: AdminReservationRowDto) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.totalCents / 100);
 }
@@ -135,6 +146,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
     ? await listAdminReservations(parsed.data)
     : { items: [], total: 0, page: 1, pageSize: ADMIN_RESERVATIONS_PAGE_SIZE, totalPages: 1 };
   const { items: reservations, total, page, pageSize, totalPages } = pagina;
+  const hoy = diaEnArgentina();
   const desde = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
@@ -256,7 +268,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     <Link className="table-link" href={detailPath}>
                       {reservation.passenger}
                     </Link>
-                    {!reservation.passengerDocumentId.trim() ? (
+                    {faltaDocumento(reservation, hoy) ? (
                       <div>
                         <span className="pill pill-estado pill-tabla" data-tono="atencion" title="Se cargó sin DNI: se completa desde «Editar reserva».">Falta documento</span>
                       </div>

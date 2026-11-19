@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import type { SalidaOption } from "./salida-picker-utils";
-import { conteoPorDia, type Lugar } from "./viaje-utils";
+import { diasConSalidas, type SalidaOption } from "./salida-picker-utils";
+import { conteoPorDia, tiraConServicio, type Lugar } from "./viaje-utils";
 
 /**
  * El recuadro del viaje de «Nueva reserva», con el template del aeropuerto (pedido de Jugue, 18-nov:
@@ -301,10 +301,16 @@ export function ViajeSearchBar({
     const minimo = tramo.minimo || hoy;
     const pedido = inicioTira[tramo.clave] ?? (tramo.dia && tramo.dia >= minimo ? tramo.dia : minimo);
     const inicio = pedido < minimo ? minimo : pedido;
-    const dias = Array.from({ length: 7 }, (_, i) => sumarDias(inicio, i));
-    const puedeVolver = sumarDias(inicio, -1) >= minimo;
     const mover = (desdeDia: string) => setInicioTira((actual) => ({ ...actual, [tramo.clave]: desdeDia }));
-    const conteo = conteoPorDia(tramo.salidas.filter((salida) => salida.dayKey >= minimo));
+    const delTramo = tramo.salidas.filter((salida) => salida.dayKey >= minimo);
+    const conteo = conteoPorDia(delTramo);
+    // Sólo los días que tienen servicio (19-nov): antes se mostraban siete días de calendario y los
+    // que no tenían salidas quedaban apagados. El día elegido siempre queda a la vista.
+    const conServicio = diasConSalidas(delTramo).map((dia) => dia.key);
+    const tira = tiraConServicio(conServicio, inicio);
+    const dias = tramo.dia && conServicio.includes(tramo.dia) && !tira.dias.includes(tramo.dia)
+      ? [tramo.dia, ...tira.dias].slice(0, 7)
+      : tira.dias;
     const delDia = tramo.salidas.filter((salida) => salida.dayKey === tramo.dia && salida.dayKey >= minimo);
     const proximo = tramo.salidas.find((salida) => salida.dayKey > tramo.dia && salida.dayKey >= minimo);
     const ida = tramos.find((t) => t.clave === "ida");
@@ -334,8 +340,8 @@ export function ViajeSearchBar({
 
         <p className="trip-search-step">1. El día</p>
         <div className="trip-search-days">
-          <button type="button" className="trip-search-arrow" aria-label="Días anteriores" disabled={!puedeVolver}
-            onClick={() => mover(sumarDias(inicio, -7) < minimo ? minimo : sumarDias(inicio, -7))}>‹<span className="trip-search-arrow-text"> Días anteriores</span></button>
+          <button type="button" className="trip-search-arrow" aria-label="Días anteriores" disabled={!tira.hayAntes}
+            onClick={() => mover(conServicio[Math.max(0, tira.base - 7)] ?? inicio)}>‹<span className="trip-search-arrow-text"> Días anteriores</span></button>
           <div className="trip-search-day-list">
             {dias.map((dia) => {
               const fecha = aFecha(dia);
@@ -357,8 +363,8 @@ export function ViajeSearchBar({
               );
             })}
           </div>
-          <button type="button" className="trip-search-arrow" aria-label="Días siguientes"
-            onClick={() => mover(sumarDias(inicio, 7))}><span className="trip-search-arrow-text">Días siguientes </span>›</button>
+          <button type="button" className="trip-search-arrow" aria-label="Días siguientes" disabled={!tira.hayDespues}
+            onClick={() => mover(conServicio[Math.min(conServicio.length - 1, tira.base + 7)] ?? inicio)}><span className="trip-search-arrow-text">Días siguientes </span>›</button>
         </div>
 
         <p className="trip-search-step">2. La salida del {tramo.dia ? diaLargo(tramo.dia) : "día"}</p>
