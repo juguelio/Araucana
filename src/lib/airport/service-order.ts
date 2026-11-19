@@ -20,6 +20,7 @@
 import ExcelJS from "exceljs";
 import { airportPickupStart } from "./pickup-start";
 import { horaEfectivaDelVuelo } from "./effective-time";
+import { repartirPorZonas } from "./fleet-split";
 import { ordenarPorRecorrido, whatsappLink } from "./route-order";
 import { ORDER_LOGO_PNG_BASE64 } from "./service-order-logo";
 
@@ -248,10 +249,15 @@ type GrupoDeVuelo = Omit<ServiceOrderBlock, "key" | "vehicle" | "manualOrder"> &
 };
 
 /**
- * Une en una sola orden los vuelos que la misma camioneta hace en la misma vuelta (`pickupGroupId`):
- * mismo sentido y, entre todos, una sola nave. Si el grupo usa más de una nave, cada vuelo sigue con
- * sus órdenes por nave. Cada pasajero lleva el número de su vuelo junto al nombre, así el chofer sabe
- * a qué vuelo va (o de cuál baja).
+ * Une en una sola orden los vuelos que se hacen en la misma vuelta (`pickupGroupId`), del mismo sentido.
+ * Si la vuelta sale con más de una nave (dos vuelos llenos, dos trafics) los pasajeros de todos los vuelos
+ * se juntan y después se reparten por zona entre las naves (`repartirEnNaves`): cada nave sale con su
+ * orden, con gente de cualquiera de los vuelos. Cada pasajero lleva el número de su vuelo junto al nombre,
+ * así el chofer sabe a qué vuelo va (o de cuál baja).
+ *
+ * Una nave se identifica por `vehicleId`: la asignación nave↔vuelo es una por vuelo, así que la misma
+ * trafic tiene un id de asignación en cada vuelo del grupo. La orden usa el del primer vuelo que la tiene
+ * y la nave elegida a mano para cada pasajero (el id de su propio vuelo) se traduce a ese.
  */
 function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
   const porGrupo = new Map<string, GrupoDeVuelo[]>();
@@ -263,12 +269,19 @@ function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
   for (const [pickupGroupId, miembros] of porGrupo) {
     if (miembros.length < 2) continue;
     if (new Set(miembros.map((miembro) => miembro.direction)).size > 1) continue;
-    const naves = new Set(miembros.flatMap((miembro) => miembro.vehicles.map((nave) => nave.vehicleId)));
-    if (naves.size > 1 || miembros.some((miembro) => miembro.vehicles.length > 1)) continue;
 
     const ordenados = [...miembros].sort((a, b) => a.flightAt.getTime() - b.flightAt.getTime());
     const primero = ordenados[0];
-    const vehicles = ordenados.find((miembro) => miembro.vehicles.length)?.vehicles ?? [];
+    const vehicles: ServiceOrderVehicle[] = [];
+    for (const nave of ordenados.flatMap((miembro) => miembro.vehicles)) {
+      if (!vehicles.some((unida) => unida.vehicleId === nave.vehicleId)) vehicles.push(nave);
+    }
+    const asignacionUnida = new Map(
+      ordenados.flatMap((miembro) => miembro.vehicles).map((nave) => [
+        nave.assignmentId,
+        vehicles.find((unida) => unida.vehicleId === nave.vehicleId)?.assignmentId ?? null
+      ])
+    );
     const unido: GrupoDeVuelo = {
       ...primero,
       flightKey: `grupo:${pickupGroupId}`,
@@ -279,7 +292,11 @@ function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
       flightNumber: ordenados.map((miembro) => miembro.flightNumber).join(" + "),
       operationAt: new Date(Math.min(...ordenados.map((miembro) => miembro.operationAt.getTime()))),
       passengers: ordenados.flatMap((miembro) =>
-        miembro.passengers.map((pasajero) => ({ ...pasajero, name: `${pasajero.name} · ${miembro.flightNumber}` }))
+        miembro.passengers.map((pasajero) => ({
+          ...pasajero,
+          name: `${pasajero.name} · ${miembro.flightNumber}`,
+          assignmentId: pasajero.assignmentId ? asignacionUnida.get(pasajero.assignmentId) ?? null : null
+        }))
       )
     };
     for (const miembro of miembros) grupos.delete(miembro.flightKey);
@@ -309,26 +326,48 @@ export function ordenDeLaRecorrida(pasajeros: ServiceOrderPassenger[]) {
 }
 
 /**
- * Reparte los pasajeros de un vuelo entre sus naves. Los que tienen nave elegida a mano van ahí; el
- * resto llena las naves en el orden de la recorrida, sin partir una reserva entre dos naves. Lo que no
- * entra en ninguna queda en la orden «sin nave»: nunca se cae un pasajero de la hoja.
+ * Reparte los pasajeros de un vuelo (o de una vuelta unida) entre sus naves. Los que tienen nave elegida a
+ * mano van ahí. El resto, si está ubicado en el mapa, se reparte por zona para que cada nave haga el
+ * recorrido más corto posible (`repartirPorZonas`), sin pasarse de su capacidad ni partir una reserva. Los
+ * que no están ubicados llenan el lugar que sobre. Lo que no entra en ninguna queda en la orden «sin nave»:
+ * nunca se cae un pasajero de la hoja.
  */
 export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: ServiceOrderVehicle[]) {
   const porNave = new Map<string, ServiceOrderPassenger[]>(naves.map((nave) => [nave.assignmentId, []]));
   const sinNave: ServiceOrderPassenger[] = [];
   const libres = new Map(naves.map((nave) => [nave.assignmentId, nave.seats > 0 ? nave.seats : Number.POSITIVE_INFINITY]));
-
-  for (const pasajero of pasajeros) {
-    if (pasajero.assignmentId && porNave.has(pasajero.assignmentId)) {
-      libres.set(pasajero.assignmentId, (libres.get(pasajero.assignmentId) ?? 0) - pasajero.seats);
-    }
-  }
+  const fijas = new Map<string, Array<{ latitude: number; longitude: number }>>(naves.map((nave) => [nave.assignmentId, []]));
+  const ubicados: ServiceOrderPassenger[] = [];
+  const sinUbicar: ServiceOrderPassenger[] = [];
 
   for (const pasajero of pasajeros) {
     if (pasajero.assignmentId && porNave.has(pasajero.assignmentId)) {
       porNave.get(pasajero.assignmentId)?.push(pasajero);
-      continue;
+      libres.set(pasajero.assignmentId, (libres.get(pasajero.assignmentId) ?? 0) - pasajero.seats);
+      if (pasajero.pickup) fijas.get(pasajero.assignmentId)?.push(pasajero.pickup);
+    } else if (pasajero.pickup) {
+      ubicados.push(pasajero);
+    } else {
+      sinUbicar.push(pasajero);
     }
+  }
+
+  const porCodigo = new Map(ubicados.map((pasajero) => [pasajero.code, pasajero]));
+  const reparto = repartirPorZonas(
+    ubicados.map((pasajero) => ({ code: pasajero.code, seats: pasajero.seats, pickup: pasajero.pickup! })),
+    naves.map((nave) => ({ id: nave.assignmentId, libres: Math.max(libres.get(nave.assignmentId) ?? 0, 0), fijas: fijas.get(nave.assignmentId) ?? [] }))
+  );
+  reparto.porNave.forEach((codigos, indice) => {
+    const nave = naves[indice];
+    for (const code of codigos) {
+      const pasajero = porCodigo.get(code)!;
+      porNave.get(nave.assignmentId)?.push(pasajero);
+      libres.set(nave.assignmentId, (libres.get(nave.assignmentId) ?? 0) - pasajero.seats);
+    }
+  });
+  const sobrantes = new Set(reparto.sobrantes);
+
+  for (const pasajero of [...sinUbicar, ...ubicados.filter((item) => sobrantes.has(item.code))]) {
     const nave = naves.find((candidata) => (libres.get(candidata.assignmentId) ?? 0) >= pasajero.seats);
     if (!nave) {
       sinNave.push(pasajero);
@@ -444,12 +483,13 @@ export function buildServiceOrderBlocks(
       continue;
     }
 
+    // Cada nave hace su propia recorrida: el reparto es por zona y después se ordena la de cada una.
     const { porNave, sinNave } = repartirEnNaves(recorrida, vehicles);
     for (const nave of vehicles) {
-      const pasajeros = porNave.get(nave.assignmentId) ?? [];
+      const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? []);
       if (pasajeros.length || incluirVacias) ordenes.push(orden(nave, pasajeros));
     }
-    if (sinNave.length) ordenes.push(orden(null, sinNave));
+    if (sinNave.length) ordenes.push(orden(null, ordenDeLaRecorrida(sinNave)));
   }
 
   // `sort` es estable: las naves de un mismo vuelo quedan en el orden en que se asignaron.
@@ -471,9 +511,9 @@ export function referenciaDeLaOrden(block: ServiceOrderBlock) {
 }
 
 /**
- * Las órdenes de la hoja de un vuelo. El repositorio trae a los vuelos de la misma vuelta para poder
- * unirlos; si no se unieron (el grupo usa más de una nave), cada vuelo se queda sólo con sus órdenes:
- * el chofer de uno no puede recibir los pasajeros del otro. Sin vuelo pedido devuelve todas.
+ * Las órdenes de la hoja de un vuelo: las suyas y, si va en una vuelta unida, las de la vuelta (con una o
+ * varias naves, cada una con gente de todos los vuelos). Si no se unieron, cada vuelo se queda sólo con
+ * sus órdenes: el chofer de uno no puede recibir los pasajeros del otro. Sin vuelo pedido devuelve todas.
  */
 export function ordenesDelVuelo(blocks: ServiceOrderBlock[], flightId: string | null) {
   if (!flightId) return blocks;

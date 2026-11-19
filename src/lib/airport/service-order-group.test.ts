@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockTimeLabel, buildServiceOrderBlocks, ordenesDelVuelo, type ServiceOrderReservationInput, type ServiceOrderVehicle } from "./service-order";
+import { blockTimeLabel, buildServiceOrderBlocks, filtrarPorNave, ordenesDelVuelo, type ServiceOrderReservationInput, type ServiceOrderVehicle } from "./service-order";
 
 const nave = (assignmentId: string, vehicleId = "trafic"): ServiceOrderVehicle => ({ assignmentId, vehicleId, name: "Trafic 1", seats: 15, driver: "Rosa" });
 
@@ -52,13 +52,56 @@ describe("una sola camioneta para varios vuelos: la hoja los une en una orden", 
     expect(blockTimeLabel(orden)).toBe("Llega AR1650 llega 13:10 + JA3046 llega 13:30 · Trafic 1 · Rosa");
   });
 
-  it("si el grupo usa más de una nave, cada vuelo sigue con su orden", () => {
+  it("si cada vuelo de la vuelta trae su nave, se juntan y cada nave lleva a gente de los dos vuelos", () => {
     const otra = { ...ja, vehicles: [nave("asig-ja", "master")] };
     const blocks = buildServiceOrderBlocks([reserva("Ana", ar), reserva("Beto", otra)]);
-    expect(blocks).toHaveLength(2);
-    // La hoja de un vuelo trae sólo su orden: el chofer del AR no recibe a los pasajeros del JA.
-    expect(ordenesDelVuelo(blocks, "f-ja").map((block) => block.passengers.map((p) => p.name))).toEqual([["Beto Paz"]]);
-    expect(ordenesDelVuelo(blocks, null)).toHaveLength(2);
+    // Entran todos en una nave: el reparto no manda la segunda nave al centro para buscar a uno solo.
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].flightIds).toEqual(["f-ar", "f-ja"]);
+    expect(blocks[0].vehicleCount).toBe(2);
+    expect(ordenesDelVuelo(blocks, "f-ja")).toEqual(blocks);
+  });
+
+  describe("dos vuelos llenos y dos trafics en la misma vuelta", () => {
+    // Dos zonas bien separadas: el centro de San Martín y el camino a Quila Quina.
+    const centro = (n: number) => ({ pickupLatitude: -40.157 + n * 0.0005, pickupLongitude: -71.353 + n * 0.0005 });
+    const quila = (n: number) => ({ pickupLatitude: -40.18 + n * 0.0005, pickupLongitude: -71.45 + n * 0.0005 });
+    const trafics = (vuelo: string): ServiceOrderVehicle[] => [
+      { assignmentId: `t1-${vuelo}`, vehicleId: "trafic-1", name: "Trafic 1", seats: 8, driver: "Rosa" },
+      { assignmentId: `t2-${vuelo}`, vehicleId: "trafic-2", name: "Trafic 2", seats: 8, driver: "Hugo" }
+    ];
+    const arLleno = { ...ar, vehicles: trafics("ar") };
+    const jaLleno = { ...ja, vehicles: trafics("ja") };
+    // Cada vuelo trae gente de las dos zonas, mezclada: 8 lugares por vuelo, 16 en total.
+    const reservas = () => [
+      reserva("A1", arLleno, centro(1)), reserva("A2", arLleno, quila(1)), reserva("A3", arLleno, centro(2)), reserva("A4", arLleno, quila(2)),
+      reserva("J1", jaLleno, quila(3)), reserva("J2", jaLleno, centro(3)), reserva("J3", jaLleno, quila(4)), reserva("J4", jaLleno, centro(4))
+    ];
+
+    it("arma una orden por trafic, repartida por zona y no por vuelo", () => {
+      const blocks = buildServiceOrderBlocks(reservas());
+      expect(blocks).toHaveLength(2);
+      expect(blocks.map((block) => block.vehicle?.name)).toEqual(["Trafic 1", "Trafic 2"]);
+      const zonas = blocks.map((block) => block.passengers.map((p) => p.code).sort());
+      expect(zonas).toContainEqual(["A1", "A3", "J2", "J4"]);
+      expect(zonas).toContainEqual(["A2", "A4", "J1", "J3"]);
+      for (const block of blocks) {
+        expect(block.flightIds).toEqual(["f-ar", "f-ja"]);
+        expect(block.passengers.reduce((total, p) => total + p.seats, 0)).toBe(8);
+      }
+      // Cada chofer recibe sólo su trafic, con los pasajeros de los dos vuelos.
+      expect(filtrarPorNave(blocks, "t2-ar").map((block) => block.vehicle?.name)).toEqual(["Trafic 2"]);
+    });
+
+    it("la trafic elegida a mano se respeta aunque la reserva sea del otro vuelo", () => {
+      // J1 (zona Quila Quina) fijada a mano en la Trafic 1 por el id de asignación de su propio vuelo.
+      const fijada = reservas().map((item) => (item.code === "J1" ? { ...item, assignmentId: "t1-ja" } : item));
+      const blocks = buildServiceOrderBlocks(fijada);
+      const t1 = blocks.find((block) => block.vehicle?.vehicleId === "trafic-1")!;
+      expect(t1.vehicle?.assignmentId).toBe("t1-ar");
+      expect(t1.passengers.map((p) => p.code)).toContain("J1");
+      expect(blocks.flatMap((block) => block.passengers)).toHaveLength(8);
+    });
   });
 
   it("sin grupo, o con un solo vuelo del grupo en la hoja, no cambia nada", () => {

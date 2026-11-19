@@ -38,7 +38,7 @@ async function reservasDelVuelo(date: string, flightIds: string[], codes: string
       serviceDate: { gte: desde, lt: hasta },
       reservation: { code: { in: codes }, bookingMode: "AIRPORT", status: { not: "CANCELLED" } }
     },
-    select: { id: true, assignmentId: true, routePosition: true, reservation: { select: { code: true } } }
+    select: { id: true, flightId: true, assignmentId: true, routePosition: true, reservation: { select: { code: true } } }
   });
   const porCodigo = new Map(detalles.map((detalle) => [detalle.reservation.code, detalle]));
   return codes.every((code) => porCodigo.has(code)) ? porCodigo : null;
@@ -53,22 +53,30 @@ async function vuelosDeLaOrden(date: string, flightId: string) {
   return blocks.find((block) => block.flightIds.length > 1 && block.flightIds.includes(flightId))?.flightIds ?? [flightId];
 }
 
+/**
+ * La nave de destino y, para cada vuelo de la orden, su asignación de esa nave. En una vuelta unida la
+ * misma trafic tiene un id de asignación por vuelo: cada pasajero se guarda con el de su propio vuelo.
+ */
 async function naveDelVuelo(flightIds: string[], assignmentId: string | null) {
-  if (!assignmentId) return { name: null };
+  if (!assignmentId) return { name: null, porVuelo: new Map<string, string>() };
   const asignacion = await prisma.airportVehicleAssignment.findFirst({
     where: { id: assignmentId, flightId: { in: flightIds } },
-    select: { vehicle: { select: { name: true } } }
+    select: { vehicleId: true, vehicle: { select: { name: true } } }
   });
-  return asignacion ? { name: asignacion.vehicle.name } : null;
+  if (!asignacion) return null;
+  const deLaNave = await prisma.airportVehicleAssignment.findMany({
+    where: { vehicleId: asignacion.vehicleId, flightId: { in: flightIds } },
+    select: { id: true, flightId: true }
+  });
+  return { name: asignacion.vehicle.name, porVuelo: new Map(deLaNave.map((item) => [item.flightId, item.id])) };
 }
 
 async function guardar(
   actor: Awaited<ReturnType<typeof getCurrentReservationsUserOrRedirect>>,
   { date, flightId, assignmentId, codes }: { date: string; flightId: string; assignmentId: string | null; codes: string[] }
 ): Promise<RecorridoState> {
-  // En una orden que une varios vuelos sólo se guarda el orden: la nave de cada pasajero es la de su vuelo.
+  // En una orden que une varios vuelos, la nave de cada pasajero se guarda con la asignación de su vuelo.
   const flightIds = await vuelosDeLaOrden(date, flightId);
-  const unida = flightIds.length > 1;
   const [reservas, nave, vuelo] = await Promise.all([
     reservasDelVuelo(date, flightIds, codes),
     naveDelVuelo(flightIds, assignmentId),
@@ -83,7 +91,10 @@ async function guardar(
     codes.map((code, indice) =>
       prisma.airportReservationDetails.update({
         where: { id: reservas.get(code)!.id },
-        data: unida ? { routePosition: indice } : { routePosition: indice, assignmentId }
+        data: {
+          routePosition: indice,
+          assignmentId: assignmentId ? nave.porVuelo.get(reservas.get(code)!.flightId ?? "") ?? null : null
+        }
       })
     )
   );

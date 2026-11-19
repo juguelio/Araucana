@@ -9,7 +9,11 @@ import type { Prisma } from "@prisma/client";
  * - `juntar` con dos o más vuelos les da un grupo nuevo; con uno solo lo saca del grupo que tenía.
  * - Un grupo que queda con un solo vuelo se disuelve.
  * - Si cambia la composición de algún grupo, se borra el orden manual de la recorrida de los vuelos
- *   tocados: dos órdenes armadas a mano por separado no se pueden intercalar con sentido.
+ *   tocados: dos órdenes armadas a mano por separado no se pueden intercalar con sentido. También la nave
+ *   elegida a mano: la hoja vuelve a repartir a todos los pasajeros de la vuelta entre sus naves, por zona.
+ * - Al juntar, cada vuelo del grupo queda con todas las combis del grupo (con el chofer que ya tenían): la
+ *   asignación es de la recorrida. Dos vuelos llenos que tenían una trafic cada uno quedan con las dos, y
+ *   la hoja arma una orden por trafic con gente de los dos vuelos.
  */
 export async function reagruparVuelos(tx: Prisma.TransactionClient, flightIds: string[], juntar: boolean) {
   const ids = [...new Set(flightIds)];
@@ -33,8 +37,29 @@ export async function reagruparVuelos(tx: Prisma.TransactionClient, flightIds: s
     if (quedan.length === 1) await tx.flight.update({ where: { id: quedan[0].id }, data: { pickupGroupId: null } });
   }
   const tocados = [...new Set([...ids, ...miembrosViejos.map((vuelo) => vuelo.id)])];
-  await tx.airportReservationDetails.updateMany({ where: { flightId: { in: tocados } }, data: { routePosition: null } });
+  await tx.airportReservationDetails.updateMany({ where: { flightId: { in: tocados } }, data: { routePosition: null, assignmentId: null } });
+  if (unir) await compartirCombis(tx, ids);
   return { cambio: true, grupo };
+}
+
+/**
+ * Copia a cada vuelo las combis que tienen los demás vuelos del grupo, con su chofer. Si la misma combi
+ * tiene choferes distintos en dos vuelos, la copia lleva el del primer vuelo que la tenía (por horario).
+ */
+async function compartirCombis(tx: Prisma.TransactionClient, flightIds: string[]) {
+  const asignaciones = await tx.airportVehicleAssignment.findMany({
+    where: { flightId: { in: flightIds } },
+    orderBy: [{ flight: { scheduledAt: "asc" } }, { createdAt: "asc" }],
+    select: { flightId: true, vehicleId: true, driverId: true, createdBy: true }
+  });
+  const porCombi = new Map<string, (typeof asignaciones)[number]>();
+  for (const asignacion of asignaciones) if (!porCombi.has(asignacion.vehicleId)) porCombi.set(asignacion.vehicleId, asignacion);
+  const faltan = flightIds.flatMap((flightId) =>
+    [...porCombi.values()]
+      .filter((combi) => !asignaciones.some((asignacion) => asignacion.flightId === flightId && asignacion.vehicleId === combi.vehicleId))
+      .map((combi) => ({ flightId, vehicleId: combi.vehicleId, driverId: combi.driverId, createdBy: combi.createdBy }))
+  );
+  if (faltan.length) await tx.airportVehicleAssignment.createMany({ data: faltan, skipDuplicates: true });
 }
 
 /** Los otros vuelos de la misma vuelta (sin el propio). */

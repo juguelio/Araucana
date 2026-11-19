@@ -166,34 +166,33 @@ describe("aeropuerto: la combi y el chofer son de la recorrida, no de un vuelo s
     mocks.findFlights.mockResolvedValue([ar, ja]);
   });
 
-  it("lleva la combi y el chofer a los dos vuelos, quita la otra nave y lo dice en el aviso", async () => {
-    mocks.findAssignments.mockResolvedValue([{
-      id: "asig-1913", vehicle: { name: "Sprinter 2" }, driver: { name: "Joel Escobar", email: "joel@ejemplo.test" }, flight: ja
-    }]);
+  it("lleva la combi y el chofer a los dos vuelos y no quita las otras: la recorrida puede ir con dos trafics", async () => {
     const url = await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
     // La nave va a los dos vuelos de la vuelta…
     expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f1", vehicleId: "v1", driverId: "d1" } }));
     expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f2", vehicleId: "v1", driverId: "d1" } }));
-    // …y la nave que tenía el otro vuelo se quita: una recorrida no puede ir con dos combis.
-    expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-1913"] } } });
+    // …y la combi que ya tenía la recorrida se queda: la hoja reparte a los pasajeros entre las dos.
+    expect(mocks.deleteAssignments).not.toHaveBeenCalled();
+    expect(mocks.findAssignments).toHaveBeenCalledWith(expect.objectContaining({ where: { flightId: { in: ["f2"] }, vehicleId: "v1" } }));
     expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       entityId: "f2", action: "CREATE", summary: expect.stringContaining("Combi Sprinter 1 asignada a la recorrida de AR1657")
     }));
-    expect(mocks.audit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-      entityId: "f2", action: "DELETE", summary: "Combi Sprinter 2 quitada del vuelo: la recorrida va con Sprinter 1."
-    }));
     expect(url).toContain("recorrida AR1657 + JA3184");
-    expect(url).toContain("se quitó Sprinter 2");
+    expect(url).not.toContain("se quitó");
   });
 
-  it("si el grupo ya iba con esa combi y ese chofer pero quedó otra nave, ordena el grupo en vez de rechazar", async () => {
+  it("si toda la recorrida ya iba con esa combi y ese chofer, no guarda nada", async () => {
     mocks.findAssignment.mockResolvedValue({ driverId: "d1" });
-    mocks.findAssignments.mockResolvedValue([{
-      id: "asig-1913", vehicle: { name: "Sprinter 2" }, driver: null, flight: ja
-    }]);
+    mocks.findAssignments.mockResolvedValue([{ flightId: "f2" }]);
+    expect(await assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" }))).toEqual({ error: "La combi ya tenía ese chofer." });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it("si al otro vuelo de la recorrida le falta la combi, se la agrega en vez de rechazar", async () => {
+    mocks.findAssignment.mockResolvedValue({ driverId: "d1" });
     await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
-    expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-1913"] } } });
     expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: { flightId: "f2", vehicleId: "v1", driverId: "d1" } }));
+    expect(mocks.deleteAssignments).not.toHaveBeenCalled();
   });
 
   it("el vuelo sin recorrida sigue con el mensaje de siempre y no consulta el grupo", async () => {
