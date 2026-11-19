@@ -151,6 +151,9 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
   const hasta = Math.min(page * pageSize, total);
   const filtros = (params ?? {}) as Record<string, string | undefined>;
   const listQuery = paginaHref(page, filtros).split("?")[1];
+  // Volver a la misma lista y con los mismos filtros después de resolver un pago (19-nov): antes
+  // cada validación devolvía al listado pelado y había que volver a filtrar la cola.
+  const volverALaLista = listQuery ? `/admin/reservas?${listQuery}` : "/admin/reservas";
   const hayFiltros = ["q", "code", "date", "until", "route", "scheduleId", "payment"].some((clave) => Boolean(filtros[clave]));
   // Orden por columna (issue #192): la columna activa se lee de la URL y se sanea contra la lista blanca.
   const orden = adminReservationOrder(parsed.success ? parsed.data : {});
@@ -196,6 +199,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             Pago
             <select name="payment" defaultValue={params?.payment ?? ""}>
               <option value="">Todos</option>
+              <option value="pending-payment">Pago por confirmar</option>
               <option value="receipt-pending">Comprobante de pago por validar</option>
               {isAdminRole(user.role) && <option value="documentation-pending">Documentación por revisar</option>}
               <option value="rejected">Comprobante rechazado</option>
@@ -354,7 +358,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     >
                       {validaPagoManual ? (
                         <form className="reservas-modal-form" action={approveManualPaymentAction}>
-                          <input type="hidden" name="code" value={reservation.code} />
+                          <Ocultos code={reservation.code} listQuery={listQuery} />
                           <p>El pasajero subió un comprobante: revisalo y validá o rechazá el pago.</p>
                           <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
                           <div className="reservas-modal-acciones">
@@ -365,7 +369,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                       ) : null}
                       {revisaDocumentacion ? (
                         <form className="reservas-modal-form" action={approveDisabilityDocumentAction}>
-                          <input type="hidden" name="code" value={reservation.code} />
+                          <Ocultos code={reservation.code} listQuery={listQuery} />
                           <input type="hidden" name="receiptVersion" value={new Date(reservation.receiptUploadedAt!).toISOString()} />
                           <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">Ver documentación</Link>
                           <div className="reservas-modal-acciones">
@@ -431,14 +435,14 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
                     </div>
                     {revisaDocumentacion ? (
                       <form className="reservas-actions" action={approveDisabilityDocumentAction}>
-                        <input type="hidden" name="code" value={reservation.code} />
+                        <Ocultos code={reservation.code} listQuery={listQuery} />
                         <input type="hidden" name="receiptVersion" value={new Date(reservation.receiptUploadedAt!).toISOString()} />
                         <button className="button table-action" type="submit">Aprobar documentación</button>
                         <button className="ghost-button table-action" formAction={rejectDisabilityDocumentAction} type="submit">Rechazar documentación</button>
                       </form>
                     ) : validaPagoManual ? (
                       <form className="reservas-actions" action={approveManualPaymentAction}>
-                        <input type="hidden" name="code" value={reservation.code} />
+                        <Ocultos code={reservation.code} listQuery={listQuery} />
                         <button className="button table-action" type="submit">
                           Validar pago
                         </button>
