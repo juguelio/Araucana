@@ -1,4 +1,5 @@
 import { getAirportExtras } from "@/lib/airport/extras-settings";
+import { MAX_SPORTS_LUGGAGE } from "@/lib/airport/extras";
 import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
@@ -7,7 +8,8 @@ import { airportPickupPointSchema } from "@/lib/airport/validation";
 import { DISABILITY_DOCUMENT_PROVIDER } from "./disability-fare";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment, reservationPriceCents } from "./admin-price";
 import { BookingError, firstAvailableSeat } from "./repository";
-import { extraUnitsSeatsInclude, scheduleSeatPool } from "./schedule-units";
+import { extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
+import { MAX_PASSENGERS, minimoDePasajeros, totalAlEditar } from "./reservation-edit";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
 import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable } from "@/lib/airport/booking";
@@ -50,10 +52,33 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
   z.object({
     operation: z.literal("edit"),
     passenger: adminPassengerPatchSchema,
-    pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema }).optional(),
+    /**
+     * `point` puede faltar: el alojamiento que ningún geocoder ubica se carga como texto y queda
+     * sin coordenadas (#268), el mismo camino que ya existía para una dirección sin geometría.
+     */
+    pickup: z.object({ address: z.string().trim().max(180), point: airportPickupPointSchema.nullish() })
+      .refine(({ address, point }) => Boolean(point) || address.length > 0, {
+        path: ["address"],
+        message: "Escribí el domicilio o marcá el punto en el mapa."
+      })
+      .optional(),
     notes: z.string().trim().max(300).optional(),
     /** Quién derivó la venta (#109). Vacío borra el dato: la columna del Excel vuelve a salir vacía. */
     referredBy: referredBySchema,
+    /**
+     * Cantidad de lugares que ocupa la reserva (#267). `passengerCount` incluye a los menores: no
+     * puede bajar de `halfFareCount + freeFareCount` ni pasar el cupo del servicio.
+     */
+    passengerCount: z.coerce.number().int().min(1, "La reserva necesita al menos un pasajero.")
+      .max(MAX_PASSENGERS, `La cantidad de pasajeros no puede superar ${MAX_PASSENGERS}.`).optional(),
+    /** Bultos de equipaje deportivo del aeropuerto (#267). No existe en los otros modos. */
+    sportsLuggageCount: z.coerce.number().int().min(0, "Cantidad inválida.")
+      .max(MAX_SPORTS_LUGGAGE, "Máximo 24 bultos por reserva.").optional(),
+    /**
+     * El operador vio la diferencia del total antes de guardar (#267). Sólo se exige cuando el pago
+     * ya está aprobado: el monto del pago no se toca sin que alguien lo haya confirmado.
+     */
+    acknowledgeTotalChange: z.boolean().optional(),
     financial: z.discriminatedUnion("operation", [
       z.object({ operation: z.literal("price"), totalCents: reservationPriceCents }),
       z.object({
@@ -315,7 +340,172 @@ export async function manageReservation(code: string, command: ReservationOperat
           }
 
           if (command.operation !== "edit") break;
-          const { pickup, notes, passenger, referredBy } = command;
+          const { pickup, notes, passenger, referredBy, passengerCount, sportsLuggageCount } = command;
+
+          // Cantidad de pasajeros (#267): es lo que imprime la orden de servicio y lo que descuenta
+          // lugares, así que se edita con la misma guarda de cupo que un alta. Una reserva cancelada
+          // ya liberó su lugar: cambiarle la cantidad descuadraría un servicio que no va a existir.
+          const cambiaCantidad = passengerCount !== undefined && passengerCount !== reservation.passengerCount;
+          const cambiaEquipaje = sportsLuggageCount !== undefined && sportsLuggageCount !== (reservation.airportDetails?.sportsLuggageCount ?? 0);
+          if ((cambiaCantidad || cambiaEquipaje) && status === "CANCELLED") {
+            throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
+          }
+          if (sportsLuggageCount !== undefined && reservation.bookingMode !== "AIRPORT") {
+            throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene adicionales del aeropuerto.");
+          }
+          if (cambiaCantidad && passengerCount !== undefined) {
+            const minimo = minimoDePasajeros({
+              halfFareCount: reservation.halfFareCount ?? 0,
+              freeFareCount: reservation.freeFareCount ?? 0
+            });
+            if (passengerCount < minimo) {
+              throw new BookingError(
+                "INVALID_PASSENGER_COUNT",
+                `La reserva no puede quedar con menos de ${minimo} pasajeros: los menores van dentro de esa cantidad y siempre tiene que quedar uno de tarifa entera.`
+              );
+            }
+            // La tarifa sin cargo por discapacidad es de un solo pasajero, igual que en el alta.
+            if (needsDocumentation && passengerCount > 1) {
+              throw new BookingError("INVALID_PASSENGER_COUNT", "La tarifa sin cargo por discapacidad es para un solo pasajero.");
+            }
+            if (reservation.bookingMode === "SEATED") {
+              const salida = reservation.scheduleId
+                ? await tx.schedule.findUnique({
+                    where: { id: reservation.scheduleId },
+                    include: {
+                      vehicle: { include: { seats: true } },
+                      extraUnits: extraUnitsSeatsInclude,
+                      reservations: { select: { id: true, status: true, passengerCount: true } }
+                    }
+                  })
+                : null;
+              if (!salida) throw new BookingError("SCHEDULE_NOT_FOUND", "La salida de esta reserva ya no existe.");
+              const capacidad = scheduleSeatCount(salida);
+              const ocupados = salida.reservations
+                .filter((item) => item.id !== id && item.status !== "CANCELLED")
+                .reduce((total, item) => total + item.passengerCount, 0);
+              if (!hayLugar(capacidad, ocupados, passengerCount)) {
+                throw new BookingError(
+                  "CAPACITY_FULL",
+                  `No hay lugar en esa salida: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva quedaría con ${passengerCount}.`
+                );
+              }
+            } else if (reservation.bookingMode === "AIRPORT") {
+              const detalles = reservation.airportDetails?.flightId
+                ? await tx.airportReservationDetails.findUnique({
+                    where: { reservationId: id },
+                    include: {
+                      flight: {
+                        include: {
+                          reservations: { select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
+                          assignments: { select: { vehicle: { select: { seats: { select: { id: true } } } } } }
+                        }
+                      }
+                    }
+                  })
+                : null;
+              const vuelo = detalles?.flight;
+              // Sin nave asignada no hay tope duro: la combi se define más cerca del vuelo.
+              if (vuelo && vuelo.assignments.length > 0) {
+                const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
+                const ocupados = pasajerosOcupados(
+                  vuelo.reservations.map((item) => item.reservation).filter((item) => item.id !== id)
+                );
+                if (!hayLugar(capacidad, ocupados, passengerCount)) {
+                  throw new BookingError(
+                    "CAPACITY_FULL",
+                    `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva quedaría con ${passengerCount}.`
+                  );
+                }
+              }
+            } else if (reservation.bookingMode === "CHAPELCO") {
+              const detalles = await tx.chapelcoReservationDetails.findUnique({ where: { reservationId: id } });
+              if (!detalles) throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del servicio.");
+              if (esFranjaDeChapelco(detalles.ascentSlot) && reservation.routeId) {
+                const [flota, vivas] = await Promise.all([
+                  tx.vehicle.findMany({ where: { isActive: true }, select: { _count: { select: { seats: true } } } }),
+                  tx.reservation.findMany({
+                    where: {
+                      routeId: reservation.routeId,
+                      bookingMode: "CHAPELCO",
+                      id: { not: id },
+                      status: { in: [...chapelcoActiveReservationStatuses] },
+                      chapelcoDetails: { serviceDate: detalles.serviceDate }
+                    },
+                    select: { passengerCount: true, chapelcoDetails: { select: { ascentSlot: true } } }
+                  })
+                ]);
+                const capacidad = flota.reduce((total, vehicle) => total + vehicle._count.seats, 0);
+                const ocupados = personasQueBloqueanLaFranja(
+                  vivas.map((item) => ({ passengerCount: item.passengerCount, ascentSlot: item.chapelcoDetails?.ascentSlot ?? null })),
+                  detalles.ascentSlot
+                );
+                if (!hayLugar(capacidad, ocupados, passengerCount)) {
+                  throw new BookingError(
+                    "CAPACITY_FULL",
+                    `No hay lugar en esa franja: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva quedaría con ${passengerCount}.`
+                  );
+                }
+              }
+            }
+            await tx.reservation.update({ where: { id }, data: { passengerCount } });
+            // La planilla de Chapelco guarda su propia copia de la cantidad por parada: sin esto el
+            // chofer seguiría viendo la cantidad vieja.
+            if (reservation.bookingMode === "CHAPELCO") {
+              await tx.chapelcoManifestStop.updateMany({
+                where: { reservationId: id, status: "PENDING" },
+                data: { passengerCount }
+              });
+            }
+          }
+          if (cambiaEquipaje && sportsLuggageCount !== undefined) {
+            await tx.airportReservationDetails.update({
+              where: { reservationId: id },
+              data: { sportsLuggageCount }
+            });
+          }
+
+          // Total de la reserva (#267): se recalcula con la tarifa y los adicionales que ya tiene la
+          // reserva —no con la configuración de hoy— y no se pisa una corrección a mano. Un precio
+          // escrito en este mismo formulario manda sobre la cuenta automática.
+          const precioEscrito = financial !== undefined && (
+            financial.operation === "price" || (financial.operation === "correctPayment" && financial.totalCents !== undefined)
+          );
+          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje)) {
+            const ruta = reservation.routeId
+              ? await tx.travelRoute.findUnique({ where: { id: reservation.routeId }, select: { priceCents: true } })
+              : null;
+            if (ruta) {
+              const total = totalAlEditar({
+                basis: {
+                  priceCents: ruta.priceCents,
+                  passengerCount: reservation.passengerCount,
+                  halfFareCount: reservation.halfFareCount ?? 0,
+                  freeFareCount: reservation.freeFareCount ?? 0,
+                  zoneExtraCents: reservation.airportDetails?.zoneExtraCents ?? 0,
+                  sportsLuggageCount: reservation.airportDetails?.sportsLuggageCount ?? 0,
+                  sportsLuggageUnitCents: reservation.airportDetails?.sportsLuggageUnitCents ?? 0
+                },
+                totalCents: reservation.totalCents,
+                passengerCount,
+                sportsLuggageCount
+              });
+              if (total.seRecalcula && total.totalCents !== reservation.totalCents) {
+                // Con un comprobante por revisar no se mueve la plata: es la misma guarda que ya
+                // protege el precio a mano. Primero se resuelve el pago y después se corrige.
+                if (payment?.status === "PENDING" && payment.receiptBlobPathname) {
+                  throw new BookingError("PAYMENT_LOCKED", "Hay un comprobante por revisar: resolvé el pago antes de cambiar la cantidad o el equipaje.");
+                }
+                // Con plata cobrada, el monto del pago no se mueve sin que el operador haya visto la
+                // diferencia: el formulario se la muestra y manda esta confirmación.
+                if (payment?.status === "APPROVED" && command.acknowledgeTotalChange !== true) {
+                  throw new BookingError("PAYMENT_LOCKED", "El pago ya está aprobado: confirmá la diferencia del total antes de guardar.");
+                }
+                await tx.reservation.update({ where: { id }, data: { totalCents: total.totalCents } });
+                if (payment) await tx.payment.update({ where: { reservationId: id }, data: { amountCents: total.totalCents } });
+              }
+            }
+          }
           // El origen de la venta no es logística: se puede corregir incluso con la reserva
           // cancelada, y vacío borra el dato (#109).
           if (referredBy !== undefined) {
@@ -327,8 +517,12 @@ export async function manageReservation(code: string, command: ReservationOperat
             const notesData = notes === undefined ? {} : { pickupNotes: notes || null };
             const addressData = pickup && {
               pickupAddress: pickup.address,
-              pickupLatitude: pickup.point[0],
-              pickupLongitude: pickup.point[1]
+              // Sin punto (#268) las coordenadas quedan en null: no se inventan.
+              pickupLatitude: pickup.point ? pickup.point[0] : null,
+              pickupLongitude: pickup.point ? pickup.point[1] : null,
+              // Un domicilio escrito a mano no tiene nombre de lugar: si quedara el anterior, la
+              // orden del chofer imprimiría «Hotel viejo · Hostal del Esquiador».
+              ...(pickup.point ? {} : { pickupName: null })
             };
 
             if (reservation.bookingMode === "AIRPORT") {
@@ -336,21 +530,33 @@ export async function manageReservation(code: string, command: ReservationOperat
                 if (pickup.address.length > 160) {
                   throw new BookingError("INVALID_PICKUP_ADDRESS", "La dirección puede tener hasta 160 caracteres.");
                 }
-                const coverage = await getAirportCoverage(tx);
-                if (coverage.enabled && !isInsideAirportPickupZone(pickup.point, coverage)) {
-                  throw new BookingError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE);
+                // La zona sólo se puede validar con un punto. Sin coordenadas el domicilio se guarda
+                // igual —el alojamiento cargado como texto (#268)— y el cálculo de zona no aplica.
+                if (pickup.point) {
+                  const coverage = await getAirportCoverage(tx);
+                  if (coverage.enabled && !isInsideAirportPickupZone(pickup.point, coverage)) {
+                    throw new BookingError("OUTSIDE_PICKUP_ZONE", OUTSIDE_PICKUP_ZONE);
+                  }
                 }
               }
               await tx.airportReservationDetails.update({
                 where, data: { ...notesData, ...(addressData && { ...addressData, pickupAddress: addressData.pickupAddress || null }) }
               });
             } else if (reservation.bookingMode === "CHAPELCO") {
-              if (addressData && addressData.pickupAddress.length < 4) {
-                throw new BookingError("INVALID_PICKUP_ADDRESS", "Ingresá una dirección para el traslado.");
-              }
-              await tx.chapelcoReservationDetails.update({ where, data: { ...notesData, ...addressData } });
-              if (addressData) {
-                await tx.chapelcoManifestStop.updateMany({ where: { ...where, status: "PENDING" }, data: addressData });
+              if (pickup) {
+                const { address, point } = pickup;
+                // Las columnas del traslado de Chapelco no admiten nulos: ahí el punto sigue siendo obligatorio.
+                if (!point) {
+                  throw new BookingError("INVALID_PICKUP_POINT", "Marcá el punto del traslado en el mapa.");
+                }
+                if (address.length < 4) {
+                  throw new BookingError("INVALID_PICKUP_ADDRESS", "Ingresá una dirección para el traslado.");
+                }
+                const chapelcoData = { pickupAddress: address, pickupLatitude: point[0], pickupLongitude: point[1] };
+                await tx.chapelcoReservationDetails.update({ where, data: { ...notesData, ...chapelcoData } });
+                await tx.chapelcoManifestStop.updateMany({ where: { ...where, status: "PENDING" }, data: chapelcoData });
+              } else {
+                await tx.chapelcoReservationDetails.update({ where, data: notesData });
               }
             } else {
               throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene datos de traslado.");

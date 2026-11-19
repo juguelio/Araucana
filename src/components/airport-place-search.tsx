@@ -80,9 +80,14 @@ type AirportPlaceSearchProps = {
   disabled: boolean;
   onChange: () => void;
   onSelect: (place: AirportSelectedPlace) => void;
+  /**
+   * Carga lo escrito como domicilio sin coordenadas (#268), para el alojamiento que el geocoder no
+   * encuentra. Sólo lo pasa el panel: el checkout del pasajero sigue exigiendo el punto.
+   */
+  onUseText?: (text: string) => void;
 };
 
-export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, onSelect }: AirportPlaceSearchProps) {
+export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, onSelect, onUseText }: AirportPlaceSearchProps) {
   const inputId = useId();
   const listId = `${inputId}-options`;
   const streetListId = `${inputId}-streets`;
@@ -95,6 +100,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
   const [activeIndex, setActiveIndex] = useState(-1);
   const [focused, setFocused] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [emptySearch, setEmptySearch] = useState(false);
   const [error, setError] = useState("");
   const [manualOpen, setManualOpen] = useState(false);
   const [streetTerm, setStreetTerm] = useState("");
@@ -154,6 +160,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
         }
         if (signal.aborted) return;
         setSuggestions(results);
+        setEmptySearch(results.length === 0);
         if (results.length === 0) setError("No encontramos coincidencias. Probá otro nombre, elegí la calle y la altura, o marcá el punto en el mapa.");
       } catch {
         if (!signal.aborted) setError("No pudimos buscar lugares. Podés marcar el punto en el mapa.");
@@ -202,6 +209,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       }
       setQuery(match.label);
       setSelectionSource(match.source);
+      setEmptySearch(false);
       setStreets([]);
       setManualOpen(false);
       onSelect(match);
@@ -219,6 +227,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
     setSuggestions([]);
     setActiveIndex(-1);
     setError("");
+    setEmptySearch(false);
     setSelectionSource(suggestion.source);
 
     token.current = null;
@@ -290,10 +299,28 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           setActiveIndex(-1);
           setSelectionSource(null);
           setError("");
+          setEmptySearch(false);
           onChange();
         }} />
       {searching ? <p className="muted" role="status">Buscando lugares…</p> : null}
       {error ? <p className="muted" role="status">{error}</p> : null}
+      {/* El nombre del alojamiento no está en ningún geocoder: se carga tal cual, sin punto (#268). */}
+      {onUseText && emptySearch && !searching && query.trim().length >= 3 ? (
+        <button type="button" className={styles.manualToggle} disabled={disabled}
+          onClick={() => {
+            const text = query.trim();
+            setSearchTerm("");
+            setSuggestions([]);
+            setActiveIndex(-1);
+            setError("");
+            setEmptySearch(false);
+            setSelectionSource(null);
+            setFocused(false);
+            onUseText(text);
+          }}>
+          Usar «{query.trim()}» como domicilio, sin punto en el mapa
+        </button>
+      ) : null}
       {open ? (
         <>
           <ul id={listId} role="listbox" aria-label="Sugerencias de lugares" className={styles.suggestions}>

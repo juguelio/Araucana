@@ -43,3 +43,25 @@ export async function companerosDeRecorrida(tx: Prisma.TransactionClient, flight
   const grupo = await tx.flight.findMany({ where: { pickupGroupId: flight.pickupGroupId, id: { not: flight.id } }, select: { id: true } });
   return grupo.map((vuelo) => vuelo.id);
 }
+
+/**
+ * Los vuelos que van en la misma vuelta, **con el propio incluido** y ordenados por horario. Un vuelo sin
+ * grupo es una recorrida de uno solo.
+ *
+ * Es la unidad con la que se asigna la flota: la hoja del chofer une en una orden a los vuelos que
+ * comparten camioneta, así que asignar nave y chofer a un vuelo suelto de la recorrida deja al grupo con
+ * dos naves y lo parte en dos órdenes sin avisar (pedido del cliente, AR1657 + JA3184).
+ */
+export async function vuelosDeLaRecorrida(
+  tx: Prisma.TransactionClient,
+  flight: { id: string; number: string; scheduledAt: Date; pickupGroupId: string | null }
+) {
+  const solo = [{ id: flight.id, number: flight.number, scheduledAt: flight.scheduledAt }];
+  if (!flight.pickupGroupId) return solo;
+  const grupo = await tx.flight.findMany({
+    where: { pickupGroupId: flight.pickupGroupId },
+    orderBy: { scheduledAt: "asc" },
+    select: { id: true, number: true, scheduledAt: true }
+  });
+  return grupo.length > 1 ? grupo : solo;
+}

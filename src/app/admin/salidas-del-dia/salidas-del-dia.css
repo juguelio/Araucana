@@ -178,6 +178,12 @@
 }
 .sd-crew > .form-alert { grid-column: 1 / -1; margin: 0; }
 
+/* Programación sin demanda: colapsada y fuera de los totales del día (issue #258). */
+.sd-programmed { margin-top: 12px; }
+.sd-programmed > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.sd-programmed-list { margin-top: 10px; }
+.sd-programmed-list .sd-row { opacity: 0.82; }
+
 .desk-shortcuts,.desk-switch { display:flex; flex-wrap:wrap; gap:.45rem }
 .desk-shortcuts { margin:0 0 1.5rem; padding-block:.65rem; border-block:1px solid var(--line) }
 .desk-shortcuts a,.desk-switch button,.desk-options button { border:1px solid var(--line); border-radius:8px; padding:.45rem .65rem; color:var(--ink); background:var(--surface); font:inherit; font-size:.85rem }

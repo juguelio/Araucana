@@ -48,7 +48,12 @@ export function NaveBuscador({ naves, flightNumber }: { naves: NaveElegible[]; f
               <span>
                 <strong>{nave.name}</strong>
                 <small className="muted">
-                  {[nave.internalNumber ? `Int. ${nave.internalNumber}` : null, nave.licensePlate, `${nave.seats} lugares para aeropuerto`]
+                  {[
+                    nave.internalNumber ? `Int. ${nave.internalNumber}` : null,
+                    nave.licensePlate,
+                    /* Una unidad sin plano no vende nada: decir «0 lugares» parece un cupo lleno. */
+                    nave.seats > 0 ? `${nave.seats} lugares para aeropuerto` : "sin butacas cargadas"
+                  ]
                     .filter(Boolean)
                     .join(" · ")}
                 </small>

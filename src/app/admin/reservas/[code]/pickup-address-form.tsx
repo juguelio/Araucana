@@ -7,8 +7,9 @@ import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airp
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import { OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { PICKUP_WITHOUT_POINT, type PickupAddressDraft } from "./pickup-address";
 
-export type PickupAddressDraft = { address: string; point: PickupPoint | null; confirmed: boolean };
+export type { PickupAddressDraft } from "./pickup-address";
 
 type PickupAddressFieldsProps = {
   pickup: PickupAddressDraft;
@@ -48,10 +49,22 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
     });
   }
 
+  /**
+   * El nombre del alojamiento que el buscador no encuentra se carga tal cual (#268): queda como
+   * texto, sin inventar coordenadas. Sólo el aeropuerto lo admite así.
+   */
+  function useTypedText(text: string) {
+    setReference(null);
+    setApproximate(false);
+    setPrecision("none");
+    onChange({ address: text.trim().slice(0, maxLength), point: null, confirmed: false });
+  }
+
   return (
     <>
       <AirportPlaceSearch coverage={coverage} useGoogle={useGoogle} disabled={disabled}
-        onChange={() => { setReference(null); }} onSelect={selectPlace} />
+        onChange={() => { setReference(null); }} onSelect={selectPlace}
+        onUseText={airport ? useTypedText : undefined} />
       {useGoogle ? (
         <AirportGooglePickup coverage={coverage} point={point} reference={reference} approximate={approximate}
           disabled={disabled} onPoint={markPoint} onUnavailable={() => setUseGoogle(false)} />
@@ -61,7 +74,9 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
       )}
       {changed && outside ? <p className="form-alert error" role="status">{OUTSIDE_PICKUP_ZONE}</p> : null}
       {changed && !point ? (
-        <p className="muted reservation-edit-wide" role="status">Marcá el nuevo punto en el mapa.</p>
+        <p className="muted reservation-edit-wide" role="status">
+          {airport ? PICKUP_WITHOUT_POINT : "Marcá el nuevo punto en el mapa."}
+        </p>
       ) : null}
       <label className="span-2">
         {airport ? "Dirección o referencia (opcional)" : "Dirección"}

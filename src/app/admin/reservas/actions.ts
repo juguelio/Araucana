@@ -172,28 +172,49 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   const referredBy = formData.has("referredBy") ? value(formData, "referredBy") : undefined;
   let pickup;
   if (formData.has("address")) {
+    const address = value(formData, "address");
     const latitude = value(formData, "latitude");
     const longitude = value(formData, "longitude");
-    if (!latitude || !longitude || formData.get("confirmed") !== "on") {
+    if (Boolean(latitude) !== Boolean(longitude)) {
+      return errorState("El punto del mapa quedó incompleto. Marcá de nuevo el lugar.");
+    }
+    if (latitude && longitude) {
+      if (formData.get("confirmed") !== "on") {
+        return errorState("Confirmá el punto de traslado en el mapa.");
+      }
+      pickup = { address, point: [Number(latitude), Number(longitude)] };
+    } else if (address) {
+      // Sin coordenadas (#268): el alojamiento que no está en el mapa se guarda como texto, el
+      // mismo camino que una dirección sin geometría. La pantalla avisa que va sin punto.
+      pickup = { address, point: null };
+    } else {
       return errorState("Confirmá el punto de traslado en el mapa.");
     }
-    pickup = { address: value(formData, "address"), point: [Number(latitude), Number(longitude)] };
   }
   const priceChanged = formData.has("customPrice");
   const paymentChanged = formData.has("method") || formData.has("reference");
   const totalCents = priceChanged ? parseReservationPrice(value(formData, "customPrice")) : undefined;
   if (totalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
+  // Cantidad de pasajeros y equipaje (#267): sólo viajan si el formulario los mandó, así una
+  // edición que no los toca no los reescribe.
+  const passengerCount = formData.has("passengerCount") ? value(formData, "passengerCount") : undefined;
+  const sportsLuggageCount = formData.has("sportsLuggageCount") ? value(formData, "sportsLuggageCount") : undefined;
   const financial = priceChanged || paymentChanged ? {
     operation: value(formData, "financialOperation"),
     totalCents,
     method: formData.has("method") ? value(formData, "method") : undefined,
     reference: formData.has("reference") ? value(formData, "reference") : undefined
   } : undefined;
-  if (!pickup && notes === undefined && referredBy === undefined && !financial && Object.keys(passenger).length === 0) {
+  if (!pickup && notes === undefined && referredBy === undefined && !financial
+    && passengerCount === undefined && sportsLuggageCount === undefined && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
-  const command = reservationManagementSchema.safeParse({ operation: "edit", passenger, pickup, notes, referredBy, financial });
+  const command = reservationManagementSchema.safeParse({
+    operation: "edit", passenger, pickup, notes, referredBy, financial,
+    passengerCount, sportsLuggageCount,
+    acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
+  });
   if (!command.success) {
     return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
   }
@@ -203,7 +224,10 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   } catch (error) {
     const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
     return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
-      ? { documentId: message } : {});
+      ? { documentId: message }
+      : error instanceof BookingError && (error.code === "CAPACITY_FULL" || error.code === "INVALID_PASSENGER_COUNT")
+        ? { passengerCount: message }
+        : {});
   }
 
   for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {

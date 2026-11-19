@@ -11,6 +11,7 @@ import {
 } from "@/lib/vehicles/seat-layout";
 import { toggleLayoutMarker, type VehicleLayoutMarker } from "@/lib/vehicles/layout-markers";
 import { type VehicleSeat } from "@/lib/vehicles/templates";
+import { resumenButacas } from "@/lib/airport/capacity";
 
 type SeatLayoutEditorProps = {
   initialSeats: VehicleSeat[];
@@ -120,14 +121,14 @@ export function SeatLayoutEditor({ initialSeats, initialLayoutMarkers = [] }: Se
       <input type="hidden" name="layoutMarkers" value={serializedLayoutMarkers} />
       <div className="seat-layout-head">
         <div>
-          <span>Distribucion editable</span>
-          <strong>{seats.length} asientos</strong>
+          <span>Butacas y capacidad</span>
+          <strong>{resumenButacas(seats.length)}</strong>
         </div>
         <div className="table-actions">
           <label className="seat-capacity-field">
-            Cantidad de asientos
+            Cantidad de butacas
             <input
-              aria-label="Cantidad de asientos"
+              aria-label="Cantidad de butacas"
               inputMode="numeric"
               max={60}
               min={1}

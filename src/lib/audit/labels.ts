@@ -85,6 +85,7 @@ const fieldLabels: Record<string, string> = {
   "pickup.pickupLatitude": "Traslado · latitud",
   "pickup.pickupLongitude": "Traslado · longitud",
   "pickup.pickupNotes": "Traslado · notas",
+  "airport.sportsLuggageCount": "Equipaje deportivo (bultos)",
   email: "Email",
   name: "Nombre",
   role: "Rol",
