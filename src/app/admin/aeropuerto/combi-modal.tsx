@@ -53,6 +53,8 @@ export async function opcionesDeCombi(): Promise<{ naves: NaveElegible[]; chofer
  */
 export function combisCortas(vuelo: VueloConCombis) {
   if (vuelo.assignments.length <= 1) return combisDelVuelo(vuelo);
+  // Con tres o más los nombres ya no entran: sólo cuántas (el detalle está en el title y en el modal).
+  if (vuelo.assignments.length > 2) return `${vuelo.assignments.length} combis`;
   return `${vuelo.assignments.length} combis: ${vuelo.assignments.map((a) => a.vehicle.name).join(" + ")}`;
 }
 
