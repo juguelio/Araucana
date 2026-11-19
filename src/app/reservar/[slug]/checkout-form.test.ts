@@ -283,6 +283,9 @@ describe("checkout de un solo tramo del aeropuerto", () => {
   it("«¿Ida y vuelta?» lleva al ida y vuelta con el día, el sentido y el vuelo elegidos", () => {
     expect(hrefConViaje("/admin/aeropuerto/reservar?date=2026-11-19&tramos=ida-y-vuelta", { date: "2026-11-20", sentido: "DEPARTURE", vuelo: "fl-1" }))
       .toBe("/admin/aeropuerto/reservar?date=2026-11-20&tramos=ida-y-vuelta&sentido=DEPARTURE&vuelo=fl-1");
+    // En la pantalla única de «Reservar» (19-nov) el link conserva el servicio elegido arriba.
+    expect(hrefConViaje("/admin/reservas/nueva?servicio=aeropuerto&date=2026-11-19&tramos=ida-y-vuelta", { date: "2026-11-20", sentido: "ARRIVAL" }))
+      .toBe("/admin/reservas/nueva?servicio=aeropuerto&date=2026-11-20&tramos=ida-y-vuelta&sentido=ARRIVAL");
     // Sin vuelo elegido no queda un `vuelo` viejo colgado.
     expect(hrefConViaje("/reservar/aeropuerto/ida-y-vuelta?vuelo=viejo", { date: "2026-11-19", sentido: "ARRIVAL" }))
       .toBe("/reservar/aeropuerto/ida-y-vuelta?date=2026-11-19&sentido=ARRIVAL");

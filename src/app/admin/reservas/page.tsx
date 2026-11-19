@@ -165,7 +165,7 @@ export default async function AdminReservationsPage({ searchParams }: AdminReser
             ? "Sin reservas para estos filtros."
             : `${total} ${total === 1 ? "reserva" : "reservas"}${total > pageSize ? ` · página ${page} de ${totalPages}` : ""}`}
         </p>
-        <Link className="button" href="/admin/reservas/nueva">Crear reserva</Link>
+        <Link className="button" href="/admin/reservas/nueva">Reservar</Link>
       </div>
       <section className="reservas-filters">
         {/* En el celular los filtros se pliegan; la casilla (sin JS) recuerda si están abiertos. */}

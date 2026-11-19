@@ -307,7 +307,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
           <div className="sd-add-links">
             <h3>Otros</h3>
             <Link className="ghost-button" href={`/admin/aeropuerto?date=${dateKey}`}>Cargar vuelo a mano</Link>
-            <Link className="ghost-button" href={`/admin/aeropuerto/reservar?date=${dateKey}`}>Reserva de aeropuerto</Link>
+            <Link className="ghost-button" href={`/admin/reservas/nueva?servicio=aeropuerto&date=${dateKey}`}>Reserva de aeropuerto</Link>
             <Link className="ghost-button" href="/admin/viajes-especiales/nuevo">Viaje especial</Link>
             {canEditRoutes ? <Link className="ghost-button" href="/admin/naves/nueva">Nave nueva</Link> : null}
             {canEditRoutes ? <Link className="ghost-button" href="/admin/choferes/nueva">Chofer nuevo</Link> : null}
