@@ -159,6 +159,7 @@ model Vehicle {
   chapelcoDuties ChapelcoVehicleDuty[]
   airportAssignments AirportVehicleAssignment[]
   specialTripAssignments SpecialTripAssignment[]
+  damages      VehicleDamage[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -178,6 +179,8 @@ model AccountingEntry {
   user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   salaryPeriod String?
   notes        String?
+  /// Daños que se dieron por reparados con este arreglo (ficha de la nave → Reparaciones).
+  repairedDamages VehicleDamage[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -186,6 +189,30 @@ model AccountingEntry {
   @@index([vehicleId])
   @@index([userId])
   @@index([salaryPeriod])
+}
+
+/// Un daño de una nave (choque, rotura, falla): se anota desde la ficha de la unidad y queda
+/// pendiente hasta que se repara. El arreglo es un egreso de contabilidad (categoría REPAIR).
+model VehicleDamage {
+  id            String           @id @default(cuid())
+  vehicleId     String
+  vehicle       Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  occurredAt    DateTime
+  description   String
+  /// LEVE · MODERADO · GRAVE (grave = la unidad no debería salir hasta repararla).
+  severity      String           @default("LEVE")
+  /// PENDIENTE · EN_REPARACION · REPARADO
+  status        String           @default("PENDIENTE")
+  repairedAt    DateTime?
+  repairEntryId String?
+  repairEntry   AccountingEntry? @relation(fields: [repairEntryId], references: [id], onDelete: SetNull)
+  reportedBy    String?
+  notes         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([vehicleId, occurredAt])
+  @@index([repairEntryId])
 }
 
 model DriverVehicleLocation {
