@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SalidaOption } from "./salida-picker-utils";
-import { destinosDesde, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, tiraConServicio, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
+import { AEROPUERTO, destinosDesde, esAeropuerto, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, tiraConServicio, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
 
 function salida(id: string, from: string, to: string, dayKey: string, timeLabel: string, extra: Partial<SalidaOption> = {}): SalidaOption {
   return { id, from, to, dayKey, dayLabel: dayKey, timeLabel, availableSeats: 10, status: "OPEN", priceCents: 3000000, currency: "ARS", ...extra };
@@ -17,10 +17,19 @@ const salidas = [
 ];
 
 describe("viaje de Nueva reserva (template, 18-nov)", () => {
-  it("ofrece primero el origen y el destino con más salidas, en su primer día", () => {
-    expect(origenes(salidas)[0]).toEqual({ nombre: SMA, salidas: 3 });
-    expect(destinosDesde(salidas, SMA).map((lugar) => lugar.nombre)).toEqual(["Villa Traful", "Junín de los Andes"]);
+  it("arriba de todo está el aeropuerto y después el destino con más salidas", () => {
+    // El aeropuerto primero (19-nov): es el traslado que más se carga, aunque no tenga salidas horarias.
+    expect(origenes(salidas)[0]).toMatchObject({ nombre: AEROPUERTO, aeropuerto: true });
+    expect(origenes(salidas)[1]).toEqual({ nombre: SMA, salidas: 3 });
+    expect(destinosDesde(salidas, SMA).map((lugar) => lugar.nombre)).toEqual([AEROPUERTO, "Villa Traful", "Junín de los Andes"]);
+    // El viaje propuesto sigue siendo uno de ruta, con su primer día.
     expect(viajeInicial(salidas)).toEqual({ origen: SMA, destino: "Villa Traful", dia: "2026-11-19" });
+  });
+
+  it("el aeropuerto sólo se ofrece como destino desde San Martín de los Andes", () => {
+    expect(destinosDesde(salidas, "Villa Traful").some((lugar) => esAeropuerto(lugar.nombre))).toBe(false);
+    expect(esAeropuerto("aeropuerto chapelco (cpc)")).toBe(true);
+    expect(esAeropuerto("San Martín de los Andes")).toBe(false);
   });
 
   it("abre desde San Martín aunque otra ruta tenga muchas más salidas (Villa Traful, 258)", () => {
@@ -31,7 +40,9 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
         salida(`vt${i}`, "Villa Traful", SMA, `2026-12-${String((i % 28) + 1).padStart(2, "0")}`, "16:30")
       )
     ];
-    expect(origenes(muchasDeVillaTraful)[0].nombre).toBe("Villa Traful");
+    // El aeropuerto va siempre arriba; el resto, por cantidad de salidas.
+    expect(origenes(muchasDeVillaTraful)[0].nombre).toBe(AEROPUERTO);
+    expect(origenes(muchasDeVillaTraful)[1].nombre).toBe("Villa Traful");
     expect(viajeInicial(muchasDeVillaTraful).origen).toBe(SMA);
   });
 
@@ -112,12 +123,12 @@ describe("todas las rutas y un nombre por lugar (19-nov: «te están faltando ru
   it("las rutas sin salidas cargadas aparecen igual, al final y con 0", () => {
     const { salidas: unificadas, rutas: rutasUnificadas } = unificarLugares(salidas, rutas);
     expect(origenes(unificadas, rutasUnificadas).map((l) => [l.nombre, l.salidas])).toEqual([
-      [SMA, 3], ["Villa Traful", 3], ["Villa La Angostura", 0]
+      [AEROPUERTO, 0], [SMA, 3], ["Villa Traful", 3], ["Villa La Angostura", 0]
     ]);
     expect(destinosDesde(unificadas, "Villa Traful", rutasUnificadas).map((l) => [l.nombre, l.salidas])).toEqual([
       [SMA, 3], ["Villa La Angostura", 0]
     ]);
-    expect(destinosDesde(unificadas, SMA, rutasUnificadas).map((l) => l.nombre)).toEqual(["Villa Traful", "Junín de los Andes", "Hua Hum"]);
+    expect(destinosDesde(unificadas, SMA, rutasUnificadas).map((l) => l.nombre)).toEqual([AEROPUERTO, "Villa Traful", "Junín de los Andes", "Hua Hum"]);
     expect(rutaEntre(rutasUnificadas, "Villa La Angostura", "Villa Traful")?.id).toBe("r3");
   });
 });

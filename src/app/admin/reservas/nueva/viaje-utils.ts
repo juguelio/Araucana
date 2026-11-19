@@ -8,7 +8,24 @@ import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares
 import { claveDeLugar } from "@/lib/booking/place-names";
 import type { SalidaOption } from "./salida-picker-utils";
 
-export type Lugar = { nombre: string; salidas: number };
+export type Lugar = { nombre: string; salidas: number; aeropuerto?: boolean };
+
+/**
+ * El aeropuerto de Chapelco (19-nov). No se reserva por salida horaria —necesita el vuelo y el
+ * pick-up, issue #79—, pero Jugue lo quiere ver **en la misma lista** que el resto y primero: es el
+ * traslado que más se carga. Elegirlo no arma un viaje: manda al formulario de aeropuerto.
+ */
+export const AEROPUERTO = "Aeropuerto Chapelco (CPC)";
+
+export function esAeropuerto(nombre: string | null | undefined) {
+  return claveDeLugar(nombre ?? "") === claveDeLugar(AEROPUERTO);
+}
+
+/** La lista con el aeropuerto al principio, si corresponde ofrecerlo. */
+function conAeropuertoPrimero(lugares: Lugar[]) {
+  if (lugares.some((lugar) => esAeropuerto(lugar.nombre))) return lugares;
+  return [{ nombre: AEROPUERTO, salidas: 0, aeropuerto: true }, ...lugares];
+}
 
 /** Una ruta activa, tenga o no salidas cargadas (para listarla igual en Desde/Hacia). */
 export type RutaDelPanel = { id: string; from: string; to: string };
@@ -63,15 +80,17 @@ function conRutasSinSalidas(lugares: Lugar[], nombres: string[]) {
 
 /** Desde dónde se puede salir (las rutas sin salidas cargadas, al final). */
 export function origenes(salidas: SalidaOption[], rutas: RutaDelPanel[] = []) {
-  return conRutasSinSalidas(contar(salidas.map((salida) => salida.from)), rutas.map((ruta) => ruta.from));
+  return conAeropuertoPrimero(conRutasSinSalidas(contar(salidas.map((salida) => salida.from)), rutas.map((ruta) => ruta.from)));
 }
 
 /** Adónde se puede ir desde `origen` (las rutas sin salidas cargadas, al final). */
 export function destinosDesde(salidas: SalidaOption[], origen: string, rutas: RutaDelPanel[] = []) {
-  return conRutasSinSalidas(
+  const destinos = conRutasSinSalidas(
     contar(salidas.filter((salida) => salida.from === origen).map((salida) => salida.to)),
     rutas.filter((ruta) => ruta.from === origen).map((ruta) => ruta.to)
   );
+  // El aeropuerto sólo se ofrece desde la ciudad donde está: San Martín de los Andes.
+  return claveDeLugar(origen) === "san martin de los andes" ? conAeropuertoPrimero(destinos) : destinos;
 }
 
 /** La ruta activa de `desde` a `hacia` (para ofrecer cargarle salidas si no tiene). */
@@ -150,9 +169,11 @@ const ORIGEN_DE_LA_AGENCIA = "san martin de los andes";
 
 /** El viaje que se propone al abrir: desde San Martín, al destino con más salidas, y su primer día. */
 export function viajeInicial(salidas: SalidaOption[]) {
-  const lugares = origenes(salidas);
+  // El aeropuerto encabeza las listas, pero el viaje propuesto es uno de ruta: abrirlo en el
+  // aeropuerto obligaría a elegir vuelo y no es lo que se carga habitualmente.
+  const lugares = origenes(salidas).filter((lugar) => !esAeropuerto(lugar.nombre));
   const deLaAgencia = lugares.find((lugar) => claveDeLugar(lugar.nombre) === ORIGEN_DE_LA_AGENCIA);
   const origen = (deLaAgencia ?? lugares[0])?.nombre ?? "";
-  const destino = destinosDesde(salidas, origen)[0]?.nombre ?? "";
+  const destino = destinosDesde(salidas, origen).find((lugar) => !esAeropuerto(lugar.nombre))?.nombre ?? "";
   return { origen, destino, dia: primerDia(salidasDelTramo(salidas, origen, destino)) };
 }

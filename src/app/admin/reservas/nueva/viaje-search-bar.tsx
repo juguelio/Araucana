@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { diasConSalidas, type SalidaOption } from "./salida-picker-utils";
-import { conteoPorDia, tiraConServicio, type Lugar } from "./viaje-utils";
+import { AEROPUERTO, conteoPorDia, esAeropuerto, tiraConServicio, type Lugar } from "./viaje-utils";
 
 /**
  * El recuadro del viaje de «Nueva reserva», con el template del aeropuerto (pedido de Jugue, 18-nov:
@@ -287,12 +287,40 @@ export function ViajeSearchBar({
               <span className="trip-search-option-icon"><IconoPin /></span>
               <span className="trip-search-option-text">
                 <b>{lugar.nombre}</b>
-                <small>{lugar.salidas ? `${lugar.salidas} ${lugar.salidas === 1 ? "salida" : "salidas"} con lugar` : "Sin salidas cargadas"}</small>
+                <small>
+                  {lugar.aeropuerto
+                    ? "Traslado al aeropuerto · se carga con el vuelo"
+                    : lugar.salidas
+                      ? `${lugar.salidas} ${lugar.salidas === 1 ? "salida" : "salidas"} con lugar`
+                      : "Sin salidas cargadas"}
+                </small>
               </span>
               {actual === lugar.nombre ? <span className="trip-search-tick" aria-hidden="true">✓</span> : null}
             </button>
           ))}
         </div>
+      </>
+    );
+  }
+
+  /**
+   * El aeropuerto está en la lista como cualquier otro lugar, pero no se reserva por salida horaria
+   * (#79): se manda al formulario que pide el vuelo y el pick-up.
+   */
+  function panelAeropuerto() {
+    return (
+      <>
+        <p className="trip-search-panel-title">Aeropuerto Chapelco (CPC) ⇄ San Martín de los Andes</p>
+        <p className="trip-search-panel-help">
+          Los traslados al aeropuerto se cargan con el vuelo y el domicilio del pasajero, así el chofer sabe
+          a qué hora esperarlo.
+        </p>
+        <a className="trip-search-flight" href="/admin/aeropuerto/reservar">
+          <span>
+            <b>Cargar reserva de aeropuerto</b>
+            <small>Elegís el vuelo, la combi y el pick-up en un solo paso</small>
+          </span>
+        </a>
       </>
     );
   }
@@ -450,7 +478,13 @@ export function ViajeSearchBar({
           aria-label={tramoAbierto ? (tramoAbierto.clave === "ida" ? "Ida" : "Vuelta") : abierto === "desde" ? "Desde" : "Hacia"}
         >
           <button type="button" className="trip-search-close" aria-label="Cerrar" onClick={() => setAbierto(null)}>✕</button>
-          {abierto === "desde" || abierto === "hacia" ? panelLugar(abierto) : tramoAbierto ? panelTramo(tramoAbierto) : null}
+          {abierto === "desde" || abierto === "hacia"
+            ? panelLugar(abierto)
+            : esAeropuerto(origen) || esAeropuerto(destino)
+              ? panelAeropuerto()
+              : tramoAbierto
+                ? panelTramo(tramoAbierto)
+                : null}
         </div>
       ) : null}
     </div>
