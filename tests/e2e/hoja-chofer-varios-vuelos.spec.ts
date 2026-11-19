@@ -75,6 +75,25 @@ test.beforeAll(async () => {
     }
   }
 });
+// Un arribo de la noche, sin combi: es el IN que después hace una de las trafics de la recorrida.
+const arribo = { id: "", number: `AR${2000 + Math.floor(Math.random() * 6000)}`, hour: "22:40" };
+
+test.beforeAll(async () => {
+  const flight = await db.flight.create({ data: {
+    number: arribo.number, airline: "AR", origin: "Aeroparque", direction: "ARRIVAL", source: "MANUAL", status: "SCHEDULED",
+    scheduledAt: new Date(`${day}T${arribo.hour}:00-03:00`)
+  } });
+  arribo.id = flight.id;
+  await db.reservation.create({ data: {
+    code: `ARA-2604-${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`, shortCode: createReservationShortCode(),
+    bookingMode: "AIRPORT", status: "CONFIRMED", passengerCount: 3, totalCents: 3000000, currency: "ARS",
+    passenger: { create: { firstName: "Ivo", lastName: suffix, email: "hoja@example.com", phone: "+5492944000000", documentType: "DNI", documentId: "30111222" } },
+    airportDetails: { create: {
+      flightId: flight.id, flightNumber: flight.number, direction: "ARRIVAL", serviceDate: new Date(`${day}T12:00:00-03:00`),
+      pickupName: "Hotel Ivo", pickupLatitude: -40.157, pickupLongitude: -71.353
+    } }
+  } });
+});
 test.afterAll(async () => { await db.$disconnect(); });
 
 test.beforeEach(async ({ page }) => {
@@ -146,4 +165,31 @@ test("en una recorrida con dos trafics, la hoja del chofer se elige por combi", 
   await expect(orden).toContainText(`Trafic Lago ${suffix}`);
   await expect(orden).toContainText(primero.number);
   await expect(orden).toContainText(segundo.number);
+});
+
+test("«Por chofer» muestra el día de cada trafic, le suma el IN y abre su hoja IN/OUT", async ({ page, context }) => {
+  await page.goto(`/admin/aeropuerto?date=${day}`);
+  const seccion = page.locator("#por-chofer");
+  const lago = seccion.locator("li.aero-jornada").filter({ hasText: `Trafic Lago ${suffix}` });
+  await expect(lago).toContainText(`OUT`);
+  await expect(lago).toContainText(`${recorrida[0].number} + ${recorrida[1].number}`);
+  await expect(lago).toContainText("sin IN después");
+
+  await lago.getByLabel(`IN para Trafic Lago ${suffix}`).selectOption(arribo.id);
+  await lago.getByRole("button", { name: "Asignar IN" }).click();
+  await expect(page.getByText("Combi asignada al vuelo.")).toBeVisible();
+  const lagoDespues = page.locator("#por-chofer li.aero-jornada").filter({ hasText: `Trafic Lago ${suffix}` });
+  await expect(lagoDespues).toContainText(`IN 22:40 · ${arribo.number} · 3 pasajeros`);
+  await expect(lagoDespues).not.toContainText("sin IN después");
+  await page.locator("#por-chofer").screenshot({ path: "/tmp/araucana-por-chofer.png" });
+
+  await context.addInitScript(() => { window.print = () => {}; });
+  const [hoja] = await Promise.all([context.waitForEvent("page"), lagoDespues.getByRole("link", { name: "Hoja IN/OUT" }).click()]);
+  await hoja.waitForLoadState();
+  // La orden OUT de esa trafic (con gente de los dos vuelos) y después su IN.
+  await expect(hoja.locator("section.orden-bloque")).toHaveCount(2);
+  await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(`Trafic Lago ${suffix}`);
+  await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(recorrida[0].number);
+  await expect(hoja.locator("section.orden-bloque").nth(1)).toContainText(`Ivo ${suffix}`);
+  await hoja.close();
 });

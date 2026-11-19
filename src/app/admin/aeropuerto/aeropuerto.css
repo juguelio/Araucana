@@ -173,3 +173,21 @@
 
 /* Vuelos que hace la misma camioneta en la misma vuelta: la hoja del chofer los une en una orden. */
 .aero-misma-vuelta { font-size: 11px; font-weight: 700; color: var(--primary); border-color: var(--primary); background: transparent; }
+
+/* «Por chofer»: el día de cada combi (OUT y IN) con su hoja IN/OUT. */
+.aero-por-chofer h2 { margin-bottom: 4px; }
+.aero-jornadas { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.aero-jornada { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) auto; align-items: center; gap: 8px 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.aero-jornada-combi { display: grid; gap: 2px; min-width: 0; }
+.aero-jornada-combi span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aero-jornada-tramos { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; }
+.aero-jornada-tramos li { padding: 3px 9px; border: 1px solid var(--line-strong); border-radius: 999px; }
+.aero-jornada-tramos li[data-sentido="out"] { border-color: var(--primary); }
+.aero-jornada-tramos li[data-sentido="in"] { border-color: var(--moss); }
+.aero-jornada-falta { color: var(--ink-muted); border-style: dashed !important; }
+.aero-jornada-acciones { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.aero-jornada-acciones .inline-actions { display: flex; align-items: center; gap: 6px; margin: 0; padding: 0; border: 0; }
+@media (max-width: 760px) {
+  .aero-jornada { grid-template-columns: minmax(0, 1fr); }
+  .aero-jornada-acciones { justify-content: flex-start; }
+}
