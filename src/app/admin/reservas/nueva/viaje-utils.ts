@@ -148,11 +148,82 @@ export function totalDelViaje(
  */
 const ORIGEN_DE_LA_AGENCIA = "san martin de los andes";
 
-/** El viaje que se propone al abrir: desde San Martín, al destino con más salidas, y su primer día. */
-export function viajeInicial(salidas: SalidaOption[]) {
+/**
+ * El viaje que se propone al abrir: desde San Martín, al destino con más salidas, y su primer día.
+ * Con un servicio elegido arriba (pantalla única, 19-nov), arranca en ese recorrido.
+ */
+export function viajeInicial(salidas: SalidaOption[], pedido?: { origen: string; destino: string } | null) {
+  if (pedido?.origen && pedido.destino) {
+    return { origen: pedido.origen, destino: pedido.destino, dia: primerDia(salidasDelTramo(salidas, pedido.origen, pedido.destino)) };
+  }
   const lugares = origenes(salidas);
   const deLaAgencia = lugares.find((lugar) => claveDeLugar(lugar.nombre) === ORIGEN_DE_LA_AGENCIA);
   const origen = (deLaAgencia ?? lugares[0])?.nombre ?? "";
   const destino = destinosDesde(salidas, origen)[0]?.nombre ?? "";
   return { origen, destino, dia: primerDia(salidasDelTramo(salidas, origen, destino)) };
+}
+
+/** Un servicio del selector de arriba: un recorrido (ida, y vuelta si existe) entre dos lugares. */
+export type ServicioDeRuta = {
+  clave: string;
+  titulo: string;
+  detalle: string;
+  origen: string;
+  destino: string;
+  salidas: number;
+};
+
+function enSlug(texto: string) {
+  return claveDeLugar(texto).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/**
+ * Los servicios por salida para el selector de «Reservar» (pantalla única, pedido de Jugue, 19-nov):
+ * uno por par de lugares (la ida y su vuelta son el mismo servicio). Se nombra por el lugar que no es
+ * San Martín (la agencia): «Villa Traful», «Hua Hum»; si ninguno es San Martín, por el origen, con el
+ * otro lugar como detalle («Villa La Angostura» · «⇄ Villa Traful»). Primero los de más salidas.
+ */
+export function serviciosDeRutas(salidas: SalidaOption[], rutas: RutaDelPanel[] = []): ServicioDeRuta[] {
+  const pares = new Map<string, { a: string; b: string; salidas: number; porSentido: Map<string, number> }>();
+  const sumar = (desde: string, hacia: string, cantidad: number) => {
+    const [x, y] = [desde, hacia].sort((m, n) => claveDeLugar(m).localeCompare(claveDeLugar(n)));
+    const clave = `${claveDeLugar(x)}~${claveDeLugar(y)}`;
+    const par = pares.get(clave) ?? { a: x, b: y, salidas: 0, porSentido: new Map<string, number>() };
+    par.salidas += cantidad;
+    par.porSentido.set(`${desde}→${hacia}`, (par.porSentido.get(`${desde}→${hacia}`) ?? 0) + cantidad);
+    pares.set(clave, par);
+  };
+  for (const salida of salidas) sumar(salida.from, salida.to, 1);
+  for (const ruta of rutas) sumar(ruta.from, ruta.to, 0);
+
+  const usados = new Set<string>();
+  return [...pares.values()]
+    .sort((m, n) => n.salidas - m.salidas || m.a.localeCompare(n.a, "es"))
+    .map((par) => {
+      const esAgencia = (lugar: string) => claveDeLugar(lugar) === ORIGEN_DE_LA_AGENCIA;
+      let origen: string;
+      let destino: string;
+      if (esAgencia(par.a) || esAgencia(par.b)) {
+        origen = esAgencia(par.a) ? par.a : par.b;
+        destino = esAgencia(par.a) ? par.b : par.a;
+      } else {
+        // Sin San Martín: arranca por el sentido con más salidas.
+        const ida = par.porSentido.get(`${par.a}→${par.b}`) ?? 0;
+        const vuelta = par.porSentido.get(`${par.b}→${par.a}`) ?? 0;
+        [origen, destino] = vuelta > ida ? [par.b, par.a] : [par.a, par.b];
+      }
+      const conAgencia = esAgencia(origen);
+      const titulo = conAgencia ? destino : origen;
+      let clave = enSlug(titulo);
+      if (usados.has(clave)) clave = `${clave}-${enSlug(conAgencia ? origen : destino)}`;
+      usados.add(clave);
+      return {
+        clave,
+        titulo,
+        detalle: conAgencia ? `desde ${origen}` : `⇄ ${destino}`,
+        origen,
+        destino,
+        salidas: par.salidas
+      };
+    });
 }

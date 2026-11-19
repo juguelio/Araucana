@@ -338,7 +338,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           >
             Hoja del día
           </Link>
-          <Link className="button" href={`/admin/aeropuerto/reservar?date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
+          <Link className="button" href={`/admin/reservas/nueva?servicio=aeropuerto&date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
           {/* El formulario de carga manual vive en un modal: se usa poco y ocupaba media pantalla. La `key`
               con el aviso lo cierra solo cuando el vuelo se cargó (la acción redirige con `notice`). */}
           <RowModal

@@ -41,6 +41,7 @@ export async function saveCoverageAction(_previous: AdminFormState, formData: Fo
   }
   revalidatePath("/admin/aeropuerto/cobertura");
   revalidatePath("/admin/aeropuerto/reservar");
+  revalidatePath("/admin/reservas/nueva");
   revalidatePath("/reservar/[slug]", "page");
   return successState(parsed.data.enabled ? "Cobertura guardada y activa." : "Mapa guardado. La validación está desactivada.");
 }
@@ -48,6 +49,7 @@ export async function saveCoverageAction(_previous: AdminFormState, formData: Fo
 function revalidateAirport() {
   revalidatePath("/admin/aeropuerto/cobertura");
   revalidatePath("/admin/aeropuerto/reservar");
+  revalidatePath("/admin/reservas/nueva");
   revalidatePath("/reservar/[slug]", "page");
 }
 

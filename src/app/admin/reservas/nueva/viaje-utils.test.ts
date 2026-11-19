@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SalidaOption } from "./salida-picker-utils";
-import { destinosDesde, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, tiraConServicio, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
+import { destinosDesde, origenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, serviciosDeRutas, tiraConServicio, totalDelViaje, unificarLugares, viajeInicial, vueltasPosibles } from "./viaje-utils";
 
 function salida(id: string, from: string, to: string, dayKey: string, timeLabel: string, extra: Partial<SalidaOption> = {}): SalidaOption {
   return { id, from, to, dayKey, dayLabel: dayKey, timeLabel, availableSeats: 10, status: "OPEN", priceCents: 3000000, currency: "ARS", ...extra };
@@ -119,5 +119,35 @@ describe("todas las rutas y un nombre por lugar (19-nov: «te están faltando ru
     ]);
     expect(destinosDesde(unificadas, SMA, rutasUnificadas).map((l) => l.nombre)).toEqual(["Villa Traful", "Junín de los Andes", "Hua Hum"]);
     expect(rutaEntre(rutasUnificadas, "Villa La Angostura", "Villa Traful")?.id).toBe("r3");
+  });
+});
+
+describe("«¿Qué reservás?»: los servicios de la pantalla única (19-nov)", () => {
+  const rutas = [
+    { id: "r1", from: "San Martin de los Andes", to: "Villa Traful" },
+    { id: "r2", from: "Villa Traful", to: "San Martin de los Andes" },
+    { id: "r3", from: "Villa La Angostura", to: "Villa Traful" },
+    { id: "r4", from: "Villa Traful", to: "Villa La Angostura" },
+    { id: "r5", from: "San Martin de los Andes", to: "Hua Hum" },
+    { id: "r6", from: "Hua Hum", to: "San Martin de los Andes" }
+  ];
+  const lista = [
+    salida("a", SMA, "Villa Traful", "2026-11-21", "10:00"), salida("b", SMA, "Villa Traful", "2026-11-22", "10:00"),
+    salida("c", "Villa Traful", SMA, "2026-11-21", "17:30"),
+    salida("d", "Villa La Angostura", "Villa Traful", "2026-11-21", "11:00")
+  ];
+
+  it("uno por recorrido (la ida y su vuelta juntas), los de más salidas primero, nombrados sin San Martín", () => {
+    const { salidas: s, rutas: r } = unificarLugares(lista, rutas);
+    expect(serviciosDeRutas(s, r).map((x) => [x.clave, x.titulo, x.detalle, x.origen, x.destino, x.salidas])).toEqual([
+      ["villa-traful", "Villa Traful", `desde ${SMA}`, SMA, "Villa Traful", 3],
+      ["villa-la-angostura", "Villa La Angostura", "⇄ Villa Traful", "Villa La Angostura", "Villa Traful", 1],
+      ["hua-hum", "Hua Hum", `desde ${SMA}`, SMA, "Hua Hum", 0]
+    ]);
+  });
+
+  it("el servicio elegido arranca el viaje en ese recorrido", () => {
+    expect(viajeInicial(lista, { origen: "Villa La Angostura", destino: "Villa Traful" }))
+      .toEqual({ origen: "Villa La Angostura", destino: "Villa Traful", dia: "2026-11-21" });
   });
 });
