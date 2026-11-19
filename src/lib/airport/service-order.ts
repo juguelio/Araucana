@@ -251,7 +251,7 @@ type GrupoDeVuelo = Omit<ServiceOrderBlock, "key" | "vehicle" | "manualOrder"> &
 };
 
 /** Criterio compartido por la hoja del chofer y su agenda en el panel. */
-export function esUnaRecorrida(miembros: { direction: string | null; vehicles: { vehicleId: string }[] }[]) {
+export function esUnaRecorrida(miembros: { direction: string | null }[]) {
   // Mismo sentido y al menos dos vuelos. No se exige una sola nave: desde #271/#272 una vuelta puede
   // salir con dos combis y los pasajeros se reparten por zona entre ellas (`repartirEnNaves`).
   if (miembros.length < 2) return false;

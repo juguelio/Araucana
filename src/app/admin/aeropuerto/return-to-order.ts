@@ -17,6 +17,12 @@ export function orderReturnHref(formData: FormData, notice: string): string | nu
   const date = params.get("date") ?? "";
   if (!DATE.test(date)) return null;
   const query = new URLSearchParams({ date });
+  for (const key of ["vehicleId", "driverId"]) {
+    const resourceId = params.get(key);
+    if (resourceId === null) continue;
+    if (!ID.test(resourceId)) return null;
+    query.set(key, resourceId);
+  }
   const flight = params.get("flight");
   if (flight && ID.test(flight)) {
     query.set("flight", flight);

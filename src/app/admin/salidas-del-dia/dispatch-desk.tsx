@@ -1,9 +1,11 @@
 "use client";
 import { createContext, useContext, useEffect, useState, type ReactNode, type SelectHTMLAttributes } from "react";
+import Link from "next/link";
+import { AREA_LABEL, type BoardArea } from "@/lib/operations/day-board";
 import type { Option } from "./crew-form";
 
 type Kind = "driverId" | "vehicleId";
-type Assignment = { key: string; area: string; title: string; href: string; driverId: string | null; vehicleId: string; start: number | null; end: number | null; sharedPickupId?: string | null; estimatedWindow?: boolean };
+type Assignment = { key: string; area: BoardArea; title: string; href: string; driverId: string | null; vehicleId: string; start: number | null; end: number | null; sharedPickupId?: string | null; estimatedWindow?: boolean };
 type Resource = { kind: Kind; id: string };
 const Desk = createContext<{ panel: boolean; dragging: Resource | null }>({ panel: false, dragging: null });
 const clock = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Salta", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
@@ -87,10 +89,15 @@ export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, a
             <span aria-hidden="true">⠿</span> {o.label}
           </button>)}</div>
         {selected && <section className="desk-agenda" aria-live="polite"><h4>{selectedName}</h4>
+          {panel && agenda.some(a => a.area === "AEROPUERTO") && (
+            <Link prefetch={false} href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: dateKey, [selected.kind]: selected.id } }}>
+              Órdenes de aeropuerto
+            </Link>
+          )}
           {agenda.length === 0 && <p>Sin servicios asignados este día.</p>}
           {agenda.map((a,i) => {
             const overlap = a.start !== null && agenda.some((b,j) => i !== j && !(a.sharedPickupId && a.sharedPickupId === b.sharedPickupId && a.vehicleId === b.vehicleId) && b.start !== null && (b.start === a.start || ((a.end !== null && b.start > a.start! && b.start < a.end) || (b.end !== null && a.start! > b.start && a.start! < b.end))));
-            return <a key={a.key} href={a.href}><strong>{a.start === null ? "Hora a coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>{a.area} · {a.title}{a.estimatedWindow && <span>{a.sharedPickupId ? "Recorrida compartida · horario estimado" : "Horario estimado de servicio"}</span>}{a.start !== null && a.end === null && <small>Fin a coordinar</small>}{overlap && <small>Revisar cruce horario</small>}</a>;
+            return <a key={a.key} href={a.href}><strong>{a.start === null ? "Hora a coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>{AREA_LABEL[a.area]} · {a.title}{a.estimatedWindow && <span>{a.sharedPickupId ? "Recorrida compartida · horario estimado" : "Horario estimado de servicio"}</span>}{a.start !== null && a.end === null && <small>Fin a coordinar</small>}{overlap && <small>Revisar cruce horario</small>}</a>;
           })}
         </section>}
       </aside>

@@ -167,6 +167,43 @@ test("en una recorrida con dos trafics, la hoja del chofer se elige por combi", 
   await expect(orden).toContainText(segundo.number);
 });
 
+test("el panel abre las órdenes de la nave o las del chofer cuando cambia de nave", async ({ page }) => {
+  const driver = await db.user.create({ data: { name: `Relevo ${suffix}`, email: `relevo-${suffix}@example.test`, role: "DRIVER", isActive: true } });
+  // El chofer hace el primer vuelo en Sprinter y después la recorrida compartida en la Trafic Centro.
+  const turnos = { flightId: { in: [vuelos[0].id, recorrida[0].id] } };
+  try {
+    await db.airportVehicleAssignment.updateMany({ where: turnos, data: { driverId: driver.id } });
+    await page.goto(`/admin?date=${day}`);
+    await page.getByRole("button", { name: "Equipo del día" }).click();
+    await page.getByRole("button", { name: new RegExp(recorrida[0].nave) }).click();
+    await page.getByRole("link", { name: "Órdenes de aeropuerto" }).click();
+    const blocks = page.locator("section.orden-bloque");
+    await expect(blocks).toHaveCount(1);
+    await expect(blocks.getByRole("heading")).toContainText(recorrida[0].nave);
+    await expect(blocks).toContainText(recorrida[1].number);
+    await expect(blocks.getByRole("button", { name: /Visualizar recorrido/i })).toBeVisible();
+    await page.getByRole("link", { name: "Ver todas las naves de la recorrida" }).click();
+    await expect(blocks).toHaveCount(2);
+    await page.goBack();
+    await expect(blocks).toHaveCount(1);
+    await page.getByRole("link", { name: "Volver al panel" }).click();
+    await page.getByRole("button", { name: "Choferes", exact: true }).click();
+    await page.getByRole("button", { name: new RegExp(driver.name!) }).click();
+    await page.getByRole("link", { name: "Órdenes de aeropuerto" }).click();
+    await expect(blocks).toHaveCount(2);
+    await expect(blocks.first()).toContainText(vuelos[0].number);
+    await expect(blocks.last().getByRole("heading")).toContainText(recorrida[0].nave);
+    // Otra operadora cambia el turno. Al actualizar, la hoja anterior refleja la reasignación.
+    await db.airportVehicleAssignment.updateMany({ where: { flightId: vuelos[0].id }, data: { driverId: null } });
+    await page.reload();
+    await expect(blocks).toHaveCount(1);
+    await expect(blocks.getByRole("heading")).toContainText(recorrida[0].nave);
+  } finally {
+    await db.airportVehicleAssignment.updateMany({ where: { driverId: driver.id }, data: { driverId: null } });
+    await db.user.delete({ where: { id: driver.id } });
+  }
+});
+
 test("«Por chofer» muestra el día de cada trafic, le suma el IN y abre su hoja IN/OUT", async ({ page, context }) => {
   await page.goto(`/admin/aeropuerto?date=${day}`);
   const seccion = page.locator("#por-chofer");

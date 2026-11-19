@@ -12,7 +12,7 @@ import { esUnaRecorrida } from "@/lib/airport/service-order";
 import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
-import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardArea, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
+import { AREA_LABEL, buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
@@ -25,7 +25,6 @@ import "./panel-jornada.css";
 
 export type DayParams = { date?: string; falta?: string; notice?: string };
 
-const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial" };
 const ACTIVE_RESERVATION = { notIn: ["CANCELLED"] };
 
 const hourFormat = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
@@ -192,12 +191,10 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     group.push(flight);
     pickupGroups.set(flight.pickupGroupId, group);
   }
-  const sharedPickups = new Set([...pickupGroups].filter(([, members]) =>
-    esUnaRecorrida(members.map(f => ({ direction: f.direction, vehicles: f.assignments })))
-  ).map(([id]) => id));
+  const sharedPickups = new Set([...pickupGroups].filter(([, members]) => esUnaRecorrida(members)).map(([id]) => id));
   const assignments = board.rows.flatMap(row => row.units.flatMap(unit => {
     const item = {
-      key: unit.id, title: row.title, area: AREA_LABEL[row.area], href: row.href,
+      key: unit.id, title: row.title, area: row.area, href: row.href,
       vehicleId: unit.vehicleId, driverId: unit.driverId,
       start: (unit.from ?? row.at)?.getTime() ?? null,
       end: unit.to?.getTime() ?? arrivalBySchedule.get(unit.scheduleId ?? "") ?? null
@@ -394,29 +391,27 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       </details>}>
       {rows.length === 0 ? (
         <p className="plain-card sd-empty">
-          {onlyMissing && serviceRows.length
-            ? "Todo lo del día tiene nave y chofer."
+          {onlyMissing
+            ? "No hay servicios pendientes de asignación."
             : programmedRows.length
-              ? "No hay servicios con pasajeros para este día: abajo está la programación."
+              ? "Las salidas programadas para este día todavía no tienen pasajeros."
               : "No hay servicios cargados para este día."}
         </p>
       ) : (
         <div className={panel ? "plan-sheet" : undefined}>
-        {panel && <div className="plan-columns" aria-hidden="true"><span>Hora</span><span>Servicio</span><span>Equipo asignado</span><span>Pasajeros</span><span /></div>}
-        <ol className="sd-list">
-          {rows.map(renderRow)}
-        </ol>
-        {programmedRows.length ? (
-          <details className="plain-card sd-programmed">
-            <summary>
-              <strong>Ver la programación del día ({programmedRows.length})</strong>
-              <span className="muted">salidas programadas sin pasajeros: no son un servicio hasta que tengan reservas</span>
-            </summary>
-            <ol className="sd-list sd-programmed-list">{programmedRows.map(renderRow)}</ol>
-          </details>
-        ) : null}
+          {panel && <div className="plan-columns" aria-hidden="true"><span>Hora</span><span>Servicio</span><span>Equipo asignado</span><span>Pasajeros</span><span /></div>}
+          <ol className="sd-list">{rows.map(renderRow)}</ol>
         </div>
       )}
+      {programmedRows.length > 0 && !onlyMissing ? (
+        <details className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
+          <summary>
+            <strong>Ver la programación del día ({programmedRows.length})</strong>
+            <span className="muted">Salidas que todavía no tienen pasajeros.</span>
+          </summary>
+          <ol className="sd-list sd-programmed-list">{programmedRows.map(renderRow)}</ol>
+        </details>
+      ) : null}
 
       {driverOptions.length === 0 ? (
         <p className="muted sd-footnote">No hay choferes activos: se cargan en <Link href="/admin/choferes">Choferes</Link>.</p>

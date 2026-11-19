@@ -34,7 +34,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; notice?: string; imprimir?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; vehicleId?: string; driverId?: string; notice?: string; imprimir?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -55,6 +55,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   const date = params?.date ?? diaDeHoy();
   const flightId = params?.flight || null;
   const vehicle = (flightId && params?.vehicle) || null;
+  const { vehicleId, driverId } = params ?? {};
+  const porEquipo = vehicleId !== undefined || driverId !== undefined;
 
   if (!DATE_PATTERN.test(date)) {
     notFound();
@@ -68,11 +70,16 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     ordenesDelVuelo(buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }), flightId),
     vehicle
   );
-  const blocks = ordenesPedidas.length
+  const seleccion = ordenesPedidas.length
     ? todas.filter((block) => esOrdenElegida(block, ordenesPedidas))
     : flightIdsPedidos.length
       ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
       : todas;
+  // Una recorrida puede repartir gente de varios vuelos. El filtro se aplica a las órdenes ya repartidas.
+  const blocks = porEquipo ? seleccion.filter(({ vehicle: nave, passengers }) =>
+    passengers.length > 0 && nave && (vehicleId === undefined || nave.vehicleId === vehicleId) &&
+    (driverId === undefined || nave.driverId === driverId)
+  ) : seleccion;
   const variasPedidas = flightIdsPedidos.length > 1 || ordenesPedidas.length > 1;
   const cabeceras = await headers();
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
@@ -88,10 +95,15 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     opcionesDeCombi()
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
+  const nombreEquipo = vehicleId !== undefined
+    ? naves.find(nave => nave.id === vehicleId)?.name ?? blocks[0]?.vehicle?.name ?? "Nave seleccionada"
+    : choferes.find(chofer => chofer.id === driverId)?.label ?? blocks[0]?.vehicle?.driver ?? "Chofer seleccionado";
   const volverAOrden = new URLSearchParams({
     date,
     ...(flightId ? { flight: flightId } : {}),
     ...(vehicle ? { vehicle } : {}),
+    ...(vehicleId !== undefined ? { vehicleId } : {}),
+    ...(driverId !== undefined ? { driverId } : {}),
     ...(flightIdsPedidos.length ? { flights: flightIdsPedidos.join(",") } : {}),
     ...(ordenesPedidas.length ? { ordenes: ordenesPedidas.map(claveDeOrden).join(",") } : {})
   }).toString();
@@ -139,6 +151,11 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
             triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelosDeLaOrden.map((item) => item.number).join(" + ")}`}
             triggerClassName="ghost-button"
           />
+          {porEquipo && block.vehicleCount > 1 && block.flightId && (
+            <Link className="ghost-button" href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date, flight: block.flightId } }}>
+              Ver todas las naves de la recorrida
+            </Link>
+          )}
         </div>
       ) : null}
       <OrdenAcciones
@@ -189,7 +206,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   return (
     <AdminShell
-      title="Orden de servicio"
+      title={porEquipo ? `Órdenes de aeropuerto · ${nombreEquipo}` : "Orden de servicio"}
       eyebrow="Operación"
       role={usuario.role}
       notice={params?.notice}
@@ -199,23 +216,31 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
           {blocks.length > 1 || variasPedidas ? (
             <ImprimirTodas cantidad={blocks.length} alAbrir={variasPedidas && params?.imprimir === "1" && !params?.notice} />
           ) : null}
-          <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
+          {porEquipo
+            ? <Link className="ghost-button" href={`/admin?date=${encodeURIComponent(date)}`}>Volver al panel</Link>
+            : <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>}
         </div>
       }
     >
-      <p className="orden-ayuda no-print">
-        Cada orden se imprime, se descarga y se manda al chofer por separado. Arrastrá las filas (o usá las flechas)
-        para ordenar la recorrida; si el vuelo sale con más de una nave, pasá pasajeros de una a otra arrastrándolos o
-        con «Nave». Los cambios se guardan solos.
-      </p>
-      <ServiceOrderSheet
-        date={date}
-        blocks={blocks}
-        variante="panel"
-        accionesDeOrden={acciones}
-        filasDeOrden={filas}
-        pieDeOrden={mapa}
-      />
+      {porEquipo && !blocks.length ? (
+        <p className="plain-card">Sin órdenes de aeropuerto con pasajeros para {nombreEquipo} en esta fecha.</p>
+      ) : (
+        <>
+          <p className="orden-ayuda no-print">
+            {porEquipo
+              ? "Cada orden incluye los pasajeros y el mapa de su recorrida. Si necesitás pasar pasajeros entre naves, abrí todas las naves de esa recorrida."
+              : "Cada orden se imprime, se descarga y se manda al chofer por separado. Arrastrá las filas (o usá las flechas) para ordenar la recorrida. Si el vuelo sale con más de una nave, pasá pasajeros de una a otra arrastrándolos o con «Nave». Los cambios se guardan solos."}
+          </p>
+          <ServiceOrderSheet
+            date={date}
+            blocks={blocks}
+            variante="panel"
+            accionesDeOrden={acciones}
+            filasDeOrden={filas}
+            pieDeOrden={mapa}
+          />
+        </>
+      )}
     </AdminShell>
   );
 }
