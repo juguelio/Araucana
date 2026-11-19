@@ -46,6 +46,31 @@ function value(formData: FormData, key: string) {
   return typeof entry === "string" ? entry.trim() : "";
 }
 
+/**
+ * El teléfono llega como en el checkout del aeropuerto (19-nov: «que el formulario del pasajero sea
+ * igual»): el código de país del desplegable con banderas y el número por separado. Se juntan acá,
+ * igual que `buildPassengerPayload`; si ya escribieron el número completo (+… o 00…), se respeta.
+ */
+function telefonoDelFormulario(formData: FormData) {
+  const numero = value(formData, "phone");
+  const codigo = value(formData, "phoneCountryCode");
+  if (!numero || !codigo || numero.startsWith("+") || numero.startsWith("00")) return numero;
+  return `${codigo}${numero}`;
+}
+
+/** Los datos del titular de «Nueva reserva» (los mismos campos que el formulario del aeropuerto). */
+function pasajeroDelFormulario(formData: FormData) {
+  return {
+    firstName: value(formData, "firstName"),
+    lastName: value(formData, "lastName"),
+    email: value(formData, "email"),
+    phone: telefonoDelFormulario(formData),
+    documentType: value(formData, "documentType"),
+    documentId: value(formData, "documentId"),
+    nationality: value(formData, "nationality") || null
+  };
+}
+
 export async function createAdminReservationAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
   const creator = await getCurrentReservationsUserOrRedirect();
 
@@ -67,15 +92,7 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
     // entera (18-nov). Ahora viajan como en la reserva web.
     halfFareCount: value(formData, "halfFareCount") || 0,
     freeFareCount: value(formData, "freeFareCount") || 0,
-    passenger: {
-      firstName: value(formData, "firstName"),
-      lastName: value(formData, "lastName"),
-      email: value(formData, "email"),
-      phone: value(formData, "phone"),
-      documentType: value(formData, "documentType"),
-      documentId: value(formData, "documentId"),
-      nationality: value(formData, "nationality") || null
-    }
+    passenger: pasajeroDelFormulario(formData)
   });
 
   if (!parsed.success) {
@@ -140,15 +157,7 @@ async function createAdminRouteRoundTrip(
     passengerCount: value(formData, "passengerCount"),
     halfFareCount: value(formData, "halfFareCount") || 0,
     freeFareCount: value(formData, "freeFareCount") || 0,
-    passenger: {
-      firstName: value(formData, "firstName"),
-      lastName: value(formData, "lastName"),
-      email: value(formData, "email"),
-      phone: value(formData, "phone"),
-      documentType: value(formData, "documentType"),
-      documentId: value(formData, "documentId"),
-      nationality: value(formData, "nationality") || null
-    }
+    passenger: pasajeroDelFormulario(formData)
   });
   if (!parsed.success) {
     const fieldErrors = fieldErrorsFromZodError(parsed.error);

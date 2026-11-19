@@ -5,6 +5,9 @@ import { useEffect, useMemo, useRef, useActionState, useState } from "react";
 import { createAdminReservationAction } from "../actions";
 import { FieldError } from "../../form-ui";
 import { initialAdminFormState } from "../../form-state";
+import {
+  PassengerFields, initialPassenger, validateCheckoutPassenger, type PassengerFieldErrors, type PassengerForm
+} from "@/app/reservar/[slug]/passenger-fields";
 import type { SalidaOption } from "./salida-picker-utils";
 import { ViajeSearchBar, diaCorto, type ClaveTramo, type TramoDelViaje } from "./viaje-search-bar";
 import {
@@ -26,15 +29,13 @@ export type { SalidaOption } from "./salida-picker-utils";
  * Con vuelta se crean las dos reservas juntas (mismo pasajero, mismo viaje). Los errores vuelven del
  * server action con el nombre del campo que falló y cada uno se marca en su lugar (#242). Los campos
  * son controlados para que un error no borre lo que ya se cargó.
+ *
+ * Los datos del titular son **el mismo formulario** que el del aeropuerto (`PassengerFields`, pedido
+ * de Jugue, 19-nov: «quiero que sean iguales»): código de país con banderas, nacionalidad con buscador
+ * y las mismas validaciones antes de mandar. Como el aeropuerto del panel, el email es opcional; acá el
+ * documento sigue siendo obligatorio porque lo pide la orden de servicio (#122).
  */
 const VACIOS = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  documentType: "DNI",
-  documentId: "",
-  nationality: "",
   customPrice: "",
   referredBy: ""
 };
@@ -48,9 +49,40 @@ function formatPrice(cents: number, currency = "ARS") {
 export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
   const [state, formAction, pending] = useActionState(createAdminReservationAction, initialAdminFormState);
   const [draft, setDraft] = useState<Draft>(VACIOS);
+  const [pasajero, setPasajero] = useState<PassengerForm>(initialPassenger);
   const formRef = useRef<HTMLFormElement>(null);
-  const errores = state.status === "error" ? state.fieldErrors : {};
+  // Los errores vienen del servidor o de revisar el pasajero antes de mandar (como el aeropuerto); cada
+  // uno se borra cuando se corrige su campo.
+  const [errores, setErrores] = useState<Record<string, string>>({});
+  const [mensajeLocal, setMensajeLocal] = useState("");
+  const [intento, setIntento] = useState(0);
+  useEffect(() => {
+    setErrores(state.status === "error" ? state.fieldErrors : {});
+    setMensajeLocal("");
+  }, [state]);
   const cantidadErrores = Object.keys(errores).length;
+  const mensaje = mensajeLocal || state.message;
+
+  function actualizarPasajero(nombre: keyof PassengerForm, valor: string) {
+    setPasajero((actual) => ({ ...actual, [nombre]: valor }));
+    setErrores((actual) => {
+      if (!actual[nombre]) return actual;
+      const siguiente = { ...actual };
+      delete siguiente[nombre];
+      return siguiente;
+    });
+  }
+
+  /** Antes de mandar, el pasajero se revisa igual que en el aeropuerto: el error queda en su campo. */
+  function revisarAntesDeMandar(event: React.FormEvent<HTMLFormElement>) {
+    const encontrados = validateCheckoutPassenger(pasajero, true, false);
+    const cantidad = Object.keys(encontrados).length;
+    if (!cantidad) return;
+    event.preventDefault();
+    setErrores(encontrados as Record<string, string>);
+    setMensajeLocal(cantidad > 1 ? `Hay ${cantidad} datos del pasajero para revisar.` : Object.values(encontrados)[0] ?? "Revisá los datos del pasajero.");
+    setIntento((n) => n + 1);
+  }
 
   // El viaje.
   const inicial = useMemo(() => viajeInicial(schedules), [schedules]);
@@ -106,7 +138,7 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
     if (!primero) return;
     primero.focus();
     primero.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [state, cantidadErrores]);
+  }, [state, intento, cantidadErrores]);
 
   // Con el viaje listo aparecen las secciones de abajo: la barra queda arriba y ellas justo debajo
   // (como en el aeropuerto: no se pierde de vista lo que se eligió).
@@ -192,7 +224,7 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
     ? { detalle: precioVuelta ? `${destino} → ${origen} · ${formatPrice(precioVuelta, moneda)} más por persona` : `${destino} → ${origen}` }
     : null;
 
-  const datosListos = Boolean(draft.firstName.trim() && draft.lastName.trim() && draft.documentId.trim());
+  const datosListos = Boolean(pasajero.firstName.trim() && pasajero.lastName.trim() && pasajero.phone.trim() && pasajero.documentId.trim());
   const etapas = [
     { titulo: "El viaje", hecha: viajeListo },
     { titulo: "Pasajeros", hecha: viajeListo },
@@ -213,7 +245,7 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
   ].filter((tramo) => tramo !== null);
 
   return (
-    <form className="checkout-layout alta-template" action={formAction} ref={formRef} noValidate>
+    <form className="checkout-layout alta-template" action={formAction} onSubmit={revisarAntesDeMandar} ref={formRef} noValidate>
       <div className="checkout-main">
         <section className="form-panel checkout-panel">
           <ol className="wizard-steps checkout-progress" aria-label="Pasos de la reserva">
@@ -225,9 +257,9 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
             ))}
           </ol>
 
-          {state.message && (
+          {mensaje && (
             <div className="form-alert error" role="alert" id="alta-resumen">
-              <p>{state.message}</p>
+              <p>{mensaje}</p>
               {cantidadErrores > 1 && (
                 <ul>
                   {Object.entries(errores).map(([name, mensaje]) => (
@@ -365,53 +397,26 @@ export function NuevaReservaForm({ schedules }: { schedules: SalidaOption[] }) {
                   </div>
                   {datosListos ? <span className="leg-check" aria-label="Datos completos">✓</span> : null}
                 </header>
-                <div className="admin-form-grid alta-campos">
-                  <label id="campo-firstName">
-                    Nombre
-                    <input autoComplete="given-name" required {...campo("firstName")} />
-                    <FieldError id="error-firstName" message={errores.firstName} />
-                  </label>
-                  <label id="campo-lastName">
-                    Apellido
-                    <input autoComplete="family-name" required {...campo("lastName")} />
-                    <FieldError id="error-lastName" message={errores.lastName} />
-                  </label>
-                  <label id="campo-email">
-                    Email (opcional)
-                    <input type="email" autoComplete="email" {...campo("email")} />
-                    <FieldError id="error-email" message={errores.email} />
-                  </label>
-                  <label id="campo-phone">
-                    Teléfono (opcional)
-                    <input type="tel" autoComplete="tel" placeholder="+54 9..." {...campo("phone")} />
-                    <FieldError id="error-phone" message={errores.phone} />
-                  </label>
-                  <label id="campo-documentType">
-                    Tipo de documento
-                    <select required {...campo("documentType")}><option>DNI</option><option>Pasaporte</option><option>Cedula</option></select>
-                  </label>
-                  <label id="campo-documentId">
-                    Documento
-                    <input required placeholder="7 u 8 dígitos si es DNI" {...campo("documentId")} />
-                    <FieldError id="error-documentId" message={errores.documentId} />
-                  </label>
-                  <label className="span-2" id="campo-nationality">
-                    Nacionalidad
-                    <input placeholder="Opcional" {...campo("nationality")} />
-                    <FieldError id="error-nationality" message={errores.nationality} />
-                  </label>
-                </div>
-                <div className="admin-form-grid alta-campos">
+                {/* El mismo formulario del pasajero que el aeropuerto y la reserva web. */}
+                <PassengerFields
+                  passenger={pasajero}
+                  fieldErrors={errores as PassengerFieldErrors}
+                  optionalIdentity
+                  disabled={pending}
+                  onChange={actualizarPasajero}
+                />
+                {/* Precio y derivado: los mismos campos y textos que el aeropuerto del panel. */}
+                <div className="checkout-fields">
                   <label id="campo-customPrice">
-                    Precio total {vuelta.activa ? "del ida y vuelta" : "de la reserva"} (opcional)
-                    <input inputMode="decimal" placeholder="Usar tarifa automática" {...campo("customPrice")} />
-                    <small>{vuelta.activa ? "El importe de todo el viaje: se reparte mitad por tramo." : "Ingresá el importe para todos los lugares en la moneda de la salida."}</small>
+                    Precio total {vuelta.activa ? "del ida y vuelta" : "de la reserva"} ({moneda}, opcional)
+                    <input inputMode="decimal" placeholder="Usar tarifa automática" disabled={pending} {...campo("customPrice")} />
+                    {vuelta.activa ? <small>El importe de todo el viaje: se reparte mitad por tramo.</small> : null}
                     <FieldError id="error-customPrice" message={errores.customPrice} />
                   </label>
                   <label id="campo-referredBy">
                     Derivado por (opcional)
-                    <input maxLength={120} placeholder="Ej. una agencia de viajes" {...campo("referredBy")} />
-                    <small>Quién vendió la reserva, si la venta vino de otra agencia o por un voucher.</small>
+                    <input maxLength={120} placeholder="Ej. una agencia de viajes" disabled={pending} {...campo("referredBy")} />
+                    <small>Quién vendió la reserva. Sale en la columna «Derivado por» de la orden de servicio del chofer.</small>
                     <FieldError id="error-referredBy" message={errores.referredBy} />
                   </label>
                 </div>

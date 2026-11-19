@@ -82,3 +82,15 @@ it("un error del servidor en el ida y vuelta se explica sin perder el formulario
   const resultado = await createAdminReservationAction(initialAdminFormState, formulario({ returnScheduleId: "salida-vuelta" }));
   expect(resultado).toMatchObject({ status: "error", message: "La salida de la vuelta tiene que ser después de la de ida." });
 });
+
+it("el teléfono llega como en el aeropuerto: código de país con bandera + número, y se juntan", async () => {
+  await expect(createAdminReservationAction(initialAdminFormState, formulario({ phoneCountryCode: "+54", phone: "2972 412345" })))
+    .rejects.toThrow("redirect:/admin/reservas/ARC-IDA");
+  expect(mocks.crear.mock.calls[0][0].passenger.phone).toBe("+542972412345");
+});
+
+it("si el número ya viene completo (+…), no se le agrega el código", async () => {
+  await expect(createAdminReservationAction(initialAdminFormState, formulario({ phoneCountryCode: "+54", phone: "+56 9 1234 5678" })))
+    .rejects.toThrow("redirect:/admin/reservas/ARC-IDA");
+  expect(mocks.crear.mock.calls[0][0].passenger.phone).toBe("+56912345678");
+});
