@@ -277,6 +277,11 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   // edición que no los toca no los reescribe.
   const passengerCount = formData.has("passengerCount") ? value(formData, "passengerCount") : undefined;
   const sportsLuggageCount = formData.has("sportsLuggageCount") ? value(formData, "sportsLuggageCount") : undefined;
+  const halfFareCount = formData.has("halfFareCount") ? value(formData, "halfFareCount") : undefined;
+  const freeFareCount = formData.has("freeFareCount") ? value(formData, "freeFareCount") : undefined;
+  // Vacío = baja en el destino final; por eso viaja aunque esté vacío.
+  const dropoffStop = formData.has("dropoffStop") ? value(formData, "dropoffStop") : undefined;
+  const pickupName = formData.has("pickupName") ? value(formData, "pickupName") : undefined;
   const financial = priceChanged || paymentChanged ? {
     operation: value(formData, "financialOperation"),
     totalCents,
@@ -284,13 +289,14 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     reference: formData.has("reference") ? value(formData, "reference") : undefined
   } : undefined;
   if (!pickup && notes === undefined && referredBy === undefined && !financial
-    && passengerCount === undefined && sportsLuggageCount === undefined && Object.keys(passenger).length === 0) {
+    && passengerCount === undefined && sportsLuggageCount === undefined && halfFareCount === undefined
+    && freeFareCount === undefined && dropoffStop === undefined && pickupName === undefined && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
   const command = reservationManagementSchema.safeParse({
     operation: "edit", passenger, pickup, notes, referredBy, financial,
-    passengerCount, sportsLuggageCount,
+    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName,
     acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
   });
   if (!command.success) {
@@ -304,8 +310,12 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
       ? { documentId: message }
       : error instanceof BookingError && (error.code === "CAPACITY_FULL" || error.code === "INVALID_PASSENGER_COUNT")
-        ? { passengerCount: message }
-        : {});
+        ? (halfFareCount !== undefined || freeFareCount !== undefined) && passengerCount === undefined
+          ? { halfFareCount: message }
+          : { passengerCount: message }
+        : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
+          ? { dropoffStop: message }
+          : {});
   }
 
   for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {

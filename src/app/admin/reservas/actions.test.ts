@@ -90,3 +90,25 @@ describe("editar la cantidad y los adicionales desde el panel (#267)", () => {
     expect(m.manage).not.toHaveBeenCalled();
   });
 });
+
+describe("editar menores, bajada y nombre del lugar", () => {
+  it("manda los campos nuevos al comando, la bajada aunque esté vacía", async () => {
+    await updateReservationAction(initial, form({
+      code, halfFareCount: "1", freeFareCount: "0", dropoffStop: "", pickupName: "Hostería del Lago"
+    }));
+
+    expect(m.manage).toHaveBeenCalledWith(code, expect.objectContaining({
+      operation: "edit", halfFareCount: 1, freeFareCount: 0, dropoffStop: "", pickupName: "Hostería del Lago"
+    }), expect.anything());
+  });
+
+  it("devuelve el error de menores en su campo y el de la parada en la bajada", async () => {
+    m.manage.mockRejectedValueOnce(new BookingError("INVALID_PASSENGER_COUNT", "Tiene que haber al menos un pasajero de tarifa entera."));
+    expect(await updateReservationAction(initial, form({ code, halfFareCount: "2" })))
+      .toMatchObject({ fieldErrors: { halfFareCount: expect.stringContaining("tarifa entera") } });
+
+    m.manage.mockRejectedValueOnce(new BookingError("STOP_NOT_AVAILABLE", "Esa parada no está entre las paradas con tarifa de la ruta."));
+    expect(await updateReservationAction(initial, form({ code, dropoffStop: "Junín" })))
+      .toMatchObject({ fieldErrors: { dropoffStop: expect.stringContaining("parada") } });
+  });
+});
