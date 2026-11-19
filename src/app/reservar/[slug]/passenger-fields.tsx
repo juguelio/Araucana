@@ -317,7 +317,8 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
         ) : null}
       </label>
       <label>
-        Nacionalidad
+        {/* Nunca fue obligatoria (ni acá ni en el servidor); ahora el campo lo dice (19-nov). */}
+        Nacionalidad (opcional)
         <div className="nationality-combobox">
           <input
             name="nationality"
