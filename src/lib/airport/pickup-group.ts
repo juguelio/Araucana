@@ -9,7 +9,11 @@ import type { Prisma } from "@prisma/client";
  * - `juntar` con dos o más vuelos les da un grupo nuevo; con uno solo lo saca del grupo que tenía.
  * - Un grupo que queda con un solo vuelo se disuelve.
  * - Si cambia la composición de algún grupo, se borra el orden manual de la recorrida de los vuelos
- *   tocados: dos órdenes armadas a mano por separado no se pueden intercalar con sentido.
+ *   tocados: dos órdenes armadas a mano por separado no se pueden intercalar con sentido. También la nave
+ *   elegida a mano: la hoja vuelve a repartir a todos los pasajeros de la vuelta entre sus naves, por zona.
+ * - Las combis no se copian de un vuelo a otro: cada vuelo conserva las suyas (y su cupo). La hoja junta
+ *   las naves de toda la vuelta: dos vuelos llenos con una trafic cada uno dan una orden por trafic, con
+ *   gente de los dos vuelos.
  */
 export async function reagruparVuelos(tx: Prisma.TransactionClient, flightIds: string[], juntar: boolean) {
   const ids = [...new Set(flightIds)];
@@ -33,7 +37,7 @@ export async function reagruparVuelos(tx: Prisma.TransactionClient, flightIds: s
     if (quedan.length === 1) await tx.flight.update({ where: { id: quedan[0].id }, data: { pickupGroupId: null } });
   }
   const tocados = [...new Set([...ids, ...miembrosViejos.map((vuelo) => vuelo.id)])];
-  await tx.airportReservationDetails.updateMany({ where: { flightId: { in: tocados } }, data: { routePosition: null } });
+  await tx.airportReservationDetails.updateMany({ where: { flightId: { in: tocados } }, data: { routePosition: null, assignmentId: null } });
   return { cambio: true, grupo };
 }
 

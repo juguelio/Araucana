@@ -138,6 +138,29 @@ export const adminReservationSchema = reservationFields
   .refine(faresFitPassengers, faresNotFitError)
   .refine(faresHaveFull, noFullFareError);
 
+/**
+ * Ida y vuelta de una ruta regular desde el panel (pedido de Jugue, 18-nov: «Nueva reserva» con el
+ * template del aeropuerto). Plano a propósito: los nombres son los del formulario, así cada error
+ * vuelve marcado en su campo (`scheduleId` la ida, `returnScheduleId` la vuelta).
+ */
+export const adminRouteRoundTripSchema = reservationFields
+  .omit({ seatNumber: true })
+  .extend({
+    returnScheduleId: z.string().min(1, "Elegí la salida de la vuelta."),
+    returnDropoffStop: z.string().trim().min(1).max(160).optional(),
+    passenger: adminPassengerSchema,
+    overrideTotalCents: reservationPriceCents.optional(),
+    referredBy: referredBySchema
+  })
+  .refine(faresFitPassengers, faresNotFitError)
+  .refine(faresHaveFull, noFullFareError)
+  .refine((viaje) => viaje.returnScheduleId !== viaje.scheduleId, {
+    path: ["returnScheduleId"],
+    message: "La vuelta tiene que ser otra salida que la ida."
+  });
+
+export type AdminRouteRoundTripInput = z.input<typeof adminRouteRoundTripSchema>;
+
 export type CreateReservationInput = z.infer<typeof createReservationSchema>;
 export type AdminReservationInput = z.infer<typeof adminReservationSchema>;
 export type PassengerInput = z.infer<typeof passengerSchema>;

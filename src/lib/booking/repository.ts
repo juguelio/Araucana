@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { mismoLugar } from "./place-names";
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { adminReservationsPageSize, normalizarBusqueda, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
 import { adminReservationOrderBy } from "./admin-reservation-sort";
@@ -13,7 +15,7 @@ import {
   SeatMapDto
 } from "./types";
 import { fareCounts, reservationTotalCents, seatsFromFares } from "./passenger-fares";
-import { adminPassengerSchema, adminReservationSchema, createReservationSchema, type AdminReservationInput, type PassengerInput } from "./validation";
+import { adminPassengerSchema, adminReservationSchema, adminRouteRoundTripSchema, createReservationSchema, type AdminReservationInput, type AdminRouteRoundTripInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
 import { diffRecords, hasChanges } from "@/lib/audit/diff";
@@ -165,6 +167,23 @@ type ReservationRecord = {
     pickupNotes?: string | null;
     flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
   } | null;
+};
+
+/** Lo que hace falta para crear un tramo de salida regular (ver `crearTramoDeSalida`). */
+type TramoDeSalida = {
+  scheduleId: string;
+  dropoffStop?: string;
+  seatNumber?: string;
+  passengerCount: number;
+  halfFareCount?: number;
+  freeFareCount?: number;
+  requestDisabilityFare?: boolean;
+  overrideTotalCents?: number;
+  referredBy?: string | null;
+  /** El pasajero a crear, o el ya creado (el ida y vuelta lo crea una vez para los dos tramos). */
+  pasajero: { data: AdminReservationInput["passenger"] } | { id: string };
+  roundTripId?: string;
+  creator?: ReservationCreationContext["creator"];
 };
 
 type BookingTransactionClient = {
@@ -655,6 +674,156 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     });
   }
 
+  /**
+   * Un tramo de salida regular, dentro de una transacción ya abierta: valida la salida y el cupo, crea
+   * la reserva con su pago pendiente y su pasaje, y devuelve el código. La usan la reserva de un tramo
+   * y el ida y vuelta de rutas (pedido de Jugue, 18-nov), que crea dos tramos en la misma transacción.
+   */
+  async function crearTramoDeSalida(tx: BookingTransactionClient, tramo: TramoDeSalida) {
+    const schedule = await tx.schedule.findUnique({
+      where: { id: tramo.scheduleId },
+      include: scheduleInclude()
+    });
+
+    if (!schedule) {
+      throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
+    }
+
+    if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || schedule.vehicle.isActive === false) {
+      throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
+    }
+
+    // El aeropuerto no se reserva por salida horaria (issue #79): sin número de vuelo la
+    // reserva no tiene recorrida (2 h 30 antes del despegue) ni combi. Va acá y no sólo en
+    // el formulario porque un `scheduleId` armado a mano tiene que rebotar igual.
+    if (schedule.route.bookingMode === "AIRPORT") {
+      throw new BookingError(
+        "AIRPORT_SCHEDULE_NOT_BOOKABLE",
+        "Las reservas de aeropuerto se cargan desde «Crear reserva de aeropuerto», eligiendo el vuelo."
+      );
+    }
+
+    const occupiedSeats = (schedule.reservations ?? [])
+      .filter((reservation) => reservation.status !== "CANCELLED")
+      .reduce((total, reservation) => total + reservation.passengerCount, 0);
+    const requestedSeats = tramo.passengerCount;
+    const stop = tramo.dropoffStop && schedule.route.bookingMode === "SEATED"
+      ? getStopFares(schedule.route).find((fare) => fare.name === tramo.dropoffStop)
+      : undefined;
+    if (tramo.dropoffStop && !stop) {
+      throw new BookingError("STOP_NOT_AVAILABLE", "La parada seleccionada ya no está disponible.");
+    }
+    const disabilityFare = tramo.requestDisabilityFare === true;
+    const fares = fareCounts(requestedSeats, tramo.halfFareCount, tramo.freeFareCount);
+    if (disabilityFare && (schedule.route.bookingMode !== "SEATED" || requestedSeats !== 1 || seatsFromFares(fares) !== 1 || fares.half || fares.free)) {
+      throw new BookingError("DISABILITY_FARE_NOT_AVAILABLE", "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.");
+    }
+    const totalCents = disabilityFare
+      ? 0
+      : tramo.overrideTotalCents ?? reservationTotalCents(stop?.priceCents ?? schedule.route.priceCents, fares);
+    // El cupo es el de todas las naves de la salida, no sólo el de la principal.
+    const seatPool = scheduleSeatPool(schedule);
+    const availableSeats = Math.max(seatPool.length - occupiedSeats, 0);
+
+    if (requestedSeats > availableSeats) {
+      throw new BookingError("CAPACITY_FULL", `Only ${availableSeats} seats are available for this schedule`);
+    }
+
+    let seat: (typeof seatPool)[number] | null = null;
+    // El lugar asignado no se ata al vehículo: si el día de la salida mandan otra nave,
+    // la reserva sigue siendo válida (el cupo manda, no el plano del coche).
+    let seatIdForReservation: string | null = null;
+    if (tramo.seatNumber) {
+      seat = seatPool.find((item) => item.number === tramo.seatNumber) ?? null;
+
+      if (!seat) {
+        throw new BookingError("SEAT_NOT_FOUND", `Seat ${tramo.seatNumber} does not exist for this schedule`);
+      }
+
+      seatIdForReservation = seat.id;
+
+      const existingReservation = await tx.reservation.findFirst({
+        where: {
+          scheduleId: schedule.id,
+          OR: [{ seatNumber: seat.number }, { seatId: seat.id }],
+          status: { not: "CANCELLED" }
+        }
+      });
+
+      if (existingReservation) {
+        throw new BookingError("SEAT_OCCUPIED", `Seat ${seat.number} is already occupied`);
+      }
+    } else {
+      // La reserva web no elige asiento: se toma un lugar libre como control interno de cupo.
+      const activeReservations = (schedule.reservations ?? []).filter(
+        (reservation) => reservation.status !== "CANCELLED"
+      );
+      seat = firstAvailableSeat(
+        seatPool,
+        new Set(activeReservations.map((reservation) => reservation.seatId)),
+        new Set(activeReservations.map((reservation) => reservation.seatNumber))
+      );
+
+      if (!seat) {
+        throw new BookingError("CAPACITY_FULL", "No seats are available for this schedule");
+      }
+    }
+
+    // El ida y vuelta carga al pasajero una vez y lo comparte entre los dos tramos.
+    const passengerId = "id" in tramo.pasajero
+      ? tramo.pasajero.id
+      : (await tx.passenger.create({ data: tramo.pasajero.data })).id;
+    const code = createCode();
+    const reservation = await tx.reservation.create({
+      data: {
+        code,
+        shortCode: createShortCode(),
+        ...reservationCreatorData(tramo.creator),
+        scheduleId: schedule.id,
+        routeId: schedule.routeId,
+        passengerId,
+        // Los dos tramos de un ida y vuelta comparten la clave del viaje (como en el aeropuerto).
+        ...(tramo.roundTripId ? { roundTripId: tramo.roundTripId } : {}),
+        seatId: seatIdForReservation,
+        seatNumber: seat?.number ?? null,
+        // Derivación de otra agencia (#109): sólo llega por el alta del panel; el
+        // formulario público no declara quién vendió.
+        referredBy: tramo.referredBy || null,
+        passengerCount: requestedSeats,
+        halfFareCount: fares.half,
+        freeFareCount: fares.free,
+        bookingMode: "SEATED",
+        status: disabilityFare ? DISABILITY_PENDING_STATUS : "PENDING_PAYMENT",
+        ...(stop ? { dropoffStop: stop.name } : {}),
+        totalCents,
+        currency: schedule.route.currency
+      }
+    });
+
+    const payment = disabilityFare
+      ? { provider: DISABILITY_DOCUMENT_PROVIDER, status: "PENDING", amountCents: 0, currency: schedule.route.currency, externalRef: null }
+      : await paymentProvider.createPendingPayment({
+      reservationCode: code,
+      amountCents: totalCents,
+      currency: schedule.route.currency
+    });
+    await tx.payment.create({
+      data: {
+        reservationId: reservation.id,
+        provider: payment.provider,
+        status: payment.status,
+        amountCents: payment.amountCents,
+        currency: payment.currency,
+        externalRef: payment.externalRef
+      }
+    });
+
+    if (!disabilityFare) await issueScheduleTicket(tx, reservation.id, schedule.id, requestedSeats);
+    await recordReservationCreated(tx, reservation, tramo.creator, "salida regular");
+
+    return code;
+  }
+
   async function reviewReceipt(code: string, decision: "APPROVED" | "REJECTED", provider = "MANUAL", receiptVersion?: string, actor?: AuditActor | null) {
     const normalizedCode = code.trim().toUpperCase();
     for (let attempt = 1; ; attempt += 1) {
@@ -789,143 +958,11 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       for (let attempt = 1; attempt <= MAX_RESERVATION_CODE_ATTEMPTS; attempt += 1) {
         try {
           return await client.$transaction(async (tx) => {
-            const schedule = await tx.schedule.findUnique({
-              where: { id: parsed.scheduleId },
-              include: scheduleInclude()
+            const code = await crearTramoDeSalida(tx, {
+              ...parsed,
+              pasajero: { data: parsed.passenger },
+              creator
             });
-
-            if (!schedule) {
-              throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
-            }
-
-            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || schedule.vehicle.isActive === false) {
-              throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
-            }
-
-            // El aeropuerto no se reserva por salida horaria (issue #79): sin número de vuelo la
-            // reserva no tiene recorrida (2 h 30 antes del despegue) ni combi. Va acá y no sólo en
-            // el formulario porque un `scheduleId` armado a mano tiene que rebotar igual.
-            if (schedule.route.bookingMode === "AIRPORT") {
-              throw new BookingError(
-                "AIRPORT_SCHEDULE_NOT_BOOKABLE",
-                "Las reservas de aeropuerto se cargan desde «Crear reserva de aeropuerto», eligiendo el vuelo."
-              );
-            }
-
-            const occupiedSeats = (schedule.reservations ?? [])
-              .filter((reservation) => reservation.status !== "CANCELLED")
-              .reduce((total, reservation) => total + reservation.passengerCount, 0);
-            const requestedSeats = parsed.passengerCount;
-            const stop = parsed.dropoffStop && schedule.route.bookingMode === "SEATED"
-              ? getStopFares(schedule.route).find((fare) => fare.name === parsed.dropoffStop)
-              : undefined;
-            if (parsed.dropoffStop && !stop) {
-              throw new BookingError("STOP_NOT_AVAILABLE", "La parada seleccionada ya no está disponible.");
-            }
-            const disabilityFare = parsed.requestDisabilityFare === true;
-            const fares = fareCounts(requestedSeats, parsed.halfFareCount, parsed.freeFareCount);
-            if (disabilityFare && (schedule.route.bookingMode !== "SEATED" || requestedSeats !== 1 || seatsFromFares(fares) !== 1 || fares.half || fares.free)) {
-              throw new BookingError("DISABILITY_FARE_NOT_AVAILABLE", "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.");
-            }
-            const totalCents = disabilityFare
-              ? 0
-              : parsed.overrideTotalCents ?? reservationTotalCents(stop?.priceCents ?? schedule.route.priceCents, fares);
-            // El cupo es el de todas las naves de la salida, no sólo el de la principal.
-            const seatPool = scheduleSeatPool(schedule);
-            const availableSeats = Math.max(seatPool.length - occupiedSeats, 0);
-
-            if (requestedSeats > availableSeats) {
-              throw new BookingError("CAPACITY_FULL", `Only ${availableSeats} seats are available for this schedule`);
-            }
-
-            let seat: (typeof seatPool)[number] | null = null;
-            // El lugar asignado no se ata al vehículo: si el día de la salida mandan otra nave,
-            // la reserva sigue siendo válida (el cupo manda, no el plano del coche).
-            let seatIdForReservation: string | null = null;
-            if (parsed.seatNumber) {
-              seat = seatPool.find((item) => item.number === parsed.seatNumber) ?? null;
-
-              if (!seat) {
-                throw new BookingError("SEAT_NOT_FOUND", `Seat ${parsed.seatNumber} does not exist for this schedule`);
-              }
-
-              seatIdForReservation = seat.id;
-
-              const existingReservation = await tx.reservation.findFirst({
-                where: {
-                  scheduleId: schedule.id,
-                  OR: [{ seatNumber: seat.number }, { seatId: seat.id }],
-                  status: { not: "CANCELLED" }
-                }
-              });
-
-              if (existingReservation) {
-                throw new BookingError("SEAT_OCCUPIED", `Seat ${seat.number} is already occupied`);
-              }
-            } else {
-              // La reserva web no elige asiento: se toma un lugar libre como control interno de cupo.
-              const activeReservations = (schedule.reservations ?? []).filter(
-                (reservation) => reservation.status !== "CANCELLED"
-              );
-              seat = firstAvailableSeat(
-                seatPool,
-                new Set(activeReservations.map((reservation) => reservation.seatId)),
-                new Set(activeReservations.map((reservation) => reservation.seatNumber))
-              );
-
-              if (!seat) {
-                throw new BookingError("CAPACITY_FULL", "No seats are available for this schedule");
-              }
-            }
-
-            const passenger = await tx.passenger.create({
-              data: parsed.passenger
-            });
-            const code = createCode();
-            const reservation = await tx.reservation.create({
-              data: {
-                code,
-                shortCode: createShortCode(),
-                ...reservationCreatorData(creator),
-                scheduleId: schedule.id,
-                routeId: schedule.routeId,
-                passengerId: passenger.id,
-                seatId: seatIdForReservation,
-                seatNumber: seat?.number ?? null,
-                // Derivación de otra agencia (#109): sólo llega por el alta del panel; el
-                // formulario público no declara quién vendió.
-                referredBy: parsed.referredBy || null,
-                passengerCount: requestedSeats,
-                halfFareCount: fares.half,
-                freeFareCount: fares.free,
-                bookingMode: "SEATED",
-                status: disabilityFare ? DISABILITY_PENDING_STATUS : "PENDING_PAYMENT",
-                ...(stop ? { dropoffStop: stop.name } : {}),
-                totalCents,
-                currency: schedule.route.currency
-              }
-            });
-
-            const payment = disabilityFare
-              ? { provider: DISABILITY_DOCUMENT_PROVIDER, status: "PENDING", amountCents: 0, currency: schedule.route.currency, externalRef: null }
-              : await paymentProvider.createPendingPayment({
-              reservationCode: code,
-              amountCents: totalCents,
-              currency: schedule.route.currency
-            });
-            await tx.payment.create({
-              data: {
-                reservationId: reservation.id,
-                provider: payment.provider,
-                status: payment.status,
-                amountCents: payment.amountCents,
-                currency: payment.currency,
-                externalRef: payment.externalRef
-              }
-            });
-
-            if (!disabilityFare) await issueScheduleTicket(tx, reservation.id, schedule.id, requestedSeats);
-            await recordReservationCreated(tx, reservation, creator, "salida regular");
 
             const detail = await getReservationByCodeWithClient(tx, code);
 
@@ -971,6 +1008,92 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       }
 
       throw new BookingError("CODE_COLLISION", "Could not generate a unique reservation code");
+    },
+
+    /**
+     * Ida y vuelta de una ruta regular desde el panel (pedido de Jugue, 18-nov). **Una sola
+     * transacción** crea los dos tramos con el pasajero cargado una vez (un `Passenger`, dos
+     * `Reservation` con el mismo `roundTripId`), igual que el ida y vuelta del aeropuerto: cada tramo
+     * tiene su pago pendiente y su pasaje, y se cancela por separado. Si un tramo falla (sin cupo,
+     * salida cerrada), no queda ninguno.
+     *
+     * - La vuelta es la ruta inversa (sale de donde llega la ida y llega a donde sale) y sale después.
+     * - El precio ajustado por administración es el total del viaje: se reparte mitad por tramo.
+     */
+    async createRouteRoundTripReservation(input: AdminRouteRoundTripInput, { creator }: ReservationCreationContext = {}) {
+      const parsed = adminRouteRoundTripSchema.parse(input);
+      const total = parsed.overrideTotalCents;
+      const precioIda = total === undefined ? undefined : Math.floor(total / 2);
+      const precioVuelta = total === undefined || precioIda === undefined ? undefined : total - precioIda;
+      const comun = {
+        passengerCount: parsed.passengerCount,
+        halfFareCount: parsed.halfFareCount,
+        freeFareCount: parsed.freeFareCount,
+        requestDisabilityFare: parsed.requestDisabilityFare,
+        referredBy: parsed.referredBy,
+        creator
+      };
+
+      for (let attempt = 1; attempt <= MAX_RESERVATION_CODE_ATTEMPTS; attempt += 1) {
+        try {
+          return await client.$transaction(async (tx) => {
+            const [ida, vuelta] = await Promise.all([
+              tx.schedule.findUnique({ where: { id: parsed.scheduleId }, include: scheduleInclude() }),
+              tx.schedule.findUnique({ where: { id: parsed.returnScheduleId }, include: scheduleInclude() })
+            ]);
+            if (!ida || !vuelta) throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
+            // Sin tildes ni mayúsculas: «San Martin» y «San Martín» son el mismo lugar (19-nov).
+            if (!mismoLugar(vuelta.route.from, ida.route.to) || !mismoLugar(vuelta.route.to, ida.route.from)) {
+              throw new BookingError(
+                "ROUND_TRIP_ROUTE_MISMATCH",
+                `La vuelta tiene que salir de ${ida.route.to} y llegar a ${ida.route.from}.`
+              );
+            }
+            if (vuelta.departureAt <= ida.departureAt) {
+              throw new BookingError("INVALID_ROUND_TRIP_ORDER", "La salida de la vuelta tiene que ser después de la de ida.");
+            }
+
+            const roundTripId = randomUUID();
+            const passenger = await tx.passenger.create({ data: parsed.passenger });
+            const codigoIda = await crearTramoDeSalida(tx, {
+              ...comun,
+              scheduleId: ida.id,
+              dropoffStop: parsed.dropoffStop,
+              overrideTotalCents: precioIda,
+              pasajero: { id: passenger.id },
+              roundTripId
+            });
+            const codigoVuelta = await crearTramoDeSalida(tx, {
+              ...comun,
+              scheduleId: vuelta.id,
+              dropoffStop: parsed.returnDropoffStop,
+              overrideTotalCents: precioVuelta,
+              pasajero: { id: passenger.id },
+              roundTripId
+            });
+
+            const [detalleIda, detalleVuelta] = await Promise.all([
+              getReservationByCodeWithClient(tx, codigoIda),
+              getReservationByCodeWithClient(tx, codigoVuelta)
+            ]);
+            if (!detalleIda || !detalleVuelta) {
+              throw new BookingError("RESERVATION_CREATE_FAILED", "Reservation could not be loaded after creation");
+            }
+            return { roundTripId, ida: detalleIda, vuelta: detalleVuelta };
+          }, { isolationLevel: "Serializable" });
+        } catch (error) {
+          // Mismos reintentos que la reserva de un tramo: conflicto de serialización, lugar tomado
+          // en simultáneo o código repetido se reintentan en una transacción nueva.
+          const reintentable = (typeof error === "object" && error !== null && "code" in error && error.code === "P2034")
+            || isSeatUniqueConstraintError(error)
+            || isReservationCodeUniqueConstraintError(error);
+          if (reintentable && attempt < MAX_RESERVATION_CODE_ATTEMPTS) continue;
+          if (reintentable) throw new BookingError("BOOKING_BUSY", "La salida está recibiendo otras reservas. Intentalo nuevamente.");
+          throw error;
+        }
+      }
+
+      throw new BookingError("BOOKING_BUSY", "La salida está recibiendo otras reservas. Intentalo nuevamente.");
     },
 
     async getReservationByCode(code: string) {
@@ -1269,6 +1392,7 @@ export const getPublicRouteBySlug = defaultRepository.getPublicRouteBySlug;
 export const listSchedulesForRoute = defaultRepository.listSchedulesForRoute;
 export const getSeatMap = defaultRepository.getSeatMap;
 export const createWebReservation = defaultRepository.createWebReservation;
+export const createRouteRoundTripReservation = defaultRepository.createRouteRoundTripReservation;
 export const getAdminReservationByCode = defaultRepository.getAdminReservationByCode;
 export const getReservationByCode = defaultRepository.getReservationByCode;
 export const updatePassengerForReservation = defaultRepository.updatePassengerForReservation;

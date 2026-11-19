@@ -98,6 +98,8 @@ class FakeBookingClient {
   seats: SeatRecord[];
   vehicle: VehicleRecord;
   scheduleRecord: ScheduleRecord;
+  /** Otras salidas (la vuelta de un ida y vuelta): cada una cuenta sólo sus reservas. */
+  extraSchedules: ScheduleRecord[] = [];
   passengers: PassengerRecord[] = [];
   reservations: ReservationRecord[] = [];
   payments: PaymentRecord[] = [];
@@ -196,8 +198,10 @@ class FakeBookingClient {
 
   schedule = {
     findMany: async (args?: { include?: ScheduleInclude }) => [this.withScheduleRelations(args?.include)],
-    findUnique: async ({ where, include }: { where: { id: string }; include?: ScheduleInclude }) =>
-      where.id === this.scheduleRecord.id ? this.withScheduleRelations(include) : null
+    findUnique: async ({ where, include }: { where: { id: string }; include?: ScheduleInclude }) => {
+      const record = [this.scheduleRecord, ...this.extraSchedules].find((item) => item.id === where.id);
+      return record ? this.withScheduleRelations(include, record) : null;
+    }
   };
 
   seat = {
@@ -293,7 +297,7 @@ class FakeBookingClient {
         ...data,
         id: `reservation-${this.reservations.length + 1}`,
         createdAt: new Date("2026-05-11T12:00:00.000Z"),
-        schedule: this.scheduleRecord,
+        schedule: this.extraSchedules.find((item) => item.id === data.scheduleId) ?? this.scheduleRecord,
         passenger
       };
       this.reservations.push(reservation);
@@ -431,10 +435,11 @@ class FakeBookingClient {
     };
   }
 
-  private withScheduleRelations(include?: ScheduleInclude) {
+  private withScheduleRelations(include?: ScheduleInclude, record: ScheduleRecord = this.scheduleRecord) {
+    const reservations = this.filterReservations(include?.reservations?.where);
     return {
-      ...this.scheduleRecord,
-      reservations: this.filterReservations(include?.reservations?.where)
+      ...record,
+      reservations: record === this.scheduleRecord ? reservations : reservations.filter((item) => item.scheduleId === record.id)
     };
   }
 
@@ -1250,4 +1255,113 @@ describe("booking repository", () => {
     });
   });
 
+});
+
+describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", () => {
+  const admin = { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" } as const;
+
+  /** La vuelta: Bariloche → SMA, dos días después de la ida. */
+  function conVuelta(client: FakeBookingClient, cambios: Partial<ScheduleRecord> = {}, ruta: Partial<RouteRecord> = {}) {
+    const route = { ...client.route, id: "route-vuelta", slug: "bariloche-sma", from: "Bariloche", to: "SMA", ...ruta };
+    const vuelta: ScheduleRecord = {
+      ...client.scheduleRecord,
+      id: "schedule-vuelta",
+      routeId: route.id,
+      route,
+      departureAt: new Date(client.scheduleRecord.departureAt.getTime() + 2 * 86400000),
+      arrivalAt: new Date(client.scheduleRecord.departureAt.getTime() + 2 * 86400000 + 3600000),
+      ...cambios
+    };
+    client.extraSchedules.push(vuelta);
+    return vuelta;
+  }
+
+  function repositorio(client: FakeBookingClient) {
+    let n = 0;
+    return createTestRepository(client, "", { createReservationCode: () => `ARC-2611-T${(n += 1)}` });
+  }
+
+  const viaje = {
+    scheduleId: "schedule-1",
+    returnScheduleId: "schedule-vuelta",
+    passengerCount: 1,
+    halfFareCount: 0,
+    freeFareCount: 0,
+    passenger: { ...input.passenger }
+  };
+
+  it("crea los dos tramos en una transacción, con un solo pasajero y la misma clave de viaje", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client);
+    const resultado = await repositorio(client).createRouteRoundTripReservation(viaje, { creator: admin });
+
+    expect(client.transactionCallCount).toBe(1);
+    expect(client.passengers).toHaveLength(1);
+    expect(client.reservations).toHaveLength(2);
+    expect(client.reservations.map((item) => item.scheduleId)).toEqual(["schedule-1", "schedule-vuelta"]);
+    const [ida, vuelta] = client.reservations as Array<ReservationRecord & { roundTripId?: string }>;
+    expect(ida.passengerId).toBe(vuelta.passengerId);
+    expect(ida.roundTripId).toBeTruthy();
+    expect(vuelta.roundTripId).toBe(ida.roundTripId);
+    expect(resultado.roundTripId).toBe(ida.roundTripId);
+    // Cada tramo tiene su pago pendiente y su pasaje, como el ida y vuelta del aeropuerto.
+    expect(client.payments).toHaveLength(2);
+    expect(client.tickets).toHaveLength(2);
+    expect(client.reservations.map((item) => item.totalCents)).toEqual([1890000, 1890000]);
+  });
+
+  it("cobra los menores en los dos tramos", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client);
+    await repositorio(client).createRouteRoundTripReservation({ ...viaje, passengerCount: 2, halfFareCount: 1 });
+    // Un adulto + un menor de 4 a 8 (media tarifa) por tramo.
+    expect(client.reservations.map((item) => item.totalCents)).toEqual([1890000 + 945000, 1890000 + 945000]);
+    expect(client.reservations.map((item) => (item as ReservationRecord & { halfFareCount?: number }).halfFareCount)).toEqual([1, 1]);
+  });
+
+  it("el precio ajustado es el total del viaje y se reparte mitad por tramo", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client);
+    await repositorio(client).createRouteRoundTripReservation({ ...viaje, overrideTotalCents: 5000001 });
+    expect(client.reservations.map((item) => item.totalCents)).toEqual([2500000, 2500001]);
+  });
+
+  it("rechaza una vuelta que no es la ruta inversa y no crea nada", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client, {}, { from: "Junín", to: "SMA" });
+    await expect(repositorio(client).createRouteRoundTripReservation(viaje)).rejects.toMatchObject({ code: "ROUND_TRIP_ROUTE_MISMATCH" });
+    expect(client.reservations).toHaveLength(0);
+    expect(client.passengers).toHaveLength(0);
+  });
+
+  it("reconoce la vuelta aunque el lugar esté escrito con o sin tilde", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client, {}, { from: "bariloche", to: "SMA" });
+    client.scheduleRecord.route = { ...client.scheduleRecord.route, to: "Bariloche " };
+    await repositorio(client).createRouteRoundTripReservation(viaje);
+    expect(client.reservations).toHaveLength(2);
+  });
+
+  it("rechaza una vuelta que sale antes que la ida", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client, { departureAt: new Date(client.scheduleRecord.departureAt.getTime() - 3600000) });
+    await expect(repositorio(client).createRouteRoundTripReservation(viaje)).rejects.toMatchObject({ code: "INVALID_ROUND_TRIP_ORDER" });
+    expect(client.reservations).toHaveLength(0);
+  });
+
+  it("si la vuelta no se puede reservar, la ida tampoco queda", async () => {
+    const client = new FakeBookingClient();
+    conVuelta(client, { status: "CLOSED" });
+    await expect(repositorio(client).createRouteRoundTripReservation(viaje)).rejects.toMatchObject({ code: "SCHEDULE_CLOSED" });
+    expect(client.reservations).toHaveLength(0);
+    expect(client.passengers).toHaveLength(0);
+    expect(client.payments).toHaveLength(0);
+  });
+
+  it("la vuelta tiene que ser otra salida que la ida", async () => {
+    const client = new FakeBookingClient();
+    await expect(repositorio(client).createRouteRoundTripReservation({ ...viaje, returnScheduleId: "schedule-1" })).rejects.toThrow(
+      "La vuelta tiene que ser otra salida que la ida."
+    );
+  });
 });

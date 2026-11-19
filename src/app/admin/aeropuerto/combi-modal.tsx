@@ -93,7 +93,9 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       {vuelo.pickupGroupId ? (
         <p className="muted">
           Este vuelo va en una recorrida con otros: la nave y el chofer se asignan a <strong>todos los vuelos de la
-          recorrida</strong> y se quitan las otras naves. Para manejarlos por separado, usá «Separar» en el vuelo.
+          recorrida</strong>. Si sale con más de una, la orden de servicio reparte a los pasajeros de todos los vuelos
+          entre las naves, por zona, para que cada una haga el recorrido más corto. Para manejarlos por separado, usá
+          «Separar» en el vuelo.
         </p>
       ) : null}
       {vuelo.assignments.length ? (
