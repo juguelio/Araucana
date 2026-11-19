@@ -35,6 +35,17 @@ export default async function EditReservationPage({ params }: { params: Promise<
   // reserva con el pago aprobado (las sin cargo sí, porque no tienen plata detrás).
   const disability = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER || reservation.status === "DOCUMENTATION_PENDING";
   const canDelete = isAdminRole(user.role) && (reservation.payment?.status !== "APPROVED" || disability);
+  // Base del total (#267): con esto el formulario muestra la diferencia antes de guardar y la
+  // cantidad de pasajeros/equipaje se recalcula sin volver a consultar la base.
+  const priceBasis = {
+    priceCents: reservation.route.priceCents,
+    passengerCount: reservation.passengerCount,
+    halfFareCount: reservation.halfFareCount ?? 0,
+    freeFareCount: reservation.freeFareCount ?? 0,
+    zoneExtraCents: airport?.zoneExtraCents ?? 0,
+    sportsLuggageCount: airport?.sportsLuggageCount ?? 0,
+    sportsLuggageUnitCents: airport?.sportsLuggageUnitCents ?? 0
+  };
 
   return (
     <AdminShell title="Editar reserva" eyebrow={reservation.code} role={user.role}
@@ -48,6 +59,15 @@ export default async function EditReservationPage({ params }: { params: Promise<
       <section className="plain-card admin-section">
         <ReservationEditForm action={updateReservationAction} code={reservation.code} passenger={reservation.passenger}
           referredBy={reservation.referredBy ?? ""}
+          counts={reservation.status === "CANCELLED" ? undefined : {
+            price: priceBasis,
+            totalCents: reservation.totalCents,
+            currency: reservation.currency,
+            airport: Boolean(airport),
+            paymentApproved: reservation.payment?.status === "APPROVED" && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER,
+            paymentReceiptPending: reservation.payment?.status === "PENDING" && Boolean(reservation.payment.receiptBlobPathname)
+              && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER
+          }}
           transfer={pickup ? {
             address: pickup.pickupAddress ?? "", point, notes: pickup.pickupNotes ?? "",
             airport: Boolean(airport), direction: airport?.direction, coverage
