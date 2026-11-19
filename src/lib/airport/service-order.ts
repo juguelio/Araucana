@@ -78,6 +78,8 @@ export type ServiceOrderVehicle = {
   /** Asientos de la nave. 0 = sin plano cargado: no se sabe la capacidad. */
   seats: number;
   driver: string | null;
+  /** Id del chofer, para asignarle el mismo a otro tramo (hoja IN/OUT). */
+  driverId?: string | null;
 };
 
 /** Rótulo de la orden de los pasajeros que no entraron en ninguna nave del vuelo. */

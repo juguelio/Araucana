@@ -12,13 +12,16 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import type { Prisma } from "@prisma/client";
 import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
-import { createFlightAction, saveArrivalGroupAction, savePickupStartAction } from "./actions";
+import { assignVehicleAction, createFlightAction, saveArrivalGroupAction, savePickupStartAction } from "./actions";
 import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
 import { HojaDelChoferModal, type OrdenParaLaHoja } from "./hoja-del-chofer-modal";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
 import { buildServiceOrderBlocks, lugaresDeLaOrden, naveDeLaOrden, referenciaDeLaOrden } from "@/lib/airport/service-order";
+import { jornadasPorCombi } from "@/lib/airport/driver-day";
+import { hojaDeOrdenesHref } from "@/lib/airport/flight-selection";
+import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { CombiDelVueloModal, combisCortas, combisDelVuelo, INCLUDE_COMBIS_DEL_VUELO, opcionesDeCombi, vueloDeLaRecorrida } from "./combi-modal";
 import { RowModal } from "../reservas/row-modal";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
@@ -117,7 +120,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const companeros = (v: { id: string; pickupGroupId: string | null }) => vuelosDelTablero.filter((otro) => mismaVuelta(otro, v));
   // Las órdenes del día tal como las imprime la hoja del chofer: una por vuelo, o una por combi en las
   // recorridas que salen con varias (con gente de todos sus vuelos). Es lo que lista «Hoja del chofer».
-  const ordenesParaLaHoja: OrdenParaLaHoja[] = buildServiceOrderBlocks(await getAirportServiceOrderReservations(fecha))
+  const bloquesDelDia = buildServiceOrderBlocks(await getAirportServiceOrderReservations(fecha));
+  const jornadas = jornadasPorCombi(bloquesDelDia);
+  const arribosParaElIn = vuelosDelTablero.filter((vuelo) => vuelo.direction === "ARRIVAL" && !["CANCELLED", "DIVERTED"].includes(vuelo.status));
+  const ordenesParaLaHoja: OrdenParaLaHoja[] = bloquesDelDia
     .filter((block) => block.flightId && block.passengers.length)
     .map((block) => ({
       flight: block.flightId!,
@@ -453,6 +459,59 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
         </>
       )}
+
+      {jornadas.length ? (
+        // El día de cada combi: sus OUT (recorridas de partidas) y sus IN (arribos), en orden. El IN se
+        // empareja asignándole la misma combi al arribo; la hoja IN/OUT imprime las órdenes juntas.
+        <section className="plain-card admin-section aero-por-chofer" id="por-chofer">
+          <h2>Por chofer</h2>
+          <p className="muted">
+            Cada combi con lo que hace en el día: sus OUT (partidas) y sus IN (arribos). Para sumarle el IN que hace
+            después de dejar a la gente en el aeropuerto, elegí el arribo: se le asigna la misma combi con el mismo chofer.
+          </p>
+          <ul className="aero-jornadas">
+            {jornadas.map((jornada) => {
+              const propios = new Set(jornada.tramos.flatMap((tramo) => tramo.flightIds));
+              const arribos = arribosParaElIn.filter((vuelo) => !propios.has(vuelo.id));
+              return (
+                <li key={jornada.vehicleId} className="aero-jornada">
+                  <div className="aero-jornada-combi">
+                    <strong>{jornada.nave}</strong>
+                    <span className="muted">{jornada.choferes.length ? jornada.choferes.join(" / ") : "sin chofer"}</span>
+                  </div>
+                  <ol className="aero-jornada-tramos">
+                    {jornada.tramos.map((tramo) => (
+                      <li key={`${tramo.orden.flight}~${tramo.orden.vehicle ?? ""}`} data-sentido={tramo.direction === "DEPARTURE" ? "out" : "in"}>
+                        <strong>{tramo.direction === "DEPARTURE" ? "OUT" : "IN"} {hhmm(tramo.hora)}</strong> · {tramo.vuelos} ·{" "}
+                        {tramo.pasajeros} {tramo.pasajeros === 1 ? "pasajero" : "pasajeros"}
+                      </li>
+                    ))}
+                    {jornada.sinIn ? <li className="aero-jornada-falta">sin IN después</li> : null}
+                  </ol>
+                  <div className="aero-jornada-acciones">
+                    <a className="button" href={hojaDeOrdenesHref(fecha, jornada.tramos.map((tramo) => tramo.orden))} target="_blank" rel="noreferrer">
+                      {new Set(jornada.tramos.map((tramo) => tramo.direction)).size > 1 ? "Hoja IN/OUT" : "Hoja del chofer"}
+                    </a>
+                    {arribos.length ? (
+                      <FleetAssignmentForm action={assignVehicleAction}>
+                        <input type="hidden" name="vehicleId" value={jornada.vehicleId} />
+                        {jornada.choferId ? <input type="hidden" name="driverId" value={jornada.choferId} /> : null}
+                        <select name="flightId" aria-label={`IN para ${jornada.nave}`} defaultValue="">
+                          <option value="" disabled>Sumar IN…</option>
+                          {arribos.map((vuelo) => (
+                            <option key={vuelo.id} value={vuelo.id}>{vuelo.number} · llega {hhmm(reliableEstimate(vuelo) ?? vuelo.scheduledAt)}</option>
+                          ))}
+                        </select>
+                        <button className="ghost-button" type="submit">Asignar IN</button>
+                      </FleetAssignmentForm>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       {reservasFantasma > 0 ? (
         <p className="flights-aviso">
