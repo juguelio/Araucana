@@ -204,6 +204,20 @@ describe("orden de servicio del aeropuerto", () => {
     expect(alojamientoDelPasajero(null, null)).toEqual({ lodging: "—", lodgingDetail: null });
   });
 
+  /** Issue #268: el alojamiento cargado como texto, sin coordenadas, se imprime igual para el chofer. */
+  it("imprime el alojamiento cargado como texto aunque no tenga punto", () => {
+    const [block] = buildServiceOrderBlocks([reserva({
+      pickupName: null,
+      pickupAddress: "Hostal del Esquiador",
+      pickupLatitude: null,
+      pickupLongitude: null
+    })]);
+
+    expect(serviceOrderRow(block.passengers[0])[3]).toBe("Hostal del Esquiador");
+    // Sin punto no se le inventa una ubicación: va al final de la recorrida.
+    expect(block.passengers[0].pickup).toBeNull();
+  });
+
   it("recorta la cola administrativa que agrega el buscador", () => {
     expect(
       recortarDireccion(
