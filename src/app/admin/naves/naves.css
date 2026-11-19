@@ -17,6 +17,12 @@
 }
 .naves-tabla tr[data-nivel="vencido"] td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
 .naves-tabla tr[data-nivel="proximo"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+/* Capacidad (#247): una unidad sin plano de butacas no vende nada, así que el listado lo dice en
+   vez de mostrar «0 pasajeros», que se lee como un dato válido. */
+.naves-tabla .fleet-capacity { display: grid; gap: 1px; }
+.naves-tabla .fleet-capacity strong { font-weight: 700; }
+.naves-tabla .fleet-capacity-missing { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.naves-tabla .fleet-capacity-missing:hover { color: var(--primary); }
 
 @media (max-width: 760px) {
   .naves-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }

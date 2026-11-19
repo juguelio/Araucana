@@ -39,20 +39,10 @@ import {
 /** Capacidad que se asume mientras no hay ninguna combi asignada a ese vuelo. */
 export const CAPACIDAD_POR_VUELO = 24;
 
-/** Las unidades con menos butacas que esto pierden `BUTACAS_PARA_EQUIPAJE` en el aeropuerto. */
-export const UNIDAD_GRANDE_DESDE = 26;
-/** Butacas que una unidad chica deja libres para el equipaje en los traslados al aeropuerto. */
-export const BUTACAS_PARA_EQUIPAJE = 4;
+import { butacasParaAeropuerto } from "./capacity";
+export { BUTACAS_PARA_EQUIPAJE, UNIDAD_GRANDE_DESDE } from "./capacity";
+export { butacasParaAeropuerto };
 
-/**
- * Butacas que una nave vende para el aeropuerto. Una unidad de menos de 26 butacas pierde 4 para el
- * equipaje, pedido del cliente (17/11/2026). Los buses grandes tienen bodega y venden todas. Con 0
- * butacas no hay plano cargado y no se sabe la capacidad: queda en 0.
- */
-export function butacasParaAeropuerto(seats: number): number {
-  if (seats <= 0) return 0;
-  return seats < UNIDAD_GRANDE_DESDE ? Math.max(seats - BUTACAS_PARA_EQUIPAJE, 0) : seats;
-}
 
 /**
  * Las combis se asignan según la cantidad de reservas y se pueden cambiar hasta último momento,
