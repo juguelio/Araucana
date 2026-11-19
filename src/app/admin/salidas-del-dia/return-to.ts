@@ -20,5 +20,9 @@ export function boardHref(dateKey: string, notice?: string) {
 
 export function redirectToBoard(dateKey: string, notice: string, form?: FormData): never {
   const href = boardHref(dateKey, notice);
-  redirect(form?.get("panelOrigin") === "panel" ? href.replace("/admin/salidas-del-dia?", "/admin?") : href);
+  if (form?.get("panelOrigin") !== "panel") redirect(href);
+  const query = new URLSearchParams({ date: dateKey, notice });
+  const service = form.get("panelService");
+  if (typeof service === "string" && service.length <= 200 && service) query.set("servicio", service);
+  redirect("/admin?" + query.toString() + (query.has("servicio") ? "#servicio-" + encodeURIComponent(String(service)) : ""));
 }

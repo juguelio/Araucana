@@ -9,7 +9,7 @@ import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disab
  * todo pago pendiente de confirmar (`pending-payment`), tenga comprobante o no: la transferencia
  * que avisan por WhatsApp también es un pago esperando que alguien lo registre.
  */
-export const ADMIN_PAYMENT_QUEUES = ["pending-payment", "receipt-pending", "rejected", "documentation-pending"] as const;
+export const ADMIN_PAYMENT_QUEUES = ["pending-payment", "paid-unconfirmed", "receipt-pending", "rejected", "documentation-pending"] as const;
 export type AdminPaymentQueue = (typeof ADMIN_PAYMENT_QUEUES)[number];
 
 /** Vistas por día de viaje del listado de reservas (pestañas Hoy, Próximas y Todas). */
@@ -125,6 +125,10 @@ export function adminReservationWhere(input: AdminReservationFilters, passengerI
     // (plata cobrada que secretaría tiene que registrar). Sólo reservas de pago manual.
     AND.push({ status: "PENDING_PAYMENT" });
     AND.push({ payment: { is: { status: "PENDING", provider: "MANUAL" } } });
+  }
+  if (filters.payment === "paid-unconfirmed") {
+    AND.push({ status: "PENDING_PAYMENT" });
+    AND.push({ payment: { is: { status: "APPROVED", provider: { not: DISABILITY_DOCUMENT_PROVIDER } } } });
   }
   if (filters.payment === "receipt-pending") {
     // La cola de trabajo real de secretaría: comprobante subido y pago todavía sin resolver.

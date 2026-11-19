@@ -41,7 +41,7 @@ export async function uploadReceiptFromAdminAction(_previous: AdminReceiptState,
     return { ok: false, message: "No pudimos subir el comprobante. Intentalo de nuevo." };
   }
 
-  for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`]) {
+  for (const path of ["/admin", "/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`]) {
     revalidatePath(path);
   }
   return { ok: true, message: "Comprobante cargado. Ya se puede validar el pago." };

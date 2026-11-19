@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { mismoLugar } from "./place-names";
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
@@ -1316,7 +1317,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
      * cliente sólo entran `pageSize` filas. Si la página pedida quedó fuera de rango (por ejemplo
      * porque un filtro achicó el total) se devuelve la última existente en vez de una tabla vacía.
      */
-    async listAdminReservations(filters: AdminReservationFilters = {}): Promise<AdminReservationsPageDto> {
+    async listAdminReservations(filters: AdminReservationFilters = {}, serviceScope?: Prisma.ReservationWhereInput): Promise<AdminReservationsPageDto> {
       // Si se busca un apellido, se resuelve antes sin tildes: ILIKE no las ignora y "perez" no
       // encuentra a "Pérez". Se pide la lista de ids y el where la usa como una alternativa más.
       const passengerIds = filters.q
@@ -1329,7 +1330,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             `
           ).map((fila) => fila.id)
         : [];
-      const where = adminReservationWhere(filters, passengerIds);
+      const filtersWhere = adminReservationWhere(filters, passengerIds);
+      const where = serviceScope ? { AND: [filtersWhere, serviceScope] } : filtersWhere;
       const pageSize = adminReservationsPageSize(filters);
       const pedida = adminReservationsPage(filters);
       // Orden por columna desde la URL (issue #192), saneado contra la lista blanca del listado.

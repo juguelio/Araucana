@@ -257,7 +257,7 @@ export function chapelcoRow(day: ChapelcoInput): BoardRow {
     driverName: personName(unit.driver)
   }));
   return {
-    key: `chapelco-${day.dateKey}`,
+    key: `chapelco-${day.routeId}-${day.dateKey}`,
     area: "CHAPELCO",
     // Para sumar una nave a Chapelco hace falta la ruta (el día de operación se crea al asignar).
     serviceId: day.routeId,

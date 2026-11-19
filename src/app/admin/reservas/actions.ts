@@ -110,6 +110,7 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
     return errorState(mensajeDeAlta(error));
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/reservas");
   revalidatePath(`/admin/reservas/${reservation.code}`);
   revalidatePath(`/reservar/${reservation.route.slug}`);
@@ -174,6 +175,7 @@ async function createAdminRouteRoundTrip(
     return errorState(mensajeDeAlta(error));
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/reservas");
   for (const tramo of [viaje.ida, viaje.vuelta]) {
     revalidatePath(`/admin/reservas/${tramo.code}`);
@@ -205,6 +207,7 @@ async function reviewPaymentAction(formData: FormData, decision: "approve" | "re
     }
     throw error;
   }
+  revalidatePath("/admin");
   revalidatePath("/admin/reservas");
   revalidatePath(`/admin/reservas/${code}`);
   revalidatePath(`/reservas/${code}`);
@@ -224,6 +227,7 @@ async function reviewDisabilityDocumentAction(formData: FormData, decision: "APP
     throw error;
   }
 
+  revalidatePath("/admin");
   revalidatePath("/admin/reservas");
   revalidatePath(`/admin/reservas/${code}`);
   revalidatePath(`/reservas/${code}`);
@@ -338,7 +342,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
           : {});
   }
 
-  for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {
+  for (const path of ["/admin", "/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {
     revalidatePath(path);
   }
   redirect(reservationNotice(`/admin/reservas/${code}`, "Cambios guardados."));
@@ -402,7 +406,7 @@ export async function manageReservationAction(formData: FormData) {
   if (result.receiptPath) {
     await del(result.receiptPath).catch(() => { receiptCleanupFailed = true; });
   }
-  for (const path of ["/admin/reservas", detailPath, `${detailPath}/editar`, `${detailPath}/pago`, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+  for (const path of ["/admin", "/admin/reservas", detailPath, `${detailPath}/editar`, `${detailPath}/pago`, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
     revalidatePath(path);
   }
 

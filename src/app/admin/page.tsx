@@ -1,4 +1,4 @@
-import { DayWorkspace } from "./salidas-del-dia/day-workspace";
+import { DayWorkspace, type DayParams } from "./salidas-del-dia/day-workspace";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
@@ -9,9 +9,7 @@ import { LogoutButton } from "./logout-button";
 import "./panel.css";
 
 type AdminPageProps = {
-  searchParams?: Promise<{
-    notice?: string; date?: string; falta?: string; vista?: string;
-  }>;
+  searchParams?: Promise<DayParams>;
 };
 
 const cuando = new Intl.DateTimeFormat("es-AR", {

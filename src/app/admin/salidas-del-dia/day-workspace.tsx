@@ -13,6 +13,10 @@ import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { AREA_LABEL, buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
+import { countAdminReservations } from "@/lib/booking/repository";
+import { dispatchIssues, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
+import { ReservationWorkspace, type ReservationParams } from "../reservas/reservation-workspace";
+import { FleetAgenda } from "./fleet-agenda";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
@@ -23,7 +27,7 @@ import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
 import "./panel-jornada.css";
 
-export type DayParams = { date?: string; falta?: string; notice?: string };
+export type DayParams = ReservationParams & { falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string };
 
 const ACTIVE_RESERVATION = { notIn: ["CANCELLED"] };
 
@@ -45,11 +49,14 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const canEditRoutes = isAdminRole(user.role);
   const today = localDateKey(new Date());
   const dateKey = isDateKey(params?.date) ? params.date : today;
-  const onlyMissing = params?.falta === "1";
+  const view = panel && (params?.vista === "reservas" || params?.vista === "flota") ? params.vista : "jornada";
+  const onlyMissing = view === "jornada" && params?.falta === "1";
+  const area = panel && params?.area && Object.hasOwn(AREA_LABEL, params.area) ? params.area : "";
+  const search = panel ? (params?.q ?? "").trim().slice(0, 100) : "";
   const { from, to } = dayRange(dateKey);
   const serviceDate = new Date(`${dateKey}T00:00:00.000Z`);
 
-  const [schedules, flights, chapelcoRoutes, specialTrips, vehicles, drivers, routes] = await Promise.all([
+  const [schedules, flights, chapelcoRoutes, specialTrips, vehicles, drivers, routes, damages, pendingPayments, pendingTrips] = await Promise.all([
     prisma.schedule.findMany({
       where: { departureAt: { gte: from, lt: to } },
       orderBy: { departureAt: "asc" },
@@ -95,7 +102,13 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       where: { bookingMode: { notIn: ["AIRPORT", CHAPELCO_BOOKING_MODE] } },
       orderBy: [{ isActive: "desc" }, { from: "asc" }, { to: "asc" }],
       select: { id: true, from: true, to: true, isActive: true, durationMin: true, bookingMode: true }
-    })
+    }),
+    panel ? prisma.vehicleDamage.findMany({
+      where: { status: { not: "REPARADO" }, occurredAt: { lt: to } },
+      orderBy: { occurredAt: "desc" }, select: { id: true, vehicleId: true, description: true, severity: true, status: true }
+    }) : [],
+    panel ? countAdminReservations({ date: dateKey, payment: "pending-payment" }) : 0,
+    panel ? countAdminReservations({ date: dateKey, payment: "paid-unconfirmed" }) : 0
   ]);
 
   const board = buildDayBoard({
@@ -168,8 +181,6 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
   const serviceRows = board.rows.filter((row) => !row.programmed);
   const programmedRows = board.rows.filter((row) => row.programmed);
-  const pendingRows = serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
-  const rows = onlyMissing ? pendingRows : serviceRows;
   const vehicleOptions: VehicleOption[] = vehicles.map((vehicle) => ({
     id: vehicle.id, seats: seatsOf(vehicle), publicTransport: vehicle.publicTransport, kind: vehicle.kind,
     label: `${vehicle.name}${vehicle.internalNumber ? ` · Int. ${vehicle.internalNumber}` : ""} · ${seatsOf(vehicle)} lug.`
@@ -192,9 +203,10 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     pickupGroups.set(flight.pickupGroupId, group);
   }
   const sharedPickups = new Set([...pickupGroups].filter(([, members]) => esUnaRecorrida(members)).map(([id]) => id));
-  const assignments = board.rows.flatMap(row => row.units.flatMap(unit => {
+  const assignments: DispatchAssignment[] = board.rows.flatMap(row => row.units.flatMap(unit => {
     const item = {
-      key: unit.id, title: row.title, area: row.area, href: row.href,
+      key: unit.id, rowKey: row.key, cancelled: ["Cancelado", "Desviado", "Cancelada"].includes(row.status ?? ""), title: row.title, area: row.area, href: panel ? panelServiceHref(dateKey, row.key) : row.href,
+      driverName: unit.driverName, vehicleName: unit.vehicleName,
       vehicleId: unit.vehicleId, driverId: unit.driverId,
       start: (unit.from ?? row.at)?.getTime() ?? null,
       end: unit.to?.getTime() ?? arrivalBySchedule.get(unit.scheduleId ?? "") ?? null
@@ -213,17 +225,40 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       start: run.ascentSlot ? Date.parse(`${dateKey}T${run.ascentSlot}:00-03:00`) : null
     }));
   }));
-  const dayHref = (key: string) => `${path}?date=${key}${onlyMissing ? "&falta=1" : ""}`;
+  const issues = dispatchIssues(board.rows, assignments, damages);
+  const pendingRows = panel ? board.rows.filter(row => issues.has(row.key)) : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
+  const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+  const matchRow = (row: BoardRow) => (!area || row.area === area) && (!search || normalize([
+    row.title, AREA_LABEL[row.area], ...row.units.flatMap(unit => [unit.vehicleName, unit.driverName])
+  ].join(" ")).includes(normalize(search)));
+  const rows = (onlyMissing ? pendingRows : serviceRows).filter(matchRow);
+  const programs = programmedRows.filter(matchRow);
+  const dayHref = (key: string) => path + "?" + new URLSearchParams({ date: key,
+    ...(view !== "jornada" ? { vista: view } : {}), ...(onlyMissing ? { falta: "1" } : {})
+  });
+  const usedVehicles = new Set(assignments.map(a => a.vehicleId));
+  const usedDrivers = new Set(assignments.flatMap(a => a.driverId ? [a.driverId] : []));
+
+  const commercialQueues = new URLSearchParams({ date: dateKey, vista: "reservas" });
+  if (pendingPayments && !pendingTrips) commercialQueues.set("payment", "pending-payment");
+  if (pendingTrips && !pendingPayments) commercialQueues.set("payment", "paid-unconfirmed");
+  const chargeLabel = pendingPayments === 1 ? "1 cobro pendiente" : pendingPayments + " cobros pendientes";
+  const tripLabel = pendingTrips === 1 ? "1 viaje por confirmar" : pendingTrips + " viajes por confirmar";
+  const selectedService = view === "reservas" ? board.rows.find(row => row.key === params?.servicio) : undefined;
+  const scope = selectedService && serviceReservationScope(selectedService);
 
   const renderRow = (row: BoardRow) => (
             <li
               key={row.key}
+              id={panel ? "servicio-" + row.key : undefined}
               className="sd-row"
               data-area={row.area}
               data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
             >
-              <ServiceDisclosure panel={panel} summary={panel && <ServiceSummary row={row} />}>
+              <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} issues={issues.get(row.key)} />}>
+              {panel && issues.has(row.key) && <ul className="console-issues">{issues.get(row.key)!.map(message => <li key={message}>{message}</li>)}</ul>}
               {panel ? <div className="plan-detail-links">
+                {row.area !== "ESPECIAL" && <Link href={"/admin?" + new URLSearchParams({ date: dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
                 <Link href={row.href}>Ver servicio</Link>
                 {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
               </div> : <>
@@ -257,7 +292,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               <div className="sd-assign">
                 {row.area === "RUTA" ? (
                   canEditRoutes ? (
-                    <RouteUnits publicRoute={routes.find(r => r.id === row.routeId)?.bookingMode === "SEATED"} row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
+                    <RouteUnits assignments={panel ? assignments : []} publicRoute={routes.find(r => r.id === row.routeId)?.bookingMode === "SEATED"} row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                   ) : (
                     <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
                   )
@@ -277,6 +312,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const dateForm = (
     <form className="sd-date" action={path}>
       <input type="date" name="date" defaultValue={dateKey} aria-label="Fecha" />
+      {view !== "jornada" && <input type="hidden" name="vista" value={view} />}
       {onlyMissing ? <input type="hidden" name="falta" value="1" /> : null}
       <button className="ghost-button" type="submit">Ver</button>
     </form>
@@ -291,7 +327,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         <nav className="sd-days" aria-label="Elegir el día">
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, -1))} aria-label="Día anterior">‹</Link>
           <Link className={`ghost-button${dateKey === today ? " is-active" : ""}`} href={dayHref(today)}>Hoy</Link>
-          {!panel && <Link className={`ghost-button${dateKey === shiftDateKey(today, 1) ? " is-active" : ""}`} href={dayHref(shiftDateKey(today, 1))}>Mañana</Link>}
+          <Link className={`ghost-button${dateKey === shiftDateKey(today, 1) ? " is-active" : ""}`} href={dayHref(shiftDateKey(today, 1))}>Mañana</Link>
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, 1))} aria-label="Día siguiente">›</Link>
           {panel ? <details className="plan-calendar">
             <summary>Elegir fecha</summary>
@@ -307,9 +343,15 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           <h2>{dayTitle(dateKey, today)}</h2>
           <p>{board.summary.services} {board.summary.services === 1 ? "servicio" : "servicios"} · {board.summary.passengers} {board.summary.passengers === 1 ? "pasajero" : "pasajeros"}</p>
         </div>
-        <nav className="plan-filters" aria-label="Filtrar servicios">
-          <Link aria-current={!onlyMissing ? "page" : undefined} href={`${path}?date=${dateKey}`}>Todos</Link>
-          <Link aria-current={onlyMissing ? "page" : undefined} href={`${path}?date=${dateKey}&falta=1`}>Pendientes <b>{pendingRows.length}</b></Link>
+        <Link className="button console-book" href={"/admin/reservas/nueva?date=" + dateKey}>Nueva reserva</Link>
+        <nav className="console-tabs" aria-label="Consola de administración">
+          <Link aria-current={view === "jornada" && !onlyMissing ? "page" : undefined} href={path + "?date=" + dateKey}><span>Jornada</span><strong>{board.summary.services}</strong><small>{board.summary.services === 1 ? "servicio" : "servicios"}</small></Link>
+          <Link aria-current={onlyMissing ? "page" : undefined} data-alert={pendingRows.length > 0 || undefined} href={path + "?date=" + dateKey + "&falta=1"}><span>Pendientes</span><strong>{pendingRows.length}</strong><small>{pendingRows.length === 1 ? "servicio a revisar" : "servicios a revisar"}</small></Link>
+          <Link aria-current={view === "flota" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=flota"}><span>Flota y choferes</span><strong>{usedVehicles.size}</strong><small>{usedVehicles.size === 1 ? "nave" : "naves"} · {usedDrivers.size} {usedDrivers.size === 1 ? "chofer asignado" : "choferes asignados"}</small></Link>
+          <Link aria-current={view === "reservas" ? "page" : undefined} href={path + "?" + commercialQueues}>
+            <span>Reservas y cobros</span><strong>{pendingPayments + pendingTrips}</strong>
+            <small>{[pendingPayments > 0 && chargeLabel, pendingTrips > 0 && tripLabel].filter(Boolean).join(" · ") || "Sin cobros ni viajes por confirmar"}</small>
+          </Link>
         </nav>
       </section> : (
       <section className="sd-head">
@@ -331,7 +373,15 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         </div>
       </section>)}
 
-      <DispatchDesk key={dateKey} dateKey={dateKey} panel={panel} vehicles={vehicleOptions} drivers={driverOptions} assignments={assignments} actions={
+      {view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={vehicleOptions} assignments={assignments} damages={damages} people={params?.tipo === "chofer"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
+      : view === "reservas" ? <section className="console-work console-reservations" aria-label="Reservas y cobros de la jornada">
+        {params?.servicio && <header className="console-section-head">
+          <h3>{selectedService ? [selectedService.at && hourFormat.format(selectedService.at), selectedService.title].filter(Boolean).join(" · ") : "El servicio ya no figura en esta jornada"}</h3>
+          <nav className="plan-detail-links">{selectedService && <Link href={panelServiceHref(dateKey, selectedService.key)}>Volver al servicio</Link>}
+            <Link href={path + "?date=" + dateKey + "&vista=reservas"}>Todas las reservas del día</Link></nav>
+        </header>}
+        {(!params?.servicio || (selectedService && scope)) && <ReservationWorkspace service={selectedService && scope ? { key: selectedService.key, where: scope } : undefined} panel role={user.role} params={{ date: dateKey, q: search, payment: params?.payment, page: params?.page, pageSize: params?.pageSize, orden: params?.orden, dir: params?.dir }} />}
+      </section> : <DispatchDesk key={dateKey} dateKey={dateKey} panel={panel} vehicles={vehicleOptions} drivers={driverOptions} assignments={assignments} actions={
       <details name={panel ? "panel-menu" : undefined} className="plain-card sd-add">
         <summary>
           <strong>{panel ? "Agregar servicio" : "Agregar al día"}</strong>
@@ -389,9 +439,20 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           <LogoutButton />
         </nav>
       </details>}>
+      {panel && <section className="console-agenda-head">
+        <h3>{onlyMissing ? "Servicios que requieren atención" : "Servicios de la jornada"}</h3>
+        <form action="/admin" className="console-filters">
+          <input type="hidden" name="date" value={dateKey} />{onlyMissing && <input type="hidden" name="falta" value="1" />}
+          <label>Buscar servicio<input name="q" type="search" defaultValue={search} placeholder="Servicio, nave o chofer" maxLength={100} /></label>
+          <label>Área<select name="area" defaultValue={area}><option value="">Todas las áreas</option>
+            {Object.entries(AREA_LABEL).map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+          </select></label><button className="ghost-button">Filtrar</button>
+          {(area || search) && <Link href={dayHref(dateKey)}>Limpiar</Link>}
+        </form>
+      </section>}
       {rows.length === 0 ? (
         <p className="plain-card sd-empty">
-          {onlyMissing
+          {area || search ? "No hay servicios que coincidan con el filtro." : onlyMissing
             ? "No hay servicios pendientes de asignación."
             : programmedRows.length
               ? "Las salidas programadas para este día todavía no tienen pasajeros."
@@ -403,25 +464,25 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           <ol className="sd-list">{rows.map(renderRow)}</ol>
         </div>
       )}
-      {programmedRows.length > 0 && !onlyMissing ? (
-        <details className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
+      {programs.length > 0 && !onlyMissing ? (
+        <details open={programs.some(r => r.key === params?.servicio) || undefined} className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
           <summary>
-            <strong>Ver la programación del día ({programmedRows.length})</strong>
+            <strong>Ver la programación del día ({programs.length})</strong>
             <span className="muted">Salidas que todavía no tienen pasajeros.</span>
           </summary>
-          <ol className="sd-list sd-programmed-list">{programmedRows.map(renderRow)}</ol>
+          <ol className="sd-list sd-programmed-list">{programs.map(renderRow)}</ol>
         </details>
       ) : null}
 
       {driverOptions.length === 0 ? (
         <p className="muted sd-footnote">No hay choferes activos: se cargan en <Link href="/admin/choferes">Choferes</Link>.</p>
       ) : null}
-      </DispatchDesk>
+      </DispatchDesk>}
     </AdminShell>
   );
 }
 
-function ServiceSummary({ row }: { row: BoardRow }) {
+function ServiceSummary({ row, issues = [] }: { row: BoardRow; issues?: string[] }) {
   const first = row.units[0];
   const count = row.units.length;
   return <>
@@ -430,9 +491,7 @@ function ServiceSummary({ row }: { row: BoardRow }) {
       <small>{AREA_LABEL[row.area]}</small>
       <strong>{row.title}</strong>
       {row.detail && row.area !== "RUTA" && <span className="plan-detail">{row.detail}</span>}
-      {(row.status || row.missingDriver || row.overbooked || row.missingVehicle) && <span className="plan-alert">
-        {[row.status, row.missingVehicle && "Falta nave", row.missingDriver && "Falta chofer", row.overbooked && "Sobrecupo"].filter(Boolean).join(" · ")}
-      </span>}
+      {(issues.length > 0 || row.status) && <span className="plan-alert">{issues[0] ?? row.status}{issues.length > 1 && " · +" + (issues.length - 1)}</span>}
     </span>
     <span className="plan-crew">
       <strong>{count > 1 ? `${count} naves asignadas` : first?.vehicleName ?? "Sin asignar"}</strong>
@@ -572,7 +631,7 @@ function UnitsReadOnly({ units, note }: { units: BoardUnit[]; note: ReactNode })
 const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
 
 /** Rutas: las naves de la salida, cada una con su chofer; abajo, sumar otra nave a la salida. */
-function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent, publicRoute }: UnitProps & { publicRoute: boolean }) {
+function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent, publicRoute, assignments }: UnitProps & { publicRoute: boolean; assignments: DispatchAssignment[] }) {
   return (
     <div className="sd-units">
       {/* Sumar otra nave a la misma salida: el cupo pasa a ser la suma de los asientos de todas. */}
@@ -604,11 +663,12 @@ function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent, 
             drivers={withCurrent(driverOptions, unit.driverId, unit.driverName)}
           />
           <ReplaceVehicleForm key={unit.vehicleId}
+            otherServices={assignments.filter(a => a.vehicleId === unit.vehicleId && a.rowKey !== row.key).map(a => ({ key: a.key, title: a.title, href: a.href, time: a.start === null ? "A coordinar" : hourFormat.format(a.start) }))}
             scheduleId={unit.scheduleId ?? row.serviceId}
             outgoing={unit}
             passengers={row.units.find(other => other.unitKind === "PRIMARY" && other.scheduleId === unit.scheduleId)?.passengers ?? row.passengers}
             keptSeats={row.units.filter(other => other.scheduleId === unit.scheduleId && other.id !== unit.id)
-              .reduce((sum, other) => sum + (vehicleOptions.find(v => v.id === other.vehicleId)?.seats ?? 0), 0)}
+              .reduce((sum, other) => sum + other.seats, 0)}
             vehicles={vehicleOptions.filter(v => v.seats > 0 && v.kind !== "UTILITARIO" && (!publicRoute || v.publicTransport) && !row.units.some(other => other.vehicleId === v.id))}
             drivers={driverOptions}
             date={dateKey}

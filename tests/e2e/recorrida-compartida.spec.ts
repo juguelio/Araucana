@@ -149,6 +149,15 @@ test("dos arribos juntados salen en una sola orden, y «Separar» los vuelve a d
   await expect(page.getByText("Arribos juntados en una recorrida. Ahora elegí las naves y los choferes.")).toBeVisible();
   await page.getByRole("dialog").getByRole("link", { name: "Listo" }).click();
   await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida con ${ja.number}`);
+  await page.goto(`/admin?date=${day}`);
+  await page.getByRole("button", { name: "Equipo del día" }).click();
+  await page.getByRole("searchbox", { name: "Buscar en el equipo" }).fill(`Trafic ${suffix}`);
+  await page.getByRole("button", { name: new RegExp(`Trafic ${suffix}`) }).click();
+  for (const vuelo of [ar, ja]) {
+    const tarea = page.locator(".desk-agenda a").filter({ hasText: vuelo.number });
+    await expect(tarea).toContainText("Recorrida compartida");
+    await expect(tarea).not.toContainText("Revisar cruce horario");
+  }
   // Juntar arribos no toca ninguna hora.
   expect((await db.flight.findUniqueOrThrow({ where: { id: ar.id } })).pickupStartOverrideAt).toBeNull();
 
