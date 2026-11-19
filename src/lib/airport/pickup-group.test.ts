@@ -2,13 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 import { reagruparVuelos, vuelosDeLaRecorrida } from "./pickup-group";
 
-type Combi = { flightId: string; vehicleId: string; driverId: string | null; createdBy: string | null };
-
-/** Una base en memoria con lo justo: vuelos con su grupo, sus combis y el orden manual de las reservas. */
-function base(vuelos: Record<string, string | null>, combis: Combi[] = []) {
+/** Una base en memoria con lo justo: vuelos con su grupo y el orden manual de las reservas. */
+function base(vuelos: Record<string, string | null>) {
   const grupos = { ...vuelos };
   const limpiados: string[][] = [];
-  const asignaciones = [...combis];
   const tx = {
     flight: {
       findMany: vi.fn(async ({ where }: { where: { id?: { in: string[]; not?: string }; pickupGroupId?: string | { in: string[] } } }) =>
@@ -23,15 +20,11 @@ function base(vuelos: Record<string, string | null>, combis: Combi[] = []) {
       }),
       update: vi.fn(async ({ where, data }: { where: { id: string }; data: { pickupGroupId: string | null } }) => { grupos[where.id] = data.pickupGroupId; })
     },
-    airportVehicleAssignment: {
-      findMany: vi.fn(async ({ where }: { where: { flightId: { in: string[] } } }) => asignaciones.filter((combi) => where.flightId.in.includes(combi.flightId))),
-      createMany: vi.fn(async ({ data }: { data: Combi[] }) => { asignaciones.push(...data); })
-    },
     airportReservationDetails: {
       updateMany: vi.fn(async ({ where }: { where: { flightId: { in: string[] } } }) => { limpiados.push([...where.flightId.in].sort()); })
     }
   } as unknown as Prisma.TransactionClient;
-  return { tx, grupos, limpiados, asignaciones };
+  return { tx, grupos, limpiados };
 }
 
 describe("reagruparVuelos: los vuelos de una misma camioneta", () => {
@@ -43,17 +36,6 @@ describe("reagruparVuelos: los vuelos de una misma camioneta", () => {
     expect(grupos.a).toBe(grupos.b);
     expect(grupos.c).toBeNull();
     expect(limpiados).toEqual([["a", "b"]]);
-  });
-
-  it("al juntar dos vuelos con una trafic cada uno, los dos quedan con las dos trafics y su chofer", async () => {
-    const { tx, asignaciones } = base({ a: null, b: null }, [
-      { flightId: "a", vehicleId: "trafic-1", driverId: "rosa", createdBy: null },
-      { flightId: "b", vehicleId: "trafic-2", driverId: "hugo", createdBy: null }
-    ]);
-    await reagruparVuelos(tx, ["a", "b"], true);
-    const de = (flightId: string) => asignaciones.filter((combi) => combi.flightId === flightId).map((combi) => `${combi.vehicleId}:${combi.driverId}`).sort();
-    expect(de("a")).toEqual(["trafic-1:rosa", "trafic-2:hugo"]);
-    expect(de("b")).toEqual(["trafic-1:rosa", "trafic-2:hugo"]);
   });
 
   it("volver a guardar el mismo grupo no cambia nada ni borra el orden manual", async () => {

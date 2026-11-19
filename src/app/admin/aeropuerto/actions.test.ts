@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   driverConflicts: vi.fn(),
   acceptance: vi.fn(),
   audit: vi.fn(),
+  auditAfterCommit: vi.fn(),
+  readForAudit: vi.fn(),
   refresh: vi.fn(),
   redirect: vi.fn()
 }));
@@ -23,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/auth/admin", () => ({ getCurrentReservationsUserOrRedirect: mocks.staff }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.refresh }));
 vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
-vi.mock("@/lib/audit/entity", () => ({ recordEntityAudit: mocks.audit, recordEntityAuditAfterCommit: vi.fn(), readForAudit: vi.fn() }));
+vi.mock("@/lib/audit/entity", () => ({ recordEntityAudit: mocks.audit, recordEntityAuditAfterCommit: mocks.auditAfterCommit, readForAudit: mocks.readForAudit }));
 vi.mock("@/lib/special-trips/conflicts", () => ({
   dayInterval: (day: string) => ({ startsAt: new Date(`${day}T00:00:00-03:00`), endsAt: new Date(`${day}T23:59:59-03:00`) }),
   lockFleet: mocks.lockFleet,
@@ -34,6 +36,7 @@ vi.mock("@/lib/special-trips/conflicts", () => ({
 }));
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
+    airportVehicleAssignment: { findUnique: mocks.findAssignment, findMany: mocks.findAssignments, deleteMany: mocks.deleteAssignments },
     $transaction: (run: (tx: unknown) => unknown) => run({
       flight: { findUnique: mocks.findFlight, findMany: mocks.findFlights },
       airportVehicleAssignment: {
@@ -46,7 +49,7 @@ vi.mock("@/lib/db/prisma", () => ({
   }
 }));
 
-import { assignVehicleAction } from "./actions";
+import { assignVehicleAction, removeAssignmentAction } from "./actions";
 
 const vuelo = {
   id: "f1", number: "AR 1656", direction: "ARRIVAL", status: "SCHEDULED",
@@ -71,6 +74,7 @@ async function redirectTo(promise: Promise<unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.staff.mockResolvedValue({ id: "secre", role: "SECRETARY" });
+  mocks.readForAudit.mockImplementation((read: () => unknown) => read());
   mocks.findFlight.mockResolvedValue(vuelo);
   mocks.findFlights.mockResolvedValue([]);
   mocks.findAssignment.mockResolvedValue(null);
@@ -209,5 +213,31 @@ describe("aeropuerto: la combi y el chofer son de la recorrida, no de un vuelo s
       where: { flightId_vehicleId: { flightId: "f2", vehicleId: "v1" } }, update: {}
     }));
     expect(mocks.findDriver).not.toHaveBeenCalled();
+  });
+});
+
+describe("aeropuerto: quitar una combi de una recorrida", () => {
+  const ar = { id: "f1", number: "AR1657", scheduledAt: new Date("2026-11-19T22:00:00-03:00"), pickupGroupId: "recorrida-1" };
+  const ja = { id: "f2", number: "JA3184", scheduledAt: new Date("2026-11-19T22:13:00-03:00") };
+
+  it("la saca de todos los vuelos de la recorrida, no sólo del que se tocó", async () => {
+    mocks.findAssignment.mockResolvedValue({ vehicleId: "v1", flight: ar, vehicle: { name: "Trafic 1" }, driver: null });
+    mocks.findAssignments.mockResolvedValue([{ id: "asig-ja", flight: ja }]);
+    const url = await redirectTo(removeAssignmentAction(form({ id: "asig-ar" })));
+    expect(mocks.findAssignments).toHaveBeenCalledWith(expect.objectContaining({
+      where: { vehicleId: "v1", flight: { pickupGroupId: "recorrida-1" }, id: { not: "asig-ar" } }
+    }));
+    expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-ar", "asig-ja"] } } });
+    expect(mocks.auditAfterCommit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      entityId: "f2", action: "DELETE", summary: expect.stringContaining("quitada de la recorrida de AR1657")
+    }));
+    expect(url.replace(/\+/g, " ")).toContain("Combi quitada del vuelo.");
+  });
+
+  it("en un vuelo suelto sólo borra esa asignación", async () => {
+    mocks.findAssignment.mockResolvedValue({ vehicleId: "v1", flight: { ...ar, pickupGroupId: null }, vehicle: { name: "Trafic 1" }, driver: null });
+    await redirectTo(removeAssignmentAction(form({ id: "asig-ar" })));
+    expect(mocks.findAssignments).not.toHaveBeenCalled();
+    expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-ar"] } } });
   });
 });

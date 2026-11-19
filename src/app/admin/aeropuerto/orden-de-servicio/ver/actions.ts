@@ -56,6 +56,8 @@ async function vuelosDeLaOrden(date: string, flightId: string) {
 /**
  * La nave de destino y, para cada vuelo de la orden, su asignación de esa nave. En una vuelta unida la
  * misma trafic tiene un id de asignación por vuelo: cada pasajero se guarda con el de su propio vuelo.
+ * Si su vuelo no tiene esa trafic (cada vuelo trajo la suya y se juntaron), se guarda la de la vuelta: la
+ * hoja la reconoce mientras los vuelos sigan juntos, y no se crea una asignación que le sume cupo al vuelo.
  */
 async function naveDelVuelo(flightIds: string[], assignmentId: string | null) {
   if (!assignmentId) return { name: null, porVuelo: new Map<string, string>() };
@@ -93,7 +95,7 @@ async function guardar(
         where: { id: reservas.get(code)!.id },
         data: {
           routePosition: indice,
-          assignmentId: assignmentId ? nave.porVuelo.get(reservas.get(code)!.flightId ?? "") ?? null : null
+          assignmentId: assignmentId ? nave.porVuelo.get(reservas.get(code)!.flightId ?? "") ?? assignmentId : null
         }
       })
     )

@@ -93,6 +93,18 @@ describe("una sola camioneta para varios vuelos: la hoja los une en una orden", 
       expect(filtrarPorNave(blocks, "t2-ar").map((block) => block.vehicle?.name)).toEqual(["Trafic 2"]);
     });
 
+    it("una demora que da vuelta el orden de los vuelos no le cambia la zona ni el link a ningún chofer", () => {
+      const antes = buildServiceOrderBlocks(reservas());
+      const demorados = reservas().map((item) =>
+        item.flight?.id === "f-ar" ? { ...item, flight: { ...item.flight, estimatedAt: new Date("2026-11-20T16:00:00-03:00") } } : item
+      );
+      const despues = buildServiceOrderBlocks(demorados);
+      expect(despues[0].flightIds).toEqual(["f-ja", "f-ar"]);
+      const porTrafic = (blocks: typeof antes) =>
+        Object.fromEntries(blocks.map((block) => [block.vehicle!.vehicleId, { ref: block.vehicle!.assignmentId, codes: block.passengers.map((p) => p.code).sort() }]));
+      expect(porTrafic(despues)).toEqual(porTrafic(antes));
+    });
+
     it("la trafic elegida a mano se respeta aunque la reserva sea del otro vuelo", () => {
       // J1 (zona Quila Quina) fijada a mano en la Trafic 1 por el id de asignación de su propio vuelo.
       const fijada = reservas().map((item) => (item.code === "J1" ? { ...item, assignmentId: "t1-ja" } : item));

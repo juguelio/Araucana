@@ -272,12 +272,15 @@ function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
 
     const ordenados = [...miembros].sort((a, b) => a.flightAt.getTime() - b.flightAt.getTime());
     const primero = ordenados[0];
+    // Las naves y su id salen del horario programado, no del estimado: una demora que da vuelta el orden de
+    // los vuelos no puede cambiarle la zona ni el link a ningún chofer.
+    const porProgramado = [...miembros].sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || (a.flightId ?? "").localeCompare(b.flightId ?? ""));
     const vehicles: ServiceOrderVehicle[] = [];
-    for (const nave of ordenados.flatMap((miembro) => miembro.vehicles)) {
+    for (const nave of porProgramado.flatMap((miembro) => miembro.vehicles)) {
       if (!vehicles.some((unida) => unida.vehicleId === nave.vehicleId)) vehicles.push(nave);
     }
     const asignacionUnida = new Map(
-      ordenados.flatMap((miembro) => miembro.vehicles).map((nave) => [
+      porProgramado.flatMap((miembro) => miembro.vehicles).map((nave) => [
         nave.assignmentId,
         vehicles.find((unida) => unida.vehicleId === nave.vehicleId)?.assignmentId ?? null
       ])
