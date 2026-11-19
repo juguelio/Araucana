@@ -672,6 +672,84 @@ describe("cantidad de pasajeros y adicionales en la edición (#267)", () => {
     expect(tx.payment.update).not.toHaveBeenCalled();
   });
 
+  it("cambia los menores y recalcula el total; en el aeropuerto sincroniza la copia del detalle", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 3, totalCents: 300000 });
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 100000, from: "A", to: "B", stops: [] });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 1, freeFareCount: 1 });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { halfFareCount: 1, freeFareCount: 1 } });
+    // 1 adulto (100.000) + 1 media (50.000) + 1 sin cargo.
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 150000 } });
+    // Los menores no ocupan lugares aparte: no se revisa el cupo.
+    expect(tx.schedule.findUnique).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    tx.reservation.findUnique.mockResolvedValue(airport);
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 55000 });
+    await manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 1 });
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where: { reservationId: pending.id }, data: { halfFareCount: 1 } });
+  });
+
+  it("no deja menores sin un adulto ni más menores que pasajeros", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2 });
+
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 1, freeFareCount: 1 }))
+      .rejects.toMatchObject({ code: "INVALID_PASSENGER_COUNT", message: expect.stringContaining("tarifa entera") });
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 3 }))
+      .rejects.toMatchObject({ code: "INVALID_PASSENGER_COUNT", message: expect.stringContaining("no puede superar") });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("cambia la bajada a una parada con tarifa y recalcula con su precio", async () => {
+    const ruta = { priceCents: 100000, from: "San Martín", to: "Bariloche", stops: [{ name: "Villa La Angostura", priceCents: 60000 }] };
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2, totalCents: 200000 });
+    tx.travelRoute.findUnique.mockResolvedValue(ruta);
+
+    await manageReservation(code, { operation: "edit", passenger: {}, dropoffStop: "Villa La Angostura" });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { dropoffStop: "Villa La Angostura" } });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 120000 } });
+
+    // Volver al destino final usa la tarifa entera de la ruta.
+    vi.clearAllMocks();
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2, totalCents: 120000, dropoffStop: "Villa La Angostura" });
+    tx.travelRoute.findUnique.mockResolvedValue(ruta);
+    await manageReservation(code, { operation: "edit", passenger: {}, dropoffStop: "" });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { dropoffStop: null } });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 200000 } });
+
+    // Una parada que no está en la ruta se rechaza.
+    vi.clearAllMocks();
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2, totalCents: 200000 });
+    tx.travelRoute.findUnique.mockResolvedValue(ruta);
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, dropoffStop: "Junín" }))
+      .rejects.toMatchObject({ code: "STOP_NOT_AVAILABLE" });
+  });
+
+  it("quita el recargo por zona cuando el punto sale de la zona con recargo", async () => {
+    tx.reservation.findUnique.mockResolvedValue(airport);
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 55000 });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, pickup: { address: "Centro", point: [-40.15, -71.35] } });
+
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where: { reservationId: pending.id }, data: { zoneExtraCents: 0 } });
+    // 2 × 55.000 + 1 bulto × 10.000, sin los 20.000 de zona.
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 120000 } });
+  });
+
+  it("edita el nombre del lugar del traslado y lo pasa a la planilla de Chapelco", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "CHAPELCO" });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, pickupName: "Hostería del Lago" });
+
+    expect(tx.chapelcoReservationDetails.update).toHaveBeenCalledWith({
+      where: { reservationId: pending.id }, data: { pickupName: "Hostería del Lago" }
+    });
+    expect(tx.chapelcoManifestStop.updateMany).toHaveBeenCalledWith({
+      where: { reservationId: pending.id, status: "PENDING" }, data: { pickupName: "Hostería del Lago" }
+    });
+  });
+
   it("no acepta equipaje deportivo en una reserva que no es del aeropuerto", async () => {
     tx.reservation.findUnique.mockResolvedValue(seated);
 

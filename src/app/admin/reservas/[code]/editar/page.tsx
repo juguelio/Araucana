@@ -3,10 +3,13 @@ import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { initialAirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { getReservationByCode } from "@/lib/booking/repository";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { tarifaPorPersona } from "@/lib/booking/reservation-edit";
+import { getStopFares } from "@/lib/booking/stop-fares";
 import { isAdminRole } from "@/lib/auth/roles";
 import { manageReservationAction, updateReservationAction } from "../../actions";
 import { ConfirmReservationButton } from "../confirm-reservation-button";
@@ -25,6 +28,8 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const point: PickupPoint | null = pickup?.pickupLatitude != null && pickup.pickupLongitude != null
     ? [pickup.pickupLatitude, pickup.pickupLongitude] : null;
   const coverage = airport && pickup ? await getAirportCoverage() : initialAirportCoverage;
+  // Recargo vigente: si el operador mueve el punto a la zona con recargo, se cobra este monto.
+  const zoneExtraConfigCents = airport ? (await getAirportExtras()).zoneExtraCents : 0;
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
   // Cargar el pago también desde acá (no sólo desde el detalle): mismas reglas que «Registrar pago».
@@ -37,8 +42,10 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const canDelete = isAdminRole(user.role) && (reservation.payment?.status !== "APPROVED" || disability);
   // Base del total (#267): con esto el formulario muestra la diferencia antes de guardar y la
   // cantidad de pasajeros/equipaje se recalcula sin volver a consultar la base.
+  // Ruta con paradas: la tarifa por persona es la de la parada donde baja (la misma cuenta del alta).
+  const paradas = reservation.bookingMode === "SEATED" ? getStopFares(reservation.route) : [];
   const priceBasis = {
-    priceCents: reservation.route.priceCents,
+    priceCents: tarifaPorPersona(reservation.route, reservation.dropoffStop),
     passengerCount: reservation.passengerCount,
     halfFareCount: reservation.halfFareCount ?? 0,
     freeFareCount: reservation.freeFareCount ?? 0,
@@ -64,12 +71,19 @@ export default async function EditReservationPage({ params }: { params: Promise<
             totalCents: reservation.totalCents,
             currency: reservation.currency,
             airport: Boolean(airport),
+            // La tarifa sin cargo por discapacidad es de un solo pasajero adulto: ahí no se cargan menores.
+            disability,
+            routePriceCents: reservation.route.priceCents,
+            destination: reservation.route.to,
+            stops: paradas,
+            dropoffStop: reservation.dropoffStop ?? "",
+            zoneExtraConfigCents,
             paymentApproved: reservation.payment?.status === "APPROVED" && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER,
             paymentReceiptPending: reservation.payment?.status === "PENDING" && Boolean(reservation.payment.receiptBlobPathname)
               && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER
           }}
           transfer={pickup ? {
-            address: pickup.pickupAddress ?? "", point, notes: pickup.pickupNotes ?? "",
+            address: pickup.pickupAddress ?? "", point, notes: pickup.pickupNotes ?? "", name: pickup.pickupName ?? "",
             airport: Boolean(airport), direction: airport?.direction, coverage
           } : undefined}
           financial={editPrice || correctPayment ? {

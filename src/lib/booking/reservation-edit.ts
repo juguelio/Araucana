@@ -10,7 +10,8 @@
  * con el que sale de sus datos, el operador lo corrigió a mano y se respeta tal cual. La transacción
  * de `manageReservation` sólo trae los datos y aplica la cuenta.
  */
-import { fareCounts, reservationTotalCents } from "./passenger-fares";
+import { fareCounts, hasFullFare, reservationTotalCents, sinAdultoMensaje } from "./passenger-fares";
+import { getStopFares } from "./stop-fares";
 
 /**
  * Tope de una reserva, no del servicio: es el máximo que vende el alta de Chapelco (60 personas) y
@@ -60,6 +61,13 @@ export function totalAlEditar(input: {
   totalCents: number;
   passengerCount?: number;
   sportsLuggageCount?: number;
+  /** Menores (media tarifa y sin cargo): van dentro de `passengerCount`. */
+  halfFareCount?: number;
+  freeFareCount?: number;
+  /** Recargo por zona después de mover el punto del traslado. */
+  zoneExtraCents?: number;
+  /** Tarifa por persona después de cambiar la bajada (parada intermedia o destino final). */
+  priceCents?: number;
 }): TotalAlEditar {
   const { basis, totalCents } = input;
   if (totalDerivadoCents(basis) !== totalCents) {
@@ -67,7 +75,11 @@ export function totalAlEditar(input: {
   }
   const siguiente = totalDerivadoCents({
     ...basis,
+    priceCents: input.priceCents ?? basis.priceCents,
     passengerCount: input.passengerCount ?? basis.passengerCount,
+    halfFareCount: input.halfFareCount ?? basis.halfFareCount,
+    freeFareCount: input.freeFareCount ?? basis.freeFareCount,
+    zoneExtraCents: input.zoneExtraCents ?? basis.zoneExtraCents,
     sportsLuggageCount: input.sportsLuggageCount ?? basis.sportsLuggageCount
   });
   return { totalCents: siguiente, deltaCents: siguiente - totalCents, seRecalcula: true };
@@ -80,4 +92,29 @@ export function totalAlEditar(input: {
  */
 export function minimoDePasajeros(basis: Pick<ReservationPriceBasis, "halfFareCount" | "freeFareCount">) {
   return Math.max(1, basis.halfFareCount + basis.freeFareCount + 1);
+}
+
+/**
+ * Tarifa por persona de una reserva de ruta: la de la parada donde baja si tiene bajada
+ * intermedia, o la de la ruta entera. Es la misma cuenta que hace el alta.
+ */
+export function tarifaPorPersona(
+  route: { from: string; to: string; priceCents: number; stops?: unknown },
+  dropoffStop: string | null | undefined
+): number {
+  if (!dropoffStop) return route.priceCents;
+  return getStopFares(route).find((fare) => fare.name === dropoffStop)?.priceCents ?? route.priceCents;
+}
+
+/**
+ * Valida la combinación de pasajeros y menores que va a quedar guardada. Devuelve el mensaje de
+ * error o `null`. Mismas reglas que el alta: los menores van dentro del total y siempre queda
+ * al menos un pasajero de tarifa entera.
+ */
+export function errorDeMenores(counts: { passengerCount: number; halfFareCount: number; freeFareCount: number }): string | null {
+  const { passengerCount, halfFareCount, freeFareCount } = counts;
+  if (halfFareCount < 0 || freeFareCount < 0) return "La cantidad de menores no puede ser negativa.";
+  if (halfFareCount + freeFareCount > passengerCount) return "La cantidad de menores no puede superar la de pasajeros.";
+  if (!hasFullFare(fareCounts(passengerCount, halfFareCount, freeFareCount))) return sinAdultoMensaje;
+  return null;
 }
