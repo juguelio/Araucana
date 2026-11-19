@@ -14,6 +14,7 @@ import { isAdminRole } from "@/lib/auth/roles";
 import { manageReservationAction, updateReservationAction } from "../../actions";
 import { ConfirmReservationButton } from "../confirm-reservation-button";
 import { ReservationEditForm } from "../reservation-edit-form";
+import { serviceMoveFor } from "./service-options";
 import { RegistrarPagoForm } from "../registrar-pago-form";
 import "../../reservas.css";
 
@@ -30,6 +31,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const coverage = airport && pickup ? await getAirportCoverage() : initialAirportCoverage;
   // Recargo vigente: si el operador mueve el punto a la zona con recargo, se cobra este monto.
   const zoneExtraConfigCents = airport ? (await getAirportExtras()).zoneExtraCents : 0;
+  const service = await serviceMoveFor(reservation);
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
   // Cargar el pago también desde acá (no sólo desde el detalle): mismas reglas que «Registrar pago».
@@ -66,6 +68,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
       <section className="plain-card admin-section">
         <ReservationEditForm action={updateReservationAction} code={reservation.code} passenger={reservation.passenger}
           referredBy={reservation.referredBy ?? ""}
+          service={service ?? undefined}
           counts={reservation.status === "CANCELLED" ? undefined : {
             price: priceBasis,
             totalCents: reservation.totalCents,

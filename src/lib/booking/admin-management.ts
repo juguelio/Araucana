@@ -11,9 +11,11 @@ import { BookingError, firstAvailableSeat } from "./repository";
 import { extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { MAX_PASSENGERS, errorDeMenores, tarifaPorPersona, totalAlEditar } from "./reservation-edit";
 import { getStopFares } from "./stop-fares";
+import { lugarEnChapelco, lugarEnSalida, lugarEnVuelo } from "./service-capacity";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
-import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable } from "@/lib/airport/booking";
+import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable, rangoDelDia } from "@/lib/airport/booking";
+import { argentinaDateKey } from "./admin-filters";
 import { chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { diffRecords, hasChanges } from "@/lib/audit/diff";
 import { recordAudit, type AuditAction, type AuditActor } from "@/lib/audit/record";
@@ -82,6 +84,20 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
     dropoffStop: z.string().trim().max(160).optional(),
     /** Nombre del lugar del traslado (hotel, cabaña) que sale en la orden del chofer. Vacío lo borra. */
     pickupName: z.string().trim().max(120).optional(),
+    /**
+     * Pasar la reserva a otro servicio del mismo tipo: otra salida (ruta), otro vuelo (aeropuerto,
+     * también de otro sentido o día) u otra fecha/franja (Chapelco). Se exige lo mismo que un alta:
+     * servicio futuro, abierto y con lugar.
+     */
+    move: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("SEATED"), scheduleId: z.string().min(1, "Elegí la salida.") }),
+      z.object({ mode: z.literal("AIRPORT"), flightId: z.string().min(1, "Elegí el vuelo.") }),
+      z.object({
+        mode: z.literal("CHAPELCO"),
+        serviceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Elegí una fecha válida."),
+        ascentSlot: z.string().trim().min(1, "Elegí la franja.").max(20)
+      })
+    ]).optional(),
     /** Bultos de equipaje deportivo del aeropuerto (#267). No existe en los otros modos. */
     sportsLuggageCount: z.coerce.number().int().min(0, "Cantidad inválida.")
       .max(MAX_SPORTS_LUGGAGE, "Máximo 24 bultos por reserva.").optional(),
@@ -165,41 +181,13 @@ export async function manageReservation(code: string, command: ReservationOperat
           let seatId: string | null = null;
           let seatNumber: string | null = null;
 
+          const pedido = {
+            excluir: id, pasajeros: reservation.passengerCount, ahora,
+            frase: (n: number) => `la reserva ocupa ${n}`, accion: "restituir la reserva"
+          };
           if (reservation.bookingMode === "SEATED") {
-            const schedule = reservation.scheduleId
-              ? await tx.schedule.findUnique({
-                  where: { id: reservation.scheduleId },
-                  include: {
-                    route: { select: { isActive: true } },
-                    vehicle: { select: { isActive: true, seats: true } },
-                    extraUnits: extraUnitsSeatsInclude,
-                    reservations: { select: { id: true, status: true, passengerCount: true, seatId: true, seatNumber: true } }
-                  }
-                })
-              : null;
-            if (!schedule) {
-              throw new BookingError("SCHEDULE_NOT_FOUND", "La salida de esta reserva ya no existe.");
-            }
-            if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= ahora || !schedule.route.isActive || schedule.vehicle.isActive === false) {
-              throw new BookingError("SERVICE_ALREADY_STARTED", "La salida ya arrancó o se cerró: no se puede restituir la reserva.");
-            }
-            const vivas = schedule.reservations.filter((item) => item.id !== id && item.status !== "CANCELLED");
-            const ocupados = vivas.reduce((total, item) => total + item.passengerCount, 0);
-            const asientos = scheduleSeatPool(schedule);
-            const capacidad = asientos.length;
-            if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
-              throw new BookingError(
-                "CAPACITY_FULL",
-                `No hay lugar en esa salida: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
-              );
-            }
-            const seat = firstAvailableSeat(
-              asientos,
-              new Set(vivas.map((item) => item.seatId)),
-              new Set(vivas.map((item) => item.seatNumber))
-            );
-            seatId = seat?.id ?? null;
-            seatNumber = seat?.number ?? null;
+            if (!reservation.scheduleId) throw new BookingError("SCHEDULE_NOT_FOUND", "La salida de esta reserva ya no existe.");
+            ({ seatId, seatNumber } = await lugarEnSalida(tx, reservation.scheduleId, pedido));
           } else if (reservation.bookingMode === "AIRPORT") {
             const details = await tx.airportReservationDetails.findUnique({
               where: { reservationId: id },
@@ -245,35 +233,7 @@ export async function manageReservation(code: string, command: ReservationOperat
             if (!details) {
               throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del servicio.");
             }
-            if (servicioYaPaso(details.serviceDate, ahora)) {
-              throw new BookingError("SERVICE_ALREADY_STARTED", "El servicio ya pasó: no se puede restituir la reserva.");
-            }
-            if (esFranjaDeChapelco(details.ascentSlot) && reservation.routeId) {
-              const [flota, vivas] = await Promise.all([
-                tx.vehicle.findMany({ where: { isActive: true }, select: { _count: { select: { seats: true } } } }),
-                tx.reservation.findMany({
-                  where: {
-                    routeId: reservation.routeId,
-                    bookingMode: "CHAPELCO",
-                    id: { not: id },
-                    status: { in: [...chapelcoActiveReservationStatuses] },
-                    chapelcoDetails: { serviceDate: details.serviceDate }
-                  },
-                  select: { passengerCount: true, chapelcoDetails: { select: { ascentSlot: true } } }
-                })
-              ]);
-              const capacidad = flota.reduce((total, vehicle) => total + vehicle._count.seats, 0);
-              const ocupados = personasQueBloqueanLaFranja(
-                vivas.map((item) => ({ passengerCount: item.passengerCount, ascentSlot: item.chapelcoDetails?.ascentSlot ?? null })),
-                details.ascentSlot
-              );
-              if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
-                throw new BookingError(
-                  "CAPACITY_FULL",
-                  `No hay lugar en esa franja: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
-                );
-              }
-            }
+            await lugarEnChapelco(tx, { routeId: reservation.routeId, serviceDate: details.serviceDate, ascentSlot: details.ascentSlot }, pedido);
           }
 
           await tx.reservation.update({
@@ -351,7 +311,7 @@ export async function manageReservation(code: string, command: ReservationOperat
           }
 
           if (command.operation !== "edit") break;
-          const { pickup, notes, passenger, referredBy, passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName } = command;
+          const { pickup, notes, passenger, referredBy, passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName, move } = command;
           const mediasAhora = reservation.halfFareCount ?? 0;
           const sinCargoAhora = reservation.freeFareCount ?? 0;
 
@@ -365,7 +325,10 @@ export async function manageReservation(code: string, command: ReservationOperat
             || (freeFareCount !== undefined && freeFareCount !== sinCargoAhora);
           const bajadaNueva = dropoffStop === undefined ? undefined : dropoffStop || null;
           const cambiaBajada = bajadaNueva !== undefined && bajadaNueva !== (reservation.dropoffStop ?? null);
-          if ((cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada) && status === "CANCELLED") {
+          if (move && move.mode !== reservation.bookingMode) {
+            throw new BookingError("RESERVATION_LOCKED", "La reserva sólo se puede pasar a otro servicio del mismo tipo.");
+          }
+          if ((cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || move) && status === "CANCELLED") {
             throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
           }
           if (sportsLuggageCount !== undefined && reservation.bookingMode !== "AIRPORT") {
@@ -390,7 +353,72 @@ export async function manageReservation(code: string, command: ReservationOperat
               throw new BookingError("INVALID_PASSENGER_COUNT", "La tarifa sin cargo por discapacidad es para un solo pasajero.");
             }
           }
-          if (cambiaCantidad && passengerCount !== undefined) {
+          // ── Cambio de servicio ──────────────────────────────────────────────────────────────
+          // Va antes que la cantidad: el cupo se mide en el servicio nuevo con la cantidad final.
+          let movida = false;
+          let rutaNuevaId: string | null = null;
+          if (move) {
+            const pedido = {
+              excluir: id, pasajeros: pasajerosFinal, ahora: new Date(),
+              frase: (n: number) => `la reserva quedaría con ${n}`, accion: "pasar la reserva a ese servicio"
+            };
+            if (move.mode === "SEATED" && move.scheduleId !== reservation.scheduleId) {
+              const { schedule, seatId, seatNumber } = await lugarEnSalida(tx, move.scheduleId, pedido);
+              if (schedule.route.bookingMode !== "SEATED") {
+                throw new BookingError("RESERVATION_LOCKED", "Esa salida no es de una ruta con asientos.");
+              }
+              await tx.reservation.update({
+                where: { id }, data: { scheduleId: schedule.id, routeId: schedule.routeId, seatId, seatNumber }
+              });
+              rutaNuevaId = schedule.routeId;
+              movida = true;
+            } else if (move.mode === "AIRPORT" && move.flightId !== reservation.airportDetails?.flightId) {
+              if (!reservation.airportDetails) throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del vuelo.");
+              const vuelo = await lugarEnVuelo(tx, move.flightId, pedido);
+              // Otro sentido = otra tarifa: la ruta del sentido del vuelo manda, igual que en el alta.
+              if (vuelo.direction !== reservation.airportDetails.direction) {
+                const ruta = await tx.travelRoute.findFirst({
+                  where: { bookingMode: "AIRPORT", specialType: vuelo.direction, isActive: true },
+                  orderBy: { createdAt: "asc" },
+                  select: { id: true }
+                });
+                if (!ruta) throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
+                await tx.reservation.update({ where: { id }, data: { routeId: ruta.id } });
+                rutaNuevaId = ruta.id;
+              }
+              await tx.airportReservationDetails.update({
+                where: { reservationId: id },
+                data: {
+                  flightId: vuelo.id,
+                  flightNumber: vuelo.number,
+                  direction: vuelo.direction,
+                  serviceDate: rangoDelDia(argentinaDateKey(vuelo.scheduledAt)).desde,
+                  // La nave y el lugar en la recorrida eran del vuelo anterior: la orden los vuelve a armar.
+                  assignmentId: null,
+                  routePosition: null
+                }
+              });
+              movida = true;
+            } else if (move.mode === "CHAPELCO") {
+              const detalles = await tx.chapelcoReservationDetails.findUnique({ where: { reservationId: id } });
+              if (!detalles) throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del servicio.");
+              const serviceDate = new Date(`${move.serviceDate}T00:00:00.000Z`);
+              const cambiaDia = serviceDate.getTime() !== detalles.serviceDate.getTime();
+              if (cambiaDia || move.ascentSlot !== detalles.ascentSlot) {
+                if (move.ascentSlot !== detalles.ascentSlot && !esFranjaDeChapelco(move.ascentSlot)) {
+                  throw new BookingError("RESERVATION_LOCKED", "Elegí una de las franjas de subida.");
+                }
+                await lugarEnChapelco(tx, { routeId: reservation.routeId, serviceDate, ascentSlot: move.ascentSlot }, pedido);
+                await tx.chapelcoReservationDetails.update({ where: { reservationId: id }, data: { serviceDate, ascentSlot: move.ascentSlot } });
+                // Las paradas pendientes eran de la vuelta del día o franja anterior: se sacan y la
+                // reserva vuelve a quedar para asignar en el tablero del día nuevo.
+                await tx.chapelcoManifestStop.deleteMany({ where: { reservationId: id, status: "PENDING" } });
+                movida = true;
+              }
+            }
+          }
+
+          if (cambiaCantidad && passengerCount !== undefined && !movida) {
             if (reservation.bookingMode === "SEATED") {
               const salida = reservation.scheduleId
                 ? await tx.schedule.findUnique({
@@ -471,6 +499,8 @@ export async function manageReservation(code: string, command: ReservationOperat
                 }
               }
             }
+          }
+          if (cambiaCantidad && passengerCount !== undefined) {
             await tx.reservation.update({ where: { id }, data: { passengerCount } });
             // La planilla de Chapelco guarda su propia copia de la cantidad por parada: sin esto el
             // chofer seguiría viendo la cantidad vieja.
@@ -497,14 +527,24 @@ export async function manageReservation(code: string, command: ReservationOperat
 
           // Ruta con paradas: la bajada tiene que ser una de las paradas con tarifa de la ruta, y
           // cambia la tarifa por persona igual que en el alta.
-          const rutaDeLaReserva = reservation.routeId && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || pickup?.point)
-            ? await tx.travelRoute.findUnique({ where: { id: reservation.routeId }, select: { priceCents: true, from: true, to: true, stops: true } })
+          const selectRuta = { priceCents: true, from: true, to: true, stops: true } as const;
+          const rutaDeLaReserva = reservation.routeId && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || pickup?.point || movida)
+            ? await tx.travelRoute.findUnique({ where: { id: reservation.routeId }, select: selectRuta })
             : null;
-          if (cambiaBajada) {
-            if (bajadaNueva && !(rutaDeLaReserva && getStopFares(rutaDeLaReserva).some((fare) => fare.name === bajadaNueva))) {
-              throw new BookingError("STOP_NOT_AVAILABLE", "Esa parada no está entre las paradas con tarifa de la ruta.");
-            }
-            await tx.reservation.update({ where: { id }, data: { dropoffStop: bajadaNueva } });
+          // Si el cambio de servicio pasó la reserva a otra ruta (otra salida, otro sentido del
+          // aeropuerto), la tarifa y las paradas salen de la ruta nueva.
+          const rutaFinal = rutaNuevaId && rutaNuevaId !== reservation.routeId
+            ? await tx.travelRoute.findUnique({ where: { id: rutaNuevaId }, select: selectRuta })
+            : rutaDeLaReserva;
+          const esParadaDe = (nombre: string | null) => Boolean(nombre && rutaFinal && getStopFares(rutaFinal).some((fare) => fare.name === nombre));
+          let bajadaFinal = bajadaNueva === undefined ? reservation.dropoffStop ?? null : bajadaNueva;
+          if (cambiaBajada && bajadaNueva && !esParadaDe(bajadaNueva)) {
+            throw new BookingError("STOP_NOT_AVAILABLE", "Esa parada no está entre las paradas con tarifa de la ruta.");
+          }
+          // En otra ruta, una parada que no existe ahí vuelve al destino final.
+          if (bajadaFinal && rutaFinal !== rutaDeLaReserva && !esParadaDe(bajadaFinal)) bajadaFinal = null;
+          if (bajadaFinal !== (reservation.dropoffStop ?? null)) {
+            await tx.reservation.update({ where: { id }, data: { dropoffStop: bajadaFinal } });
           }
 
           // Recargo por zona: si el punto del traslado se mueve, se cobra o se descuenta igual que
@@ -527,7 +567,7 @@ export async function manageReservation(code: string, command: ReservationOperat
           const precioEscrito = financial !== undefined && (
             financial.operation === "price" || (financial.operation === "correctPayment" && financial.totalCents !== undefined)
           );
-          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || cambiaZona) && rutaDeLaReserva) {
+          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || cambiaZona || movida) && rutaDeLaReserva && rutaFinal) {
             const total = totalAlEditar({
               basis: {
                 priceCents: tarifaPorPersona(rutaDeLaReserva, reservation.dropoffStop),
@@ -544,7 +584,7 @@ export async function manageReservation(code: string, command: ReservationOperat
               halfFareCount: mediasFinal,
               freeFareCount: sinCargoFinal,
               zoneExtraCents: zonaFinal,
-              priceCents: tarifaPorPersona(rutaDeLaReserva, bajadaNueva === undefined ? reservation.dropoffStop : bajadaNueva)
+              priceCents: tarifaPorPersona(rutaFinal, bajadaFinal)
             });
             if (total.seRecalcula && total.totalCents !== reservation.totalCents) {
               // Con un comprobante por revisar no se mueve la plata: es la misma guarda que ya

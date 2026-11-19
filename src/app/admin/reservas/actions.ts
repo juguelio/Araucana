@@ -282,6 +282,11 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   // Vacío = baja en el destino final; por eso viaja aunque esté vacío.
   const dropoffStop = formData.has("dropoffStop") ? value(formData, "dropoffStop") : undefined;
   const pickupName = formData.has("pickupName") ? value(formData, "pickupName") : undefined;
+  // Cambio de servicio: el formulario manda sólo el campo del tipo de reserva y sólo si cambió.
+  const move = formData.has("moveScheduleId") ? { mode: "SEATED", scheduleId: value(formData, "moveScheduleId") }
+    : formData.has("moveFlightId") ? { mode: "AIRPORT", flightId: value(formData, "moveFlightId") }
+      : formData.has("moveServiceDate") ? { mode: "CHAPELCO", serviceDate: value(formData, "moveServiceDate"), ascentSlot: value(formData, "moveAscentSlot") }
+        : undefined;
   const financial = priceChanged || paymentChanged ? {
     operation: value(formData, "financialOperation"),
     totalCents,
@@ -290,13 +295,13 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   } : undefined;
   if (!pickup && notes === undefined && referredBy === undefined && !financial
     && passengerCount === undefined && sportsLuggageCount === undefined && halfFareCount === undefined
-    && freeFareCount === undefined && dropoffStop === undefined && pickupName === undefined && Object.keys(passenger).length === 0) {
+    && freeFareCount === undefined && dropoffStop === undefined && pickupName === undefined && !move && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
   const command = reservationManagementSchema.safeParse({
     operation: "edit", passenger, pickup, notes, referredBy, financial,
-    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName,
+    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName, move,
     acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
   });
   if (!command.success) {
@@ -309,6 +314,8 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
     return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
       ? { documentId: message }
+      : error instanceof BookingError && move && ["CAPACITY_FULL", "SERVICE_ALREADY_STARTED", "FLIGHT_NOT_BOOKABLE", "FLIGHT_NOT_FOUND", "SCHEDULE_NOT_FOUND", "ROUTE_NOT_FOUND"].includes(error.code)
+        ? { move: message }
       : error instanceof BookingError && (error.code === "CAPACITY_FULL" || error.code === "INVALID_PASSENGER_COUNT")
         ? (halfFareCount !== undefined || freeFareCount !== undefined) && passengerCount === undefined
           ? { halfFareCount: message }

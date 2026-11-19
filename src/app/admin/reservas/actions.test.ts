@@ -112,3 +112,24 @@ describe("editar menores, bajada y nombre del lugar", () => {
       .toMatchObject({ fieldErrors: { dropoffStop: expect.stringContaining("parada") } });
   });
 });
+
+describe("pasar la reserva a otro servicio desde el panel", () => {
+  it("arma el cambio según el campo que mandó el formulario", async () => {
+    await updateReservationAction(initial, form({ code, moveScheduleId: "salida-2" }));
+    expect(m.manage).toHaveBeenLastCalledWith(code, expect.objectContaining({ move: { mode: "SEATED", scheduleId: "salida-2" } }), expect.anything());
+
+    await updateReservationAction(initial, form({ code, moveFlightId: "vuelo-2" }));
+    expect(m.manage).toHaveBeenLastCalledWith(code, expect.objectContaining({ move: { mode: "AIRPORT", flightId: "vuelo-2" } }), expect.anything());
+
+    await updateReservationAction(initial, form({ code, moveServiceDate: "2026-12-10", moveAscentSlot: "10:30" }));
+    expect(m.manage).toHaveBeenLastCalledWith(code, expect.objectContaining({
+      move: { mode: "CHAPELCO", serviceDate: "2026-12-10", ascentSlot: "10:30" }
+    }), expect.anything());
+  });
+
+  it("devuelve el error de cupo del servicio nuevo en el campo del servicio", async () => {
+    m.manage.mockRejectedValueOnce(new BookingError("CAPACITY_FULL", "No hay lugar en esa salida: quedan 0 lugares y la reserva quedaría con 2."));
+    expect(await updateReservationAction(initial, form({ code, moveScheduleId: "salida-2" })))
+      .toMatchObject({ fieldErrors: { move: expect.stringContaining("quedaría con 2") } });
+  });
+});
