@@ -5,7 +5,7 @@ import { expect, test } from "@playwright/test";
 import { createReservationShortCode } from "../../src/lib/booking/codes";
 
 /**
- * En Aeropuerto se marcan varios vuelos y «Hoja del chofer» de cualquiera de ellos abre las órdenes
+ * En Aeropuerto, «Hoja del chofer» abre un modal donde se eligen los vuelos y abre las órdenes
  * de todos juntas, con el diálogo de impresión, para imprimirlas en las menos hojas posibles.
  */
 if (!process.env.E2E_DATABASE_URL || process.env.E2E_ISOLATED_DATABASE !== "1") throw new Error("Requires isolated E2E database");
@@ -51,29 +51,30 @@ test.beforeEach(async ({ page }) => {
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
 });
 
-test("marcando dos vuelos, «Hoja del chofer» abre las dos órdenes juntas e imprime", async ({ page, context }) => {
+test("«Hoja del chofer» abre un modal para elegir los vuelos y abre sus órdenes juntas e imprime", async ({ page, context }) => {
   await page.goto(`/admin/aeropuerto?date=${day}`);
-  const [a, b, c] = vuelos.map((vuelo) => page.locator(`#vuelo-${vuelo.id}`));
-  // Sin marcar, cada hoja es la de su vuelo.
-  await expect(a.getByRole("link", { name: "Hoja del chofer" })).toHaveAttribute("href", `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${vuelos[0].id}`);
+  const [, , c] = vuelos.map((vuelo) => page.locator(`#vuelo-${vuelo.id}`));
+  // Ya no hay casilla «Juntar» en las tarjetas.
+  await expect(page.getByLabel(/para la hoja del chofer/)).toHaveCount(0);
 
-  await a.getByLabel(`Seleccionar ${vuelos[0].number} para la hoja del chofer`).check();
-  // Con uno solo marcado no cambia nada.
-  await expect(a.getByRole("link", { name: "Hoja del chofer" })).toHaveAttribute("href", /flight=/);
-  await c.getByLabel(`Seleccionar ${vuelos[2].number} para la hoja del chofer`).check();
+  await c.getByRole("button", { name: `Hoja del chofer del ${vuelos[2].number}` }).click();
+  const modal = page.getByRole("dialog", { name: `Hoja del chofer · ${vuelos[2].number}` });
+  // Viene marcado sólo el vuelo propio: la hoja es la de ese vuelo.
+  await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos[2].number) })).toBeChecked();
+  await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos[0].number) })).not.toBeChecked();
+  await expect(modal.getByRole("link", { name: "Abrir hoja del chofer" })).toHaveAttribute("href", `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${vuelos[2].id}`);
 
+  await modal.getByRole("checkbox", { name: new RegExp(vuelos[0].number) }).check();
+  // En el orden del día, no en el que se marcaron.
   const juntos = `/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flights=${vuelos[0].id}%2C${vuelos[2].id}&imprimir=1`;
-  await expect(a.getByRole("link", { name: "Hoja del chofer (2 vuelos)" })).toHaveAttribute("href", juntos);
-  await expect(c.getByRole("link", { name: "Hoja del chofer (2 vuelos)" })).toHaveAttribute("href", juntos);
-  // Un vuelo no marcado sigue abriendo sólo su hoja.
-  await expect(b.getByRole("link", { name: "Hoja del chofer" })).toHaveAttribute("href", /flight=/);
+  await expect(modal.getByRole("link", { name: "Abrir hoja del chofer (2 vuelos)" })).toHaveAttribute("href", juntos);
   await page.screenshot({ path: "/tmp/araucana-hoja-marcar.png" });
 
   await context.addInitScript(() => {
     (window as unknown as { impresiones: number }).impresiones = 0;
     window.print = () => { (window as unknown as { impresiones: number }).impresiones += 1; };
   });
-  const [hoja] = await Promise.all([context.waitForEvent("page"), c.getByRole("link", { name: "Hoja del chofer (2 vuelos)" }).click()]);
+  const [hoja] = await Promise.all([context.waitForEvent("page"), modal.getByRole("link", { name: "Abrir hoja del chofer (2 vuelos)" }).click()]);
   await hoja.waitForLoadState();
   await expect(hoja.locator("section.orden-bloque")).toHaveCount(2);
   await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(vuelos[0].number);

@@ -28,3 +28,16 @@ export function orderReturnHref(formData: FormData, notice: string): string | nu
   query.set("notice", notice);
   return `/admin/aeropuerto/orden-de-servicio/ver?${query.toString()}`;
 }
+
+/**
+ * Paso «Naves y choferes» de coordinar una recorrida: el modal de combis del vuelo queda abierto mientras
+ * se suman, quitan o cambian naves (`naves=<vuelo>` en la URL del tablero). El formulario manda el id del
+ * vuelo; se valida para que no pueda armar otra URL.
+ */
+export const NAVES_STEP_FIELD = "pasoNaves";
+
+export function navesStepHref(formData: FormData, date: string, notice: string): string | null {
+  const raw = formData.get(NAVES_STEP_FIELD);
+  if (typeof raw !== "string" || !ID.test(raw) || !DATE.test(date)) return null;
+  return `/admin/aeropuerto?${new URLSearchParams({ date, notice, naves: raw })}`;
+}
