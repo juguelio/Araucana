@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
 import { diasConSalidas, type SalidaOption } from "./salida-picker-utils";
 import { conteoPorDia, tiraConServicio, type Lugar } from "./viaje-utils";
@@ -72,6 +73,14 @@ function IconoPin() {
   );
 }
 
+function IconoAvion() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10.5 21 12 18l1.5 3M12 18V13M3 13l9-2 9 2M12 11V5a1.5 1.5 0 0 0-3 0v6" />
+    </svg>
+  );
+}
+
 function IconoCalendario() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -94,7 +103,7 @@ function IconoCombi() {
 
 export function ViajeSearchBar({
   origenes, destinos, origen, destino, puedeInvertir, tramos, ofrecerVuelta,
-  rutaSinSalidas, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
+  rutaSinSalidas, aeropuerto, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
 }: {
   origenes: Lugar[];
   /** Los destinos del origen elegido. */
@@ -109,6 +118,11 @@ export function ViajeSearchBar({
   ofrecerVuelta: { detalle: string } | null;
   /** La ruta elegida existe pero todavía no tiene salidas cargadas: se ofrece ir a cargarlas. */
   rutaSinSalidas?: { id: string } | null;
+  /**
+   * El aeropuerto como un lugar más (pantalla única de «Reservar», 19-nov): encabeza «Desde» y, si sale
+   * de San Martín, «Hacia». Elegirlo lleva al alta por vuelo, en la misma pantalla.
+   */
+  aeropuerto?: { desde: { href: string; detalle: string }; hacia: { href: string; detalle: string }; saleDe: string } | null;
   onLugar: (campo: "desde" | "hacia", nombre: string) => void;
   onInvertir: () => void;
   onDia: (tramo: ClaveTramo, dia: string) => void;
@@ -275,6 +289,16 @@ export function ViajeSearchBar({
       <>
         <p className="trip-search-panel-title">{campo === "desde" ? "¿Desde dónde sale?" : "¿Adónde va?"}</p>
         <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? "Desde" : "Hacia"}>
+          {/* El aeropuerto primero: se reserva por vuelo, así que lleva a su alta en la misma pantalla. */}
+          {aeropuerto && (campo === "desde" || origen === aeropuerto.saleDe) ? (
+            <Link href={campo === "desde" ? aeropuerto.desde.href : aeropuerto.hacia.href} scroll={false} className="trip-search-option" role="radio" aria-checked={false}>
+              <span className="trip-search-option-icon"><IconoAvion /></span>
+              <span className="trip-search-option-text">
+                <b>Aeropuerto Chapelco</b>
+                <small>{campo === "desde" ? aeropuerto.desde.detalle : aeropuerto.hacia.detalle}</small>
+              </span>
+            </Link>
+          ) : null}
           {lista.map((lugar) => (
             <button
               key={lugar.nombre}

@@ -8,7 +8,7 @@ import { detalleDeLaVuelta, hrefConViaje } from "./airport-trip-options";
 import { statusLabel } from "@/lib/airport/flights";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
-import { TripSearchBar, type TramoDeLaBarra } from "./ida-y-vuelta/trip-search-bar";
+import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./ida-y-vuelta/trip-search-bar";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
@@ -104,6 +104,8 @@ type AirportCheckoutFormProps = {
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   fromAdmin?: boolean;
+  /** Panel: los lugares de las rutas por salida en Desde/Hacia (pantalla única de «Reservar»). */
+  lugaresExtra?: LugaresExtra;
   /** A dónde lleva «Ida y vuelta»: la pantalla pública o la del panel. */
   roundTripHref?: string;
   /** El sentido ya viene elegido (tarjeta «Llegada» o «Salida» de otra pantalla): se baja a la barra. */
@@ -120,6 +122,8 @@ export const ETAPAS_DEL_CHECKOUT = ["Tu vuelo", "Los lugares", "Tus datos"] as c
  * una sola pata: los lugares aparecen apenas hay vuelo y los datos apenas está resuelto el lugar.
  * Vive aparte del JSX para poder probarlo sin DOM.
  */
+type LugaresExtra = { desde: LugarDeOtroServicio[]; hacia: LugarDeOtroServicio[] };
+
 export function seccionesDelCheckoutUnTramo({ vueloListo, lugarListo }: { vueloListo: boolean; lugarListo: boolean }) {
   return {
     etapas: ETAPAS_DEL_CHECKOUT,
@@ -189,7 +193,7 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId, lugaresExtra }: AirportCheckoutFormProps) {
   const router = useRouter();
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
@@ -608,6 +612,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               entre llegada y salida, y al lado de la fecha está la vuelta, apagada, para sumarla. */}
           <TripSearchBar
             tramos={[tramoDeLaBarra]}
+            lugaresExtra={lugaresExtra}
             routeSlug={route.slug}
             onPedirOrden={(nuevo) => {
               // Pasar de llegada a salida (o al revés) es otro viaje: se borra el vuelo y el lugar.

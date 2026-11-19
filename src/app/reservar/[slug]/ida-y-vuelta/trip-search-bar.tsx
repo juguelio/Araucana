@@ -129,9 +129,15 @@ function IconoCalendario() {
   );
 }
 
+/**
+ * Un lugar de otro servicio en Desde/Hacia (pantalla única de «Reservar», 19-nov): Villa Traful,
+ * Villa La Angostura… Elegirlo lleva al alta por salida de ese recorrido, en la misma pantalla.
+ */
+export type LugarDeOtroServicio = { nombre: string; detalle: string; href: string };
+
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
-  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref
+  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref, lugaresExtra
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
@@ -153,6 +159,12 @@ export function TripSearchBar({
   agregarVuelta?: { href: string; detalle?: string };
   /** Ida y vuelta: la cruz arriba a la derecha de la vuelta la saca y lleva a la reserva de un tramo. */
   quitarVueltaHref?: string;
+  /**
+   * Panel: los lugares de las rutas por salida, para reservar todo desde la misma pantalla (19-nov:
+   * «que eso esté ya en el nombre de los lugares… cuando haya más rutas va a estar muy cluttered»).
+   * `desde` se ofrece siempre; `hacia`, cuando sale de San Martín.
+   */
+  lugaresExtra?: { desde: LugarDeOtroServicio[]; hacia: LugarDeOtroServicio[] };
 }) {
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
@@ -173,7 +185,7 @@ export function TripSearchBar({
    * Desde/Hacia se editan si el formulario deja cambiar el sentido (`onPedirOrden`). Desde el 18-nov
    * la reserva de un tramo también: es el mismo recuadro que el ida y vuelta, con las mismas flechas.
    */
-  const lugaresFijos = !onPedirOrden;
+  const lugaresFijos = !onPedirOrden && !lugaresExtra;
 
   // Se cierra con Escape o tocando fuera de la barra, como cualquier menú.
   useEffect(() => {
@@ -357,6 +369,16 @@ export function TripSearchBar({
               </span>
               {actual === lugar ? <span className="trip-search-tick" aria-hidden="true">✓</span> : null}
             </button>
+          ))}
+          {/* Los lugares de las rutas por salida: llevan a ese recorrido, en la misma pantalla. */}
+          {(campo === "desde" ? lugaresExtra?.desde ?? [] : desde === "SMA" ? lugaresExtra?.hacia ?? [] : []).map((otro) => (
+            <Link key={otro.href} href={otro.href} scroll={false} className="trip-search-option" role="radio" aria-checked={false}>
+              <span className="trip-search-option-icon"><IconoPin /></span>
+              <span className="trip-search-option-text">
+                <b>{otro.nombre}</b>
+                <small>{otro.detalle}</small>
+              </span>
+            </Link>
           ))}
         </div>
       </>

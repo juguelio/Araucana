@@ -158,3 +158,20 @@ describe("TripSearchBar: el panel dice en qué tramo se está", () => {
     expect(html).not.toContain('data-paso="siguiente"');
   });
 });
+
+describe("TripSearchBar: lugares de otros servicios (pantalla única de «Reservar», 19-nov)", () => {
+  const extra = {
+    desde: [{ nombre: "Villa Traful", detalle: "36 salidas con lugar", href: "/admin/reservas/nueva?desde=Villa%20Traful" }],
+    hacia: [{ nombre: "Villa Traful", detalle: "47 salidas con lugar", href: "/admin/reservas/nueva?desde=San&hacia=Villa%20Traful" }]
+  };
+
+  it("con lugares de otros servicios, Desde y Hacia se abren aunque el sentido no se pueda cambiar acá", () => {
+    const conExtra = render({ ...manejadores, tramos: [tramo({ etapa: "Ida" })], lugaresExtra: extra });
+    expect(conExtra).not.toContain('data-fijo="true"');
+    expect(veces(conExtra, 'data-campo="desde"')).toBe(1);
+    expect(conExtra).toContain('aria-expanded="false"');
+    // Sin lugares extra (la reserva web), el lugar sigue fijo.
+    const sinExtra = render({ ...manejadores, tramos: [tramo({ etapa: "Ida" })] });
+    expect(sinExtra).toContain('data-fijo="true"');
+  });
+});
