@@ -41,8 +41,8 @@ const CERRO = "Cerro Chapelco";
 const CIUDAD = "San Martín de los Andes";
 
 /**
- * De dónde sale cada servicio regular (19-nov). Los micros de las rutas salen de la **terminal** de
- * cada localidad, no del «centro»: el voucher es lo que muestra el pasajero para saber dónde esperar.
+ * La terminal de cada localidad (19-nov). Los micros de las rutas salen y llegan a la **terminal**,
+ * no al «centro»: el voucher es lo que muestra el pasajero para saber dónde esperar y adónde baja.
  * Lo que no es una de estas tres localidades se imprime tal cual (Hua Hum, Yuco, la terminal de
  * ómnibus de otra ciudad o un domicilio).
  */
@@ -53,8 +53,8 @@ const TERMINALES: Record<string, string> = {
   "villa la angostura": "Terminal de Ómnibus de Villa La Angostura"
 };
 
-/** El lugar de salida que va impreso en el voucher: la terminal de la localidad, si la conocemos. */
-export function lugarDeSalida(lugar: string | null | undefined) {
+/** El lugar que va impreso en el voucher: la terminal de la localidad, si la conocemos. */
+export function lugarDeTerminal(lugar: string | null | undefined) {
   const nombre = (lugar ?? "").trim();
   if (!nombre) return "";
   return TERMINALES[claveDeLugar(nombre)] ?? nombre;
@@ -200,8 +200,8 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     rows.push({
       fecha: salida ? fechaArgentina(salida) : "A confirmar",
       horario: salida ? horaArgentina(salida) : "A confirmar",
-      inicio: lugarDeSalida(reservation.route.from),
-      fin: reservation.dropoffStop ?? reservation.route.to,
+      inicio: lugarDeTerminal(reservation.route.from),
+      fin: lugarDeTerminal(reservation.dropoffStop ?? reservation.route.to),
       observaciones: ""
     });
   }

@@ -8,7 +8,7 @@ import {
   documentoDelPasajero,
   estadoDelVoucher,
   importeDelVoucher,
-  lugarDeSalida,
+  lugarDeTerminal,
   voucherMessage,
   voucherPath,
   whatsappShareUrl
@@ -85,20 +85,20 @@ describe("políticas de cancelación del voucher", () => {
   });
 });
 
-describe("lugarDeSalida", () => {
-  // El pasajero necesita saber en qué terminal esperar: es lo que muestra el voucher (19-nov).
-  it("los servicios regulares salen de la terminal de cada localidad", () => {
-    expect(lugarDeSalida("San Martin de los Andes")).toBe("Terminal de Ómnibus de San Martín de los Andes");
-    expect(lugarDeSalida("San Martín de los Andes")).toBe("Terminal de Ómnibus de San Martín de los Andes");
-    expect(lugarDeSalida("Villa Traful")).toBe("Terminal de Ómnibus de Villa Traful");
-    expect(lugarDeSalida("Villa La Angostura")).toBe("Terminal de Ómnibus de Villa La Angostura");
+describe("lugarDeTerminal", () => {
+  // El pasajero necesita saber en qué terminal esperar y adónde baja: es lo que muestra el voucher (19-nov).
+  it("los servicios regulares van de terminal a terminal", () => {
+    expect(lugarDeTerminal("San Martin de los Andes")).toBe("Terminal de Ómnibus de San Martín de los Andes");
+    expect(lugarDeTerminal("San Martín de los Andes")).toBe("Terminal de Ómnibus de San Martín de los Andes");
+    expect(lugarDeTerminal("Villa Traful")).toBe("Terminal de Ómnibus de Villa Traful");
+    expect(lugarDeTerminal("Villa La Angostura")).toBe("Terminal de Ómnibus de Villa La Angostura");
   });
 
   it("lo que no es una de esas localidades se imprime tal cual", () => {
-    expect(lugarDeSalida("Hua Hum")).toBe("Hua Hum");
-    expect(lugarDeSalida("Yuco")).toBe("Yuco");
-    expect(lugarDeSalida("")).toBe("");
-    expect(lugarDeSalida(null)).toBe("");
+    expect(lugarDeTerminal("Hua Hum")).toBe("Hua Hum");
+    expect(lugarDeTerminal("Yuco")).toBe("Yuco");
+    expect(lugarDeTerminal("")).toBe("");
+    expect(lugarDeTerminal(null)).toBe("");
   });
 });
 
@@ -112,14 +112,27 @@ describe("buildVoucher", () => {
       })
     );
     expect(voucher.rows[0].inicio).toBe("Terminal de Ómnibus de San Martín de los Andes");
-    expect(voucher.rows[0].fin).toBe("Villa Traful");
+    expect(voucher.rows[0].fin).toBe("Terminal de Ómnibus de Villa Traful");
+  });
+
+  it("el viaje de vuelta también nombra las dos terminales", () => {
+    const voucher = buildVoucher(
+      reserva({
+        bookingMode: "SEATED",
+        route: { ...reserva().route, from: "Villa Traful", to: "Villa La Angostura" },
+        dropoffStop: null
+      })
+    );
+    expect(voucher.rows[0].inicio).toBe("Terminal de Ómnibus de Villa Traful");
+    expect(voucher.rows[0].fin).toBe("Terminal de Ómnibus de Villa La Angostura");
   });
   it("toma fecha y horario de la salida en hora argentina", () => {
     const voucher = buildVoucher(reserva());
     expect(voucher.rows[0].fecha).toBe("01/06/2026");
     expect(voucher.rows[0].horario).toBe("09:00");
     expect(voucher.rows[0].inicio).toBe("Aeropuerto Chapelco");
-    expect(voucher.rows[0].fin).toBe("San Martín de los Andes");
+    // Llega a San Martín: la columna de destino nombra la terminal, igual que la de salida (19-nov).
+    expect(voucher.rows[0].fin).toBe("Terminal de Ómnibus de San Martín de los Andes");
   });
 
   it("no corre al día anterior una fecha de calendario", () => {
