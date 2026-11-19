@@ -58,7 +58,7 @@ export async function getAirportServiceOrderReservations(
                 select: {
                   id: true,
                   vehicle: { select: { id: true, name: true, _count: { select: { seats: true } } } },
-                  driver: { select: { name: true, email: true } }
+                  driver: { select: { id: true, name: true, email: true } }
                 }
               }
             }
@@ -113,7 +113,8 @@ export async function getAirportServiceOrderReservations(
                 name: asignacion.vehicle.name,
                 // Lo que la nave vende para el aeropuerto: las chicas dejan 4 butacas para el equipaje.
                 seats: butacasParaAeropuerto(asignacion.vehicle._count.seats),
-                driver: asignacion.driver ? (asignacion.driver.name ?? asignacion.driver.email) : null
+                driver: asignacion.driver ? (asignacion.driver.name ?? asignacion.driver.email) : null,
+                driverId: asignacion.driver?.id ?? null
               }))
             }
           : null

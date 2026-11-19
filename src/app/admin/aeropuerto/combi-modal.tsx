@@ -6,7 +6,7 @@ import { RowModal } from "../reservas/row-modal";
 import { assignVehicleAction, removeAssignmentAction } from "./actions";
 import { ChoferBuscador, type ChoferElegible } from "./chofer-buscador";
 import { NaveBuscador, type NaveElegible } from "./nave-buscador";
-import { ORDER_RETURN_FIELD } from "./return-to-order";
+import { NAVES_STEP_FIELD, ORDER_RETURN_FIELD } from "./return-to-order";
 import "./aeropuerto.css";
 
 /** Lo que necesita el modal de un vuelo: sus combis (con butacas y chofer) y sus pasajeros. */
@@ -53,6 +53,8 @@ export async function opcionesDeCombi(): Promise<{ naves: NaveElegible[]; chofer
  */
 export function combisCortas(vuelo: VueloConCombis) {
   if (vuelo.assignments.length <= 1) return combisDelVuelo(vuelo);
+  // Con tres o más los nombres ya no entran: sólo cuántas (el detalle está en el title y en el modal).
+  if (vuelo.assignments.length > 2) return `${vuelo.assignments.length} combis`;
   return `${vuelo.assignments.length} combis: ${vuelo.assignments.map((a) => a.vehicle.name).join(" + ")}`;
 }
 
@@ -68,7 +70,22 @@ export function combisDelVuelo(vuelo: VueloConCombis) {
  * cada orden de servicio. `volverAOrden` (la query de la orden) hace que, al guardar, se vuelva a la
  * orden en vez de al tablero de aeropuerto.
  */
-export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLabel, triggerClassName, resetKey, volverAOrden }: {
+/**
+ * Las combis de toda la recorrida, para verlas y manejarlas desde cualquiera de sus vuelos: la unión de
+ * las de cada vuelo (una por nave, la del propio vuelo primero) y los pasajeros de todos. Asignar,
+ * cambiar el chofer o quitar ya actúan sobre toda la recorrida (`assignVehicleAction`,
+ * `removeAssignmentAction`). Un vuelo sin recorrida queda igual.
+ */
+export function vueloDeLaRecorrida(vuelo: VueloConCombis, companeros: VueloConCombis[]): VueloConCombis {
+  if (!companeros.length) return vuelo;
+  const assignments = [...vuelo.assignments];
+  for (const asignacion of companeros.flatMap((otro) => otro.assignments)) {
+    if (!assignments.some((propia) => propia.vehicleId === asignacion.vehicleId)) assignments.push(asignacion);
+  }
+  return { ...vuelo, assignments, reservations: [...vuelo.reservations, ...companeros.flatMap((otro) => otro.reservations)] };
+}
+
+export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLabel, triggerClassName, resetKey, volverAOrden, recorrida = [], paso }: {
   vuelo: VueloConCombis;
   naves: NaveElegible[];
   choferes: ChoferElegible[];
@@ -78,6 +95,13 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   /** Cambia después de guardar (el aviso de la URL) para que el modal se cierre y vuelva limpio. */
   resetKey: string;
   volverAOrden?: string;
+  /** Los números de los otros vuelos de la recorrida, para el título. */
+  recorrida?: string[];
+  /**
+   * Paso 2 de coordinar una recorrida: el modal se abre solo y queda abierto mientras se suman, quitan
+   * o cambian naves. `listoHref` cierra el paso (vuelve al tablero sin el modal).
+   */
+  paso?: { listoHref: string };
 }) {
   const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
   const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
@@ -86,7 +110,10 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
     actual && !choferes.some((chofer) => chofer.id === actual.id)
       ? [{ id: actual.id, label: `${nombreDeChofer(actual)} (inactivo)`, email: actual.email }, ...choferes]
       : choferes;
-  const volver = volverAOrden ? <input type="hidden" name={ORDER_RETURN_FIELD} value={volverAOrden} /> : null;
+  const volver = volverAOrden
+    ? <input type="hidden" name={ORDER_RETURN_FIELD} value={volverAOrden} />
+    : paso ? <input type="hidden" name={NAVES_STEP_FIELD} value={vuelo.id} /> : null;
+  const vuelos = [vuelo.number, ...recorrida].join(" + ");
 
   return (
     <RowModal
@@ -95,11 +122,18 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       triggerLabel={triggerLabel}
       triggerClassName={triggerClassName}
       modalClassName="aero-combi-modal"
-      eyebrow={`${vuelo.direction === "ARRIVAL" ? "Arribo" : "Partida"} ${hhmm.format(vuelo.scheduledAt)}`}
-      title={`Combi del ${vuelo.number}`}
+      defaultOpen={Boolean(paso)}
+      eyebrow={paso ? "Paso 2 de 2 · Naves y choferes" : `${vuelo.direction === "ARRIVAL" ? "Arribo" : "Partida"} ${hhmm.format(vuelo.scheduledAt)}`}
+      title={recorrida.length ? `Combis de la recorrida ${vuelos}` : `Combi del ${vuelo.number}`}
       subtitle={`${ocupados} ${ocupados === 1 ? "pasajero" : "pasajeros"} · ${vuelo.assignments.length ? `${capacidad} lugares en las combis asignadas` : "sin combi asignada"}`}
     >
-      {vuelo.pickupGroupId ? (
+      {paso ? (
+        <p className="muted">
+          Las naves que ya tenían los vuelos aparecen abajo: cambiales el chofer o quitá las que sobran, y sumá las que
+          falten. Cuando esté, tocá «Listo».
+        </p>
+      ) : null}
+      {vuelo.pickupGroupId && !paso ? (
         <p className="muted">
           Este vuelo va en una recorrida con otros: la nave y el chofer se asignan a <strong>todos los vuelos de la
           recorrida</strong>. Si sale con más de una, la orden de servicio reparte a los pasajeros de todos los vuelos
@@ -143,6 +177,11 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
         </div>
         <button className="button" type="submit">{vuelo.assignments.length ? "Sumar nave" : "Asignar nave"}</button>
       </FleetAssignmentForm>
+      {paso ? (
+        <div className="form-actions">
+          <a className="button" href={paso.listoHref}>Listo</a>
+        </div>
+      ) : null}
     </RowModal>
   );
 }

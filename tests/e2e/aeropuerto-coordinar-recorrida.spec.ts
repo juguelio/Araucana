@@ -39,11 +39,16 @@ test("cada partida abre su modal, suma otra partida y fija la hora de la recorri
   await modal.getByRole("checkbox", { name: new RegExp(vuelos.b.number) }).check();
   await modal.getByLabel("Hora en que los busca").fill(`${date}T12:10`);
   await page.screenshot({ path: "/tmp/araucana-coordinar-modal.png" });
-  await modal.getByRole("button", { name: "Guardar horario" }).click();
+  await modal.getByRole("button", { name: "Siguiente: naves y choferes" }).click();
 
-  await expect(page.getByText("Se guardó el inicio de recorrida para las partidas seleccionadas.")).toBeVisible();
+  // Paso 2: se abre solo el modal de las combis de la recorrida, con «Listo» para cerrarlo.
+  await expect(page.getByText("Recorrida coordinada. Ahora elegí las naves y los choferes.")).toBeVisible();
+  const paso2 = page.getByRole("dialog", { name: `Combis de la recorrida ${vuelos.a.number} + ${vuelos.b.number}` });
+  await expect(paso2).toContainText("Paso 2 de 2 · Naves y choferes");
+  await page.screenshot({ path: "/tmp/araucana-coordinar-paso2.png" });
+  await paso2.getByRole("link", { name: "Listo" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const guardados = await db.flight.findMany({ where: { id: { in: [vuelos.a.id, vuelos.b.id] } }, select: { pickupStartOverrideAt: true } });
   for (const vuelo of guardados) expect(vuelo.pickupStartOverrideAt?.toISOString()).toBe(new Date(`${date}T12:10:00-03:00`).toISOString());
-  await expect(page.locator(`#vuelo-${vuelos.b.id}`)).toContainText("Recorrida coordinada");
+  await expect(page.locator(`#vuelo-${vuelos.b.id}`)).toContainText(`Recorrida 12:10 con ${vuelos.a.number}`);
 });

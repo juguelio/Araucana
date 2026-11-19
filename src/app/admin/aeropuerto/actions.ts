@@ -15,7 +15,7 @@ import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type Ent
 import { formatAuditDate } from "@/lib/audit/labels";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
-import { orderReturnHref } from "./return-to-order";
+import { navesStepHref, orderReturnHref } from "./return-to-order";
 
 function value(formData: FormData, key: string) {
   const entry = formData.get(key);
@@ -34,6 +34,12 @@ function flightLabel(flight: { number: string; scheduledAt: Date }) {
 /** Para escrituras que ya quedaron guardadas: la auditoría no puede convertirlas en un error. */
 function auditAirport(entry: Omit<EntityAudit, "entity">) {
   return recordEntityAuditAfterCommit(prisma, { entity: "AIRPORT", ...entry });
+}
+
+/** Después de armar la recorrida, el tablero abre las combis del vuelo de origen (o del primero) para el paso 2. */
+function irAlPasoDeNaves(date: string, ids: string[], origen: string, message: string): never {
+  const vuelo = ids.includes(origen) ? origen : ids[0];
+  redirect(`/admin/aeropuerto?${new URLSearchParams({ date, notice: message, naves: vuelo })}`);
 }
 
 export async function savePickupStartAction(formData: FormData) {
@@ -89,7 +95,9 @@ export async function savePickupStartAction(formData: FormData) {
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
   revalidatePath("/reservar/[slug]", "page");
-  finish(reset ? "Se restauró el horario estimado de las partidas seleccionadas." : "Se guardó el inicio de recorrida para las partidas seleccionadas.");
+  if (reset) finish("Se restauró el horario estimado de las partidas seleccionadas.");
+  // Paso 2: naves y choferes de la recorrida, en el modal de combis del vuelo desde donde se coordinó.
+  irAlPasoDeNaves(date, ids, value(formData, "origen"), "Recorrida coordinada. Ahora elegí las naves y los choferes.");
 }
 
 /**
@@ -128,7 +136,8 @@ export async function saveArrivalGroupAction(formData: FormData) {
   }
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
-  finish(split ? "Los arribos quedaron separados: cada uno con su orden." : "Arribos juntados: la hoja del chofer los muestra en una sola orden.");
+  if (split) finish("Los arribos quedaron separados: cada uno con su orden.");
+  irAlPasoDeNaves(date, ids, value(formData, "origen"), "Arribos juntados en una recorrida. Ahora elegí las naves y los choferes.");
 }
 
 export async function createFlightAction(_prev: AdminFormState, formData: FormData): Promise<AdminFormState> {
@@ -356,6 +365,8 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   if (returnsToBoard(formData)) redirectToBoard(day, message, formData);
   const toOrder = orderReturnHref(formData, message);
   if (toOrder) redirect(toOrder);
+  const toNaves = navesStepHref(formData, day, message);
+  if (toNaves) redirect(toNaves);
   redirect(`/admin/aeropuerto?date=${day}&notice=${encodeURIComponent(message)}`);
 }
 
@@ -402,6 +413,8 @@ export async function removeAssignmentAction(formData: FormData) {
   if (removed && returnsToBoard(formData)) redirectToBoard(localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada del vuelo.", formData);
   const toOrder = orderReturnHref(formData, "Combi quitada del vuelo.");
   if (toOrder) redirect(toOrder);
+  const toNaves = removed ? navesStepHref(formData, localInput(removed.flight.scheduledAt).slice(0, 10), "Combi quitada de la recorrida.") : null;
+  if (toNaves) redirect(toNaves);
   // Vuelve al día del vuelo: quitar una combi desde el modal no puede dejar al operador en otro día.
   if (removed) redirect(`/admin/aeropuerto?${new URLSearchParams({ date: localInput(removed.flight.scheduledAt).slice(0, 10), notice: "Combi quitada del vuelo." })}`);
   notice("Combi quitada del vuelo.");

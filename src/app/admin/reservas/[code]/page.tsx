@@ -303,8 +303,13 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             <div>
               <span>Documento</span>
               <strong>
-                {reservation.passenger.documentType} {reservation.passenger.documentId}
+                {reservation.passenger.documentId.trim()
+                  ? `${reservation.passenger.documentType} ${reservation.passenger.documentId}`
+                  : <span className="pill pill-estado" data-tono="atencion">Falta documento</span>}
               </strong>
+              {!reservation.passenger.documentId.trim() ? (
+                <small className="muted">Se cargó sin DNI. Se completa desde «Editar reserva».</small>
+              ) : null}
             </div>
             <div>
               <span>Nacionalidad</span>

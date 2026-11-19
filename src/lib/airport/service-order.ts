@@ -78,6 +78,8 @@ export type ServiceOrderVehicle = {
   /** Asientos de la nave. 0 = sin plano cargado: no se sabe la capacidad. */
   seats: number;
   driver: string | null;
+  /** Id del chofer, para asignarle el mismo a otro tramo (hoja IN/OUT). */
+  driverId?: string | null;
 };
 
 /** Rótulo de la orden de los pasajeros que no entraron en ninguna nave del vuelo. */
@@ -319,10 +321,15 @@ const totalDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total,
 
 /**
  * El orden de la recorrida de un vuelo: primero los que el operador ordenó a mano, en ese orden; después
- * el resto en el orden sugerido desde el aeropuerto (`ordenarPorRecorrido`). Así una reserva nueva cae al
- * final de lo que ya se acomodó, en vez de desarmarlo.
+ * el resto en el orden sugerido (`ordenarPorRecorrido`). Así una reserva nueva cae al final de lo que ya
+ * se acomodó, en vez de desarmarlo.
+ *
+ * El sugerido se arma desde el aeropuerto encadenando el retiro más cercano. En un arribo es el orden en
+ * que se deja a la gente: sale del aeropuerto. En una partida es al revés (pedido del cliente, 19/11): la
+ * camioneta junta a la gente y termina en el aeropuerto, así que el primer retiro es el más lejano y el
+ * último el más cercano al aeropuerto. Los pasajeros sin ubicación en el mapa van al final en los dos casos.
  */
-export function ordenDeLaRecorrida(pasajeros: ServiceOrderPassenger[]) {
+export function ordenDeLaRecorrida(pasajeros: ServiceOrderPassenger[], direction: ServiceOrderDirection = "ARRIVAL") {
   const fijados = pasajeros
     .map((pasajero, indice) => ({ pasajero, indice }))
     .filter(({ pasajero }) => pasajero.routePosition !== null)
@@ -332,7 +339,10 @@ export function ordenDeLaRecorrida(pasajeros: ServiceOrderPassenger[]) {
     pasajeros.filter((pasajero) => pasajero.routePosition === null),
     (pasajero) => pasajero.pickup
   );
-  return [...fijados, ...sugeridos];
+  if (direction !== "DEPARTURE") return [...fijados, ...sugeridos];
+  const ubicados = sugeridos.filter((pasajero) => pasajero.pickup);
+  const sinUbicacion = sugeridos.filter((pasajero) => !pasajero.pickup);
+  return [...fijados, ...ubicados.reverse(), ...sinUbicacion];
 }
 
 /**
@@ -476,9 +486,9 @@ export function buildServiceOrderBlocks(
 
   const ordenes: ServiceOrderBlock[] = [];
   for (const { flightKey, vehicles, pickupGroupId: _grupo, ...grupo } of grupos.values()) {
-    // La recorrida sale del aeropuerto y encadena el retiro más cercano, salvo lo que el operador ya
-    // ordenó a mano. Los pasajeros sin ubicación en el mapa quedan al final (ver `ordenarPorRecorrido`).
-    const recorrida = ordenDeLaRecorrida(grupo.passengers);
+    // La recorrida encadena el retiro más cercano al aeropuerto (al revés en las partidas, que terminan
+    // ahí), salvo lo que el operador ya ordenó a mano. Los que no tienen ubicación en el mapa van al final.
+    const recorrida = ordenDeLaRecorrida(grupo.passengers, grupo.direction);
     const orden = (vehicle: ServiceOrderVehicle | null, passengers: ServiceOrderPassenger[]): ServiceOrderBlock => ({
       ...grupo,
       key: `${flightKey}:${vehicle?.assignmentId ?? SIN_NAVE}`,
@@ -496,10 +506,10 @@ export function buildServiceOrderBlocks(
     // Cada nave hace su propia recorrida: el reparto es por zona y después se ordena la de cada una.
     const { porNave, sinNave } = repartirEnNaves(recorrida, vehicles);
     for (const nave of vehicles) {
-      const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? []);
+      const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? [], grupo.direction);
       if (pasajeros.length || incluirVacias) ordenes.push(orden(nave, pasajeros));
     }
-    if (sinNave.length) ordenes.push(orden(null, ordenDeLaRecorrida(sinNave)));
+    if (sinNave.length) ordenes.push(orden(null, ordenDeLaRecorrida(sinNave, grupo.direction)));
   }
 
   // `sort` es estable: las naves de un mismo vuelo quedan en el orden en que se asignaron.
@@ -1001,4 +1011,10 @@ export async function buildServiceOrderWorkbook(
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer as ArrayBuffer);
+}
+
+/** ¿Esta orden es una de las elegidas en la hoja del chofer? (`vehicle` null = la única del vuelo, o todas). */
+export function esOrdenElegida(block: ServiceOrderBlock, ordenes: Array<{ flight: string; vehicle: string | null }>) {
+  const ref = referenciaDeLaOrden(block);
+  return ordenes.some((orden) => block.flightIds.includes(orden.flight) && (orden.vehicle === null || ref.vehicle === orden.vehicle));
 }

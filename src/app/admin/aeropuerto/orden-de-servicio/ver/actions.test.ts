@@ -23,7 +23,8 @@ vi.mock("@/lib/db/prisma", () => ({
   }
 }));
 
-import { moverANaveAction } from "./actions";
+import { createReservationCode } from "@/lib/booking/codes";
+import { guardarRecorridoAction, moverANaveAction } from "./actions";
 
 const trafic = (flight: string, numero: 1 | 2): ServiceOrderVehicle => ({
   assignmentId: `t${numero}-${flight}`, vehicleId: `trafic-${numero}`, name: `Trafic ${numero}`, seats: 8, driver: null
@@ -76,5 +77,19 @@ describe("mover un pasajero de trafic en una recorrida unida", () => {
 
     expect(mocks.updateDetail).toHaveBeenCalledWith({ where: { id: "det-J1" }, data: { routePosition: expect.any(Number), assignmentId: "t1-ja" } });
     expect(mocks.updateDetail).toHaveBeenCalledWith({ where: { id: "det-A1" }, data: { routePosition: expect.any(Number), assignmentId: "t1-ar" } });
+  });
+});
+
+describe("códigos de reserva reales", () => {
+  it("acepta el código de 41 caracteres que generan las reservas (antes decía «No se pudo leer el orden»)", async () => {
+    const code = createReservationCode();
+    expect(code).toHaveLength(41);
+    mocks.reservations.mockResolvedValue([{ ...reserva("A1", "ar", [trafic("ar", 1)]), code }]);
+    mocks.findDetails.mockResolvedValue([{ id: "det-A1", flightId: "f-ar", assignmentId: null, routePosition: null, reservation: { code } }]);
+    mocks.findAssignment.mockResolvedValue({ vehicleId: "trafic-1", vehicle: { name: "Trafic 1" } });
+    mocks.findAssignments.mockResolvedValue([{ id: "t1-ar", flightId: "f-ar" }]);
+
+    expect(await guardarRecorridoAction({ date: "2026-11-20", flightId: "f-ar", assignmentId: "t1-ar", codes: [code] })).toEqual({ ok: "Recorrida guardada." });
+    expect(await moverANaveAction({ date: "2026-11-20", flightId: "f-ar", assignmentId: "t1-ar", code })).toEqual({ ok: "Recorrida guardada." });
   });
 });

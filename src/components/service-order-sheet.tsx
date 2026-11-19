@@ -22,6 +22,8 @@ type ServiceOrderSheetProps = {
   accionesDeOrden?: (block: ServiceOrderBlock) => ReactNode;
   /** Reemplaza las filas de una orden, para la recorrida editable del panel. Devuelve un `<tbody>`, o nada para usar las filas de sólo lectura. */
   filasDeOrden?: (block: ServiceOrderBlock) => ReactNode;
+  /** Lo que va debajo de cada orden (el mapa del recorrido en el panel). */
+  pieDeOrden?: (block: ServiceOrderBlock) => ReactNode;
 };
 
 /** `id` HTML de una orden: lo usa el botón de imprimir para dejar sólo esa en el papel. */
@@ -32,7 +34,7 @@ export const idDeLaOrden = (block: ServiceOrderBlock) => `orden-${block.key.repl
  * (issue #118). Sale de los mismos `blocks` que arma el .xlsx: una sola fuente para pantalla, papel y
  * Excel. Cada bloque es una orden: un vuelo, o una nave del vuelo cuando sale con más de una.
  */
-export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDeOrden, filasDeOrden }: ServiceOrderSheetProps) {
+export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDeOrden, filasDeOrden, pieDeOrden }: ServiceOrderSheetProps) {
   const totalDelDia = blocks.reduce((suma, bloque) => suma + bloque.totalCents, 0);
   const totalPasajeros = blocks.reduce((suma, bloque) => suma + bloque.passengers.reduce((n, p) => n + p.seats, 0), 0);
   const currency = blocks.find((bloque) => bloque.passengers.length)?.passengers[0]?.currency ?? "ARS";
@@ -109,6 +111,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
                 </tr>
               </tfoot>
             </table>
+            {pieDeOrden ? pieDeOrden(block) : null}
           </section>
           );
         })
@@ -126,8 +129,9 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
       <p className="orden-pie">
         «Derivado por» es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío.
         Cobrar / Pagado es el estado del pago. Las filas están en el orden de la recorrida: el que se acomodó a mano en
-        el panel y, si no, el sugerido desde el aeropuerto (el retiro más cercano primero y al final los pasajeros que
-        no tienen el punto marcado en el mapa). Si el vuelo sale con más de una nave, hay una orden por nave. El
+        el panel y, si no, el sugerido: en los arribos, desde el aeropuerto con el más cercano primero; en las partidas, al
+        revés, del más lejano al más cercano al aeropuerto. Al final van los pasajeros que no tienen el punto marcado en
+        el mapa. Si el vuelo sale con más de una nave, hay una orden por nave. El
         botón verde «W» al lado del contacto abre el WhatsApp.
       </p>
     </article>

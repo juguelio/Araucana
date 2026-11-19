@@ -89,10 +89,11 @@ test("dos partidas coordinadas juntas salen en una sola orden, desde la hoja de 
   const modal = page.getByRole("dialog", { name: `Coordinar recorrida · ${ar.number}` });
   await modal.locator(`input[name="flightId"][value="${ja.id}"]`).check();
   await modal.getByLabel("Hora en que los busca").fill(`${day}T11:30`);
-  await modal.getByRole("button", { name: "Guardar horario" }).click();
-  await expect(page.getByText("Se guardó el inicio de recorrida para las partidas seleccionadas.")).toBeVisible();
-  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida con ${ja.number}`);
-  await expect(page.locator(`#vuelo-${ja.id}`)).toContainText(`Recorrida con ${ar.number}`);
+  await modal.getByRole("button", { name: "Siguiente: naves y choferes" }).click();
+  await expect(page.getByText("Recorrida coordinada. Ahora elegí las naves y los choferes.")).toBeVisible();
+  await page.getByRole("dialog").getByRole("link", { name: "Listo" }).click();
+  await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida 11:30 con ${ja.number}`);
+  await expect(page.locator(`#vuelo-${ja.id}`)).toContainText(`Recorrida 11:30 con ${ar.number}`);
 
   // La hoja del segundo vuelo trae la orden de los dos.
   await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${ja.id}`);
@@ -103,8 +104,9 @@ test("dos partidas coordinadas juntas salen en una sola orden, desde la hoja de 
   expect((await pasajerosDeLaOrden(page)).sort()).toEqual([
     `Ana ${suffix} · ${ar.number}`, `Beto ${suffix} · ${ar.number}`, `Ceci ${suffix} · ${ja.number}`, `Dani ${suffix} · ${ja.number}`
   ]);
-  // Un botón «Nave y chofer» por cada vuelo de la orden.
-  await expect(orden.getByRole("button", { name: /nave y chofer del/ })).toHaveCount(2);
+  // Un solo botón «Nave y chofer» por orden: la orden es de una camioneta, no de un vuelo.
+  await expect(orden.getByRole("button", { name: /nave y chofer del/ })).toHaveCount(1);
+  await expect(orden.getByRole("button", { name: /nave y chofer del/ })).toHaveText(/^Nave y chofer: Trafic /);
   await page.screenshot({ path: "/tmp/araucana-recorrida-compartida.png", fullPage: true });
 
   // El orden de la recorrida se acomoda a mano entre pasajeros de los dos vuelos y queda guardado.
@@ -130,7 +132,7 @@ test("dos partidas coordinadas juntas salen en una sola orden, desde la hoja de 
   expect(await pasajerosDeLaOrden(chofer)).toEqual(despues);
   await anonimo.close();
 
-  // Marcar sólo uno de los dos en «Juntar» trae igual la orden unida.
+  // Elegir sólo uno de los dos en la hoja del chofer trae igual la orden unida.
   await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flights=${ar.id}%2C${arribos[0].id}`);
   await expect(page.locator("section.orden-bloque")).toHaveCount(2);
   await expect(page.locator("section.orden-bloque").first()).toContainText(`Dani ${suffix} · ${ja.number}`);
@@ -143,8 +145,9 @@ test("dos arribos juntados salen en una sola orden, y «Separar» los vuelve a d
   let modal = page.getByRole("dialog", { name: `Juntar arribos · ${ja.number}` });
   await modal.locator(`input[name="flightId"][value="${ar.id}"]`).check();
   await page.screenshot({ path: "/tmp/araucana-juntar-arribos.png" });
-  await modal.getByRole("button", { name: "Juntar en una orden" }).click();
-  await expect(page.getByText("Arribos juntados: la hoja del chofer los muestra en una sola orden.")).toBeVisible();
+  await modal.getByRole("button", { name: "Siguiente: naves y choferes" }).click();
+  await expect(page.getByText("Arribos juntados en una recorrida. Ahora elegí las naves y los choferes.")).toBeVisible();
+  await page.getByRole("dialog").getByRole("link", { name: "Listo" }).click();
   await expect(page.locator(`#vuelo-${ar.id}`)).toContainText(`Recorrida con ${ja.number}`);
   await page.goto(`/admin?date=${day}`);
   await page.getByRole("button", { name: "Equipo del día" }).click();
@@ -174,14 +177,22 @@ test("dos arribos juntados salen en una sola orden, y «Separar» los vuelve a d
   expect(await pasajerosDeLaOrden(page)).toEqual([`Eva ${suffix}`]);
 });
 
-test("coordinadas juntas pero con naves distintas: cada hoja trae sólo su vuelo", async ({ page }) => {
+test("coordinadas juntas con una nave cada vuelo: se juntan y, si entran todos, sale una sola nave", async ({ page }) => {
   const [ar, ja] = separadas;
   await db.flight.updateMany({ where: { id: { in: [ar.id, ja.id] } }, data: { pickupGroupId: `grupo-${suffix}` } });
-  await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${ar.id}`);
-  await expect(page.locator("section.orden-bloque")).toHaveCount(1);
-  expect(await pasajerosDeLaOrden(page)).toEqual([`Hugo ${suffix}`]);
-  const excel = await page.locator("section.orden-bloque").getByRole("link", { name: "Descargar Excel" }).getAttribute("href");
+  // Desde la hoja de cualquiera de los dos vuelos: la recorrida junta a los pasajeros de ambos y los
+  // reparte entre las dos Master. Con dos pasajeros entran en una; la otra queda vacía (el panel la
+  // muestra igual, para poder pasarle gente).
+  for (const vuelo of [ar, ja]) {
+    await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${vuelo.id}`);
+    await expect(page.locator("section.orden-bloque")).toHaveCount(2);
+    const pasajeros = (await pasajerosDeLaOrden(page)).filter((fila) => !fila.startsWith("Sin pasajeros en esta nave"));
+    expect(pasajeros.sort()).toEqual([`Hugo ${suffix} · ${ar.number}`, `Ines ${suffix} · ${ja.number}`]);
+  }
+  const conGente = page.locator("section.orden-bloque").filter({ hasText: `Hugo ${suffix}` });
+  await expect(conGente).toContainText(`Ines ${suffix}`);
+  const excel = await conGente.getByRole("link", { name: "Descargar Excel" }).getAttribute("href");
   const filas = await filasDelExcel(page, excel!);
   expect(filas).toContain(`Hugo ${suffix}`);
-  expect(filas).not.toContain(`Ines ${suffix}`);
+  expect(filas).toContain(`Ines ${suffix}`);
 });

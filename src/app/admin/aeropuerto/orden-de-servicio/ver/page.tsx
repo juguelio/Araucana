@@ -5,9 +5,11 @@ import { AdminShell } from "@/components/admin-shell";
 import { idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { OrdenAcciones } from "@/components/orden-acciones";
 import { RecorridoEditable } from "@/components/recorrido-editable";
+import { VerRecorrido } from "@/components/recorrido-mapa";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
 import {
   buildServiceOrderBlocks,
+  esOrdenElegida,
   filtrarPorNave,
   ordenesDelVuelo,
   referenciaDeLaOrden,
@@ -16,11 +18,11 @@ import {
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
 import { linkDeLaOrden } from "@/lib/airport/service-order-link";
-import { vuelosDeLaHoja } from "@/lib/airport/flight-selection";
+import { claveDeOrden, ordenesDeLaHoja, vuelosDeLaHoja } from "@/lib/airport/flight-selection";
 import { ImprimirTodas } from "@/components/imprimir-todas";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { CombiDelVueloModal, INCLUDE_COMBIS_DEL_VUELO, nombreDeChofer, opcionesDeCombi } from "../../combi-modal";
+import { CombiDelVueloModal, INCLUDE_COMBIS_DEL_VUELO, nombreDeChofer, opcionesDeCombi, vueloDeLaRecorrida } from "../../combi-modal";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; vehicle?: string; notice?: string; imprimir?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; notice?: string; imprimir?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -60,13 +62,18 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   // Varios vuelos marcados en Aeropuerto: sus órdenes juntas, para imprimirlas de una vez.
   const flightIdsPedidos = flightId ? [] : vuelosDeLaHoja(params?.flights);
+  // Órdenes puntuales elegidas en «Hoja del chofer»: en una recorrida con varias combis, la de cada combi.
+  const ordenesPedidas = flightId ? [] : ordenesDeLaHoja(params?.ordenes);
   const todas = filtrarPorNave(
     ordenesDelVuelo(buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }), flightId),
     vehicle
   );
-  const blocks = flightIdsPedidos.length
-    ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
-    : todas;
+  const blocks = ordenesPedidas.length
+    ? todas.filter((block) => esOrdenElegida(block, ordenesPedidas))
+    : flightIdsPedidos.length
+      ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
+      : todas;
+  const variasPedidas = flightIdsPedidos.length > 1 || ordenesPedidas.length > 1;
   const cabeceras = await headers();
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
   const protocolo =
@@ -85,7 +92,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     date,
     ...(flightId ? { flight: flightId } : {}),
     ...(vehicle ? { vehicle } : {}),
-    ...(flightIdsPedidos.length ? { flights: flightIdsPedidos.join(",") } : {})
+    ...(flightIdsPedidos.length ? { flights: flightIdsPedidos.join(",") } : {}),
+    ...(ordenesPedidas.length ? { ordenes: ordenesPedidas.map(claveDeOrden).join(",") } : {})
   }).toString();
 
   // Las naves de cada vuelo, para pasar un pasajero de una a otra desde cualquier orden del vuelo.
@@ -103,32 +111,36 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       ? new URLSearchParams({ date, flight: ref.flight, ...(ref.vehicle ? { vehicle: ref.vehicle } : {}) })
       : null;
     const codes = block.passengers.map((pasajero) => pasajero.code);
-    // Una orden puede unir varios vuelos (misma camioneta, misma vuelta): cada uno tiene su botón.
+    // Una orden puede unir varios vuelos (una recorrida): un solo botón con la nave y el chofer de ESTA
+    // orden, que abre las combis de toda la recorrida. Cada orden es una camioneta, no un vuelo.
     const vuelosDeLaOrden = block.flightIds.flatMap((id) => vueloPorId.get(id) ?? []);
-    const unida = vuelosDeLaOrden.length > 1;
+    const [principal, ...otros] = vuelosDeLaOrden;
+    const vuelo = principal ? vueloDeLaRecorrida(principal, otros) : null;
+    // La nave de esta orden; si el vuelo sale con una sola (o con ninguna), la que tenga.
+    const propias = vuelo
+      ? block.vehicle
+        ? vuelo.assignments.filter((a) => a.vehicleId === block.vehicle!.vehicleId)
+        : block.vehicleCount > 1 ? [] : vuelo.assignments
+      : [];
     return (
       <>
-      {vuelosDeLaOrden.map((vuelo) => {
-        // La nave de esta orden (si el vuelo sale con varias) o todas las del vuelo.
-        const propias = vuelo.assignments.filter((a) => !block.vehicle || unida || a.id === block.vehicle.assignmentId);
-        const prefijo = unida ? `${vuelo.number} · ` : "";
-        return (
-          <div className="no-print orden-asignar" key={vuelo.id}>
-            <CombiDelVueloModal
-              vuelo={vuelo}
-              naves={naves}
-              choferes={choferes}
-              resetKey={params?.notice ?? ""}
-              volverAOrden={volverAOrden}
-              trigger={propias.length
-                ? `${prefijo}Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
-                : `${prefijo}Asignar nave y chofer`}
-              triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelo.number}`}
-              triggerClassName="ghost-button"
-            />
-          </div>
-        );
-      })}
+      {vuelo ? (
+        <div className="no-print orden-asignar">
+          <CombiDelVueloModal
+            vuelo={vuelo}
+            naves={naves}
+            choferes={choferes}
+            resetKey={params?.notice ?? ""}
+            volverAOrden={volverAOrden}
+            recorrida={otros.map((otro) => otro.number)}
+            trigger={propias.length
+              ? `Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
+              : block.vehicleCount > 1 ? "Pasajeros sin nave: asignar otra nave" : "Asignar nave y chofer"}
+            triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelosDeLaOrden.map((item) => item.number).join(" + ")}`}
+            triggerClassName="ghost-button"
+          />
+        </div>
+      ) : null}
       <OrdenAcciones
         ordenId={idDeLaOrden(block)}
         excelHref={query && codes.length ? `/admin/aeropuerto/orden-de-servicio?${query}` : null}
@@ -136,6 +148,26 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
         restablecer={block.manualOrder && block.flightId ? { date, flightId: block.flightId, codes } : null}
       />
       </>
+    );
+  }
+
+  // «Visualizar recorrido»: el mapa de las paradas de la orden, en el orden de la hoja.
+  function mapa(block: ServiceOrderBlock) {
+    if (!block.passengers.length) return null;
+    return (
+      <VerRecorrido
+        key={`mapa-${block.key}`}
+        sentido={block.direction}
+        titulo={[block.flightNumber, block.vehicle?.name].filter(Boolean).join(" · ")}
+        paradas={block.passengers.map((pasajero, indice) => ({
+          code: pasajero.code,
+          numero: indice + 1,
+          nombre: pasajero.name,
+          lugar: pasajero.lodging,
+          pasajeros: pasajero.seats,
+          punto: pasajero.pickup
+        }))}
+      />
     );
   }
 
@@ -164,8 +196,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       action={
         <div className="form-actions no-print">
           {/* Con varios vuelos marcados puede salir una sola orden (si la misma camioneta los hace juntos). */}
-          {blocks.length > 1 || flightIdsPedidos.length > 1 ? (
-            <ImprimirTodas cantidad={blocks.length} alAbrir={flightIdsPedidos.length > 1 && params?.imprimir === "1" && !params?.notice} />
+          {blocks.length > 1 || variasPedidas ? (
+            <ImprimirTodas cantidad={blocks.length} alAbrir={variasPedidas && params?.imprimir === "1" && !params?.notice} />
           ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
         </div>
@@ -182,6 +214,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
         variante="panel"
         accionesDeOrden={acciones}
         filasDeOrden={filas}
+        pieDeOrden={mapa}
       />
     </AdminShell>
   );
