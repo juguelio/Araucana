@@ -2677,8 +2677,8 @@ a.wizard-option { text-decoration: none; }
     width: 30px; height: 30px; min-height: 0; padding: 0; border: 0; border-radius: 50%;
     background: transparent; color: var(--primary-deep); font-size: 22px; line-height: 1; cursor: pointer;
     text-shadow: 0 0 6px rgba(251, 246, 235, 0.95), 0 0 3px rgba(251, 246, 235, 0.95); }
-  .admin-nav-step[data-dir="atras"] { left: -2px; }
-  .admin-nav-step[data-dir="adelante"] { right: -2px; }
+  .admin-nav-step[data-dir="atras"] { left: 0; }
+  .admin-nav-step[data-dir="adelante"] { right: 0; }
   .admin-sidebar a[aria-current="page"] { border-color: var(--primary); }
   .admin-top { flex-direction: column; gap: 12px; margin-bottom: 20px; }
   .admin-top .section-title { font-size: clamp(30px, 9vw, 42px); }

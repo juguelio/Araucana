@@ -7,5 +7,6 @@
 export function reservationNotice(path: string, message: string, query = "") {
   const params = new URLSearchParams(query);
   params.set("notice", message);
-  return `${path}?${params.toString()}`;
+  const target = path === "/admin/reservas" && params.get("vista") === "reservas" ? "/admin" : path;
+  return `${target}?${params.toString()}`;
 }

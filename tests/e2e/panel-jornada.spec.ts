@@ -43,7 +43,7 @@ test("la misma nave y chofer cubren aeropuerto, cerro y ruta desde el panel", as
     for (const [index, extra] of extras.entries()) {
       await abrirServicio(airportRow);
       await expect(vehiclePicker).toBeEnabled();
-      await page.getByRole("searchbox").fill(extra.name);
+      await page.getByRole("searchbox", { name: "Buscar en el equipo" }).fill(extra.name);
       await vehiclePicker.scrollIntoViewIfNeeded();
       await page.getByRole("button", { name: new RegExp(extra.name) }).dragTo(vehiclePicker);
       await expect(vehiclePicker).toHaveValue(extra.id);
@@ -56,7 +56,7 @@ test("la misma nave y chofer cubren aeropuerto, cerro y ruta desde el panel", as
       const select = row.locator(area === "RUTA" ? '.sd-crew select[name=driverId]' : '.sd-driver select[name=driverId]').first();
       await abrirServicio(row);
       await page.getByRole("button", { name: "Choferes", exact: true }).click();
-      await page.getByRole("searchbox").fill(driverName);
+      await page.getByRole("searchbox", { name: "Buscar en el equipo" }).fill(driverName);
       await select.scrollIntoViewIfNeeded();
       await page.getByRole("button", { name: driverName }).dragTo(select);
       await expect(select).toHaveValue(driver);
@@ -105,9 +105,9 @@ test("cuatro naves en la ida y dos en la vuelta de una ruta se gestionan por sep
     await expect(page.getByText("Ver la programación del día (2)")).toBeVisible();
     await page.getByRole("link", { name: /Pendientes/ }).click();
     await expect(page.locator(".sd-programmed")).toHaveCount(0);
-    await page.getByRole("link", { name: "Todos", exact: true }).click();
+    await page.getByRole("link", { name: /^Jornada/ }).click();
     for (const [index, trip] of routes.entries()) {
-      const row = page.locator('.sd-row[data-area="RUTA"]').filter({ hasText: trip.from + " → " + trip.to });
+      const row = page.locator('.sd-row[data-area="RUTA"]').filter({ has: page.locator(".plan-service strong", { hasText: trip.from + " → " + trip.to }) });
       for (const [n, vehicle] of fleet.slice(1, index ? 2 : 4).entries()) {
         await abrirServicio(row);
         await row.getByLabel("Nave para sumar a la salida").selectOption(vehicle.id);
@@ -119,7 +119,7 @@ test("cuatro naves en la ida y dos en la vuelta de una ruta se gestionan por sep
     }
     await page.reload();
     for (const [i, trip] of routes.entries()) {
-      const row = page.locator('.sd-row[data-area="RUTA"]').filter({ hasText: trip.from + " → " + trip.to });
+      const row = page.locator('.sd-row[data-area="RUTA"]').filter({ has: page.locator(".plan-service strong", { hasText: trip.from + " → " + trip.to }) });
       await abrirServicio(row);
       await expect(row.getByText(i ? "2 naves asignadas" : "4 naves asignadas")).toBeVisible();
       const extras = await db.scheduleUnit.findMany({ where: { scheduleId: trip.schedules[0].id } });

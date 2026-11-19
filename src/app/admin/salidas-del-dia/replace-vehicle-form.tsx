@@ -8,11 +8,12 @@ import type { Option } from "./crew-form";
 
 type Choice = { key: number; vehicleId: string; driverId: string };
 type Props = {
+  otherServices: { key: string; title: string; href: string; time: string }[];
   scheduleId: string; outgoing: BoardUnit; date: string; passengers: number; keptSeats: number;
   vehicles: (Option & { seats: number })[]; drivers: Option[];
 };
 
-export function ReplaceVehicleForm({ scheduleId, outgoing, date, passengers, keptSeats, vehicles, drivers }: Props) {
+export function ReplaceVehicleForm({ scheduleId, outgoing, date, passengers, keptSeats, vehicles, drivers, otherServices }: Props) {
   const [choices, setChoices] = useState<Choice[]>([{ key: 0, vehicleId: "", driverId: drivers.some(d => d.id === outgoing.driverId) ? outgoing.driverId! : "" }]);
   const capacity = choices.reduce((sum, row) => sum + (vehicles.find(v => v.id === row.vehicleId)?.seats ?? 0), keptSeats);
   function change(key: number, fields: Partial<Omit<Choice, "key">>) {
@@ -21,6 +22,9 @@ export function ReplaceVehicleForm({ scheduleId, outgoing, date, passengers, kep
   return <details className="sd-replace">
     <summary>Reemplazar por avería</summary>
     <p>Retirar <strong>{outgoing.vehicleName}</strong> de esta salida. Elegí qué naves la cubren.</p>
+    {otherServices.length > 0 && <details className="console-impact"><summary>Otros tramos de esta nave en la jornada ({otherServices.length})</summary>
+      <ul>{otherServices.map(service => <li key={service.key}><a href={service.href}>{service.time} · {service.title}</a></li>)}</ul>
+    </details>}
     {!vehicles.length && <p>No hay naves de reemplazo disponibles en la flota habilitada.</p>}
     <FleetAssignmentForm action={replaceBoardVehicleAction}>
       <OriginField />

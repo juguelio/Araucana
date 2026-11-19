@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isDateKey } from "@/lib/operations/day-board";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
@@ -26,6 +27,15 @@ function volver(vehicleId: string, seccion: "danios" | "reparaciones", notice: s
   revalidarNaves();
   revalidatePath("/admin/contabilidad");
   redirect(`/admin/naves/${vehicleId}/${seccion}?notice=${encodeURIComponent(notice)}`);
+}
+
+function volverDeDanio(vehicleId: string, form: FormData, notice: string): never {
+  const date = value(form, "panelDate");
+  if (isDateKey(date)) {
+    revalidarNaves();
+    redirect("/admin?" + new URLSearchParams({ date, vista: "flota", recurso: vehicleId, notice }));
+  }
+  volver(vehicleId, "danios", notice);
 }
 
 export async function createDamageAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
@@ -65,7 +75,7 @@ export async function createDamageAction(_state: AdminFormState, formData: FormD
     return errorState(error instanceof Error ? error.message : "No pudimos guardar el daño.");
   }
 
-  volver(vehicleId, "danios", "Daño anotado.");
+  volverDeDanio(vehicleId, formData, "Daño anotado.");
 }
 
 export async function setDamageStatusAction(formData: FormData) {
@@ -94,7 +104,7 @@ export async function setDamageStatusAction(formData: FormData) {
     return antes.vehicleId;
   });
 
-  volver(vehicleId, "danios", `Daño marcado como ${ESTADO_DANIO_LABEL[status].toLowerCase()}.`);
+  volverDeDanio(vehicleId, formData, `Daño marcado como ${ESTADO_DANIO_LABEL[status].toLowerCase()}.`);
 }
 
 /**

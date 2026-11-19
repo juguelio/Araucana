@@ -12,13 +12,14 @@ function hoyEnArgentina() {
 }
 
 /** Anotar un daño de la nave: qué pasó, cuándo y qué tan grave es. */
-export function DamageForm({ action, vehicleId }: { action: FormAction; vehicleId: string }) {
+export function DamageForm({ action, vehicleId, panelDate }: { action: FormAction; vehicleId: string; panelDate?: string }) {
   const [state, formAction] = useActionState(action, initialAdminFormState);
   const errors = state.fieldErrors;
   return (
     <form className="admin-form-grid" action={formAction}>
       <AdminFormAlert state={state} />
       <input type="hidden" name="vehicleId" value={vehicleId} />
+      {panelDate && <input type="hidden" name="panelDate" value={panelDate} />}
       <label className="span-2">
         Qué se dañó
         <textarea

@@ -1,16 +1,18 @@
 "use client";
 import { createContext, useContext, useEffect, useState, type ReactNode, type SelectHTMLAttributes } from "react";
 import Link from "next/link";
-import { AREA_LABEL, type BoardArea } from "@/lib/operations/day-board";
+import { assignmentsOverlap, type DispatchAssignment } from "@/lib/operations/dispatch";
+import { AREA_LABEL } from "@/lib/operations/day-board";
 import type { Option } from "./crew-form";
 
 type Kind = "driverId" | "vehicleId";
-type Assignment = { key: string; area: BoardArea; title: string; href: string; driverId: string | null; vehicleId: string; start: number | null; end: number | null; sharedPickupId?: string | null; estimatedWindow?: boolean };
 type Resource = { kind: Kind; id: string };
+const ServiceKey = createContext("");
 const Desk = createContext<{ panel: boolean; dragging: Resource | null }>({ panel: false, dragging: null });
 const clock = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Salta", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
 export function OriginField() {
-  return useContext(Desk).panel ? <input type="hidden" name="panelOrigin" value="panel" /> : null;
+  const key = useContext(ServiceKey);
+  return useContext(Desk).panel ? <><input type="hidden" name="panelOrigin" value="panel" />{key && <input type="hidden" name="panelService" value={key} />}</> : null;
 }
 export function DropSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const { dragging } = useContext(Desk);
@@ -38,19 +40,19 @@ export function DropSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
     }} />;
 }
 
-export function ServiceDisclosure({ panel, summary, children }: { panel: boolean; summary: ReactNode; children: ReactNode }) {
+export function ServiceDisclosure({ panel, summary, children, serviceKey, initiallyOpen }: { serviceKey: string; initiallyOpen: boolean; panel: boolean; summary: ReactNode; children: ReactNode }) {
   const { dragging } = useContext(Desk);
   if (!panel) return <>{children}</>;
-  return <details name="servicio-panel" className="plan-service-fold" onDragEnter={event => {
+  return <details name="servicio-panel" open={initiallyOpen || undefined} className="plan-service-fold" onDragEnter={event => {
     if (dragging) event.currentTarget.open = true;
   }}>
     <summary>{summary}</summary>
-    <div className="plan-edit">{children}</div>
+    <ServiceKey.Provider value={serviceKey}><div className="plan-edit">{children}</div></ServiceKey.Provider>
   </details>;
 }
 
 export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, actions, shortcuts, children }: {
-  dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: Assignment[]; actions: ReactNode; shortcuts: ReactNode; children: ReactNode;
+  dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: DispatchAssignment[]; actions: ReactNode; shortcuts: ReactNode; children: ReactNode;
 }) {
   const [showTeam, setShowTeam] = useState(false);
   useEffect(() => {
@@ -96,7 +98,7 @@ export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, a
           )}
           {agenda.length === 0 && <p>Sin servicios asignados este día.</p>}
           {agenda.map((a,i) => {
-            const overlap = a.start !== null && agenda.some((b,j) => i !== j && !(a.sharedPickupId && a.sharedPickupId === b.sharedPickupId && a.vehicleId === b.vehicleId) && b.start !== null && (b.start === a.start || ((a.end !== null && b.start > a.start! && b.start < a.end) || (b.end !== null && a.start! > b.start && a.start! < b.end))));
+            const overlap = agenda.some((b, j) => i !== j && assignmentsOverlap(a, b));
             return <a key={a.key} href={a.href}><strong>{a.start === null ? "Hora a coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>{AREA_LABEL[a.area]} · {a.title}{a.estimatedWindow && <span>{a.sharedPickupId ? "Recorrida compartida · horario estimado" : "Horario estimado de servicio"}</span>}{a.start !== null && a.end === null && <small>Fin a coordinar</small>}{overlap && <small>Revisar cruce horario</small>}</a>;
           })}
         </section>}
