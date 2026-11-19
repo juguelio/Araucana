@@ -203,4 +203,12 @@ describe("aeropuerto: la combi y el chofer son de la recorrida, no de un vuelo s
     expect(mocks.deleteAssignments).not.toHaveBeenCalled();
     expect(url).toBe("redirect:/admin/aeropuerto?date=2026-11-19&notice=Combi asignada al vuelo.");
   });
+
+  it("desde el tablero (sólo la nave) no pisa el chofer que el otro vuelo de la recorrida ya tenía", async () => {
+    await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1" })));
+    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { flightId_vehicleId: { flightId: "f2", vehicleId: "v1" } }, update: {}
+    }));
+    expect(mocks.findDriver).not.toHaveBeenCalled();
+  });
 });

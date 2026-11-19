@@ -303,12 +303,14 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
       create: { flightId, vehicleId, driverId }
     });
     await recordAcceptance(tx, "AIRPORT", assignment.id, user.id, conflicts);
-    // El resto de la recorrida lleva la misma combi y el mismo chofer: es una sola vuelta.
+    // El resto de la recorrida lleva la misma combi y el mismo chofer: es una sola vuelta. Desde el
+    // tablero llega sólo la nave (`sinChofer`): ahí no se pisa el chofer que el vuelo ya tenía, para no
+    // borrar una asignación que el operador cargó a mano.
     const companeros = recorrida.filter((vuelo) => vuelo.id !== flight.id);
     for (const companero of companeros) {
       await tx.airportVehicleAssignment.upsert({
         where: { flightId_vehicleId: { flightId: companero.id, vehicleId } },
-        update: { driverId },
+        update: sendsDriver ? { driverId } : {},
         create: { flightId: companero.id, vehicleId, driverId }
       });
     }
