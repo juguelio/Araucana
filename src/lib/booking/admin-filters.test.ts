@@ -196,6 +196,17 @@ describe("paginacion del listado de reservas", () => {
 });
 
 describe("colas de cobro del listado", () => {
+  it("pide todo pago pendiente de confirmar, con comprobante o sin él", () => {
+    // La transferencia avisada por teléfono no tiene comprobante subido: igual entra en la cola
+    // (19-nov: «validar un pago tiene que ser rápido y fácil para el admin»).
+    expect(adminReservationWhere({ payment: "pending-payment" })).toEqual({
+      AND: [
+        { status: "PENDING_PAYMENT" },
+        { payment: { is: { status: "PENDING", provider: "MANUAL" } } }
+      ]
+    });
+  });
+
   it("pide comprobante subido y pago todavia pendiente", () => {
     expect(adminReservationWhere({ payment: "receipt-pending" })).toEqual({
       AND: [

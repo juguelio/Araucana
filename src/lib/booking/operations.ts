@@ -71,7 +71,10 @@ function toReceiptRow(reservation: {
 }
 
 export async function getAdminOperationsSummary(now = new Date()): Promise<AdminOperationsSummary> {
-  const [pending, rejected] = ADMIN_PAYMENT_QUEUES;
+  // Las colas se nombran, no se desestructuran: el orden del array es el de la pantalla y sumar una
+  // cola nueva (19-nov: «pago por confirmar») no puede cambiar qué cuenta cada tarjeta.
+  const pending: AdminPaymentQueue = "receipt-pending";
+  const rejected: AdminPaymentQueue = "rejected";
 
   const [pendingCount, pendingRows, rejectedCount, rejectedRows, departures, flightsWithoutVehicle] = await Promise.all([
     prisma.reservation.count({ where: receiptQueueWhere(pending) }),

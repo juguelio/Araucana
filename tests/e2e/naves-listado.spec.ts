@@ -123,17 +123,18 @@ test("en el celular se ordena con el selector", async ({ page }) => {
   await page.screenshot({ path: "/tmp/araucana-naves-mobile.png", fullPage: true });
 });
 
-test("el listado sólo ofrece Editar: inactivar y borrar están en la ficha", async ({ page }) => {
+test("el listado ofrece ver la ficha y editar: inactivar y borrar están en la edición", async ({ page }) => {
   await page.goto("/admin/naves");
   const acciones = filas(page).first().locator("td[data-label='Acciones']");
   await expect(acciones.getByRole("link", { name: "Editar" })).toBeVisible();
+  await expect(acciones.getByRole("link", { name: "Ver ficha" })).toBeVisible();
   await expect(page.locator(".naves-tabla").getByRole("button", { name: /Inactivar|Activar|Borrar|Archivar/ })).toHaveCount(0);
 });
 
-test("desde la ficha se inactiva, se reactiva y se borra con confirmación", async ({ page }) => {
+test("desde la edición de la nave se inactiva, se reactiva y se borra con confirmación", async ({ page }) => {
   const id = `nave-${suffix}-borrable`;
   await db.vehicle.create({ data: { id, name: `Borrable ${suffix}`, internalNumber: `8${suffix.slice(0, 3)}` } });
-  await page.goto(`/admin/naves/${id}`);
+  await page.goto(`/admin/naves/${id}/editar`);
   const estado = page.getByRole("region", { name: "Estado de la nave" });
   await expect(estado).toContainText("Activa:");
 
@@ -144,7 +145,7 @@ test("desde la ficha se inactiva, se reactiva y se borra con confirmación", asy
 
   page.once("dialog", (dialog) => dialog.accept());
   await estado.getByRole("button", { name: "Inactivar nave" }).click();
-  await expect(page).toHaveURL(new RegExp(`/admin/naves/${id}\\?notice=`));
+  await expect(page).toHaveURL(new RegExp(`/admin/naves/${id}/editar\\?notice=`));
   await expect(estado).toContainText("Inactiva:");
   expect((await db.vehicle.findUniqueOrThrow({ where: { id } })).isActive).toBe(false);
 

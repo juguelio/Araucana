@@ -46,3 +46,7 @@
   .naves-tabla td[data-label="Acciones"] { padding-top: 8px; border-top: 1px dashed var(--line); }
   .naves-tabla .table-actions { flex-wrap: wrap; }
 }
+/* La celda «Unidad» abre la ficha de la nave. */
+.naves-tabla .naves-unidad { display: block; color: inherit; text-decoration: none; }
+.naves-tabla .naves-unidad strong { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+.naves-tabla .naves-unidad:hover strong { text-decoration-thickness: 2px; }

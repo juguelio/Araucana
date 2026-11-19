@@ -1,6 +1,7 @@
 "use server";
 
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
+import { reservationNotice } from "./notices";
 import { del } from "@vercel/blob";
 import { ApiError } from "@/lib/api/responses";
 import { AuthorizationError } from "@/lib/auth/service";
@@ -181,15 +182,26 @@ async function createAdminRouteRoundTrip(
   redirect(`/admin/reservas/${viaje.ida.code}`);
 }
 
+/**
+ * El listado del que vino la acción, con sus filtros: validar cinco comprobantes seguidos no puede
+ * obligar a rearmar la cola después de cada uno (19-nov). Sale del `listQuery` que mandan los
+ * formularios del listado, nunca de la URL del navegador.
+ */
+function listadoDeVuelta(formData: FormData) {
+  const query = formData.has("listQuery") ? value(formData, "listQuery").slice(0, 4096) : "";
+  return { path: "/admin/reservas", query };
+}
+
 async function reviewPaymentAction(formData: FormData, decision: "approve" | "reject") {
   const actor = await getCurrentReservationsUserOrRedirect();
   const code = value(formData, "code").toUpperCase();
-  if (!code) redirect(`/admin/reservas?notice=${encodeURIComponent("Falta el código de reserva.")}`);
+  const { path, query } = listadoDeVuelta(formData);
+  if (!code) redirect(reservationNotice(path, "Falta el código de reserva.", query));
   try {
     await (decision === "approve" ? approveManualPayment(code, actor) : rejectManualPayment(code, actor));
   } catch (error) {
     if (error instanceof BookingError) {
-      redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
+      redirect(reservationNotice(path, error.message, query));
     }
     throw error;
   }
@@ -198,16 +210,17 @@ async function reviewPaymentAction(formData: FormData, decision: "approve" | "re
   revalidatePath(`/reservas/${code}`);
   revalidatePath("/admin/contabilidad");
   revalidatePath("/admin/reportes");
-  redirect(`/admin/reservas?notice=${encodeURIComponent(decision === "approve" ? "Pago validado con éxito." : "Comprobante rechazado. El pasajero puede enviar uno nuevo.")}`);
+  redirect(reservationNotice(path, decision === "approve" ? "Pago validado con éxito." : "Comprobante rechazado. El pasajero puede enviar uno nuevo.", query));
 }
 
 async function reviewDisabilityDocumentAction(formData: FormData, decision: "APPROVED" | "REJECTED") {
   const actor = await getCurrentAdminOrRedirect();
   const code = value(formData, "code");
+  const { path, query } = listadoDeVuelta(formData);
   try {
     await reviewDisabilityDocument(code, decision, value(formData, "receiptVersion"), actor);
   } catch (error) {
-    if (error instanceof BookingError) redirect(`/admin/reservas?notice=${encodeURIComponent(error.message)}`);
+    if (error instanceof BookingError) redirect(reservationNotice(path, error.message, query));
     throw error;
   }
 
@@ -215,7 +228,7 @@ async function reviewDisabilityDocumentAction(formData: FormData, decision: "APP
   revalidatePath(`/admin/reservas/${code}`);
   revalidatePath(`/reservas/${code}`);
   const message = decision === "APPROVED" ? "Documentación aprobada. Reserva sin cargo confirmada." : "Documentación rechazada. El pasajero puede subir un comprobante nuevo.";
-  redirect(`/admin/reservas?notice=${encodeURIComponent(message)}`);
+  redirect(reservationNotice(path, message, query));
 }
 
 export async function approveDisabilityDocumentAction(formData: FormData) {
@@ -277,6 +290,16 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   // edición que no los toca no los reescribe.
   const passengerCount = formData.has("passengerCount") ? value(formData, "passengerCount") : undefined;
   const sportsLuggageCount = formData.has("sportsLuggageCount") ? value(formData, "sportsLuggageCount") : undefined;
+  const halfFareCount = formData.has("halfFareCount") ? value(formData, "halfFareCount") : undefined;
+  const freeFareCount = formData.has("freeFareCount") ? value(formData, "freeFareCount") : undefined;
+  // Vacío = baja en el destino final; por eso viaja aunque esté vacío.
+  const dropoffStop = formData.has("dropoffStop") ? value(formData, "dropoffStop") : undefined;
+  const pickupName = formData.has("pickupName") ? value(formData, "pickupName") : undefined;
+  // Cambio de servicio: el formulario manda sólo el campo del tipo de reserva y sólo si cambió.
+  const move = formData.has("moveScheduleId") ? { mode: "SEATED", scheduleId: value(formData, "moveScheduleId") }
+    : formData.has("moveFlightId") ? { mode: "AIRPORT", flightId: value(formData, "moveFlightId") }
+      : formData.has("moveServiceDate") ? { mode: "CHAPELCO", serviceDate: value(formData, "moveServiceDate"), ascentSlot: value(formData, "moveAscentSlot") }
+        : undefined;
   const financial = priceChanged || paymentChanged ? {
     operation: value(formData, "financialOperation"),
     totalCents,
@@ -284,13 +307,14 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     reference: formData.has("reference") ? value(formData, "reference") : undefined
   } : undefined;
   if (!pickup && notes === undefined && referredBy === undefined && !financial
-    && passengerCount === undefined && sportsLuggageCount === undefined && Object.keys(passenger).length === 0) {
+    && passengerCount === undefined && sportsLuggageCount === undefined && halfFareCount === undefined
+    && freeFareCount === undefined && dropoffStop === undefined && pickupName === undefined && !move && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
   const command = reservationManagementSchema.safeParse({
     operation: "edit", passenger, pickup, notes, referredBy, financial,
-    passengerCount, sportsLuggageCount,
+    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName, move,
     acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
   });
   if (!command.success) {
@@ -303,9 +327,15 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
     return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
       ? { documentId: message }
+      : error instanceof BookingError && move && ["CAPACITY_FULL", "SERVICE_ALREADY_STARTED", "FLIGHT_NOT_BOOKABLE", "FLIGHT_NOT_FOUND", "SCHEDULE_NOT_FOUND", "ROUTE_NOT_FOUND"].includes(error.code)
+        ? { move: message }
       : error instanceof BookingError && (error.code === "CAPACITY_FULL" || error.code === "INVALID_PASSENGER_COUNT")
-        ? { passengerCount: message }
-        : {});
+        ? (halfFareCount !== undefined || freeFareCount !== undefined) && passengerCount === undefined
+          ? { halfFareCount: message }
+          : { passengerCount: message }
+        : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
+          ? { dropoffStop: message }
+          : {});
   }
 
   for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {
@@ -314,11 +344,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   redirect(reservationNotice(`/admin/reservas/${code}`, "Cambios guardados."));
 }
 
-function reservationNotice(path: string, message: string, query = "") {
-  const params = new URLSearchParams(query);
-  params.set("notice", message);
-  return `${path}?${params.toString()}`;
-}
+
 
 export async function manageReservationAction(formData: FormData) {
   const command = reservationManagementSchema.safeParse({

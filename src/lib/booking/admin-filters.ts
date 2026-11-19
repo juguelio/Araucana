@@ -4,10 +4,12 @@ import { normalizeShortCode } from "./codes";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disability-fare";
 
 /**
- * Colas de cobro del panel: comprobantes subidos esperando validación (`receipt-pending`) y
- * comprobantes que secretaría rechazó y hay que volver a pedir (`rejected`).
+ * Colas de cobro del panel: comprobantes subidos esperando validación (`receipt-pending`),
+ * comprobantes que secretaría rechazó y hay que volver a pedir (`rejected`) y, desde el 19-nov,
+ * todo pago pendiente de confirmar (`pending-payment`), tenga comprobante o no: la transferencia
+ * que avisan por WhatsApp también es un pago esperando que alguien lo registre.
  */
-export const ADMIN_PAYMENT_QUEUES = ["receipt-pending", "rejected", "documentation-pending"] as const;
+export const ADMIN_PAYMENT_QUEUES = ["pending-payment", "receipt-pending", "rejected", "documentation-pending"] as const;
 export type AdminPaymentQueue = (typeof ADMIN_PAYMENT_QUEUES)[number];
 
 /** Reservas por página en el panel: 25 filas entran sin scroll en un portátil. */
@@ -96,6 +98,12 @@ export function adminReservationWhere(input: AdminReservationFilters, passengerI
       [field]: { contains: filters.route, mode: "insensitive" }
     })) };
     AND.push({ OR: [{ route: { is: route } }, { schedule: { is: { route: { is: route } } } }] });
+  }
+  if (filters.payment === "pending-payment") {
+    // El pago que todavía no está confirmado: con comprobante (esperando validación) o sin él
+    // (plata cobrada que secretaría tiene que registrar). Sólo reservas de pago manual.
+    AND.push({ status: "PENDING_PAYMENT" });
+    AND.push({ payment: { is: { status: "PENDING", provider: "MANUAL" } } });
   }
   if (filters.payment === "receipt-pending") {
     // La cola de trabajo real de secretaría: comprobante subido y pago todavía sin resolver.

@@ -11,6 +11,7 @@ import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/li
 import { CopiarVoucher } from "@/components/copiar-voucher";
 import { siteOrigin } from "@/lib/site-origin";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
+import { ComprobanteViewer, fechaDeSubida } from "../comprobante-viewer";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
 import {
   approveDisabilityDocumentAction,
@@ -21,6 +22,8 @@ import {
 } from "../actions";
 import { ConfirmReservationButton } from "./confirm-reservation-button";
 import "./detalle.css";
+// El visor del comprobante comparte los estilos del listado.
+import "../reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
 
 type AdminPassengerPageProps = {
@@ -144,8 +147,13 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             {payment?.receiptUploadedAt ? ` · subido el ${formatDateTime(payment.receiptUploadedAt)}` : ""}
             {payment?.amountCents ? ` · ${money(payment.amountCents)}` : ""}
           </p>
+          {/* Igual que en el listado y en Editar: el archivo se ve acá, no en otra pestaña. */}
+          <ComprobanteViewer
+            href={`${detailPath}/comprobante`}
+            fileName={payment?.receiptFileName}
+            subido={fechaDeSubida(payment?.receiptUploadedAt)}
+          />
           <div className="form-actions">
-            <Link className="ghost-button" href={`${detailPath}/comprobante`} target="_blank">Ver comprobante</Link>
             {receiptReview === "pago" ? (
               <form action={approveManualPaymentAction} className="detalle-revision-form">
                 <input type="hidden" name="code" value={reservation.code} />

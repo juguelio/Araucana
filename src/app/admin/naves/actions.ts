@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { revalidarNaves } from "./revalidate";
 import { redirect } from "next/navigation";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { lockFleet } from "@/lib/special-trips/conflicts";
@@ -121,7 +122,7 @@ function vehicleErrorState(error: unknown) {
 
 function revalidateVehiclePaths() {
   revalidatePath("/admin");
-  revalidatePath("/admin/naves");
+  revalidarNaves();
 }
 
 export async function createVehicleAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
@@ -230,7 +231,8 @@ export async function updateVehicleAction(_state: AdminFormState, formData: Form
   }
 
   revalidateVehiclePaths();
-  redirect(`/admin/naves?notice=${encodeURIComponent("Nave guardada con exito.")}`);
+  // Se edita desde la ficha: se vuelve a la ficha de la nave, con los datos nuevos a la vista.
+  redirect(`/admin/naves/${id}?notice=${encodeURIComponent("Nave guardada con exito.")}`);
 }
 
 export async function setVehicleActiveAction(formData: FormData) {
@@ -253,7 +255,7 @@ export async function setVehicleActiveAction(formData: FormData) {
 
   revalidateVehiclePaths();
   // Se activa o inactiva desde la ficha: se vuelve a la ficha, con el estado nuevo a la vista.
-  redirect(`/admin/naves/${id}?notice=${encodeURIComponent(isActive ? "Nave activada con exito." : "Nave inactivada con exito.")}`);
+  redirect(`/admin/naves/${id}/editar?notice=${encodeURIComponent(isActive ? "Nave activada con exito." : "Nave inactivada con exito.")}`);
 }
 
 export async function deleteVehicleAction(formData: FormData) {
@@ -263,9 +265,10 @@ export async function deleteVehicleAction(formData: FormData) {
   const archived = await prisma.$transaction(async (tx) => {
     await lockFleet(tx, [id]);
     const occupied = await tx.vehicle.findUnique({
-      where: { id }, include: { _count: { select: { schedules: true, scheduleUnits: true, specialTripAssignments: true } } }
+      where: { id }, include: { _count: { select: { schedules: true, scheduleUnits: true, specialTripAssignments: true, damages: true } } }
     });
-    if (occupied && (occupied._count.schedules || occupied._count.scheduleUnits || occupied._count.specialTripAssignments)) {
+    // Los daños también son historial de la unidad: con daños anotados se archiva, no se borra.
+    if (occupied && (occupied._count.schedules || occupied._count.scheduleUnits || occupied._count.specialTripAssignments || occupied._count.damages)) {
       await tx.vehicle.update({ where: { id }, data: { isActive: false } });
       await recordEntityAudit(tx, {
         actor, entity: "VEHICLE", entityId: id, entityLabel: occupied.name, action: "UPDATE",

@@ -10,3 +10,6 @@ tsconfig.tsbuildinfo
 .superpowers/
 .playwright-cli/
 /output/videos/
+
+# Comprobantes de prueba del panel local (sin Blob configurado)
+/public/local/

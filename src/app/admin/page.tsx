@@ -64,17 +64,14 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
           <strong>Vuelos de hoy</strong>
           <span>{flightsWithoutVehicle === 0 ? "Todos con unidad" : `${flightsWithoutVehicle} sin unidad`}</span>
         </Link>
-        <Link className="panel-quick-link" href="/admin/aeropuerto/reservar">
-          <strong>Reserva de aeropuerto</strong>
-          <span>Un tramo o ida y vuelta</span>
+        {/* Una sola pantalla para reservar (19-nov): aeropuerto primero, después las rutas. */}
+        <Link className="panel-quick-link" href="/admin/reservas/nueva">
+          <strong>Reservar</strong>
+          <span>Aeropuerto, Traful y demás rutas</span>
         </Link>
         <Link className="panel-quick-link" href="/admin/reservas?payment=receipt-pending" data-alerta={receiptsPending.count > 0 || undefined}>
           <strong>Comprobantes por validar</strong>
           <span>{receiptsPending.count === 0 ? "Nada pendiente" : `${receiptsPending.count} esperando`}</span>
-        </Link>
-        <Link className="panel-quick-link" href="/admin/reservas/nueva">
-          <strong>Crear reserva</strong>
-          <span>Salidas regulares</span>
         </Link>
       </nav>
 

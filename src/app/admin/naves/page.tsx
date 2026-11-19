@@ -148,17 +148,20 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
               return (
                 <tr key={vehicle.id} data-nivel={peor?.level ?? undefined}>
                   <td data-label="Unidad">
-                    {vehicle.internalNumber ? (
-                      <>
-                        <strong>Interno {vehicle.internalNumber}</strong>
-                        <br />
-                        <span className="muted">{vehicle.name}</span>
-                      </>
-                    ) : (
-                      vehicle.name
-                    )}
-                    <br />
-                    <span className="muted">{TIPO_LABEL[vehicle.kind] ?? vehicle.kind}</span>
+                    {/* Tocar la unidad abre su ficha: recorridos, vencimientos, daños y arreglos. */}
+                    <Link className="naves-unidad" href={`/admin/naves/${vehicle.id}`}>
+                      {vehicle.internalNumber ? (
+                        <>
+                          <strong>Interno {vehicle.internalNumber}</strong>
+                          <br />
+                          <span className="muted">{vehicle.name}</span>
+                        </>
+                      ) : (
+                        <strong>{vehicle.name}</strong>
+                      )}
+                      <br />
+                      <span className="muted">{TIPO_LABEL[vehicle.kind] ?? vehicle.kind}</span>
+                    </Link>
                   </td>
                   <td data-label="Marca / modelo · patente">
                     {vehicle.brand} · {vehicle.model}
@@ -191,7 +194,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                         }))}
                         pendientes={pendientes}
                         nivel={peor?.level ?? null}
-                        editarHref={`/admin/naves/${vehicle.id}`}
+                        editarHref={`/admin/naves/${vehicle.id}/editar`}
                       />
                       {peor ? (
                         <small className="fleet-docs-peor" data-nivel={peor.level ?? "ok"}>
@@ -211,7 +214,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                     ) : (
                       /* Sin plano de butacas la unidad no vende nada: «0 pasajeros» se lee como dato
                          válido y el operador no sabe que le falta cargar la capacidad. */
-                      <Link className="fleet-capacity-missing" href={`/admin/naves/${vehicle.id}`}>
+                      <Link className="fleet-capacity-missing" href={`/admin/naves/${vehicle.id}/editar`}>
                         Falta cargar la capacidad
                       </Link>
                     )}
@@ -222,10 +225,11 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                     </span>
                   </td>
                   <td data-label="Acciones">
-                    {/* Inactivar y borrar viven en la ficha de la nave, no en el listado: son
+                    {/* Inactivar y borrar viven en la edición de la nave, no en el listado: son
                         cambios de fondo y conviene hacerlos mirando la unidad. */}
                     <div className="table-actions">
-                      <Link className="ghost-button" href={`/admin/naves/${vehicle.id}`}>Editar</Link>
+                      <Link className="ghost-button" href={`/admin/naves/${vehicle.id}`}>Ver ficha</Link>
+                      <Link className="ghost-button" href={`/admin/naves/${vehicle.id}/editar`}>Editar</Link>
                     </div>
                   </td>
                 </tr>

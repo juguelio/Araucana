@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { minimoDePasajeros, totalAlEditar, totalDerivadoCents, type ReservationPriceBasis } from "./reservation-edit";
+import { errorDeMenores, minimoDePasajeros, tarifaPorPersona, totalAlEditar, totalDerivadoCents, type ReservationPriceBasis } from "./reservation-edit";
 
 const base: ReservationPriceBasis = {
   priceCents: 100000,
@@ -44,5 +44,33 @@ describe("total de una reserva editada (#267)", () => {
   it("la cantidad mínima cubre a los menores que ya están dentro del total", () => {
     expect(minimoDePasajeros({ halfFareCount: 0, freeFareCount: 0 })).toBe(1);
     expect(minimoDePasajeros({ halfFareCount: 2, freeFareCount: 1 })).toBe(4);
+  });
+
+  it("recalcula con menores, bajada y recargo por zona nuevos", () => {
+    // 2 adultos → 1 adulto + 1 media tarifa.
+    expect(totalAlEditar({ basis: base, totalCents: 200000, halfFareCount: 1 }))
+      .toEqual({ totalCents: 150000, deltaCents: -50000, seRecalcula: true });
+    // Baja en una parada más barata.
+    expect(totalAlEditar({ basis: base, totalCents: 200000, priceCents: 60000 }))
+      .toEqual({ totalCents: 120000, deltaCents: -80000, seRecalcula: true });
+    // El punto pasa a la zona con recargo.
+    expect(totalAlEditar({ basis: base, totalCents: 200000, zoneExtraCents: 25000 }))
+      .toEqual({ totalCents: 225000, deltaCents: 25000, seRecalcula: true });
+  });
+});
+
+describe("bajada y menores al editar", () => {
+  const ruta = { from: "San Martín", to: "Bariloche", priceCents: 100000, stops: [{ name: "Villa La Angostura", priceCents: 60000 }] };
+
+  it("toma la tarifa de la parada donde baja, o la de la ruta", () => {
+    expect(tarifaPorPersona(ruta, "Villa La Angostura")).toBe(60000);
+    expect(tarifaPorPersona(ruta, null)).toBe(100000);
+    expect(tarifaPorPersona(ruta, "Parada que ya no existe")).toBe(100000);
+  });
+
+  it("exige que los menores entren en el total y que quede un adulto", () => {
+    expect(errorDeMenores({ passengerCount: 3, halfFareCount: 1, freeFareCount: 1 })).toBeNull();
+    expect(errorDeMenores({ passengerCount: 2, halfFareCount: 2, freeFareCount: 1 })).toMatch(/no puede superar/);
+    expect(errorDeMenores({ passengerCount: 2, halfFareCount: 1, freeFareCount: 1 })).toMatch(/tarifa entera/);
   });
 });

@@ -9,7 +9,8 @@ const tx = vi.hoisted(() => ({
   chapelcoManifestStop: { deleteMany: vi.fn(), updateMany: vi.fn() },
   schedule: { findUnique: vi.fn() },
   vehicle: { findMany: vi.fn() },
-  travelRoute: { findUnique: vi.fn() },
+  travelRoute: { findUnique: vi.fn(), findFirst: vi.fn() },
+  flight: { findUnique: vi.fn() },
   auditLog: { create: vi.fn() }
 }));
 
@@ -672,10 +673,184 @@ describe("cantidad de pasajeros y adicionales en la edición (#267)", () => {
     expect(tx.payment.update).not.toHaveBeenCalled();
   });
 
+  it("cambia los menores y recalcula el total; en el aeropuerto sincroniza la copia del detalle", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 3, totalCents: 300000 });
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 100000, from: "A", to: "B", stops: [] });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 1, freeFareCount: 1 });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { halfFareCount: 1, freeFareCount: 1 } });
+    // 1 adulto (100.000) + 1 media (50.000) + 1 sin cargo.
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 150000 } });
+    // Los menores no ocupan lugares aparte: no se revisa el cupo.
+    expect(tx.schedule.findUnique).not.toHaveBeenCalled();
+
+    vi.clearAllMocks();
+    tx.reservation.findUnique.mockResolvedValue(airport);
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 55000 });
+    await manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 1 });
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where: { reservationId: pending.id }, data: { halfFareCount: 1 } });
+  });
+
+  it("no deja menores sin un adulto ni más menores que pasajeros", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2 });
+
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 1, freeFareCount: 1 }))
+      .rejects.toMatchObject({ code: "INVALID_PASSENGER_COUNT", message: expect.stringContaining("tarifa entera") });
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, halfFareCount: 3 }))
+      .rejects.toMatchObject({ code: "INVALID_PASSENGER_COUNT", message: expect.stringContaining("no puede superar") });
+    expect(tx.reservation.update).not.toHaveBeenCalled();
+  });
+
+  it("cambia la bajada a una parada con tarifa y recalcula con su precio", async () => {
+    const ruta = { priceCents: 100000, from: "San Martín", to: "Bariloche", stops: [{ name: "Villa La Angostura", priceCents: 60000 }] };
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2, totalCents: 200000 });
+    tx.travelRoute.findUnique.mockResolvedValue(ruta);
+
+    await manageReservation(code, { operation: "edit", passenger: {}, dropoffStop: "Villa La Angostura" });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { dropoffStop: "Villa La Angostura" } });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 120000 } });
+
+    // Volver al destino final usa la tarifa entera de la ruta.
+    vi.clearAllMocks();
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2, totalCents: 120000, dropoffStop: "Villa La Angostura" });
+    tx.travelRoute.findUnique.mockResolvedValue(ruta);
+    await manageReservation(code, { operation: "edit", passenger: {}, dropoffStop: "" });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { dropoffStop: null } });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 200000 } });
+
+    // Una parada que no está en la ruta se rechaza.
+    vi.clearAllMocks();
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, passengerCount: 2, totalCents: 200000 });
+    tx.travelRoute.findUnique.mockResolvedValue(ruta);
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, dropoffStop: "Junín" }))
+      .rejects.toMatchObject({ code: "STOP_NOT_AVAILABLE" });
+  });
+
+  it("quita el recargo por zona cuando el punto sale de la zona con recargo", async () => {
+    tx.reservation.findUnique.mockResolvedValue(airport);
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 55000 });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, pickup: { address: "Centro", point: [-40.15, -71.35] } });
+
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({ where: { reservationId: pending.id }, data: { zoneExtraCents: 0 } });
+    // 2 × 55.000 + 1 bulto × 10.000, sin los 20.000 de zona.
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 120000 } });
+  });
+
+  it("edita el nombre del lugar del traslado y lo pasa a la planilla de Chapelco", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "CHAPELCO" });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, pickupName: "Hostería del Lago" });
+
+    expect(tx.chapelcoReservationDetails.update).toHaveBeenCalledWith({
+      where: { reservationId: pending.id }, data: { pickupName: "Hostería del Lago" }
+    });
+    expect(tx.chapelcoManifestStop.updateMany).toHaveBeenCalledWith({
+      where: { reservationId: pending.id, status: "PENDING" }, data: { pickupName: "Hostería del Lago" }
+    });
+  });
+
   it("no acepta equipaje deportivo en una reserva que no es del aeropuerto", async () => {
     tx.reservation.findUnique.mockResolvedValue(seated);
 
     await expect(manageReservation(code, { operation: "edit", passenger: {}, sportsLuggageCount: 1 }))
       .rejects.toMatchObject({ code: "RESERVATION_LOCKED" });
+  });
+});
+
+describe("pasar la reserva a otro servicio", () => {
+  const futuro = new Date(Date.now() + 5 * 24 * 3600 * 1000);
+  const seats = [
+    { id: "s1", vehicleId: "v", number: "1", row: 1, column: 1 },
+    { id: "s2", vehicleId: "v", number: "2", row: 1, column: 2 }
+  ];
+  const seated = {
+    ...pending, bookingMode: "SEATED", scheduleId: "vieja", routeId: "route", passengerCount: 1,
+    halfFareCount: 0, freeFareCount: 0, totalCents: 100000, dropoffStop: null
+  };
+  const salidaNueva = (reservas: Array<{ id: string; status: string; passengerCount: number; seatId: string | null; seatNumber: string | null }> = []) => ({
+    id: "nueva", routeId: "route", status: "OPEN", departureAt: futuro,
+    route: { isActive: true, bookingMode: "SEATED" }, vehicle: { isActive: true, seats }, extraUnits: [], reservations: reservas
+  });
+
+  it("pasa la reserva a otra salida con el primer asiento libre", async () => {
+    tx.reservation.findUnique.mockResolvedValue(seated);
+    tx.schedule.findUnique.mockResolvedValue(salidaNueva([{ id: "otra", status: "CONFIRMED", passengerCount: 1, seatId: "s1", seatNumber: "1" }]));
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 100000, from: "A", to: "B", stops: [] });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, move: { mode: "SEATED", scheduleId: "nueva" } });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({
+      where: { id: pending.id }, data: { scheduleId: "nueva", routeId: "route", seatId: "s2", seatNumber: "2" }
+    });
+    // Misma ruta y misma tarifa: el total no cambia.
+    expect(tx.payment.update).not.toHaveBeenCalled();
+  });
+
+  it("mide el cupo de la salida nueva con la cantidad final", async () => {
+    tx.reservation.findUnique.mockResolvedValue(seated);
+    tx.schedule.findUnique.mockResolvedValue(salidaNueva([{ id: "otra", status: "CONFIRMED", passengerCount: 1, seatId: "s1", seatNumber: "1" }]));
+
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, passengerCount: 2, move: { mode: "SEATED", scheduleId: "nueva" } }))
+      .rejects.toMatchObject({ code: "CAPACITY_FULL", message: expect.stringContaining("quedaría con 2") });
+  });
+
+  it("no pasa a una salida que ya arrancó, ni mueve una cancelada o a otro tipo de servicio", async () => {
+    tx.reservation.findUnique.mockResolvedValue(seated);
+    tx.schedule.findUnique.mockResolvedValue({ ...salidaNueva(), departureAt: new Date(Date.now() - 60_000) });
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, move: { mode: "SEATED", scheduleId: "nueva" } }))
+      .rejects.toMatchObject({ code: "SERVICE_ALREADY_STARTED" });
+
+    tx.reservation.findUnique.mockResolvedValue({ ...seated, status: "CANCELLED" });
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, move: { mode: "SEATED", scheduleId: "nueva" } }))
+      .rejects.toMatchObject({ code: "RESERVATION_LOCKED" });
+
+    tx.reservation.findUnique.mockResolvedValue(seated);
+    await expect(manageReservation(code, { operation: "edit", passenger: {}, move: { mode: "AIRPORT", flightId: "f" } }))
+      .rejects.toMatchObject({ code: "RESERVATION_LOCKED" });
+  });
+
+  it("pasa una reserva del aeropuerto a un vuelo del otro sentido con la tarifa de ese sentido", async () => {
+    tx.reservation.findUnique.mockResolvedValue({
+      ...pending, bookingMode: "AIRPORT", routeId: "ruta-arribo", passengerCount: 2, halfFareCount: 0, freeFareCount: 0, totalCents: 110000,
+      airportDetails: { flightId: "f-viejo", direction: "ARRIVAL", sportsLuggageCount: 0, sportsLuggageUnitCents: 0, zoneExtraCents: 0 }
+    });
+    tx.flight.findUnique.mockResolvedValue({
+      id: "f-nuevo", number: "AR1673", direction: "DEPARTURE", status: "SCHEDULED", scheduledAt: new Date("2026-12-10T22:30:00.000Z"),
+      estimatedAt: null, actualAt: null, pickupStartOverrideAt: null, reservations: [], assignments: []
+    });
+    tx.travelRoute.findFirst.mockResolvedValue({ id: "ruta-salida" });
+    tx.travelRoute.findUnique.mockImplementation(async ({ where }: { where: { id: string } }) =>
+      where.id === "ruta-salida" ? { priceCents: 60000, from: "Hotel", to: "CPC", stops: [] } : { priceCents: 55000, from: "CPC", to: "Hotel", stops: [] });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, move: { mode: "AIRPORT", flightId: "f-nuevo" } });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { routeId: "ruta-salida" } });
+    expect(tx.airportReservationDetails.update).toHaveBeenCalledWith({
+      where: { reservationId: pending.id },
+      data: {
+        flightId: "f-nuevo", flightNumber: "AR1673", direction: "DEPARTURE",
+        // 22:30 UTC del 10 es 19:30 del 10 en Argentina: el día del servicio es el 10.
+        serviceDate: new Date("2026-12-10T03:00:00.000Z"),
+        assignmentId: null, routePosition: null
+      }
+    });
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { totalCents: 120000 } });
+  });
+
+  it("pasa una reserva de Chapelco a otro día y saca sus paradas pendientes", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "CHAPELCO", routeId: "route", passengerCount: 2, halfFareCount: 0, freeFareCount: 0 });
+    tx.chapelcoReservationDetails.findUnique.mockResolvedValue({ serviceDate: new Date("2026-12-01T00:00:00.000Z"), ascentSlot: "08:30" });
+    tx.vehicle.findMany.mockResolvedValue([{ _count: { seats: 10 } }]);
+    tx.reservation.findMany.mockResolvedValue([]);
+    const dia = futuro.toISOString().slice(0, 10);
+
+    await manageReservation(code, { operation: "edit", passenger: {}, move: { mode: "CHAPELCO", serviceDate: dia, ascentSlot: "10:30" } });
+
+    expect(tx.chapelcoReservationDetails.update).toHaveBeenCalledWith({
+      where: { reservationId: pending.id }, data: { serviceDate: new Date(`${dia}T00:00:00.000Z`), ascentSlot: "10:30" }
+    });
+    expect(tx.chapelcoManifestStop.deleteMany).toHaveBeenCalledWith({ where: { reservationId: pending.id, status: "PENDING" } });
   });
 });
