@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { expect, test } from "@playwright/test";
-import { createReservationShortCode } from "../../src/lib/booking/codes";
+import { createReservationCode, createReservationShortCode } from "../../src/lib/booking/codes";
 
 /**
  * En Aeropuerto, «Hoja del chofer» abre un modal donde se eligen las órdenes del día —una por vuelo, o
@@ -64,7 +64,7 @@ test.beforeAll(async () => {
     // 8 lugares por vuelo: 16 en total no entran en una trafic de 8 (12 butacas menos 4 de equipaje).
     for (const [n, [latitude, longitude]] of [[-40.157, -71.353], [-40.158, -71.352], [-40.18, -71.45], [-40.181, -71.449]].entries()) {
       await db.reservation.create({ data: {
-        code: `ARA-2604-${randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase()}`, shortCode: createReservationShortCode(),
+        code: createReservationCode(), shortCode: createReservationShortCode(),
         bookingMode: "AIRPORT", status: "CONFIRMED", passengerCount: 2, totalCents: 2000000, currency: "ARS",
         passenger: { create: { firstName: `P${indice}${n}`, lastName: suffix, email: "hoja@example.com", phone: "+5492944000000", documentType: "DNI", documentId: "30111222" } },
         airportDetails: { create: {
@@ -192,4 +192,34 @@ test("«Por chofer» muestra el día de cada trafic, le suma el IN y abre su hoj
   await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(recorrida[0].number);
   await expect(hoja.locator("section.orden-bloque").nth(1)).toContainText(`Ivo ${suffix}`);
   await hoja.close();
+});
+
+test("con las dos órdenes de la recorrida abiertas, arrastrar un pasajero de una a otra lo cambia de trafic", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 2000 });
+  await page.goto(`/admin/aeropuerto?date=${day}`);
+  await page.locator(`#vuelo-${recorrida[1].id}`).getByRole("button", { name: `Hoja del chofer del ${recorrida[1].number}` }).click();
+  const modal = page.getByRole("dialog", { name: `Hoja del chofer · ${recorrida[1].number}` });
+  const href = await modal.getByRole("link", { name: "Abrir hoja del chofer (2 órdenes)" }).getAttribute("href");
+  await page.goto(href!.replace("&imprimir=1", ""));
+  await expect(page.locator("section.orden-bloque")).toHaveCount(2);
+  // Por el título de cada orden: el selector «Nave» de cada fila nombra las dos trafics.
+  const deLaTrafic = (nombre: string) => page.locator("section.orden-bloque").filter({ has: page.getByRole("heading", { name: new RegExp(nombre) }) });
+  const centro = deLaTrafic(`Trafic Centro ${suffix}`);
+  const lago = deLaTrafic(`Trafic Lago ${suffix}`);
+  const filasDe = (bloque: typeof centro) => bloque.locator("tbody tr[data-codigo]");
+  const enCentro = await filasDe(centro).count();
+  const enLago = await filasDe(lago).count();
+  // Con códigos de reserva reales (41 caracteres): antes el guardado los rechazaba con
+  // «No se pudo leer el orden de la recorrida».
+  const fila = filasDe(centro).first();
+  const codigo = await fila.getAttribute("data-codigo");
+  expect(codigo).toHaveLength(41);
+  await fila.dragTo(filasDe(lago).first(), { targetPosition: { x: 20, y: 4 } });
+  await expect.poll(() => filasDe(lago).count()).toBe(enLago + 1);
+  await expect.poll(() => filasDe(centro).count()).toBe(enCentro - 1);
+  await expect(filasDe(lago).first()).toHaveAttribute("data-codigo", codigo!);
+  await expect(page.getByText("No se pudo leer el orden de la recorrida.")).toHaveCount(0);
+  await page.reload();
+  await expect(lago.locator(`tr[data-codigo="${codigo}"]`)).toHaveCount(1);
+  await expect(centro.locator(`tr[data-codigo="${codigo}"]`)).toHaveCount(0);
 });

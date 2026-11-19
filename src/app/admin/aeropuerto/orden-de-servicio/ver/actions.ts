@@ -21,7 +21,10 @@ import { buildServiceOrderBlocks } from "@/lib/airport/service-order";
 export type RecorridoState = { error?: string; ok?: string };
 
 const fecha = z.iso.date();
-const codigos = z.array(z.string().min(1).max(40)).min(1).max(200);
+// Un código de reserva tiene 41 caracteres (`ARC-AAMM-` + 32 hexadecimales, ver `createReservationCode`):
+// con el tope anterior de 40 se rechazaba todo cambio de la recorrida con «No se pudo leer…».
+const codigo = z.string().min(1).max(64);
+const codigos = z.array(codigo).min(1).max(200);
 
 const ORDEN_PATH = "/admin/aeropuerto/orden-de-servicio/ver";
 
@@ -139,7 +142,7 @@ const moverSchema = z.object({
   date: fecha,
   flightId: z.string().min(1),
   assignmentId: z.string().min(1),
-  code: z.string().min(1).max(40)
+  code: codigo
 });
 
 /**
