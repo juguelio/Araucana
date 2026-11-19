@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useActionState, useState } from "react";
+import { useEffect, useMemo, useRef, useActionState, useState, type ReactNode } from "react";
 import { createAdminReservationAction } from "../actions";
 import { FieldError } from "../../form-ui";
 import { initialAdminFormState } from "../../form-state";
@@ -11,8 +11,8 @@ import {
 import type { SalidaOption } from "./salida-picker-utils";
 import { ViajeSearchBar, diaCorto, type ClaveTramo, type TramoDelViaje } from "./viaje-search-bar";
 import {
-  destinosDesde, origenes as listarOrigenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, totalDelViaje, unificarLugares,
-  vueltasPosibles, viajeInicial, type RutaDelPanel
+  destinosDesde, esAeropuerto, origenes as listarOrigenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, totalDelViaje,
+  unificarLugares, vueltasPosibles, viajeInicial, type RutaDelPanel
 } from "./viaje-utils";
 import "./salida-picker.css";
 import "./alta-template.css";
@@ -48,7 +48,12 @@ function formatPrice(cents: number, currency = "ARS") {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas = [] }: { schedules: SalidaOption[]; rutas?: RutaDelPanel[] }) {
+export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas = [], aeropuertoCheckout = null }: {
+  schedules: SalidaOption[];
+  rutas?: RutaDelPanel[];
+  /** La reserva de aeropuerto, tal cual la de su pantalla: se muestra cuando el viaje elegido es el aeropuerto. */
+  aeropuertoCheckout?: ReactNode;
+}) {
   // Un nombre por lugar (con o sin tilde es el mismo) y todas las rutas activas, aunque no tengan
   // salidas cargadas (19-nov: «te están faltando rutas»).
   const { salidas: schedules, rutas } = useMemo(() => unificarLugares(salidasCrudas, rutasCrudas), [salidasCrudas, rutasCrudas]);
@@ -250,6 +255,47 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
     salidaVuelta?.stopFares?.length ? { clave: "vuelta" as const, salida: salidaVuelta, parada: paradaVuelta, cambiar: setParadaVuelta } : null
   ].filter((tramo) => tramo !== null);
 
+  const enAeropuerto = esAeropuerto(origen) || esAeropuerto(destino);
+  const selectorDeViaje = (
+    <ViajeSearchBar
+      origenes={origenes}
+      destinos={destinos}
+      origen={origen}
+      destino={destino}
+      puedeInvertir={inversa.length > 0 || Boolean(rutaEntre(rutas, destino, origen))}
+      tramos={tramos}
+      ofrecerVuelta={ofrecerVuelta}
+      rutaSinSalidas={!enAeropuerto && salidasIda.length === 0 ? rutaEntre(rutas, origen, destino) : null}
+      soloLugares={enAeropuerto}
+      onLugar={elegirLugar}
+      onInvertir={() => cambiarRuta(destino, origen)}
+      onDia={elegirDia}
+      onSalida={elegirSalida}
+      onAgregarVuelta={agregarVuelta}
+      onQuitarVuelta={quitarVuelta}
+    />
+  );
+
+  // Aeropuerto elegido: la pantalla pasa a ser la de aeropuerto, con su mismo formulario (vuelo,
+  // combi, pick-up). El recuadro del viaje queda arriba para volver a una ruta con un toque.
+  if (enAeropuerto && aeropuertoCheckout) {
+    return (
+      <div className="checkout-layout alta-template">
+        <div className="checkout-main">
+          <section className="form-panel checkout-panel">
+            <div className="alta-viaje-head">
+              <p className="eyebrow">El viaje</p>
+              <h2 className="route-title">Traslado al aeropuerto</h2>
+              <p className="muted">Elegí el vuelo, la combi y el pick-up. Para un viaje de ruta, cambiá «Hacia».</p>
+            </div>
+            {selectorDeViaje}
+          </section>
+          {aeropuertoCheckout}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form className="checkout-layout alta-template" action={formAction} onSubmit={revisarAntesDeMandar} ref={formRef} noValidate>
       <div className="checkout-main">
@@ -287,22 +333,7 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
             <p className="muted">Tocá cada recuadro: desde dónde sale, adónde va, y el día y la salida. La vuelta se suma con «Agregar vuelta».</p>
           </div>
 
-          <ViajeSearchBar
-            origenes={origenes}
-            destinos={destinos}
-            origen={origen}
-            destino={destino}
-            puedeInvertir={inversa.length > 0 || Boolean(rutaEntre(rutas, destino, origen))}
-            tramos={tramos}
-            ofrecerVuelta={ofrecerVuelta}
-            rutaSinSalidas={salidasIda.length === 0 ? rutaEntre(rutas, origen, destino) : null}
-            onLugar={elegirLugar}
-            onInvertir={() => cambiarRuta(destino, origen)}
-            onDia={elegirDia}
-            onSalida={elegirSalida}
-            onAgregarVuelta={agregarVuelta}
-            onQuitarVuelta={quitarVuelta}
-          />
+          {selectorDeViaje}
           <input type="hidden" name="scheduleId" value={salidaIda?.id ?? ""} />
           {vuelta.activa ? <input type="hidden" name="returnScheduleId" value={salidaVuelta?.id ?? ""} /> : null}
           <FieldError id="error-scheduleId" message={errores.scheduleId} />

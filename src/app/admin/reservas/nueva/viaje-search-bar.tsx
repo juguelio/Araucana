@@ -94,7 +94,7 @@ function IconoCombi() {
 
 export function ViajeSearchBar({
   origenes, destinos, origen, destino, puedeInvertir, tramos, ofrecerVuelta,
-  rutaSinSalidas, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
+  rutaSinSalidas, soloLugares = false, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
 }: {
   origenes: Lugar[];
   /** Los destinos del origen elegido. */
@@ -109,6 +109,8 @@ export function ViajeSearchBar({
   ofrecerVuelta: { detalle: string } | null;
   /** La ruta elegida existe pero todavía no tiene salidas cargadas: se ofrece ir a cargarlas. */
   rutaSinSalidas?: { id: string } | null;
+  /** Sólo Desde/Hacia (el aeropuerto elige día y vuelo en su propio formulario, no por salida). */
+  soloLugares?: boolean;
   onLugar: (campo: "desde" | "hacia", nombre: string) => void;
   onInvertir: () => void;
   onDia: (tramo: ClaveTramo, dia: string) => void;
@@ -312,15 +314,14 @@ export function ViajeSearchBar({
       <>
         <p className="trip-search-panel-title">Aeropuerto Chapelco (CPC) ⇄ San Martín de los Andes</p>
         <p className="trip-search-panel-help">
-          Los traslados al aeropuerto se cargan con el vuelo y el domicilio del pasajero, así el chofer sabe
-          a qué hora esperarlo.
+          La reserva de aeropuerto ya está abierta abajo: elegís el vuelo, la combi y el pick-up.
         </p>
-        <a className="trip-search-flight" href="/admin/aeropuerto/reservar">
+        <button type="button" className="trip-search-flight" onClick={() => setAbierto(null)}>
           <span>
-            <b>Cargar reserva de aeropuerto</b>
-            <small>Elegís el vuelo, la combi y el pick-up en un solo paso</small>
+            <b>Seguir con el vuelo</b>
+            <small>Está en esta misma pantalla, más abajo</small>
           </span>
-        </a>
+        </button>
       </>
     );
   }
@@ -463,8 +464,8 @@ export function ViajeSearchBar({
         </div>
         {/* Siempre dos fechas, mitad y mitad: la ida y la vuelta (o la vuelta para agregar). */}
         <div className="trip-search-dates">
-          {tramos.map(campoTramo)}
-          {tramos.length === 1 && ofrecerVuelta ? campoAgregarVuelta(ofrecerVuelta) : null}
+          {soloLugares ? null : tramos.map(campoTramo)}
+          {!soloLugares && tramos.length === 1 && ofrecerVuelta ? campoAgregarVuelta(ofrecerVuelta) : null}
         </div>
       </div>
 

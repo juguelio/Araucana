@@ -1,5 +1,10 @@
-import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { AirportCheckoutForm } from "@/app/reservar/[slug]/airport-checkout-form";
+import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
+import { getAirportFares } from "@/lib/airport/fares";
+import { getAirportExtras } from "@/lib/airport/extras-settings";
+import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
+import { getAirportOfficePickup, officePickupReady } from "@/lib/airport/office-pickup";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminRoutes, listAdminSchedules } from "@/lib/booking/repository";
@@ -42,16 +47,43 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
       currency: schedule.currency
     }));
 
+  // El traslado al aeropuerto se carga en esta misma pantalla (19-nov: «exactamente igual a la
+  // experiencia de la página de aeropuerto»), así que se traen los mismos datos que esa página.
+  const hoy = argentinaDateKey(new Date());
+  const fares = await getAirportFares();
+  const rutaAeropuerto = fares.ARRIVAL ?? fares.DEPARTURE;
+  const checkoutAeropuerto = rutaAeropuerto
+    ? await Promise.all([loadAirportCheckoutFlights(hoy), getAirportCoverage(), getAirportExtras(), getAirportOfficePickup()])
+        .then(([flights, coverage, extras, officePickup]) => ({ flights, coverage, extras, officePickup }))
+    : null;
+
   return (
     <AdminShell title="Crear reserva" eyebrow="Nueva reserva" notice={params?.notice} role={user.role}>
       {/* Con el template del aeropuerto (18-nov): el recuadro del viaje manda; el aeropuerto sigue
           teniendo su propia pantalla porque se reserva por vuelo. */}
       <section className="admin-section alta-pagina">
-        <p className="alta-aeropuerto muted">
-          ¿Es un traslado al aeropuerto? <Link className="table-link" href="/admin/aeropuerto/reservar">Crear reserva de aeropuerto ›</Link>
-        </p>
-        {schedules.length ? (
-          <NuevaReservaForm schedules={schedules} rutas={rutas} />
+        {/* Las instrucciones del aeropuerto ya no van arriba: es una opción más en «Hacia», la primera. */}
+        {schedules.length || rutaAeropuerto ? (
+          <NuevaReservaForm
+            schedules={schedules}
+            rutas={rutas}
+            aeropuertoCheckout={
+              rutaAeropuerto && checkoutAeropuerto ? (
+                <AirportCheckoutForm
+                  fromAdmin
+                  route={rutaAeropuerto}
+                  fares={fares}
+                  initialDirection={fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE"}
+                  startAtFlights={false}
+                  initialDate={hoy}
+                  initialFlights={checkoutAeropuerto.flights}
+                  coverage={checkoutAeropuerto.coverage}
+                  extras={checkoutAeropuerto.extras}
+                  officePickup={officePickupReady(checkoutAeropuerto.officePickup) ? checkoutAeropuerto.officePickup : null}
+                />
+              ) : null
+            }
+          />
         ) : <p className="muted">No hay salidas futuras con lugares disponibles.</p>}
       </section>
     </AdminShell>
