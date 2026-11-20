@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getStopFares } from "@/lib/booking/stop-fares";
+import { textoDeTerminales } from "@/lib/booking/terminals";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
@@ -77,6 +78,9 @@ export default async function RouteDetailPage({ params }: RouteDetailPageProps) 
   const stops = normalizeStops(route.stops);
   const fares = new Map((route.bookingMode === "SEATED" ? getStopFares(route) : []).map((fare) => [fare.name, fare.priceCents]));
   const duration = formatDuration(route.durationMin);
+  // Los micros de las rutas salen y llegan a la terminal, no al «centro» (#276). El aeropuerto y el
+  // cerro se buscan por domicilio: ahí la terminal no es el punto de encuentro y no se anuncia.
+  const terminales = route.bookingMode === "SEATED" ? textoDeTerminales(route.from, route.to) : null;
 
   return (
     <>
@@ -89,6 +93,7 @@ export default async function RouteDetailPage({ params }: RouteDetailPageProps) 
                 {route.from} → <em>{route.to}</em>
               </h1>
               <p className="lead">{route.description}</p>
+              {terminales ? <p className="lead route-terminal">{terminales}</p> : null}
               <div className="hero-actions">
                 <Link className="cream-button" href={`/reservar/${route.slug}`} prefetch={true}>
                   Reservar asiento
