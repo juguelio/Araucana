@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { matchesMunicipalAddress, municipalStreetAddress, resolveMunicipalLodging } from "./lodging-address";
 import { suggestProviderAirportPlaces } from "./place-suggestions";
+import { verifiedLodgingLocations } from "./lodging-locations";
 import { municipalLodgings } from "./lodging-catalogue";
 vi.mock("./place-suggestions", () => ({ suggestProviderAirportPlaces: vi.fn() }));
 afterEach(() => vi.resetAllMocks());
@@ -71,4 +72,23 @@ it.each([
 it("rechaza establecimientos homónimos con ubicaciones contradictorias", async () => {
   vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([rincon, { ...rincon, point: [-40.15, -71.34] }]);
   expect((await resolveMunicipalLodging("108", new AbortController().signal))?.point).toBeNull();
+});
+
+it("usa una referencia verificada aun cuando el proveedor no tenga el alojamiento", async () => {
+  const result = await resolveMunicipalLodging("10", new AbortController().signal);
+  expect(result).toMatchObject({ lodgingId: "10", point: [-40.152507, -71.3454312], coordinateSourceUrl: "https://alcedro.wordpress.com/", approximate: true, locationMatch: "establishment" });
+  expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
+  const controller = new AbortController(); controller.abort();
+  expect((await resolveMunicipalLodging("10", controller.signal))?.point).toBeNull();
+});
+
+it("todas las referencias pertenecen a una ficha vigente y al área de San Martín", async () => {
+  for (const [id, reference] of Object.entries(verifiedLodgingLocations)) {
+    expect(municipalLodgings.find((place) => place.id === id)?.name).toBe(reference.name);
+    expect(reference.point[0]).toBeGreaterThan(-40.22);
+    expect(reference.point[0]).toBeLessThan(-40.04);
+    expect(reference.point[1]).toBeGreaterThan(-71.48);
+    expect(reference.point[1]).toBeLessThan(-71.07);
+    expect((await resolveMunicipalLodging(id, new AbortController().signal))?.point).toEqual(reference.point);
+  }
 });

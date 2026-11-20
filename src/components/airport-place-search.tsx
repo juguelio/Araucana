@@ -104,6 +104,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectionSource, setSelectionSource] = useState<Suggestion["source"] | null>(null);
+  const [coordinateSourceUrl, setCoordinateSourceUrl] = useState<string | null>(null);
   const [coordinateSource, setCoordinateSource] = useState<Suggestion["source"] | null>(null);
   const [selectionMessage, setSelectionMessage] = useState("");
   const [locatingLodging, setLocatingLodging] = useState(false);
@@ -206,6 +207,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
     setLocatingLodging(false);
     setSelectionMessage("");
     setCoordinateSource(null);
+    setCoordinateSourceUrl(null);
     setResolving(true);
     setManualError("");
     try {
@@ -232,6 +234,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
     const version = ++selectionVersion.current;
     selectionRequest.current?.abort();
     setCoordinateSource(null);
+    setCoordinateSourceUrl(null);
     setSelectionMessage("");
     setLocatingLodging(false);
     setQuery(suggestion.label);
@@ -263,6 +266,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       if (version !== selectionVersion.current) return;
       setLocatingLodging(false);
       setCoordinateSource(selected.coordinateSource ?? null);
+      setCoordinateSourceUrl(selected.coordinateSourceUrl ?? null);
       setSelectionMessage(selected.point
         ? selected.locationMatch === "establishment"
           ? "Encontramos el alojamiento. Confirmá en el mapa dónde está la entrada."
@@ -333,6 +337,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           setLocatingLodging(false);
           setSelectionMessage("");
           setCoordinateSource(null);
+          setCoordinateSourceUrl(null);
           const value = event.target.value;
           if (!value.trim()) token.current = null;
           setQuery(value);
@@ -388,6 +393,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           <SearchAttribution sources={suggestions.map((suggestion) => suggestion.source)} />
         </>
       ) : null}
+      {coordinateSourceUrl ? <p><a href={coordinateSourceUrl} target="_blank" rel="noreferrer">Ubicación publicada por el alojamiento</a></p> : null}
       {selectionSource ? <SearchAttribution sources={coordinateSource ? [selectionSource, coordinateSource] : [selectionSource]} /> : null}
 
       <div className={styles.manual}>

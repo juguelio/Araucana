@@ -29,6 +29,7 @@ export type AirportPlaceSuggestion = {
   lodgingId?: string;
   isLodging?: true;
   locationMatch?: "address" | "establishment";
+  coordinateSourceUrl?: string;
   coordinateSource?: "georef" | "locationiq" | "photon";
   approximate: boolean;
 };
