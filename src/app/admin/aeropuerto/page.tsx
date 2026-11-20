@@ -17,8 +17,8 @@ import { FlightForm } from "./flight-form";
 import { shiftDateKey } from "@/lib/operations/day-board";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
 import { HojaDelChoferModal, type OrdenParaLaHoja } from "./hoja-del-chofer-modal";
-import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
-import { buildServiceOrderBlocks, lugaresDeLaOrden, naveDeLaOrden, referenciaDeLaOrden } from "@/lib/airport/service-order";
+import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
+import { lugaresDeLaOrden, naveDeLaOrden, referenciaDeLaOrden } from "@/lib/airport/service-order";
 import { jornadasPorCombi } from "@/lib/airport/driver-day";
 import { hojaDeOrdenesHref } from "@/lib/airport/flight-selection";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
@@ -120,7 +120,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const companeros = (v: { id: string; pickupGroupId: string | null }) => vuelosDelTablero.filter((otro) => mismaVuelta(otro, v));
   // Las órdenes del día tal como las imprime la hoja del chofer: una por vuelo, o una por combi en las
   // recorridas que salen con varias (con gente de todos sus vuelos). Es lo que lista «Hoja del chofer».
-  const bloquesDelDia = buildServiceOrderBlocks(await getAirportServiceOrderReservations(fecha));
+  const { blocks: bloquesDelDia } = await getAirportServiceOrder(fecha);
   const jornadas = jornadasPorCombi(bloquesDelDia);
   const arribosParaElIn = vuelosDelTablero.filter((vuelo) => vuelo.direction === "ARRIVAL" && !["CANCELLED", "DIVERTED"].includes(vuelo.status));
   const ordenesParaLaHoja: OrdenParaLaHoja[] = bloquesDelDia

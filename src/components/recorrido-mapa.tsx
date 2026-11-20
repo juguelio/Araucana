@@ -5,6 +5,7 @@ import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { AEROPUERTO_CHAPELCO } from "@/lib/airport/route-order";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
+import { distanceMeters } from "@/lib/driver/location";
 import "./recorrido-mapa.css";
 
 export type ParadaDelMapa = {
@@ -75,7 +76,12 @@ function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps)
         const etiqueta = document.createElement("span");
         etiqueta.textContent = `Oficina · ${oficina.address} (inicio del recorrido)`;
         L.marker(origen, {
-          icon: L.divIcon({ className: "recorrido-mapa-oficina", html: "O", iconSize: [30, 30] }),
+          icon: L.divIcon({
+            className: "recorrido-mapa-oficina", html: "O", iconSize: [30, 30],
+            // Si hay un retiro en la oficina, se ven juntas la O y su número.
+            iconAnchor: puntos.some(([latitude, longitude]) => distanceMeters({ latitude, longitude }, { latitude: origen[0], longitude: origen[1] }) < 1)
+              ? [44, 15] : [15, 15]
+          }),
           title: etiqueta.textContent,
           zIndexOffset: 1000
         }).bindTooltip(etiqueta).addTo(instancia);
@@ -120,10 +126,12 @@ function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps)
             : `Salida desde la oficina: ${oficina.address}. Falta configurar su punto en el mapa para mostrar el tramo inicial. Los números siguen el orden de la hoja y la línea termina en el aeropuerto.`
           : "Los números siguen el orden de la hoja: la línea sale del aeropuerto y el 1 es la primera parada."}
       </p>
+      <p className="muted recorrido-mapa-nota">Línea orientativa entre puntos: no representa el camino por calles ni contempla el tránsito.</p>
       {sinUbicar.length ? (
         <p className="recorrido-mapa-sin-ubicar">
           <strong>Sin punto en el mapa ({sinUbicar.length}):</strong>{" "}
           {sinUbicar.map((parada) => `${parada.numero}. ${parada.nombre} (${parada.lugar})`).join(" · ")}
+          {" "}Estos retiros no participan de la optimización porque faltan sus coordenadas.
         </p>
       ) : null}
     </div>
