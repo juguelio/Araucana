@@ -74,7 +74,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
       {registerPayment ? (
         <section className="plain-card admin-section" aria-labelledby="cargar-pago">
           <h2 id="cargar-pago">Cargar pago</h2>
-          <RegistrarPagoForm code={reservation.code} total={total} />
+          <RegistrarPagoForm code={reservation.code} total={total} method={reservation.payment?.method} />
         </section>
       ) : null}
       {tieneComprobante || puedeSubirComprobante ? (

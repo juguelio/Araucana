@@ -224,6 +224,7 @@ export type AdminReservationRowDto = {
   status: string;
   paymentStatus: string | null;
   paymentProvider?: string | null;
+  paymentMethod?: string | null;
   /** Total de la reserva, para registrar el pago desde el modal del listado. */
   totalCents: number;
   currency: string;

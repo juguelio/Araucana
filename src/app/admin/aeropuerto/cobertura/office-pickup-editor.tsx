@@ -16,6 +16,8 @@ export function OfficePickupEditor({ initialPickup }: { initialPickup: AirportOf
       <p className="muted">
         Atajo del checkout del aeropuerto: con un toque deja el traslado apuntando a la oficina, en vez de
         buscar la dirección a mano. Aparece sólo si está activo y tiene un punto.
+        {" "}La dirección y las coordenadas también se usan como origen de las naves en los mapas hacia
+        el aeropuerto, aunque el atajo esté desactivado.
       </p>
       <div className="checkout-fields">
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>

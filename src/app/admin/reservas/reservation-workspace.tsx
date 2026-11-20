@@ -18,8 +18,9 @@ import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/li
 import { siteOrigin } from "@/lib/site-origin";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { reservationRowClassName } from "./row-style";
+import { RegistrarPagoForm } from "./[code]/registrar-pago-form";
 import { RowModal } from "./row-modal";
-import { MenuFila } from "./menu-fila";
+import { MenuFila } from "@/components/admin-list/menu-fila";
 import { estadoDeFila, type EstadoDeFila } from "./estado-fila";
 import { ComprobanteViewer, fechaDeSubida } from "./comprobante-viewer";
 import { ReceiptUploadForm } from "./receipt-upload-form";
@@ -147,25 +148,6 @@ function Ocultos({ code, listQuery }: { code: string; listQuery: string }) {
   );
 }
 
-/** Registrar un pago recibido (efectivo, transferencia…): el mismo formulario de `/pago`, en el modal. */
-function RegistrarPagoForm({ reservation, listQuery }: { reservation: AdminReservationRowDto; listQuery: string }) {
-  return (
-    <form className="reservas-modal-form" action={manageReservationAction}>
-      <Ocultos code={reservation.code} listQuery={listQuery} />
-      <input type="hidden" name="operation" value="payment" />
-      <p>Registrá el pago cuando hayas recibido el total de <strong>{formatTotal(reservation)}</strong>.</p>
-      <label>Forma de pago<input name="method" maxLength={60} placeholder="Efectivo, transferencia, tarjeta…" /></label>
-      <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
-      <label>
-        Comprobante (opcional)
-        <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
-      </label>
-      <small className="muted">PDF, JPG, PNG o WEBP. Queda guardado junto al pago.</small>
-      <button className="button" type="submit">Registrar pago</button>
-    </form>
-  );
-}
-
 /** Ver el comprobante subido y validarlo o rechazarlo (no se valida sin haberlo mirado). */
 function ValidarPagoForm({ reservation, listQuery }: { reservation: AdminReservationRowDto; listQuery: string }) {
   const detailPath = `/admin/reservas/${reservation.code}`;
@@ -225,7 +207,7 @@ function EstadoYPagoModal({ reservation, estado, listQuery }: { reservation: Adm
       {estado.validaPagoManual ? <ValidarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
       {estado.revisaDocumentacion ? <RevisarDocumentacionForm reservation={reservation} listQuery={listQuery} /> : null}
       {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}
-      {estado.puedeRegistrarPago && !estado.validaPagoManual ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
+      {estado.puedeRegistrarPago && !estado.validaPagoManual ? <RegistrarPagoForm code={reservation.code} total={formatTotal(reservation)} method={reservation.paymentMethod} listQuery={listQuery} /> : null}
       {reservation.status === "PENDING_PAYMENT" && !estado.disabilityFare ? (
         <form className="reservas-modal-form" action={manageReservationAction}>
           <Ocultos code={reservation.code} listQuery={listQuery} />
@@ -318,7 +300,7 @@ function FilaDeReserva({
           </RowModal>
         ) : estado.accion === "registrar-pago" ? (
           <RowModal triggerLabel="Registrar pago" triggerClassName="button table-action" trigger="Registrar pago" eyebrow="Registrar pago" title={formatTotal(reservation)} subtitle={subtitulo}>
-            <RegistrarPagoForm reservation={reservation} listQuery={listQuery} />
+            <RegistrarPagoForm code={reservation.code} total={formatTotal(reservation)} method={reservation.paymentMethod} listQuery={listQuery} />
           </RowModal>
         ) : estado.accion === "confirmar" ? (
           <form action={manageReservationAction}>
@@ -341,19 +323,19 @@ function FilaDeReserva({
       </div>
       <div className="reservas-fila-menu">
         <MenuFila etiqueta={`Más opciones de ${subtitulo}`}>
-          <Link className="reservas-menu-item" href={detailPath}>Ver reserva</Link>
-          <Link className="reservas-menu-item" href={`${detailPath}/editar`}>Editar reserva</Link>
+          <Link className="menu-fila-item" href={detailPath}>Ver reserva</Link>
+          <Link className="menu-fila-item" href={`${detailPath}/editar`}>Editar reserva</Link>
           {whatsappUrl && estado.accion !== "whatsapp" ? (
-            <a className="reservas-menu-item" href={whatsappUrl} rel="noopener noreferrer" target="_blank">Enviar voucher por WhatsApp</a>
+            <a className="menu-fila-item" href={whatsappUrl} rel="noopener noreferrer" target="_blank">Enviar voucher por WhatsApp</a>
           ) : null}
-          {!whatsappUrl ? <span className="reservas-menu-nota">Sin teléfono para WhatsApp</span> : null}
-          <span className="reservas-menu-copiar" data-mantener>
+          {!whatsappUrl ? <span className="menu-fila-nota">Sin teléfono para WhatsApp</span> : null}
+          <span className="menu-fila-copiar" data-mantener>
             <CopiarVoucher url={voucherUrl} />
           </span>
           {conComprobante ? (
             <RowModal
               triggerLabel={reservation.hasReceipt && estado.canViewReceipt ? "Ver comprobante" : "Subir comprobante"}
-              triggerClassName="reservas-menu-item"
+              triggerClassName="menu-fila-item"
               trigger={reservation.hasReceipt && estado.canViewReceipt ? "Ver comprobante" : "Subir comprobante"}
               eyebrow="Comprobante"
               title={reservation.hasReceipt ? (reservation.receiptFileName ?? "Comprobante cargado") : "Sin comprobante"}
@@ -371,14 +353,14 @@ function FilaDeReserva({
             </RowModal>
           ) : null}
           {!estado.cancelada ? (
-            <RowModal triggerLabel="Cancelar reserva" triggerClassName="reservas-menu-item reservas-menu-peligro" trigger="Cancelar reserva" eyebrow="Cancelar reserva" title={subtitulo} subtitle={rutaCorta(reservation.route)}>
+            <RowModal triggerLabel="Cancelar reserva" triggerClassName="menu-fila-item menu-fila-peligro" trigger="Cancelar reserva" eyebrow="Cancelar reserva" title={subtitulo} subtitle={rutaCorta(reservation.route)}>
               <CancelarForm reservation={reservation} listQuery={listQuery} />
             </RowModal>
           ) : (
             <form action={manageReservationAction}>
               <Ocultos code={reservation.code} listQuery={listQuery} />
               <input type="hidden" name="operation" value="restore" />
-              <button className="reservas-menu-item" type="submit">Restituir reserva</button>
+              <button className="menu-fila-item" type="submit">Restituir reserva</button>
             </form>
           )}
         </MenuFila>

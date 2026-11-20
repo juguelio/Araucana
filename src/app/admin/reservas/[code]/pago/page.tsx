@@ -21,7 +21,7 @@ export default async function RegisterReservationPaymentPage({ params }: { param
       action={<Link className="ghost-button" href={detailPath}>Volver al detalle</Link>}>
       <section className="plain-card admin-section">
         <h2>{reservation.passenger.firstName} {reservation.passenger.lastName}</h2>
-        <RegistrarPagoForm code={reservation.code} total={total} />
+        <RegistrarPagoForm code={reservation.code} total={total} method={reservation.payment?.method} />
       </section>
     </AdminShell>
   );

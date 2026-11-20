@@ -60,6 +60,13 @@ test("un daño señala cada servicio de la nave y se puede resolver y cobrar des
     await expect(page.getByText("No hay reservas para mostrar.")).toBeVisible();
     await page.getByRole("link", { name: /Flota y choferes/ }).click();
     await busRow.locator("summary").click();
+    await busRow.getByLabel("Estado del daño: Falla en frenos").selectOption("EN_REPARACION");
+    await busRow.getByRole("button", { name: "Guardar estado" }).click();
+    await expect(busRow.locator("summary")).toContainText("En reparación");
+    await page.getByRole("link", { name: /Pendientes/ }).click();
+    await expect(page.locator(".plan-alert")).toHaveText([/está en reparación/, /está en reparación/]);
+    await page.getByRole("link", { name: /Flota y choferes/ }).click();
+    await busRow.locator("summary").click();
     await busRow.getByLabel("Estado del daño: Falla en frenos").selectOption("REPARADO");
     await busRow.getByRole("button", { name: "Guardar estado" }).click();
     await expect(page.getByRole("status")).toContainText("reparado");

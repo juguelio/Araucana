@@ -65,6 +65,7 @@ export type BoardRow = {
   editHref: string;
   /** Rutas: para sumar otra unidad a la misma hora. */
   routeId?: string;
+  inactiveRoute?: boolean;
 };
 
 export type BoardSummary = {
@@ -78,6 +79,7 @@ export type BoardSummary = {
 };
 
 export type ScheduleInput = {
+  routeActive?: boolean;
   id: string;
   routeId: string;
   from: string;
@@ -207,6 +209,7 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
       status: statuses.length === 1 ? statuses[0] : null,
       href: `/admin/rutas/${first.routeId}/salidas/${first.id}`,
       editHref: `/admin/rutas/${first.routeId}/salidas/${first.id}/editar`,
+      inactiveRoute: first.routeActive === false,
       routeId: first.routeId
     };
   });

@@ -1,4 +1,5 @@
 import { whatsappLink } from "@/lib/airport/route-order";
+import { FormaDePagoOrden } from "./forma-de-pago-orden";
 
 /**
  * Contenido de una celda de la orden de servicio. Lo comparten la hoja de sólo lectura y la recorrida
@@ -8,6 +9,7 @@ import { whatsappLink } from "@/lib/airport/route-order";
  * un toque (pedido del cliente); el resto de las celdas es texto. El número se muestra igual que se cargó, sin normalizar a la vista.
  */
 export function CeldaDeLaOrden({ celda, columna }: { celda: string; columna: string }) {
+  if (columna === "Forma de pago") return <FormaDePagoOrden metodo={celda} />;
   if (!celda) return <span className="orden-vacio">—</span>;
   if (columna !== "Contacto") return <>{celda}</>;
   const whatsapp = whatsappLink(celda);

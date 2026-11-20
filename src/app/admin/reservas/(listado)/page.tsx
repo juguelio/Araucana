@@ -1,6 +1,6 @@
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { ReservationWorkspace, type ReservationParams } from "./reservation-workspace";
+import { ReservationWorkspace, type ReservationParams } from "../reservation-workspace";
 
 export default async function AdminReservationsPage({ searchParams }: { searchParams?: Promise<ReservationParams> }) {
   const user = await getCurrentReservationsUserOrRedirect();

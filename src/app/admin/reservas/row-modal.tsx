@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import "./row-modal.css";
 
 type RowModalProps = {
   /** Lo que se ve en la celda: la etiqueta de estado, el nombre del comprobante, un botón. */

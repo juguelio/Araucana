@@ -39,7 +39,7 @@ export async function getAirportServiceOrderReservations(
     orderBy: [{ createdAt: "asc" }],
     include: {
       passenger: true,
-      payment: { select: { status: true } },
+      payment: { select: { status: true, method: true } },
       airportDetails: {
         include: {
           flight: {
@@ -81,6 +81,7 @@ export async function getAirportServiceOrderReservations(
         currency: reserva.currency,
         passengerCount: reserva.passengerCount,
         paymentStatus: reserva.payment?.status ?? null,
+        paymentMethod: reserva.payment?.method ?? null,
         direction: detalle.direction,
         flightNumber: detalle.flightNumber,
         pickupName: detalle.pickupName,

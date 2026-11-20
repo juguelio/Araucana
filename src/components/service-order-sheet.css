@@ -113,6 +113,17 @@
   color: #b3aca0;
 }
 
+.orden-forma-pago { display: grid; gap: 7px; min-width: 110px; font-size: 11px; }
+.orden-forma-pago-opcion { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.orden-forma-pago-casillero {
+  display: inline-grid; place-items: center; width: 13px; height: 13px;
+  border: 1px solid currentColor; color: #233024; font-size: 12px; line-height: 1;
+}
+.orden-forma-pago-editor { display: grid; gap: 4px; }
+.orden-forma-pago-editor select { min-width: 125px; font-size: 12px; padding: 5px; }
+.orden-forma-pago-editor small { font-size: 10px; white-space: normal; }
+.orden-forma-pago-impresa { display: none; }
+
 .orden-acciones {
   width: 1%;
   white-space: nowrap;
@@ -158,6 +169,7 @@
 
 /* Papel: sólo la orden. El menú del panel, los botones y la columna de acciones no se imprimen. */
 @media print {
+  .orden-forma-pago-impresa { display: inline; }
   @page {
     size: A4 landscape;
     margin: 10mm;

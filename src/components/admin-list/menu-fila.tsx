@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import "./menu-fila.css";
 
 /**
- * Menú «⋯» de una fila del listado de reservas (rediseño del 20-nov): las acciones que no son la
+ * Menú «⋯» de una fila de un listado del panel (reservas, naves): las acciones que no son la
  * principal (editar, cancelar, WhatsApp, comprobante…) quedan acá en vez de ocupar la fila.
  *
  * Es un `<details>`, así que abre y cierra sin JavaScript; esto sólo lo cierra al tocar afuera o con
@@ -34,12 +35,12 @@ export function MenuFila({ etiqueta, children }: { etiqueta: string; children: R
   }, []);
 
   return (
-    <details className="reservas-menu" ref={ref}>
-      <summary className="reservas-menu-boton" aria-label={etiqueta} title={etiqueta}>
+    <details className="menu-fila" ref={ref}>
+      <summary className="menu-fila-boton" aria-label={etiqueta} title={etiqueta}>
         ⋯
       </summary>
       <div
-        className="reservas-menu-lista"
+        className="menu-fila-lista"
         onClick={(event) => {
           // Elegir una opción cierra el menú (el modal que abra sigue abierto: está en el body).
           // «Copiar voucher» (`data-mantener`) no lo cierra: así se ve el «¡Voucher copiado!».

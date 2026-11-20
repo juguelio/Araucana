@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AREA_LABEL } from "@/lib/operations/day-board";
 import { panelServiceHref, type DispatchAssignment, type DispatchDamage } from "@/lib/operations/dispatch";
+import { estadoDeTaller } from "@/lib/vehicles/estado-en-flota";
 import { ESTADO_DANIO_LABEL, ESTADOS_DE_DANIO, GRAVEDAD_LABEL, esGravedad } from "@/lib/vehicles/ficha";
 import { createDamageAction, setDamageStatusAction } from "../naves/[id]/ficha-actions";
 import { DamageForm } from "../naves/[id]/ficha-forms";
@@ -10,7 +11,7 @@ import type { Option } from "./crew-form";
 const clock = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Salta", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
 export function FleetAgenda({ date, drivers, vehicles, assignments, damages, people, onlyUnused, search, selected }: {
   date: string; drivers: Option[]; vehicles: Option[]; assignments: DispatchAssignment[];
-  damages: DispatchDamage[]; people: boolean; onlyUnused: boolean; search: string; selected?: string;
+  damages: ReadonlyMap<string, DispatchDamage[]>; people: boolean; onlyUnused: boolean; search: string; selected?: string;
 }) {
   const kind = people ? "driverId" : "vehicleId";
   const byResource = new Map<string, DispatchAssignment[]>();
@@ -41,10 +42,11 @@ export function FleetAgenda({ date, drivers, vehicles, assignments, damages, peo
     {!visible.length && <p>No hay coincidencias para estos filtros.</p>}
     {visible.map(([id, label]) => {
       const jobs = (byResource.get(id) ?? []).sort((a,b) => (a.start ?? Infinity) - (b.start ?? Infinity));
-      const reports = people ? [] : damages.filter(d => d.vehicleId === id);
+      const reports = people ? [] : damages.get(id) ?? [];
+      const taller = estadoDeTaller(reports);
       return <details className="console-resource" key={id} open={selected === id || undefined}>
         <summary><strong>{label}</strong><span>{jobs.length ? jobs.length + (jobs.length === 1 ? " tramo" : " tramos") : "Sin servicios asignados"}</span>
-          {reports.length > 0 && <b className="console-warning">{reports.some(r => r.severity === "GRAVE") ? "Daño grave" : "Daño abierto"}</b>}</summary>
+          {reports.length > 0 && <b className="console-warning">{taller?.etiqueta ?? "Daño abierto"}</b>}</summary>
         <div className="console-resource-body">
           {reports.map(d => <div className="console-damage" key={d.id}>
             <span><strong>{esGravedad(d.severity) ? GRAVEDAD_LABEL[d.severity] : d.severity}</strong> · {d.description}</span>

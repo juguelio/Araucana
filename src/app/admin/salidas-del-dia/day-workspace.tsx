@@ -14,7 +14,8 @@ import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { AREA_LABEL, buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
 import { countAdminReservations } from "@/lib/booking/repository";
-import { dispatchIssues, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
+import { estadoDeTaller } from "@/lib/vehicles/estado-en-flota";
+import { daniosPorNave, dispatchIssues, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
 import { ReservationWorkspace, type ReservationParams } from "../reservas/reservation-workspace";
 import { FleetAgenda } from "./fleet-agenda";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
@@ -61,7 +62,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       where: { departureAt: { gte: from, lt: to } },
       orderBy: { departureAt: "asc" },
       include: {
-        route: { select: { from: true, to: true } },
+        route: { select: { from: true, to: true, isActive: true } },
         vehicle: { select: VEHICLE_SELECT },
         driver: { select: DRIVER_SELECT },
         extraUnits: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } },
@@ -116,6 +117,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     schedules: schedules.map((schedule) => ({
       id: schedule.id,
       routeId: schedule.routeId,
+      routeActive: schedule.route.isActive,
       from: schedule.route.from,
       to: schedule.route.to,
       departureAt: schedule.departureAt,
@@ -181,10 +183,15 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
   const serviceRows = board.rows.filter((row) => !row.programmed);
   const programmedRows = board.rows.filter((row) => row.programmed);
-  const vehicleOptions: VehicleOption[] = vehicles.map((vehicle) => ({
+  const vehicleDamages = daniosPorNave(damages);
+  const fleetOptions: VehicleOption[] = vehicles.map((vehicle) => ({
     id: vehicle.id, seats: seatsOf(vehicle), publicTransport: vehicle.publicTransport, kind: vehicle.kind,
     label: `${vehicle.name}${vehicle.internalNumber ? ` · Int. ${vehicle.internalNumber}` : ""} · ${seatsOf(vehicle)} lug.`
   }));
+  const vehicleOptions = fleetOptions.map(option => {
+    const taller = estadoDeTaller(vehicleDamages.get(option.id) ?? []);
+    return taller ? { ...option, label: option.label + " · " + taller.etiqueta } : option;
+  });
   const driverOptions: Option[] = drivers.map((driver) => ({ id: driver.id, label: driver.name?.trim() || driver.email }));
   // Un chofer o una nave que quedaron inactivos siguen apareciendo donde ya estaban asignados.
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
@@ -205,7 +212,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const sharedPickups = new Set([...pickupGroups].filter(([, members]) => esUnaRecorrida(members)).map(([id]) => id));
   const assignments: DispatchAssignment[] = board.rows.flatMap(row => row.units.flatMap(unit => {
     const item = {
-      key: unit.id, rowKey: row.key, cancelled: ["Cancelado", "Desviado", "Cancelada"].includes(row.status ?? ""), title: row.title, area: row.area, href: panel ? panelServiceHref(dateKey, row.key) : row.href,
+      key: unit.id, rowKey: row.key, cancelled: ["Cancelado", "Desviado", "Cancelada"].includes(row.status ?? ""), title: row.inactiveRoute ? row.title + " (ruta inactiva)" : row.title, area: row.area, href: panel ? panelServiceHref(dateKey, row.key) : row.href,
       driverName: unit.driverName, vehicleName: unit.vehicleName,
       vehicleId: unit.vehicleId, driverId: unit.driverId,
       start: (unit.from ?? row.at)?.getTime() ?? null,
@@ -225,7 +232,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       start: run.ascentSlot ? Date.parse(`${dateKey}T${run.ascentSlot}:00-03:00`) : null
     }));
   }));
-  const issues = dispatchIssues(board.rows, assignments, damages);
+  const issues = dispatchIssues(board.rows, assignments, vehicleDamages);
   const pendingRows = panel ? board.rows.filter(row => issues.has(row.key)) : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const matchRow = (row: BoardRow) => (!area || row.area === area) && (!search || normalize([
@@ -259,6 +266,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               {panel && issues.has(row.key) && <ul className="console-issues">{issues.get(row.key)!.map(message => <li key={message}>{message}</li>)}</ul>}
               {panel ? <div className="plan-detail-links">
                 {row.area !== "ESPECIAL" && <Link href={"/admin?" + new URLSearchParams({ date: dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
+                {row.area === "AEROPUERTO" && <Link href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: dateKey, flight: row.serviceId, desde: "panel" } }}>Orden de servicio</Link>}
                 <Link href={row.href}>Ver servicio</Link>
                 {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
               </div> : <>
@@ -373,7 +381,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         </div>
       </section>)}
 
-      {view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={vehicleOptions} assignments={assignments} damages={damages} people={params?.tipo === "chofer"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
+      {view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={fleetOptions} assignments={assignments} damages={vehicleDamages} people={params?.tipo === "chofer"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
       : view === "reservas" ? <section className="console-work console-reservations" aria-label="Reservas y cobros de la jornada">
         {params?.servicio && <header className="console-section-head">
           <h3>{selectedService ? [selectedService.at && hourFormat.format(selectedService.at), selectedService.title].filter(Boolean).join(" · ") : "El servicio ya no figura en esta jornada"}</h3>
@@ -488,7 +496,7 @@ function ServiceSummary({ row, issues = [] }: { row: BoardRow; issues?: string[]
   return <>
     <span className="plan-time"><strong>{row.at ? hourFormat.format(row.at) : "—"}</strong><small>{row.atLabel}</small></span>
     <span className="plan-service">
-      <small>{AREA_LABEL[row.area]}</small>
+      <small>{AREA_LABEL[row.area]}{row.inactiveRoute && " · Inactiva"}</small>
       <strong>{row.title}</strong>
       {row.detail && row.area !== "RUTA" && <span className="plan-detail">{row.detail}</span>}
       {(issues.length > 0 || row.status) && <span className="plan-alert">{issues[0] ?? row.status}{issues.length > 1 && " · +" + (issues.length - 1)}</span>}

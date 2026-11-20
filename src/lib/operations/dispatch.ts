@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { estadoDeTaller } from "../vehicles/estado-en-flota";
 import type { BoardArea, BoardRow } from "./day-board";
 
 export type DispatchAssignment = {
@@ -17,15 +18,25 @@ export function assignmentsOverlap(a: DispatchAssignment, b: DispatchAssignment)
   return b.end !== null && a.start < b.end;
 }
 
-export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment[], damages: DispatchDamage[]) {
+export function daniosPorNave(damages: DispatchDamage[]) {
+  const byVehicle = new Map<string, DispatchDamage[]>();
+  for (const damage of damages) {
+    const list = byVehicle.get(damage.vehicleId);
+    if (list) list.push(damage);
+    else byVehicle.set(damage.vehicleId, [damage]);
+  }
+  return byVehicle;
+}
+
+export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>) {
   const issues = new Map<string, Set<string>>();
   function add(key: string, message: string) {
     const messages = issues.get(key) ?? new Set<string>();
     messages.add(message);
     issues.set(key, messages);
   }
-  const severe = new Set(damages.filter(d => d.severity === "GRAVE" && d.status !== "REPARADO").map(d => d.vehicleId));
   for (const row of rows) {
+    if (row.inactiveRoute && row.passengers > 0) add(row.key, "Ruta inactiva con pasajeros");
     if (!row.programmed) {
       if (row.missingVehicle) add(row.key, "Falta nave");
       if (row.missingDriver) add(row.key, "Falta chofer");
@@ -33,7 +44,8 @@ export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment
       if (row.area === "AEROPUERTO" && row.status && row.passengers) add(row.key, "Vuelo " + row.status.toLowerCase());
     }
     for (const unit of row.units) {
-      if (severe.has(unit.vehicleId)) add(row.key, unit.vehicleName + " tiene un daño grave");
+      const taller = estadoDeTaller(damages.get(unit.vehicleId) ?? []);
+      if (taller) add(row.key, unit.vehicleName + (taller.clave === "danio-grave" ? " tiene un daño grave" : " está en reparación"));
     }
   }
 

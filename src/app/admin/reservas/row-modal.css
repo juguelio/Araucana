@@ -1,0 +1,14 @@
+/* Base del modal de `RowModal`: fondo, caja, encabezado y botón de cerrar. Vive junto al componente
+   (y no en globals.css) para que ningún rediseño de otra pantalla se lo lleve: lo usan Reservas,
+   Aeropuerto («Coordinar recorrida», «Juntar arribos», combis, hoja del chofer) y otros. */
+.fleet-docs-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px;
+  background: rgba(15, 40, 34, .62); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.fleet-docs-modal { position: relative; width: min(460px, 100%); max-height: min(78vh, 640px); overflow: auto;
+  padding: 22px 24px 20px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
+.fleet-docs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.fleet-docs-head .eyebrow { margin: 0 0 4px; }
+.fleet-docs-head h2 { margin: 0; font-family: var(--display); font-size: 26px; font-weight: 500; line-height: 1.05; }
+.fleet-docs-head p { margin: 4px 0 0; font-size: 13px; }
+.fleet-docs-close { flex: none; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%;
+  background: transparent; color: var(--primary); font-size: 22px; line-height: 1; }
+.fleet-docs-close:hover { border-color: var(--primary); background: var(--surface-2); }

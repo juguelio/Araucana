@@ -10,8 +10,11 @@ import { getSetting, setSetting } from "@/lib/settings/app-settings";
  * dirección y el punto los carga la agencia desde el panel, así que no hace falta un deploy para
  * cambiarlos (la oficina se muda o el mapa corrige una coordenada).
  *
- * Se guarda aparte de la cobertura a propósito: la cobertura decide **cuánto se cobra**, esto es
- * sólo un atajo de carga. Si el punto cae en la zona con recargo, el recargo se aplica igual.
+ * La misma ubicación es el origen de las naves en el mapa de las órdenes hacia el aeropuerto,
+ * aunque el atajo del checkout esté desactivado.
+ *
+ * Se guarda aparte de la cobertura: la cobertura decide **cuánto se cobra**. Si el punto cae en
+ * la zona con recargo, el recargo se aplica igual.
  */
 
 const key = "airport.officePickup";

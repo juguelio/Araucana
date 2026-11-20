@@ -3,11 +3,6 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { expect, test } from "@playwright/test";
 
-/**
- * Listado de naves: los vencimientos se ven por unidad (alerta en la fila + detalle en un modal), ya
- * no en un bloque «Vencimientos de la flota» arriba de la tabla. La tabla se ordena por cualquier
- * columna y se pagina de a 20.
- */
 if (!process.env.E2E_DATABASE_URL || process.env.E2E_ISOLATED_DATABASE !== "1") throw new Error("Requires isolated E2E database");
 if (!["localhost", "127.0.0.1"].includes(new URL(process.env.E2E_DATABASE_URL).hostname)) throw new Error("Local database only");
 const db = new PrismaClient({ datasourceUrl: process.env.E2E_DATABASE_URL });
@@ -15,7 +10,7 @@ const suffix = randomUUID().slice(0, 8);
 const email = `naves-${suffix}@example.com`;
 const password = `Test-${suffix}`;
 const dias = (n: number) => new Date(Date.now() + n * 86400000);
-// 25 unidades: la tabla necesita dos páginas.
+// Las dos docenas de unidades deben poder encontrarse también por interno y por patente.
 const unidades = Array.from({ length: 25 }, (_, i) => ({
   id: `nave-${suffix}-${i}`,
   name: `Prueba ${suffix} ${i}`,
@@ -53,82 +48,61 @@ test.beforeEach(async ({ page }) => {
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
 });
 
-const filas = (page: import("@playwright/test").Page) => page.locator(".naves-tabla tbody tr");
+const filaDe = (page: import("@playwright/test").Page, id: string) =>
+  page.locator("li.naves-fila").filter({ has: page.locator(`a[href="/admin/naves/${id}"]`) });
 
-test("ya no está el bloque de vencimientos de la flota y la tabla se pagina de a 20", async ({ page }) => {
+test("la búsqueda reúne las 25 naves de la prueba y el total de sus plazas", async ({ page }) => {
   await page.goto("/admin/naves");
-  await expect(page.getByText("Vencimientos de la flota")).toHaveCount(0);
-  await expect(filas(page)).toHaveCount(20);
-  const paginador = page.getByRole("navigation", { name: "Paginación de naves" });
-  await expect(paginador).toContainText("página 1 de");
-  await paginador.getByRole("link", { name: "Siguiente →" }).click();
-  await expect(page).toHaveURL(/page=2/);
-  await expect(paginador).toContainText("página 2 de");
-  expect(await filas(page).count()).toBeGreaterThanOrEqual(5);
+  await page.getByRole("searchbox", { name: "Buscar nave" }).fill(suffix);
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await expect(page.locator("li.naves-fila")).toHaveCount(25);
+  await expect(page.getByRole("status")).toContainText("25 naves · 93 asientos");
 });
 
-test("cada nave tiene su alerta y su propio detalle de vencimientos", async ({ page }) => {
-  await page.goto("/admin/naves?orden=vencimientos&dir=asc");
-  const primera = filas(page).first();
-  await expect(primera).toContainText(`Interno ${vencida.internalNumber}`);
-  await expect(primera).toHaveAttribute("data-nivel", "vencido");
-  await expect(primera.getByText(/Póliza: Vencido hace/)).toBeVisible();
-  await primera.getByRole("button", { name: /Vencimientos/ }).click();
-  const modal = page.getByRole("dialog");
-  await expect(modal.getByRole("heading", { name: `Interno ${vencida.internalNumber}` })).toBeVisible();
-  await expect(modal.locator(".fleet-docs-row")).toHaveCount(3);
-  await expect(modal.locator('.fleet-docs-row[data-nivel="vencido"]')).toContainText("Póliza");
-  await modal.getByRole("button", { name: "Cerrar" }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+test("la alerta de póliza abre los vencimientos de la misma nave", async ({ page }) => {
+  await page.goto("/admin/naves?vista=alertas");
+  const fila = filaDe(page, vencida.id);
+  await expect(fila).toHaveAttribute("data-tono", "grave");
+  await expect(fila.getByText(/Póliza vencida hace/)).toBeVisible();
+  await fila.getByLabel(/Más opciones de/).click();
+  await fila.getByRole("link", { name: "Vencimientos y seguro" }).click();
+  await expect(page).toHaveURL(url => url.pathname === `/admin/naves/${vencida.id}/vencimientos`);
+  const papeles = page.getByRole("region", { name: "Vencimientos", exact: true });
+  await expect(papeles.getByText("Póliza de seguro")).toBeVisible();
+  await expect(papeles.locator('[data-nivel="vencido"]').first()).toContainText(/Vencido hace/);
 });
 
-test("se ordena por cualquier columna y el encabezado alterna el sentido", async ({ page }) => {
+test("la pestaña con alertas distingue una póliza vencida de una nave al día", async ({ page }) => {
   await page.goto("/admin/naves");
-  const encabezados = ["Unidad", "Marca / modelo · patente", "Titular", "Seguro", "Vencimientos", "Capacidad", "Estado"];
-  for (const titulo of encabezados) {
-    await expect(page.locator("th").filter({ has: page.getByRole("link", { name: titulo }) })).toHaveCount(1);
-  }
-  const capacidad = page.locator("th").filter({ hasText: "Capacidad" });
-  await capacidad.getByRole("link").click();
-  await expect(capacidad).toHaveAttribute("aria-sort", "ascending");
-  await capacidad.getByRole("link").click();
-  await expect(capacidad).toHaveAttribute("aria-sort", "descending");
-  await expect(filas(page).first()).toContainText(`Interno ${grande.internalNumber}`);
-  await expect(filas(page).first()).toContainText("45 pasajeros");
-
-  const titular = page.locator("th").filter({ hasText: "Titular" });
-  await titular.getByRole("link").click();
-  await expect(titular).toHaveAttribute("aria-sort", "ascending");
-  await expect(filas(page).first()).toContainText("AAA Titular");
-  await page.screenshot({ path: "/tmp/araucana-naves-desktop.png" });
+  await page.getByRole("link", { name: /Con alertas/ }).click();
+  await expect(filaDe(page, vencida.id)).toBeVisible();
+  await expect(filaDe(page, grande.id)).toHaveCount(0);
 });
 
-test("el indicador de papeles vencidos lleva al listado ordenado por vencimientos", async ({ page }) => {
+test("desde Naves se abre la agenda de la unidad elegida en la consola", async ({ page }) => {
   await page.goto("/admin/naves");
-  await page.getByRole("link", { name: /Papeles vencidos \/ por vencer/ }).click();
-  await expect(page).toHaveURL(/orden=vencimientos&dir=asc/);
-  await expect(page.locator("th").filter({ hasText: "Vencimientos" })).toHaveAttribute("aria-sort", "ascending");
+  await filaDe(page, grande.id).getByLabel(/Más opciones de/).click();
+  await filaDe(page, grande.id).getByRole("link", { name: "Agenda de hoy" }).click();
+  await expect(page).toHaveURL(url => url.pathname === "/admin" && url.searchParams.get("vista") === "flota" && url.searchParams.get("recurso") === grande.id);
+  await expect(page.locator("details.console-resource[open] > summary")).toContainText(grande.name);
 });
 
-test("en el celular se ordena con el selector", async ({ page }) => {
+test("en el celular se busca por patente y se ve la capacidad", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/naves");
-  const selector = page.getByRole("form", { name: "Ordenar naves" });
-  await selector.getByLabel("Ordenar por").selectOption("capacidad");
-  await selector.getByLabel("Sentido").selectOption("desc");
-  await selector.getByRole("button", { name: "Ordenar" }).click();
-  await expect(page).toHaveURL(/orden=capacidad&dir=desc/);
-  await expect(filas(page).first()).toContainText("45 pasajeros");
+  await page.getByRole("searchbox", { name: "Buscar nave" }).fill(grande.licensePlate.toLowerCase());
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await expect(filaDe(page, grande.id)).toContainText("45 asientos");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: "/tmp/araucana-naves-mobile.png", fullPage: true });
 });
 
-test("el listado ofrece ver la ficha y editar: inactivar y borrar están en la edición", async ({ page }) => {
+test("el menú de la nave abre su ficha y edición", async ({ page }) => {
   await page.goto("/admin/naves");
-  const acciones = filas(page).first().locator("td[data-label='Acciones']");
-  await expect(acciones.getByRole("link", { name: "Editar" })).toBeVisible();
-  await expect(acciones.getByRole("link", { name: "Ver ficha" })).toBeVisible();
-  await expect(page.locator(".naves-tabla").getByRole("button", { name: /Inactivar|Activar|Borrar|Archivar/ })).toHaveCount(0);
+  const fila = filaDe(page, grande.id);
+  await fila.getByLabel(/Más opciones de/).click();
+  await expect(fila.getByRole("link", { name: "Ver ficha" })).toHaveAttribute("href", `/admin/naves/${grande.id}`);
+  await expect(fila.getByRole("link", { name: "Editar nave" })).toHaveAttribute("href", `/admin/naves/${grande.id}/editar`);
+  await expect(fila.getByRole("button", { name: /Inactivar|Activar|Borrar|Archivar/ })).toHaveCount(0);
 });
 
 test("desde la edición de la nave se inactiva, se reactiva y se borra con confirmación", async ({ page }) => {

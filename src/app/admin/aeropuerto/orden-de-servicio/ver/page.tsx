@@ -5,7 +5,8 @@ import { AdminShell } from "@/components/admin-shell";
 import { idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { OrdenAcciones } from "@/components/orden-acciones";
 import { RecorridoEditable } from "@/components/recorrido-editable";
-import { VerRecorrido } from "@/components/recorrido-mapa";
+import { ServiceOrderMap } from "@/components/service-order-map";
+import { getAirportOfficePickup } from "@/lib/airport/office-pickup";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
 import {
   buildServiceOrderBlocks,
@@ -17,6 +18,7 @@ import {
   serviceOrderRow,
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
+import { panelServiceHref } from "@/lib/operations/dispatch";
 import { linkDeLaOrden } from "@/lib/airport/service-order-link";
 import { claveDeOrden, ordenesDeLaHoja, vuelosDeLaHoja } from "@/lib/airport/flight-selection";
 import { ImprimirTodas } from "@/components/imprimir-todas";
@@ -34,7 +36,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; vehicleId?: string; driverId?: string; notice?: string; imprimir?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; vehicleId?: string; driverId?: string; notice?: string; imprimir?: string; desde?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -54,6 +56,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   const params = await searchParams;
   const date = params?.date ?? diaDeHoy();
   const flightId = params?.flight || null;
+  const desdePanel = !!flightId && params?.desde === "panel";
   const vehicle = (flightId && params?.vehicle) || null;
   const { vehicleId, driverId } = params ?? {};
   const porEquipo = vehicleId !== undefined || driverId !== undefined;
@@ -90,9 +93,10 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
   // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
   const flightIds = [...new Set(blocks.flatMap((block) => block.flightIds))];
-  const [vuelos, { naves, choferes }] = await Promise.all([
+  const [vuelos, { naves, choferes }, oficina] = await Promise.all([
     prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
-    opcionesDeCombi()
+    opcionesDeCombi(),
+    getAirportOfficePickup()
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
   const nombreEquipo = vehicleId !== undefined
@@ -101,6 +105,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   const volverAOrden = new URLSearchParams({
     date,
     ...(flightId ? { flight: flightId } : {}),
+    ...(desdePanel ? { desde: "panel" } : {}),
     ...(vehicle ? { vehicle } : {}),
     ...(vehicleId !== undefined ? { vehicleId } : {}),
     ...(driverId !== undefined ? { driverId } : {}),
@@ -170,22 +175,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   // «Visualizar recorrido»: el mapa de las paradas de la orden, en el orden de la hoja.
   function mapa(block: ServiceOrderBlock) {
-    if (!block.passengers.length) return null;
-    return (
-      <VerRecorrido
-        key={`mapa-${block.key}`}
-        sentido={block.direction}
-        titulo={[block.flightNumber, block.vehicle?.name].filter(Boolean).join(" · ")}
-        paradas={block.passengers.map((pasajero, indice) => ({
-          code: pasajero.code,
-          numero: indice + 1,
-          nombre: pasajero.name,
-          lugar: pasajero.lodging,
-          pasajeros: pasajero.seats,
-          punto: pasajero.pickup
-        }))}
-      />
-    );
+    return <ServiceOrderMap key={`mapa-${block.key}`} block={block} oficina={oficina} />;
   }
 
   function filas(block: ServiceOrderBlock) {
@@ -216,8 +206,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
           {blocks.length > 1 || variasPedidas ? (
             <ImprimirTodas cantidad={blocks.length} alAbrir={variasPedidas && params?.imprimir === "1" && !params?.notice} />
           ) : null}
-          {porEquipo
-            ? <Link className="ghost-button" href={`/admin?date=${encodeURIComponent(date)}`}>Volver al panel</Link>
+          {desdePanel && flightId
+            ? <Link className="ghost-button" href={panelServiceHref(date, "vuelo-" + flightId)}>Volver al vuelo en el panel</Link>
+            : porEquipo ? <Link className="ghost-button" href={`/admin?date=${encodeURIComponent(date)}`}>Volver al panel</Link>
             : <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>}
         </div>
       }

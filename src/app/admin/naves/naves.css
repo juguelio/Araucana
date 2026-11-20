@@ -1,52 +1,161 @@
-/* === Naves: alerta de vencimientos por fila, orden por columna y tarjetas en el celular === estilos propios */
-@media (min-width: 761px) { .naves-stats { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; } }
-.naves-stats .naves-stat-link { text-decoration: none; color: inherit; }
-.naves-stats .naves-stat-link:hover { border-color: var(--primary); }
-.naves-stats .naves-stat-link[data-alerta="true"] strong { color: var(--accent); }
-/* Encabezados ordenables: toda la celda es el enlace, con la flecha del sentido. */
-.naves-tabla th .naves-orden { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; white-space: nowrap; }
-.naves-tabla th .naves-orden:hover { color: var(--primary); }
-.naves-tabla th .naves-orden-flecha { font-size: 10px; opacity: .45; }
-.naves-tabla th .naves-orden[data-activo="true"] { color: var(--primary); }
-.naves-tabla th .naves-orden[data-activo="true"] .naves-orden-flecha { opacity: 1; }
-/* En el celular la tabla pasa a tarjetas y no hay encabezado: el orden se elige con este selector. */
-.naves-orden-movil { display: none; }
-@media (max-width: 760px) {
-  .naves-orden-movil { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; margin: 0 0 12px; }
-  .naves-orden-movil label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; flex: 1 1 140px; }
-}
-.naves-tabla tr[data-nivel="vencido"] td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
-.naves-tabla tr[data-nivel="proximo"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
-/* Capacidad (#247): una unidad sin plano de butacas no vende nada, así que el listado lo dice en
-   vez de mostrar «0 pasajeros», que se lee como un dato válido. */
-.naves-tabla .fleet-capacity { display: grid; gap: 1px; }
-.naves-tabla .fleet-capacity strong { font-weight: 700; }
-.naves-tabla .fleet-capacity-missing { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-.naves-tabla .fleet-capacity-missing:hover { color: var(--primary); }
+/* === Naves: tablero de la flota (rediseño del 20-nov) ===
+   Antes era una planilla de 9 columnas con 4 cifras arriba. Ahora: una búsqueda, pestañas con su
+   cantidad y cada nave en un renglón agrupado por tipo, con el interno grande, el próximo servicio,
+   un estado (¿puede salir?) y una sola alerta. El resto, en «⋯». */
 
-@media (max-width: 760px) {
-  .naves-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
-  .naves-stats .admin-card { padding: 12px; }
-  .naves-stats .admin-card strong { font-size: 22px; }
-
-  .naves-tabla-scroll { overflow: visible; }
-  .table-scroll .naves-tabla { min-width: 0; width: 100%; display: block; background: transparent; }
-  .naves-tabla thead { display: none; }
-  .naves-tabla tbody { display: grid; gap: 10px; }
-  .naves-tabla tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
-  .naves-tabla tr[data-nivel="vencido"] { border-color: #c0392b; }
-  .naves-tabla tr[data-nivel="proximo"] { border-color: var(--accent); }
-  .naves-tabla tr[data-nivel] td:first-child { box-shadow: none; }
-  .naves-tabla td { display: block; min-width: 0; padding: 0; border: 0; white-space: normal; }
-  .naves-tabla td::before { content: attr(data-label); display: block; margin-bottom: 1px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-  .naves-tabla td[data-label="Unidad"]::before, .naves-tabla td[data-label="Estado"]::before, .naves-tabla td[data-label="Acciones"]::before { display: none; }
-  .naves-tabla td[data-label="Unidad"] { grid-column: 1; grid-row: 1; font-size: 15px; }
-  .naves-tabla td[data-label="Estado"] { grid-column: 2; grid-row: 1; justify-self: end; }
-  .naves-tabla td[data-label="Marca / modelo · patente"], .naves-tabla td[data-label="Vencimientos"], .naves-tabla td[data-label="Acciones"] { grid-column: 1 / -1; }
-  .naves-tabla td[data-label="Acciones"] { padding-top: 8px; border-top: 1px dashed var(--line); }
-  .naves-tabla .table-actions { flex-wrap: wrap; }
+/* --- Búsqueda --- */
+.naves-buscar { display: flex; gap: 8px; margin-bottom: 14px; }
+.naves-buscar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
 }
-/* La celda «Unidad» abre la ficha de la nave. */
-.naves-tabla .naves-unidad { display: block; color: inherit; text-decoration: none; }
-.naves-tabla .naves-unidad strong { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
-.naves-tabla .naves-unidad:hover strong { text-decoration-thickness: 2px; }
+.naves-buscar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.naves-buscar .button { flex: 0 0 auto; min-height: 46px; }
+
+/* --- Pestañas con cantidad (mismo patrón que Reservas) --- */
+.naves-pestanas { display: flex; gap: 6px; max-width: 100%; margin-bottom: 10px; overflow-x: auto; scrollbar-width: none; }
+.naves-pestanas::-webkit-scrollbar { display: none; }
+.naves-pestana {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.naves-pestana:hover { border-color: var(--line-strong); color: var(--ink); }
+.naves-pestana:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.naves-pestana[aria-current="page"] { border-color: var(--primary); background: var(--primary); color: #fff; }
+.naves-pestana-cuenta {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(24, 59, 50, .08);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.naves-pestana[data-alerta] .naves-pestana-cuenta { background: var(--accent); color: #fff; }
+.naves-pestana[aria-current="page"] .naves-pestana-cuenta { background: rgba(255, 255, 255, .22); color: #fff; }
+
+.naves-resumen { margin: 4px 0 12px; color: var(--ink-muted); font-size: 13px; font-weight: 700; }
+.naves-resumen a { color: var(--primary); }
+
+/* --- Un grupo (Buses, Camionetas, Utilitarios) --- */
+.naves-grupo { margin-bottom: 18px; }
+.naves-grupo-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.naves-grupo-titulo span { color: var(--ink-muted); font-weight: 700; }
+.naves-lista { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+
+/* --- Una nave: interno · unidad · próximo servicio · estado · alerta · ⋯ --- */
+.naves-fila {
+  position: relative;
+  display: grid;
+  grid-template-columns: 74px minmax(190px, 1.2fr) minmax(190px, 1.2fr) 150px minmax(170px, 1fr) 38px;
+  grid-template-areas: "interno unidad servicio estado alerta menu";
+  align-items: center;
+  gap: 4px 16px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.naves-fila:last-child { border-bottom: 0; }
+.naves-fila:first-child { border-radius: 16px 16px 0 0; }
+.naves-fila:last-child { border-radius: 0 0 16px 16px; }
+.naves-fila:only-child { border-radius: 16px; }
+/* Daño grave o papel vencido: la fila lo avisa con un borde rojo. */
+.naves-fila[data-tono="grave"] { background: #fff5f3; box-shadow: inset 4px 0 0 #c0392b; }
+.naves-fila[data-inactiva] { background: #efece5; }
+.naves-fila[data-inactiva] .naves-fila-interno strong,
+.naves-fila[data-inactiva] .naves-fila-modelo { color: var(--ink-muted); }
+
+.naves-fila-interno { grid-area: interno; display: grid; gap: 0; color: var(--ink); text-decoration: none; line-height: 1; }
+.naves-fila-interno-rotulo { color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.naves-fila-interno strong { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.naves-fila-interno .naves-fila-sin-interno { font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+.naves-fila-interno:hover strong, .naves-fila-interno:focus-visible strong { color: var(--primary); text-decoration: underline; }
+
+.naves-fila-unidad, .naves-fila-servicio { display: grid; gap: 2px; min-width: 0; }
+.naves-fila-unidad { grid-area: unidad; }
+.naves-fila-servicio { grid-area: servicio; }
+.naves-fila-modelo { color: var(--ink); font-size: 14px; font-weight: 700; text-decoration: none; }
+.naves-fila-modelo:hover, .naves-fila-modelo:focus-visible { color: var(--primary); text-decoration: underline; }
+.naves-fila-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--ink-muted); font-size: 12px; }
+.naves-fila-patente { font-weight: 700; letter-spacing: .05em; font-variant-numeric: tabular-nums; }
+.naves-fila-tp { color: var(--moss, var(--primary)); font-weight: 700; }
+.naves-fila-cuando { color: var(--ink); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.naves-fila-que { color: var(--ink-muted); font-size: 12px; text-decoration: none; overflow-wrap: anywhere; }
+a.naves-fila-que:hover, a.naves-fila-que:focus-visible { color: var(--primary); text-decoration: underline; }
+.naves-fila-nada { color: var(--ink-muted); font-size: 12px; }
+
+.naves-fila-estado { grid-area: estado; }
+.naves-fila-alerta { grid-area: alerta; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.naves-alerta { font-size: 12px; font-weight: 700; color: var(--ink-soft); }
+.naves-alerta::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--line-strong); vertical-align: 1px; }
+.naves-alerta[data-tono="atencion"] { color: #8a4b12; }
+.naves-alerta[data-tono="atencion"]::before { background: var(--accent); }
+.naves-alerta[data-tono="grave"] { color: #a12a1d; }
+.naves-alerta[data-tono="grave"]::before { background: #c0392b; }
+.naves-alerta-mas { padding: 1px 7px; border-radius: 999px; background: rgba(24, 59, 50, .08); color: var(--ink-soft); font-size: 11px; font-weight: 800; }
+.naves-fila-menu { grid-area: menu; display: flex; justify-content: flex-end; }
+
+/* --- Celular: cada nave en tres renglones --- */
+@media (max-width: 760px) {
+  .naves-fila {
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "interno unidad menu"
+      "interno servicio servicio"
+      "estado estado estado"
+      "alerta alerta alerta";
+    gap: 6px 12px;
+    padding: 12px 12px 12px 14px;
+  }
+  .naves-fila-interno { align-self: start; }
+  .naves-fila-menu { align-self: start; }
+  .naves-fila-estado { display: flex; }
+}
+.naves-fila .pill-tabla { padding: 4px 10px; font-size: 11px; }
+
+/* --- «Ahora en la calle» (20-nov): cruce de lo programado con la señal del chofer --- */
+.naves-ahora { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--primary-soft, var(--line)); border-radius: 16px; background: #eef4f1; }
+.naves-ahora-titulo { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--primary); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.naves-ahora-titulo span:not(.naves-ahora-punto) { color: var(--ink-muted); }
+.naves-ahora-hora { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.naves-ahora-punto { width: 9px; height: 9px; border-radius: 50%; background: #2f8f5b; box-shadow: 0 0 0 4px rgba(47, 143, 91, .18); }
+.naves-ahora ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.naves-ahora li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 13px; }
+.naves-ahora li a { color: var(--ink); font-weight: 700; text-decoration: none; }
+.naves-ahora li a:hover, .naves-ahora li a:focus-visible { color: var(--primary); text-decoration: underline; }
+.naves-ahora-interno { min-width: 44px; font-size: 15px; font-weight: 800 !important; font-variant-numeric: tabular-nums; }
+.naves-ahora-hasta, .naves-ahora-senal { color: var(--ink-muted); font-size: 12px; }
+.naves-ahora-sin { color: #8a4b12; font-weight: 700; }
+.naves-ahora-senal::before, .naves-fila-senal::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: #2f8f5b; vertical-align: 1px; }
+.naves-ahora-senal[data-detenida]::before, .naves-fila-senal[data-detenida]::before { background: var(--line-strong); }
+.naves-fila-ahora { color: var(--primary); }
+.naves-fila-senal { color: var(--ink-muted); font-size: 11px; }

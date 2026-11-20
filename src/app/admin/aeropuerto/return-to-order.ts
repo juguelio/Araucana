@@ -26,6 +26,7 @@ export function orderReturnHref(formData: FormData, notice: string): string | nu
   const flight = params.get("flight");
   if (flight && ID.test(flight)) {
     query.set("flight", flight);
+    if (params.get("desde") === "panel") query.set("desde", "panel");
     const vehicle = params.get("vehicle");
     if (vehicle && ID.test(vehicle)) query.set("vehicle", vehicle);
   }

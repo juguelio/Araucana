@@ -342,7 +342,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
           : {});
   }
 
-  for (const path of ["/admin", "/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {
+  for (const path of ["/admin", "/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/aeropuerto/orden-de-servicio/ver", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {
     revalidatePath(path);
   }
   redirect(reservationNotice(`/admin/reservas/${code}`, "Cambios guardados."));
@@ -406,7 +406,7 @@ export async function manageReservationAction(formData: FormData) {
   if (result.receiptPath) {
     await del(result.receiptPath).catch(() => { receiptCleanupFailed = true; });
   }
-  for (const path of ["/admin", "/admin/reservas", detailPath, `${detailPath}/editar`, `${detailPath}/pago`, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/chapelco", "/chofer"]) {
+  for (const path of ["/admin", "/admin/reservas", detailPath, `${detailPath}/editar`, `${detailPath}/pago`, `/reservas/${code}`, "/admin/contabilidad", "/admin/reportes", "/admin/aeropuerto", "/admin/aeropuerto/orden-de-servicio/ver", "/admin/chapelco", "/chofer"]) {
     revalidatePath(path);
   }
 

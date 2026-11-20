@@ -531,7 +531,7 @@ function adminReservationListInclude() {
     schedule: { select: { departureAt: true, route: { select: { from: true, to: true } } } },
     route: { select: { from: true, to: true } },
     passenger: { select: { firstName: true, lastName: true, phone: true, documentId: true } },
-    payment: { select: { provider: true, status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
+    payment: { select: { provider: true, status: true, method: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
     chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
     airportDetails: { select: { serviceDate: true, flightNumber: true, flight: { select: { scheduledAt: true } } } }
   };
@@ -1426,6 +1426,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           status: reservation.status,
           paymentStatus: reservation.payment?.status ?? null,
           paymentProvider: reservation.payment?.provider ?? null,
+          paymentMethod: reservation.payment?.method ?? null,
           totalCents: reservation.totalCents,
           currency: reservation.currency,
           hasReceipt: Boolean(reservation.payment?.receiptBlobPathname),

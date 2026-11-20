@@ -34,6 +34,9 @@ test("cada partida abre su modal, suma otra partida y fija la hora de la recorri
 
   await page.locator(`#vuelo-${vuelos.a.id}`).getByRole("button", { name: `Coordinar recorrida del ${vuelos.a.number}` }).click();
   const modal = page.getByRole("dialog", { name: `Coordinar recorrida · ${vuelos.a.number}` });
+  // El modal flota sobre el tablero (y no queda suelto al pie de la página sin estilos) y se ve entero.
+  await expect(page.locator(".fleet-docs-backdrop")).toHaveCSS("position", "fixed");
+  await expect(modal).toBeInViewport({ ratio: 0.9 });
   await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos.a.number) })).toBeChecked();
   await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos.b.number) })).not.toBeChecked();
   await modal.getByRole("checkbox", { name: new RegExp(vuelos.b.number) }).check();
