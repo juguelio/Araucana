@@ -18,8 +18,8 @@ export function fechaDeSubida(valor?: Date | string | null) {
 const PDF = /\.pdf$/i;
 
 /**
- * Qué se puede hacer con el archivo que subió el pasajero. HEIC (la foto del iPhone) cae en
- * "otro": no hay visor confiable en el navegador del admin, así que se ofrece el enlace.
+ * Los HEIC nuevos se convierten a JPG al subirlos. Para archivos antiguos sin un formato
+ * que pueda mostrar el navegador, se conserva el enlace al original.
  */
 export function tipoDeComprobante(fileName?: string | null) {
   if (fileName && PDF.test(fileName)) return "pdf" as const;

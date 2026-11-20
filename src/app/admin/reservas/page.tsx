@@ -27,6 +27,7 @@ import { ReceiptUploadForm } from "./receipt-upload-form";
 import "@/components/admin-list/pagination.css";
 import "./reservas.css";
 import { isAdminRole } from "@/lib/auth/roles";
+import { receiptAccept, receiptFormatsHelp } from "@/lib/payments/receipt-validation";
 
 type AdminReservationsPageProps = {
   searchParams?: Promise<{
@@ -161,9 +162,9 @@ function RegistrarPagoForm({ reservation, listQuery }: { reservation: AdminReser
       <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
       <label>
         Comprobante (opcional)
-        <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
+        <input name="receipt" type="file" accept={receiptAccept} />
       </label>
-      <small className="muted">PDF, JPG, PNG o WEBP. Queda guardado junto al pago.</small>
+      <small className="muted">{receiptFormatsHelp} Queda guardado junto al pago.</small>
       <button className="button" type="submit">Registrar pago</button>
     </form>
   );

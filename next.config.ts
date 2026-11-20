@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 const projectRoot = dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // libheif carga su decodificador WASM desde Node, fuera del bundle de Turbopack.
+  serverExternalPackages: ["heic-convert"],
   async redirects() {
     return [
       // El listado de planillas se eliminó: la planilla se genera desde la reserva del pasajero.

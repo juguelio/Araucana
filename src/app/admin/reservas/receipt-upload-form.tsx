@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
+import { receiptAccept, receiptFormatsHelp } from "@/lib/payments/receipt-validation";
 import { uploadReceiptFromAdminAction, type AdminReceiptState } from "./receipt-actions";
 
 const inicial: AdminReceiptState = { ok: false, message: "" };
@@ -23,9 +24,9 @@ export function ReceiptUploadForm({ code, replace }: { code: string; replace: bo
       <input type="hidden" name="code" value={code} />
       <label>
         {replace ? "Reemplazar comprobante" : "Archivo del comprobante"}
-        <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" required />
+        <input name="receipt" type="file" accept={receiptAccept} required />
       </label>
-      <small className="muted">PDF, JPG, PNG o WEBP.</small>
+      <small className="muted">{receiptFormatsHelp}</small>
       {state.message ? (
         <p className={state.ok ? "reservas-modal-ok" : "error"} role={state.ok ? "status" : "alert"}>
           {state.message}
