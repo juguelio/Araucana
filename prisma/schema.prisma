@@ -701,7 +701,13 @@ model ChapelcoManifestStop {
 
 model SpecialTrip {
   id            String   @id @default(cuid())
+  /** Día en que sale el viaje. */
   serviceDate   DateTime @db.Date
+  /**
+   * Día en que vuelve, para los viajes de varios días («del 20 al 26»): el viaje figura en cada día del
+   * rango. Vacío = viaje de un día, como todos los que se cargaron antes de esta columna.
+   */
+  endDate       DateTime? @db.Date
   client        String
   contact       String?
   passengers    Int?
@@ -724,6 +730,7 @@ model SpecialTrip {
   departureSheets DepartureSheet[]
 
   @@index([serviceDate, status])
+  @@index([endDate])
 }
 
 model SpecialTripAssignment {
