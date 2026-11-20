@@ -7,6 +7,24 @@ export type TonoDeEstado = "ok" | "atencion" | "grave" | "normal";
 /** La acción que se ve en la fila; el resto queda en el menú «⋯». */
 export type AccionPrincipal = "validar-pago" | "aprobar-documentacion" | "registrar-pago" | "confirmar" | "whatsapp" | null;
 
+/**
+ * Texto del botón de la fila. «Confirmar» a secas se leía como si confirmara el pago —que ya está
+ * acreditado cuando la reserva llega a «Pagada · sin confirmar»—, así que el botón nombra lo que
+ * confirma: la reserva (el paso que habilita el voucher).
+ */
+const ETIQUETA_DE_ACCION: Record<Exclude<AccionPrincipal, null>, string> = {
+  "validar-pago": "Validar pago",
+  "aprobar-documentacion": "Revisar docs",
+  "registrar-pago": "Registrar pago",
+  confirmar: "Confirmar reserva",
+  whatsapp: "WhatsApp"
+};
+
+export function etiquetaDeAccion(accion: AccionPrincipal): string | null {
+  return accion ? ETIQUETA_DE_ACCION[accion] : null;
+}
+
+
 export type EstadoDeFila = {
   /** Estado y pago en una sola etiqueta: lo que hay que saber de la reserva de un vistazo. */
   etiqueta: string;

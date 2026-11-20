@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estadoDeFila } from "./estado-fila";
+import { estadoDeFila, etiquetaDeAccion } from "./estado-fila";
 
 const base = {
   status: "PENDING_PAYMENT",
@@ -53,5 +53,22 @@ describe("estadoDeFila: una etiqueta y una acción por reserva (listado del 20-n
     const docs = { ...base, status: "DOCUMENTATION_PENDING", paymentProvider: "DISABILITY_DOCUMENT", hasReceipt: true, receiptUploadedAt: new Date() };
     expect(estadoDeFila(docs, { esAdmin: true })).toMatchObject({ etiqueta: "Documentación por revisar", accion: "aprobar-documentacion" });
     expect(estadoDeFila(docs, { esAdmin: false })).toMatchObject({ etiqueta: "Docs pendientes", canViewReceipt: false, puedeSubirComprobante: false });
+  });
+});
+
+describe("etiquetaDeAccion: el botón de la fila dice qué hace", () => {
+  it("«Confirmar» a secas se leía como confirmar el pago: ahora dice «Confirmar reserva»", () => {
+    expect(etiquetaDeAccion("confirmar")).toBe("Confirmar reserva");
+  });
+
+  it("las demás acciones conservan el texto corto de la fila", () => {
+    expect(etiquetaDeAccion("validar-pago")).toBe("Validar pago");
+    expect(etiquetaDeAccion("aprobar-documentacion")).toBe("Revisar docs");
+    expect(etiquetaDeAccion("registrar-pago")).toBe("Registrar pago");
+    expect(etiquetaDeAccion("whatsapp")).toBe("WhatsApp");
+  });
+
+  it("sin acción no hay botón", () => {
+    expect(etiquetaDeAccion(null)).toBeNull();
   });
 });
