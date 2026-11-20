@@ -44,4 +44,32 @@ describe("subida y guardado del HEIC", () => {
     expect(mocks.put).not.toHaveBeenCalled();
     expect(mocks.attach).not.toHaveBeenCalled();
   });
+
+  // El caso del cliente: registró el pago (queda APPROVED) y después manda la foto del celular.
+  // Las dos reglas tienen que componerse: la política deja adjuntar y la normalización guarda JPG.
+  it("adjunta la foto HEIC a un pago ya registrado que no tenía comprobante", async () => {
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "local-test-placeholder");
+    mocks.get.mockResolvedValue({ status: "PENDING_PAYMENT", payment: { provider: "MANUAL", status: "APPROVED" } });
+    mocks.put.mockImplementation(async (pathname, file) => ({ pathname, url: "https://example.com/receipt.jpg", contentType: file.type }));
+    mocks.attach.mockResolvedValue({ reservation: { code: "ARC-TEST" } });
+    const heic = readFileSync(new URL("./fixtures/receipt.heic", import.meta.url));
+    await uploadReservationReceipt("ARC-TEST", new File([heic], "foto.HEIC", { type: "image/heic" }));
+
+    const [, file] = mocks.put.mock.calls[0];
+    expect(file.type).toBe("image/jpeg");
+    expect(mocks.attach).toHaveBeenCalledWith("ARC-TEST", expect.objectContaining({ contentType: "image/jpeg" }), undefined);
+  });
+
+  it("no reemplaza la foto de un pago aprobado que ya tenía comprobante", async () => {
+    vi.stubEnv("BLOB_READ_WRITE_TOKEN", "local-test-placeholder");
+    mocks.get.mockResolvedValue({
+      status: "PENDING_PAYMENT",
+      payment: { provider: "MANUAL", status: "APPROVED", receiptBlobPathname: "manual-payment-receipts/ARC-TEST/viejo.jpg" }
+    });
+    const heic = readFileSync(new URL("./fixtures/receipt.heic", import.meta.url));
+    await expect(uploadReservationReceipt("ARC-TEST", new File([heic], "foto.HEIC", { type: "image/heic" })))
+      .rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
+    expect(mocks.put).not.toHaveBeenCalled();
+    expect(mocks.attach).not.toHaveBeenCalled();
+  });
 });
