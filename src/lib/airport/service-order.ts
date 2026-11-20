@@ -4,7 +4,7 @@
  * El cliente la usa hoy en papel y pidió que el sistema devuelva lo mismo (foto del 2026-11-12,
  * issue #74): encabezado con la fecha, un bloque por vuelo —`OUT 1671` para las partidas y
  * `Llega 1670` para los arribos— y una fila por reserva con
- * `Pasajero · Cant · DNI · Alojamiento · Derivado por · Pago · Contacto`, con el total al pie de
+ * `Pasajero · Cant · DNI · Alojamiento · Derivado por · Pago · Contacto · Forma de pago`, con el total al pie de
  * cada bloque y el total del día al final.
  *
  * Reglas que importan más acá que el formato:
@@ -35,6 +35,7 @@ export type ServiceOrderReservationInput = {
   currency: string;
   passengerCount: number;
   paymentStatus: string | null;
+  paymentMethod?: string | null;
   direction: string;
   flightNumber: string;
   pickupName: string | null;
@@ -95,6 +96,7 @@ export type ServiceOrderPassenger = {
   /** Quién derivó la venta; `null` cuando la reserva se vendió directo. */
   referredBy: string | null;
   payment: string;
+  paymentMethod: string | null;
   amountCents: number;
   currency: string;
   contact: string;
@@ -434,6 +436,7 @@ export function buildServiceOrderBlocks(
       lodgingDetail,
       referredBy: reserva.referredBy?.trim() || null,
       payment: paymentLabel(reserva.paymentStatus, reserva.totalCents, reserva.currency),
+      paymentMethod: reserva.paymentMethod?.trim() || null,
       amountCents: reserva.totalCents,
       currency: reserva.currency,
       contact: reserva.passenger.phone,
@@ -599,7 +602,8 @@ export const SERVICE_ORDER_COLUMNS = [
   "Alojamiento",
   "Derivado por",
   "Pago",
-  "Contacto"
+  "Contacto",
+  "Forma de pago"
 ] as const;
 
 /**
@@ -619,7 +623,8 @@ export function serviceOrderRow(pasajero: ServiceOrderPassenger): string[] {
     alojamiento,
     pasajero.referredBy ?? "",
     pasajero.payment,
-    pasajero.contact
+    pasajero.contact,
+    pasajero.paymentMethod ?? ""
   ];
 }
 
@@ -671,7 +676,7 @@ const FILA_ENCABEZADO = 5;
  * Ojo: el alto de cada renglón se calcula contra estos anchos (`lineasDeTexto`), así que si cambia
  * uno hay que cambiar el otro — si no, el texto se corta.
  */
-const ANCHOS = [26, 5, 14, 30, 13, 15, 15] as const;
+const ANCHOS = [26, 5, 14, 30, 13, 15, 15, 20] as const;
 
 /**
  * Cuántos renglones ocupa un texto en una columna de `ancho` caracteres, con fuente de `pt`.
@@ -757,7 +762,7 @@ export async function buildServiceOrderWorkbook(
 
   // --- Encabezado: banda verde con logo, título y fecha -------------------------------------
   for (let fila = 1; fila <= 3; fila += 1) {
-    pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE_HONDO);
+    pintarFila(sheet, { fila, desde: 1, hasta: SERVICE_ORDER_COLUMNS.length }, VERDE_HONDO);
   }
   sheet.getRow(1).height = 26;
   sheet.getRow(2).height = 20;
@@ -798,7 +803,7 @@ export async function buildServiceOrderWorkbook(
   etiquetaFecha.font = { bold: true, size: 8, color: { argb: "FF9BB8AF" } };
   etiquetaFecha.alignment = { horizontal: "right", vertical: "bottom" };
 
-  sheet.mergeCells("F2:G2");
+  sheet.mergeCells("F2:H2");
   const fecha = sheet.getCell("F2");
   fecha.value = fechaDeLaOrden(meta.date);
   fecha.font = { bold: true, size: 13, color: { argb: "FFFFFFFF" } };
@@ -808,7 +813,7 @@ export async function buildServiceOrderWorkbook(
     (total, block) => total + block.passengers.reduce((suma, pasajero) => suma + pasajero.seats, 0),
     0
   );
-  sheet.mergeCells("F3:G3");
+  sheet.mergeCells("F3:H3");
   const resumen = sheet.getCell("F3");
   const ordenesDelDia = blocks.length;
   resumen.value = `${ordenesDelDia} ${ordenesDelDia === 1 ? "orden" : "órdenes"} · ${pasajerosDelDia} pasajeros`;
@@ -826,14 +831,14 @@ export async function buildServiceOrderWorkbook(
     celda.alignment = { vertical: "middle", horizontal: indice === 1 ? "center" : "left" };
     celda.border = BORDE_FINO;
   });
-  pintarFila(sheet, { fila: FILA_ENCABEZADO, desde: 1, hasta: 7 }, VERDE_SUAVE);
+  pintarFila(sheet, { fila: FILA_ENCABEZADO, desde: 1, hasta: SERVICE_ORDER_COLUMNS.length }, VERDE_SUAVE);
   encabezado.height = 22;
 
   let fila = FILA_ENCABEZADO + 1;
 
   if (blocks.length === 0) {
     const vacio = sheet.getRow(fila++);
-    sheet.mergeCells(`A${fila - 1}:G${fila - 1}`);
+    sheet.mergeCells(`A${fila - 1}:H${fila - 1}`);
     vacio.getCell(1).value = `Sin pasajeros cargados para ${fechaDeLaOrden(meta.date)}.`;
     vacio.getCell(1).font = { italic: true, size: 10, color: { argb: GRIS } };
     vacio.height = 22;
@@ -843,7 +848,7 @@ export async function buildServiceOrderWorkbook(
     // Banda del vuelo: a la izquierda el rótulo de la operación, a la derecha cuántos van y cuánto.
     const banda = sheet.getRow(fila);
     sheet.mergeCells(`A${fila}:E${fila}`);
-    sheet.mergeCells(`F${fila}:G${fila}`);
+    sheet.mergeCells(`F${fila}:H${fila}`);
     const celdaBanda = banda.getCell(1);
     celdaBanda.value = blockTimeLabel(block);
     celdaBanda.font = { bold: true, size: 11, color: { argb: "FFFFFFFF" } };
@@ -856,7 +861,7 @@ export async function buildServiceOrderWorkbook(
     )}`;
     celdaBandaMonto.font = { bold: true, size: 10, color: { argb: "FFD5E1DC" } };
     celdaBandaMonto.alignment = { vertical: "middle", horizontal: "right" };
-    pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE);
+    pintarFila(sheet, { fila, desde: 1, hasta: SERVICE_ORDER_COLUMNS.length }, VERDE);
     banda.height = 20;
     fila += 1;
 
@@ -864,12 +869,12 @@ export async function buildServiceOrderWorkbook(
     const inicio = inicioDeRecorrida(block);
     if (inicio) {
       const renglonInicio = sheet.getRow(fila);
-      sheet.mergeCells(`A${fila}:G${fila}`);
+      sheet.mergeCells(`A${fila}:H${fila}`);
       const celdaInicio = renglonInicio.getCell(1);
       celdaInicio.value = `INICIO DE RECORRIDA ${inicio}`;
       celdaInicio.font = { bold: true, size: 14, color: { argb: TINTA } };
       celdaInicio.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-      pintarFila(sheet, { fila, desde: 1, hasta: 7 }, REMARCADO);
+      pintarFila(sheet, { fila, desde: 1, hasta: SERVICE_ORDER_COLUMNS.length }, REMARCADO);
       renglonInicio.height = 24;
       fila += 1;
     }
@@ -916,6 +921,13 @@ export async function buildServiceOrderWorkbook(
       };
       celdaPago.alignment = { horizontal: "right" };
 
+      const metodo = pasajero.paymentMethod?.trim().toLowerCase() ?? "";
+      const casilleros = `${metodo === "efectivo" ? "[x]" : "[ ]"} Efectivo\n${metodo === "transferencia" ? "[x]" : "[ ]"} Transferencia`;
+      const otroMetodo = metodo && metodo !== "efectivo" && metodo !== "transferencia";
+      const celdaMetodo = renglon.getCell(8);
+      celdaMetodo.value = otroMetodo ? `${casilleros}\nOtro: ${pasajero.paymentMethod}` : casilleros;
+      celdaMetodo.font = { size: 9.5, color: { argb: TINTA } };
+
       const celdaContacto = renglon.getCell(7);
       // El chofer abre el WhatsApp con un click desde el Excel (pedido del cliente).
       const whatsapp = whatsappLink(pasajero.contact);
@@ -927,12 +939,12 @@ export async function buildServiceOrderWorkbook(
         ? { size: 9.5, color: { argb: TINTA }, underline: true }
         : { size: 9.5, color: { argb: TINTA } };
 
-      for (let columna = 1; columna <= 7; columna += 1) {
+      for (let columna = 1; columna <= SERVICE_ORDER_COLUMNS.length; columna += 1) {
         const celda = renglon.getCell(columna);
         celda.border = BORDE_FINO;
-        celda.alignment = { ...celda.alignment, vertical: "middle", wrapText: columna === 1 || columna === 4 };
+        celda.alignment = { ...celda.alignment, vertical: "middle", wrapText: columna === 1 || columna === 4 || columna === 8 };
       }
-      if (indice % 2 === 1) pintarFila(sheet, { fila, desde: 1, hasta: 7 }, ZEBRA);
+      if (indice % 2 === 1) pintarFila(sheet, { fila, desde: 1, hasta: SERVICE_ORDER_COLUMNS.length }, ZEBRA);
 
       // El alto sale del texto: con un alto fijo la dirección se corta y no se lee a dónde ir.
       const lineasAlojamiento = lineasDeTexto(
@@ -941,7 +953,9 @@ export async function buildServiceOrderWorkbook(
         9.5
       );
       const lineasPasajero = lineasDeTexto(pasajero.name, ANCHOS[0], 10);
-      renglon.height = Math.max(18, Math.max(lineasAlojamiento, lineasPasajero) * 12 + 6);
+      const lineasMetodo = String(celdaMetodo.value).split("\n")
+        .reduce((total, linea) => total + lineasDeTexto(linea, ANCHOS[7], 9.5), 0);
+      renglon.height = Math.max(lineasAlojamiento, lineasPasajero, lineasMetodo) * 12 + 6;
       fila += 1;
     });
 
@@ -958,7 +972,7 @@ export async function buildServiceOrderWorkbook(
     montoSubtotal.value = plata(block.totalCents, block.passengers[0]?.currency ?? "ARS");
     montoSubtotal.font = { bold: true, size: 10, color: { argb: TINTA } };
     montoSubtotal.alignment = { horizontal: "right", vertical: "middle" };
-    for (let columna = 1; columna <= 7; columna += 1) {
+    for (let columna = 1; columna <= SERVICE_ORDER_COLUMNS.length; columna += 1) {
       subtotal.getCell(columna).border = {
         bottom: { style: "thin", color: { argb: BORDE } }
       };
@@ -984,14 +998,14 @@ export async function buildServiceOrderWorkbook(
     );
     montoTotal.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
     montoTotal.alignment = { horizontal: "right", vertical: "middle" };
-    pintarFila(sheet, { fila, desde: 1, hasta: 7 }, VERDE_HONDO);
+    pintarFila(sheet, { fila, desde: 1, hasta: SERVICE_ORDER_COLUMNS.length }, VERDE_HONDO);
     total.height = 24;
 
     const nota = sheet.getRow(fila + 2);
-    sheet.mergeCells(`A${fila + 2}:G${fila + 2}`);
+    sheet.mergeCells(`A${fila + 2}:H${fila + 2}`);
     nota.getCell(1).value =
       "Derivado por es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío. " +
-      "El detalle del pago (voucher, quién cobra) se completa a mano. Cobrar / Pagado es el estado del pago de la reserva.";
+      "La forma de pago se carga desde la orden o se marca a mano en los casilleros. Elegirla no confirma el cobro. Cobrar / Pagado es el estado del pago de la reserva.";
     nota.getCell(1).font = { size: 8, italic: true, color: { argb: GRIS } };
     nota.getCell(1).alignment = { wrapText: true };
     const anchoTotal = ANCHOS.reduce((total, ancho) => total + ancho, 0);

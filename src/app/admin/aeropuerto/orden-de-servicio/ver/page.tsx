@@ -5,7 +5,8 @@ import { AdminShell } from "@/components/admin-shell";
 import { idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { OrdenAcciones } from "@/components/orden-acciones";
 import { RecorridoEditable } from "@/components/recorrido-editable";
-import { VerRecorrido } from "@/components/recorrido-mapa";
+import { ServiceOrderMap } from "@/components/service-order-map";
+import { getAirportOfficePickup } from "@/lib/airport/office-pickup";
 import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
 import {
   buildServiceOrderBlocks,
@@ -83,9 +84,10 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
   // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
   const flightIds = [...new Set(blocks.flatMap((block) => block.flightIds))];
-  const [vuelos, { naves, choferes }] = await Promise.all([
+  const [vuelos, { naves, choferes }, oficina] = await Promise.all([
     prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
-    opcionesDeCombi()
+    opcionesDeCombi(),
+    getAirportOfficePickup()
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
   const volverAOrden = new URLSearchParams({
@@ -153,22 +155,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   // «Visualizar recorrido»: el mapa de las paradas de la orden, en el orden de la hoja.
   function mapa(block: ServiceOrderBlock) {
-    if (!block.passengers.length) return null;
-    return (
-      <VerRecorrido
-        key={`mapa-${block.key}`}
-        sentido={block.direction}
-        titulo={[block.flightNumber, block.vehicle?.name].filter(Boolean).join(" · ")}
-        paradas={block.passengers.map((pasajero, indice) => ({
-          code: pasajero.code,
-          numero: indice + 1,
-          nombre: pasajero.name,
-          lugar: pasajero.lodging,
-          pasajeros: pasajero.seats,
-          punto: pasajero.pickup
-        }))}
-      />
-    );
+    return <ServiceOrderMap key={`mapa-${block.key}`} block={block} oficina={oficina} />;
   }
 
   function filas(block: ServiceOrderBlock) {
