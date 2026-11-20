@@ -24,7 +24,7 @@ export function matchesMunicipalAddress(label: string, address: NonNullable<Retu
   });
 }
 
-/** Resuelve sólo el domicilio publicado; nunca asocia puntos por parecido de nombre. */
+/** Prioriza el domicilio; admite establecimientos identificados por su nombre exacto y tipo. */
 export async function resolveMunicipalLodging(id: string, requestSignal: AbortSignal): Promise<AirportPlaceSuggestion | null> {
   const lodging = municipalLodgings.find((entry) => entry.id === id);
   if (!lodging) return null;
@@ -38,9 +38,20 @@ export async function resolveMunicipalLodging(id: string, requestSignal: AbortSi
       && (result.precision === "exact" || (result.precision === "interpolated" && result.source === "georef"))
       && result.point[0] >= south && result.point[0] <= north && result.point[1] >= west && result.point[1] <= east
       && matchesMunicipalAddress(result.label, address));
-    // El negocio puede estar indexado por nombre aunque la búsqueda por altura falle.
-    // Aun así se exige su domicilio completo: el nombre solo nunca alcanza.
-    let candidates = atAddress(await suggestProviderAirportPlaces(lodging.name, signal).catch(() => []));
+    const named = await suggestProviderAirportPlaces(lodging.name, signal).catch(() => []);
+    let candidates = atAddress(named);
+    let locationMatch: "address" | "establishment" = "address";
+    // Algunos predios figuran sobre otra calle. Sólo aceptar el nombre completo,
+    // categoría de alojamiento, localidad y un nombre único en el directorio.
+    const name = normalizePlaceText(lodging.name);
+    const uniqueName = municipalLodgings.filter((entry) => normalizePlaceText(entry.name) === name).length === 1;
+    if (!candidates.length && uniqueName) {
+      candidates = named.filter((result) => result.isLodging && result.precision === "exact" && result.point
+        && normalizePlaceText(result.label.split(",")[0]) === name
+        && normalizePlaceText(result.label).includes(normalizePlaceText(airportSearchLocality))
+        && result.point[0] >= south && result.point[0] <= north && result.point[1] >= west && result.point[1] <= east);
+      if (candidates.length) locationMatch = "establishment";
+    }
     if (!candidates.length && !signal.aborted) {
       candidates = atAddress(await suggestProviderAirportPlaces(`${address.street} ${address.number}, ${airportSearchLocality}`, signal));
     }
@@ -49,7 +60,7 @@ export async function resolveMunicipalLodging(id: string, requestSignal: AbortSi
     if (!match?.point || match.source === "municipal") return fallback;
     // Fuentes que discrepan más de ~20 m requieren ubicar el punto manualmente.
     if (candidates.some((other) => Math.hypot(other.point![0] - match.point![0], other.point![1] - match.point![1]) > 0.0002)) return fallback;
-    return { ...fallback, point: match.point, precision: match.precision, approximate: true, coordinateSource: match.source };
+    return { ...fallback, point: match.point, precision: match.precision, approximate: true, coordinateSource: match.source, locationMatch };
   } catch {
     return fallback;
   }

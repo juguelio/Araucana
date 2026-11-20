@@ -52,3 +52,23 @@ it("no acepta identificadores desconocidos ni una búsqueda cancelada", async ()
   expect((await resolveMunicipalLodging("165", controller.signal))?.point).toBeNull();
   expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
 });
+
+const rincon = { ...hit, isLodging: true as const, label: "Rincón de los Andes, Federico Graeff, San Martín de los Andes", point: [-40.1575381, -71.3606282] as [number, number] };
+it("ubica Rincón de los Andes aunque el proveedor lo registre sobre otra calle del predio", async () => {
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([rincon]);
+  expect(await resolveMunicipalLodging("108", new AbortController().signal)).toMatchObject({ point: rincon.point, locationMatch: "establishment", approximate: true, label: expect.stringContaining("Juez Del Valle 611") });
+});
+it.each([
+  { ...rincon, isLodging: undefined },
+  { ...rincon, label: "Rincón de los Andes II, Federico Graeff, San Martín de los Andes" },
+  { ...rincon, label: "Rincón de los Andes, Junín de los Andes" },
+  { ...rincon, precision: "street" },
+  { ...rincon, point: [-41, -71] }
+])("no confunde nombres parecidos, otros tipos, ciudades ni puntos vagos (%#)", async (result) => {
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([result] as typeof rincon[]);
+  expect((await resolveMunicipalLodging("108", new AbortController().signal))?.point).toBeNull();
+});
+it("rechaza establecimientos homónimos con ubicaciones contradictorias", async () => {
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([rincon, { ...rincon, point: [-40.15, -71.34] }]);
+  expect((await resolveMunicipalLodging("108", new AbortController().signal))?.point).toBeNull();
+});

@@ -264,7 +264,9 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       setLocatingLodging(false);
       setCoordinateSource(selected.coordinateSource ?? null);
       setSelectionMessage(selected.point
-        ? "Ubicamos la dirección. Confirmá en el mapa que el punto corresponde a la entrada del alojamiento."
+        ? selected.locationMatch === "establishment"
+          ? "Encontramos el alojamiento. Confirmá en el mapa dónde está la entrada."
+          : "Ubicamos la dirección. Confirmá en el mapa que el punto corresponde a la entrada del alojamiento."
         : "Conservamos el alojamiento y su dirección. Marcá en el mapa dónde está la entrada.");
       onSelect(selected);
       return;

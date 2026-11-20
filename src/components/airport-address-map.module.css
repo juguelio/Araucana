@@ -125,3 +125,10 @@
     grid-template-columns: 1fr;
   }
 }
+
+.pickupMarker {
+  border: 4px solid white;
+  border-radius: 50%;
+  background: #b43824;
+  box-shadow: 0 0 0 2px #752415, 0 2px 8px #0006;
+}
