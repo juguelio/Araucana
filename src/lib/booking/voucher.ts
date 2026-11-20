@@ -1,4 +1,4 @@
-import { claveDeLugar } from "./place-names";
+import { lugarDeTerminal } from "./terminals";
 import type { ReservationDetailDto } from "./types";
 
 /**
@@ -40,25 +40,8 @@ const AEROPUERTO = "Aeropuerto Chapelco (CPC)";
 const CERRO = "Cerro Chapelco";
 const CIUDAD = "San Martín de los Andes";
 
-/**
- * La terminal de cada localidad (19-nov). Los micros de las rutas salen y llegan a la **terminal**,
- * no al «centro»: el voucher es lo que muestra el pasajero para saber dónde esperar y adónde baja.
- * Lo que no es una de estas tres localidades se imprime tal cual (Hua Hum, Yuco, la terminal de
- * ómnibus de otra ciudad o un domicilio).
- */
-const TERMINALES: Record<string, string> = {
-  "san martin de los andes": "Terminal de Ómnibus de San Martín de los Andes",
-  "s. m. andes": "Terminal de Ómnibus de San Martín de los Andes",
-  "villa traful": "Terminal de Ómnibus de Villa Traful",
-  "villa la angostura": "Terminal de Ómnibus de Villa La Angostura"
-};
-
-/** El lugar que va impreso en el voucher: la terminal de la localidad, si la conocemos. */
-export function lugarDeTerminal(lugar: string | null | undefined) {
-  const nombre = (lugar ?? "").trim();
-  if (!nombre) return "";
-  return TERMINALES[claveDeLugar(nombre)] ?? nombre;
-}
+// El mapa de terminales vive en `terminals.ts`: lo comparten el voucher, la ficha pública y el checkout (#276).
+export { lugarDeTerminal };
 
 const dosDigitos = (valor: number) => String(valor).padStart(2, "0");
 

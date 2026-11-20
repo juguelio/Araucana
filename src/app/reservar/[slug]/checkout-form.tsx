@@ -16,6 +16,7 @@ import {
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { diaEfectivo, diasConSalidas } from "@/lib/booking/schedule-days";
 import { getStopFares } from "@/lib/booking/stop-fares";
+import { terminalConocida } from "@/lib/booking/terminals";
 import { createReservationAction } from "./actions";
 import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
 
@@ -100,6 +101,11 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   const [dropoffStop, setDropoffStop] = useState("");
   const stopFares = getStopFares(route);
   const stop = stopFares.find((fare) => fare.name === dropoffStop);
+  // Los micros salen y llegan a la terminal: el resumen lo dice antes de confirmar (#276).
+  const terminalesDelViaje =
+    route.bookingMode === "SEATED"
+      ? { salida: terminalConocida(route.from), llegada: terminalConocida(stop?.name ?? route.to) }
+      : { salida: null, llegada: null };
   const [requestDisabilityFare, setRequestDisabilityFare] = useState(false);
   const [passengerCount, setPassengerCount] = useState(1);
   const [halfFareCount, setHalfFareCount] = useState(0);
@@ -335,6 +341,18 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             <span>Ruta</span>
             <strong>{route.via}</strong>
           </div>
+          {terminalesDelViaje.salida ? (
+            <div>
+              <span>Sale de</span>
+              <strong>{terminalesDelViaje.salida}</strong>
+            </div>
+          ) : null}
+          {terminalesDelViaje.llegada ? (
+            <div>
+              <span>Llega a</span>
+              <strong>{terminalesDelViaje.llegada}</strong>
+            </div>
+          ) : null}
           <div>
             <span>Fecha</span>
             <strong>{selectedSchedule ? formatDateTime(selectedSchedule.departureAt) : "Sin salida"}</strong>

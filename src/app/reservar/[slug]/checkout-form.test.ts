@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { hrefConViaje } from "./airport-trip-options";
 import {
+  CheckoutForm,
   buildPassengerPayload,
   filterBookableSchedules,
   filterNationalityOptions,
@@ -326,5 +327,35 @@ describe("checkout de un solo tramo del aeropuerto", () => {
     expect(textoDelLugarDe("DEPARTURE").lugar).toBe("Punto de búsqueda");
     expect(textoDelLugarDe("DEPARTURE").titulo).toMatch(/pasamos a buscar/);
     expect(textoDelLugarDe("DEPARTURE").ayuda).toMatch(/aeropuerto/);
+  });
+});
+
+describe("el resumen dice de qué terminal sale y adónde llega el micro (#276)", () => {
+  const { route: _routeDeLaSalida, ...salidaBase } = schedule("open", "OPEN");
+  const salida = { ...salidaBase, dayKey: "2026-06-01", dayLabel: "lun 1 jun", timeLabel: "09:00" };
+
+  it("con una punta conocida muestra la terminal y no inventa la otra", () => {
+    // San Martín tiene terminal; Bariloche no está en el mapa, así que sólo va la salida.
+    const html = renderToStaticMarkup(createElement(CheckoutForm, { route, schedules: [salida] }));
+    expect(html).toContain("<span>Sale de</span>");
+    expect(html).toContain("Terminal de Ómnibus de San Martín de los Andes");
+    expect(html).not.toContain("<span>Llega a</span>");
+  });
+
+  it("con las dos puntas conocidas muestra las dos", () => {
+    const html = renderToStaticMarkup(
+      createElement(CheckoutForm, { route: { ...route, to: "Villa Traful" }, schedules: [salida] })
+    );
+    expect(html).toContain("<span>Sale de</span>");
+    expect(html).toContain("<span>Llega a</span>");
+    expect(html).toContain("Terminal de Ómnibus de Villa Traful");
+  });
+
+  it("en una ruta que no es de micros (aeropuerto) no agrega filas de terminal", () => {
+    const html = renderToStaticMarkup(
+      createElement(CheckoutForm, { route: { ...route, bookingMode: "AIRPORT", to: "Villa Traful" }, schedules: [salida] })
+    );
+    expect(html).not.toContain("<span>Sale de</span>");
+    expect(html).not.toContain("<span>Llega a</span>");
   });
 });
