@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
-import { loadGoogleLibrary } from "@/lib/airport/google-maps";
+import { searchGoogleAirportPlaces, type GoogleSuggestion } from "@/lib/airport/google-place-search";
 import { isInsideAirportPickupZone, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import {
-  airportSearchBounds, airportSearchLocality, isIntersectionQuery, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
+  isIntersectionQuery, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
 } from "@/lib/airport/place-search-area";
 import type { AirportPlaceSuggestion, PickupPrecision } from "@/lib/airport/place-suggestions";
 import type { StreetOption } from "@/lib/airport/street-address";
+import { municipalLodgings, municipalLodgingsSource, suggestMunicipalLodgings, withMunicipalLodgings } from "@/lib/airport/lodging-catalogue";
 import styles from "./airport-address-map.module.css";
 
-type GoogleSuggestion = { source: "google"; label: string; prediction: google.maps.places.PlacePrediction };
 type Suggestion = AirportPlaceSuggestion | GoogleSuggestion;
 export type AirportSelectedPlace = {
   label: string;
@@ -65,6 +65,7 @@ function SearchAttribution({ sources }: { sources: Suggestion["source"][] }) {
   return (
     <p className="muted">
       {sources.includes("google") ? <span translate="no">Google Maps </span> : null}
+      {sources.includes("municipal") ? <><a href={municipalLodgingsSource} target="_blank" rel="noreferrer">Turismo San Martín de los Andes</a>{" · "}</> : null}
       {sources.includes("georef") ? <a href="https://www.argentina.gob.ar/georef" target="_blank" rel="noreferrer">GeoRef Argentina</a> : null}
       {sources.includes("locationiq") ? <><a href="https://locationiq.com" target="_blank" rel="noreferrer">LocationIQ</a>{" · "}</> : null}
       {sources.some((source) => source === "locationiq" || source === "photon") ? (
@@ -72,6 +73,11 @@ function SearchAttribution({ sources }: { sources: Suggestion["source"][] }) {
       ) : null}
     </p>
   );
+}
+
+function SuggestionLabel({ suggestion }: { suggestion: Suggestion }) {
+  const lodging = suggestion.source === "municipal" && municipalLodgings.find((entry) => entry.id === suggestion.lodgingId);
+  return lodging ? <><strong>{lodging.name}</strong><small>{lodging.address}</small><small>{lodging.type} · {lodging.zone}</small></> : <>{suggestion.label}</>;
 }
 
 type AirportPlaceSearchProps = {
@@ -93,10 +99,14 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
   const streetListId = `${inputId}-streets`;
   const token = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const selectionVersion = useRef(0);
+  const selectionRequest = useRef<AbortController | null>(null);
   const [query, setQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectionSource, setSelectionSource] = useState<Suggestion["source"] | null>(null);
+  const [coordinateSource, setCoordinateSource] = useState<Suggestion["source"] | null>(null);
+  const [selectionMessage, setSelectionMessage] = useState("");
+  const [locatingLodging, setLocatingLodging] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [focused, setFocused] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -111,12 +121,15 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
   const [resolving, setResolving] = useState(false);
   const open = focused && suggestions.length > 0;
 
-  useEffect(() => () => { selectionVersion.current++; }, []);
+  useEffect(() => () => { selectionVersion.current++; selectionRequest.current?.abort(); }, []);
 
   useEffect(() => {
     if (searchTerm.trim().length < 3) return;
     const controller = new AbortController();
     const { signal } = controller;
+    // El catálogo está disponible de inmediato, aunque el proveedor tarde o falle.
+    const municipal = suggestMunicipalLodgings(searchTerm);
+    setSuggestions(municipal);
     const timer = setTimeout(async () => {
       try {
         const address = searchTerm.trim();
@@ -128,27 +141,14 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           const numberedAddress = splitStreetAddress(name);
           let googleResults: GoogleSuggestion[] = [];
           try {
-            const { AutocompleteSessionToken, AutocompleteSuggestion } = await loadGoogleLibrary("places");
-            if (signal.aborted) return;
-            token.current ??= new AutocompleteSessionToken();
-            const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
-              input: numberedAddress && !context ? `${address}, ${airportSearchLocality}` : address,
-              sessionToken: token.current,
-              includedRegionCodes: ["ar"],
-              locationRestriction: airportSearchBounds,
-              language: "es",
-              region: "ar"
-            });
-            googleResults = suggestions.flatMap(({ placePrediction }) => placePrediction
-              ? [{ source: "google", label: placePrediction.text.toString(), prediction: placePrediction }]
-              : []);
+            googleResults = await searchGoogleAirportPlaces(address, token, signal);
           } catch {
             token.current = null;
           }
           if (signal.aborted) return;
           if (!context) googleResults = prioritizeLocalPlaces(googleResults, (place) => place.label);
           if (numberedAddress && googleResults.length) {
-            const addresses = googleResults.filter(({ prediction }) => prediction.types.some((type) => googleAddressTypes.has(type)));
+            const addresses = googleResults.filter(({ types }) => types.some((type) => googleAddressTypes.has(type)));
             if (addresses.length) {
               results = addresses;
             } else {
@@ -159,11 +159,13 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           }
         }
         if (signal.aborted) return;
-        setSuggestions(results);
-        setEmptySearch(results.length === 0);
-        if (results.length === 0) setError("No encontramos coincidencias. Probá otro nombre, elegí la calle y la altura, o marcá el punto en el mapa.");
+        const combined = withMunicipalLodgings(address, results);
+        setSuggestions(combined);
+        setActiveIndex(-1);
+        setEmptySearch(combined.length === 0);
+        if (combined.length === 0) setError("No encontramos coincidencias. Probá otro nombre, elegí la calle y la altura, o marcá el punto en el mapa.");
       } catch {
-        if (!signal.aborted) setError("No pudimos buscar lugares. Podés marcar el punto en el mapa.");
+        if (!signal.aborted && !municipal.length) setError("No pudimos buscar lugares. Podés marcar el punto en el mapa.");
       } finally {
         if (!signal.aborted) setSearching(false);
       }
@@ -199,10 +201,16 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
 
   async function useStreetAddress() {
     if (!street) return;
+    const version = ++selectionVersion.current;
+    selectionRequest.current?.abort();
+    setLocatingLodging(false);
+    setSelectionMessage("");
+    setCoordinateSource(null);
     setResolving(true);
     setManualError("");
     try {
       const match = await searchStreetAddress(street.name, height.trim(), new AbortController().signal);
+      if (version !== selectionVersion.current) return;
       if (!match) {
         setManualError("No pudimos resolver esa altura. Revisá el número o marcá el punto en el mapa.");
         return;
@@ -222,6 +230,10 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
 
   async function choose(suggestion: Suggestion) {
     const version = ++selectionVersion.current;
+    selectionRequest.current?.abort();
+    setCoordinateSource(null);
+    setSelectionMessage("");
+    setLocatingLodging(false);
     setQuery(suggestion.label);
     setSearchTerm("");
     setSuggestions([]);
@@ -231,6 +243,32 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
     setSelectionSource(suggestion.source);
 
     token.current = null;
+    if (suggestion.source === "municipal" && suggestion.lodgingId) {
+      const controller = new AbortController();
+      selectionRequest.current = controller;
+      setSearching(false);
+      setLocatingLodging(true);
+      let selected = suggestion;
+      try {
+        const response = await fetch("/api/v1/airport/address", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ kind: "lodging", id: suggestion.lodgingId }),
+          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])
+        });
+        if (response.ok) {
+          const data = await response.json();
+          if (data.match?.lodgingId === suggestion.lodgingId) selected = data.match;
+        }
+      } catch { /* Conserva el alojamiento aunque no se pueda ubicar su domicilio. */ }
+      if (version !== selectionVersion.current) return;
+      setLocatingLodging(false);
+      setCoordinateSource(selected.coordinateSource ?? null);
+      setSelectionMessage(selected.point
+        ? "Ubicamos la dirección. Confirmá en el mapa que el punto corresponde a la entrada del alojamiento."
+        : "Conservamos el alojamiento y su dirección. Marcá en el mapa dónde está la entrada.");
+      onSelect(selected);
+      return;
+    }
     if (suggestion.source !== "google") {
       setSearching(false);
       onSelect(suggestion);
@@ -239,11 +277,11 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
 
     setSearching(true);
     try {
-      const place = suggestion.prediction.toPlace();
+      const place = suggestion.toPlace();
       await place.fetchFields({ fields: ["location"] });
       if (version !== selectionVersion.current) return;
       if (!place.location) throw new Error("Missing location");
-      const coarse = suggestion.prediction.types.some((type) => googleAreaTypes.has(type));
+      const coarse = suggestion.types.some((type) => googleAreaTypes.has(type));
       onSelect({
         source: "google",
         label: suggestion.label,
@@ -284,11 +322,15 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       <input id={inputId} type="text" role="combobox" aria-autocomplete="list" autoComplete="off"
         aria-expanded={open} aria-controls={open ? listId : undefined}
         aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-        placeholder="Ej. San Martín y Belgrano" value={query} maxLength={160} disabled={disabled}
+        placeholder="Ej. Hotel del Esquiador o San Martín y Belgrano" value={query} maxLength={160} disabled={disabled}
         onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
         onKeyDown={handleKeyDown}
         onChange={(event) => {
           selectionVersion.current++;
+          selectionRequest.current?.abort();
+          setLocatingLodging(false);
+          setSelectionMessage("");
+          setCoordinateSource(null);
           const value = event.target.value;
           if (!value.trim()) token.current = null;
           setQuery(value);
@@ -303,6 +345,8 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           onChange();
         }} />
       {searching ? <p className="muted" role="status">Buscando lugares…</p> : null}
+      {locatingLodging ? <p className="muted" role="status">Ubicando la dirección del alojamiento…</p> : null}
+      {selectionMessage ? <p className="muted" role="status">{selectionMessage}</p> : null}
       {error ? <p className="muted" role="status">{error}</p> : null}
       {/* El nombre del alojamiento no está en ningún geocoder: se carga tal cual, sin punto (#268). */}
       {onUseText && emptySearch && !searching && query.trim().length >= 3 ? (
@@ -325,12 +369,12 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
         <>
           <ul id={listId} role="listbox" aria-label="Sugerencias de lugares" className={styles.suggestions}>
             {suggestions.map((suggestion, index) => (
-              <li key={suggestion.source === "google" ? suggestion.prediction.placeId : `${suggestion.label}:${suggestion.point ?? "sin-punto"}`}
+              <li key={suggestion.source === "google" ? suggestion.placeId : `${suggestion.label}:${suggestion.point ?? "sin-punto"}`}
                 id={`${listId}-${index}`} role="option" aria-selected={index === activeIndex}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => { if (!disabled) void choose(suggestion); }}>
-                {suggestion.label}
-                {suggestion.source !== "google" && suggestion.precision === "none" ? <small>Ubicá el punto en el mapa</small> : null}
+                <SuggestionLabel suggestion={suggestion} />
+                {suggestion.source !== "google" && suggestion.precision === "none" ? <small>{suggestion.source === "municipal" ? "Directorio de Turismo · Confirmá la ubicación al elegirlo" : "Ubicá el punto en el mapa"}</small> : null}
                 {suggestion.source !== "google" && suggestion.precision === "street" ? <small>Encontramos la calle, no la altura: ajustá el punto</small> : null}
                 {suggestion.source !== "google" && suggestion.precision === "interpolated" ? <small>Referencia aproximada</small> : null}
                 {coverage.enabled && suggestion.source !== "google" && suggestion.point && suggestion.precision === "exact" ? (
@@ -342,7 +386,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           <SearchAttribution sources={suggestions.map((suggestion) => suggestion.source)} />
         </>
       ) : null}
-      {selectionSource ? <SearchAttribution sources={[selectionSource]} /> : null}
+      {selectionSource ? <SearchAttribution sources={coordinateSource ? [selectionSource, coordinateSource] : [selectionSource]} /> : null}
 
       <div className={styles.manual}>
         <button type="button" className={styles.manualToggle} aria-expanded={manualOpen}

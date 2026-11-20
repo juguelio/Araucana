@@ -1,0 +1,2160 @@
+{
+  "sourceUrl": "https://sanmartindelosandes.gob.ar/alojamientos/",
+  "retrievedOn": "2026-11-20",
+  "reportedCount": 269,
+  "lodgings": [
+    {
+      "id": "45",
+      "name": "Adventure",
+      "type": "Albergues - Hostel",
+      "zone": "Alrededores",
+      "address": "Atahualpa Yupanqui 289",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=45"
+    },
+    {
+      "id": "57",
+      "name": "Agua Escondida",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cnel. Rohde 1162",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=57"
+    },
+    {
+      "id": "219",
+      "name": "Aire y Paz",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de caballería n°1034 Dpto 7",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=219"
+    },
+    {
+      "id": "5",
+      "name": "Aitue",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 781",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=5"
+    },
+    {
+      "id": "10",
+      "name": "Alcedro",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Perito Moreno 1318",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=10"
+    },
+    {
+      "id": "368",
+      "name": "Alegra",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Rivadavia Nº  1244 UF 2",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=368"
+    },
+    {
+      "id": "46",
+      "name": "Alhue",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Rudecindo Roca 720",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=46"
+    },
+    {
+      "id": "52",
+      "name": "Alquimia Estelar",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cacique Curruhuinca 730",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=52"
+    },
+    {
+      "id": "47",
+      "name": "Altavista",
+      "type": "Albergues - Hostel",
+      "zone": "Alrededores",
+      "address": "Quechu 611 Barrio Ruca Hue",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=47"
+    },
+    {
+      "id": "121",
+      "name": "Altos del Alma",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Los Robles 360",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=121"
+    },
+    {
+      "id": "256",
+      "name": "Amigos de la naturaleza.",
+      "type": "Campings",
+      "zone": "Ejido urbano",
+      "address": "Callejón de Gin Gins 1553",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=256"
+    },
+    {
+      "id": "11",
+      "name": "Amonite Apart 3",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Alte. Brown 385",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=11"
+    },
+    {
+      "id": "176",
+      "name": "Antares Patagonia",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Av. Gral. San Martin 251",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=176"
+    },
+    {
+      "id": "13",
+      "name": "Antiguos",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 753",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=13"
+    },
+    {
+      "id": "12",
+      "name": "Antilhue",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Yepún 89",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=12"
+    },
+    {
+      "id": "266",
+      "name": "Antu ti Lafquen.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 18 kms del centro por RN 40 y desvío por ripio a la RP 108.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=266"
+    },
+    {
+      "id": "58",
+      "name": "Antuen",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Perito Moreno 1850",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=58"
+    },
+    {
+      "id": "138",
+      "name": "Antuen Cabañas",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Perito Moreno 1850",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=138"
+    },
+    {
+      "id": "34",
+      "name": "Antuken",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Belgrano 1053",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=34"
+    },
+    {
+      "id": "139",
+      "name": "Arco Iris",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Los Cipreses 1850",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=139"
+    },
+    {
+      "id": "14",
+      "name": "Arique",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Rivadavia 1295",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=14"
+    },
+    {
+      "id": "349",
+      "name": "Arroyo Germain. Lago Paimún.",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "a 100 kms. del centro de San Martín de los Andes RN 40 y luego RP 61. Lago Paimún.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=349"
+    },
+    {
+      "id": "364",
+      "name": "Arroyo Grande",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A18 kms del centro por RN 40 y desvío por ripio en la RP 108.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=364"
+    },
+    {
+      "id": "69",
+      "name": "Asgard",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cap. Drury Nº 944",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=69"
+    },
+    {
+      "id": "154",
+      "name": "Aspen Hostería",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 1127",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=154"
+    },
+    {
+      "id": "178",
+      "name": "Aspen hotel",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 1127",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=178"
+    },
+    {
+      "id": "201",
+      "name": "Avanti",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Gral. Villegas Nº 623",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=201"
+    },
+    {
+      "id": "162",
+      "name": "Ayres del Filo",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 811",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=162"
+    },
+    {
+      "id": "70",
+      "name": "Bat",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1147 U.F. Nº 01",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=70"
+    },
+    {
+      "id": "7",
+      "name": "Bike",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Av. Koessler 1531",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=7"
+    },
+    {
+      "id": "362",
+      "name": "Bucalemu",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Cnel. Diaz Nº 1021",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=362"
+    },
+    {
+      "id": "155",
+      "name": "Bärenhaus",
+      "type": "Hosterias",
+      "zone": "Alrededores",
+      "address": "Los Alamos 156",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=155"
+    },
+    {
+      "id": "374",
+      "name": "Cabaña Elvira",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. Koessler Nº  2301 y 2305 Dº 2.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=374"
+    },
+    {
+      "id": "71",
+      "name": "Caminos",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Mariano Moreno Nº 859 P.2 Dpto 24",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=71"
+    },
+    {
+      "id": "358",
+      "name": "Camping 7 Lagos - Lago Correntoso -",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 70 kms del centro x RN 40 y desvío por ripio 500 metros.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=358"
+    },
+    {
+      "id": "367",
+      "name": "Casa Grande Confortable",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "A.M. Agostini Nº  349 , S.M.Andes",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=367"
+    },
+    {
+      "id": "234",
+      "name": "Casa Lita",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "CALLEJON DE BELLO  342",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=234"
+    },
+    {
+      "id": "59",
+      "name": "Cascadas",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 859",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=59"
+    },
+    {
+      "id": "177",
+      "name": "Casona del Alto",
+      "type": "Hosterias",
+      "zone": "Alrededores",
+      "address": "Callejón Gingins Calle 5 Nro. 187",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=177"
+    },
+    {
+      "id": "17",
+      "name": "Catalanas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 351",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=17"
+    },
+    {
+      "id": "141",
+      "name": "Catalinas Cabañas 3",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Guillermo Vieiro 149",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=141"
+    },
+    {
+      "id": "261",
+      "name": "Catrite.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 4,5 kms del centro x RN 40 y desvío de 800 metros por camino de ripio.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=261"
+    },
+    {
+      "id": "184",
+      "name": "Caupolican",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Av. San Martín 969",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=184"
+    },
+    {
+      "id": "156",
+      "name": "Cerro Nevado",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Mariano Moreno 590",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=156"
+    },
+    {
+      "id": "267",
+      "name": "Chachín.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 51 kms del centro x RP 48 y desvío de 3 kms sobre el puente río Hua Hum.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=267"
+    },
+    {
+      "id": "179",
+      "name": "Chapelco Ski",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Belgrano 869",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=179"
+    },
+    {
+      "id": "375",
+      "name": "Chucao",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Barrio La Cascada",
+      "address": "Goñi 46",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=375"
+    },
+    {
+      "id": "72",
+      "name": "Cipresal",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Lacar 117",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=72"
+    },
+    {
+      "id": "18",
+      "name": "Club Woodland",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Rivadavia 1173",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=18"
+    },
+    {
+      "id": "255",
+      "name": "Complejo A.C.A.",
+      "type": "Campings",
+      "zone": "Ejido urbano",
+      "address": "Av. Koessler  2176",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=255"
+    },
+    {
+      "id": "33",
+      "name": "Complejo A.C.A.",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Av. Koessler 1986/2176",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=33"
+    },
+    {
+      "id": "363",
+      "name": "Complejo Playa Bonita",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Lolog-Curruhué",
+      "address": "Doña Ema N.º 64, Villa Lolog",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=363"
+    },
+    {
+      "id": "252",
+      "name": "Costa Soñada 1 y 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Juez del Valle 1114",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=252"
+    },
+    {
+      "id": "180",
+      "name": "Crismalu",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Rudecindo Roca 975",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=180"
+    },
+    {
+      "id": "152",
+      "name": "Cumelen",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Elordi 931",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=152"
+    },
+    {
+      "id": "36",
+      "name": "Cuncumen",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Av. Koessler 2301",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=36"
+    },
+    {
+      "id": "338",
+      "name": "Curruhue Chico",
+      "type": "Campings",
+      "zone": "Lolog",
+      "address": "RP 62 a 44 kms desde el centro de la ciudad.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=338"
+    },
+    {
+      "id": "122",
+      "name": "Cuyen",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Paseo Del Alba 68",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=122"
+    },
+    {
+      "id": "376",
+      "name": "Dal Cuore",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Perito Moreno Nº646",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=376"
+    },
+    {
+      "id": "16",
+      "name": "De la Cordillera",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 350",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=16"
+    },
+    {
+      "id": "123",
+      "name": "De la Patagonia",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 340",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=123"
+    },
+    {
+      "id": "60",
+      "name": "De Sol a Sol",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1033",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=60"
+    },
+    {
+      "id": "19",
+      "name": "De Troncos",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Amancay 45",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=19"
+    },
+    {
+      "id": "124",
+      "name": "Del Abuelo",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Los Cipreses 1541",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=124"
+    },
+    {
+      "id": "85",
+      "name": "Del Chapelco Apart",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Alte. Brown 0",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=85"
+    },
+    {
+      "id": "117",
+      "name": "Del Chapelco cabañas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 0",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=117"
+    },
+    {
+      "id": "63",
+      "name": "Del Faldeo",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cnel. Rohde 1250",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=63"
+    },
+    {
+      "id": "64",
+      "name": "Del Lacar",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 1174",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=64"
+    },
+    {
+      "id": "260",
+      "name": "Del Lácar.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "a 3,5 kms del centro x RN 40",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=260"
+    },
+    {
+      "id": "65",
+      "name": "Del Maitén",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Calle 27 540",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=65"
+    },
+    {
+      "id": "126",
+      "name": "Del Mallín",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 442",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=126"
+    },
+    {
+      "id": "20",
+      "name": "Del Pellin",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Los Notros 188",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=20"
+    },
+    {
+      "id": "66",
+      "name": "Del Sauco",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Calderon Jose F. 364",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=66"
+    },
+    {
+      "id": "185",
+      "name": "Del Viejo Esquiador",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Av. San Martín 1242",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=185"
+    },
+    {
+      "id": "224",
+      "name": "Departamento Silvia",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Curruhuinca 759 Piso 1º Dto. 7.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=224"
+    },
+    {
+      "id": "244",
+      "name": "Duendes 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "6 Tierra del Sol N° 276",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=244"
+    },
+    {
+      "id": "245",
+      "name": "Duendes 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "6 Tierra del Sol N° 276",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=245"
+    },
+    {
+      "id": "246",
+      "name": "Duendes 3",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "6 Tierra del Sol N° 276",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=246"
+    },
+    {
+      "id": "73",
+      "name": "DV 750",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Juez Del Valle 734",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=73"
+    },
+    {
+      "id": "48",
+      "name": "El Andaluz",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Elordi 569",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=48"
+    },
+    {
+      "id": "193",
+      "name": "El Arroyuelo",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Los Tordos Nº 430",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=193"
+    },
+    {
+      "id": "382",
+      "name": "El Colibrí",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "George Miciu Nº 397",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=382"
+    },
+    {
+      "id": "127",
+      "name": "El Montañes",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Av. Koessler 1522",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=127"
+    },
+    {
+      "id": "37",
+      "name": "El Oasis",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "El Oasis 450",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=37"
+    },
+    {
+      "id": "356",
+      "name": "El Pehuen",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "RP 61 a 92 kms. de San MArtín de los Andes",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=356"
+    },
+    {
+      "id": "202",
+      "name": "El Peral 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. Koessler Nº 1566 U.F. Nº 6",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=202"
+    },
+    {
+      "id": "203",
+      "name": "El Peral 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. Koessler Nº 1566 U.F. Nº 7",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=203"
+    },
+    {
+      "id": "204",
+      "name": "El Peral 3",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. Koessler Nº 1566 U.F. Nº 8",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=204"
+    },
+    {
+      "id": "205",
+      "name": "El Peral 4",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. Koessler Nº 1566 U.F. Nº 9",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=205"
+    },
+    {
+      "id": "21",
+      "name": "El Recodo",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Fosbery A. 212",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=21"
+    },
+    {
+      "id": "22",
+      "name": "El Viejo Nogal",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Rivadavia 445",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=22"
+    },
+    {
+      "id": "258",
+      "name": "El Zorzal.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 3 kms. del centro x RN 40",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=258"
+    },
+    {
+      "id": "164",
+      "name": "El Árbol duende",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Rivadavia 1145",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=164"
+    },
+    {
+      "id": "53",
+      "name": "Ensueño",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Perito Moreno 1332",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=53"
+    },
+    {
+      "id": "351",
+      "name": "Espejo Chico Norte.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 85 kms del centro x RN 40 y desvío por ripio 2 kms.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=351"
+    },
+    {
+      "id": "354",
+      "name": "Espejo Chico Sur.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 85 kms del centro x RN 40 y desvío por ripio 2 kms.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=354"
+    },
+    {
+      "id": "78",
+      "name": "Euskaldunberry Apartments 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1147 U.F. Nº 04",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=78"
+    },
+    {
+      "id": "79",
+      "name": "Euskaldunberry Apartments 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel. Díaz  1147 U.F. Nº 05",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=79"
+    },
+    {
+      "id": "235",
+      "name": "Fermin",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Tierra del Sol Nº 31",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=235"
+    },
+    {
+      "id": "340",
+      "name": "Filo Hua Hum",
+      "type": "Campings",
+      "zone": "Meliquina-Filo Hua Hum",
+      "address": "A 60 kms. del centro x RN 40 y RP 63 y RP 64",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=340"
+    },
+    {
+      "id": "49",
+      "name": "Gleb",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Rivadavia 411",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=49"
+    },
+    {
+      "id": "165",
+      "name": "Hostal del Esquiador",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Cnel. Rohde 975",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=165"
+    },
+    {
+      "id": "343",
+      "name": "Huecuifa (Población Aila)",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "X RN 40 y al final de RP 61 Lago Paimún",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=343"
+    },
+    {
+      "id": "342",
+      "name": "Hueney  - Lago Huechulafquen -",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Margen Sur del Lago Huechulafquen. Sector Cerro Contra",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=342"
+    },
+    {
+      "id": "359",
+      "name": "Hueney Mawiza - Lago Huechulafquen - Área Diurna",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Margen sur lago Huechulafquen ( ver mapa)",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=359"
+    },
+    {
+      "id": "140",
+      "name": "Hueney Ruca Cabañas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 697",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=140"
+    },
+    {
+      "id": "38",
+      "name": "Hueney Ruca hosteria",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 697",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=38"
+    },
+    {
+      "id": "86",
+      "name": "Humo Azul Apart 2",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Rudecindo Roca 344",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=86"
+    },
+    {
+      "id": "128",
+      "name": "Humo Azul cab.2",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Rudecindo Roca 344",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=128"
+    },
+    {
+      "id": "186",
+      "name": "I.S.S.N.",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Villegas y Rodhe",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=186"
+    },
+    {
+      "id": "74",
+      "name": "IL Sole",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Alte. Brown Nº 625 U.F. Nº 03",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=74"
+    },
+    {
+      "id": "360",
+      "name": "Inche Peuma - Lago Huechulafquen-",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Lago Huechulafquen margen sur en cerro Contra a 79 kms. de San MAatín de los Andes. (mirar el mapa)",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=360"
+    },
+    {
+      "id": "23",
+      "name": "Intermonti",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Villegas 717",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=23"
+    },
+    {
+      "id": "190",
+      "name": "Italia",
+      "type": "Residenciales",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 977",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=190"
+    },
+    {
+      "id": "39",
+      "name": "Kalasur",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Los Pañiles 55",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=39"
+    },
+    {
+      "id": "130",
+      "name": "Kaleuche",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Atahualpa Yupanqui Nº259",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=130"
+    },
+    {
+      "id": "335",
+      "name": "La Alameda.",
+      "type": "Campings",
+      "zone": "Lolog",
+      "address": "Ruta provincial 62. a 14 kilómetros del centro de la ciudad.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=335"
+    },
+    {
+      "id": "247",
+      "name": "La Balconada",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Las lengas N.º 256",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=247"
+    },
+    {
+      "id": "97",
+      "name": "La Bora",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Ramayón 840",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=97"
+    },
+    {
+      "id": "166",
+      "name": "La Casa de Eugenia",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1186",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=166"
+    },
+    {
+      "id": "192",
+      "name": "La Casita",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Rivadavia Nº 624",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=192"
+    },
+    {
+      "id": "249",
+      "name": "La Cheminee",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Gral. Roca 667",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=249"
+    },
+    {
+      "id": "263",
+      "name": "La Costa.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "Quila Quina",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=263"
+    },
+    {
+      "id": "198",
+      "name": "La Cuesta",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "C. Felix Amador Nº38",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=198"
+    },
+    {
+      "id": "142",
+      "name": "La Encantada Cabaña",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Perito Moreno al 2000 esquina Los Enebros",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=142"
+    },
+    {
+      "id": "167",
+      "name": "La Fontaine",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Los Cipreses 1840",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=167"
+    },
+    {
+      "id": "87",
+      "name": "La Fontaine Apart 2",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Los Cipreses 1840",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=87"
+    },
+    {
+      "id": "168",
+      "name": "La Posta del Cazador",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Av. San Martín 175",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=168"
+    },
+    {
+      "id": "169",
+      "name": "La Raclette",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 1170",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=169"
+    },
+    {
+      "id": "381",
+      "name": "La Rioja 40",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "La Rioja 40",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=381"
+    },
+    {
+      "id": "353",
+      "name": "La Tapera",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "RP 61 Lago Huechulafquen.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=353"
+    },
+    {
+      "id": "76",
+      "name": "La Tranquila",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Los Robles 134",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=76"
+    },
+    {
+      "id": "348",
+      "name": "Lago Espejo.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 89 kms del centro x RN 40.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=348"
+    },
+    {
+      "id": "332",
+      "name": "Lago Falkner.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 50 kms del centro por RN 40.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=332"
+    },
+    {
+      "id": "129",
+      "name": "Lago Lolog",
+      "type": "Cabañas",
+      "zone": "Lolog",
+      "address": "Camino Vecinal 0 - Lolog",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=129"
+    },
+    {
+      "id": "339",
+      "name": "Laguna Verde",
+      "type": "Campings",
+      "zone": "Lolog",
+      "address": "R.P 62 a 65.4 kms. del centro de la ciudad.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=339"
+    },
+    {
+      "id": "264",
+      "name": "Las Balsas.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "Quila Quina",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=264"
+    },
+    {
+      "id": "15",
+      "name": "Las Bandurrias",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Pablo Neruda 175",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=15"
+    },
+    {
+      "id": "330",
+      "name": "Las Bandurrias.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "Camino a Mirador Bandurrias por camino vehicular, a metros de la ruta 48.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=330"
+    },
+    {
+      "id": "54",
+      "name": "Las Catalinas Apart",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Guillermo Vieiro 149",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=54"
+    },
+    {
+      "id": "118",
+      "name": "Las Catalinas cabañas",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Guillermo Vieiro 149",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=118"
+    },
+    {
+      "id": "98",
+      "name": "Las Cumbres",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Pirén 236",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=98"
+    },
+    {
+      "id": "120",
+      "name": "Las Flores",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Coronel Pérez y calle 27",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=120"
+    },
+    {
+      "id": "158",
+      "name": "Las Lucarnas",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 632",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=158"
+    },
+    {
+      "id": "131",
+      "name": "Las Marias",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Juez Del Valle 1150",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=131"
+    },
+    {
+      "id": "194",
+      "name": "Las Montañas de S.M.A. 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel. Diaz Nº 447 U.F. Nº8",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=194"
+    },
+    {
+      "id": "195",
+      "name": "Las Montañas de S.M.A. 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel. Diaz Nº 447 U.F. Nº14",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=195"
+    },
+    {
+      "id": "199",
+      "name": "Las Montañas de S.M.A. 3",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Pasaje Las Aljabas Nº 394          Barrio Altos del Sol",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=199"
+    },
+    {
+      "id": "132",
+      "name": "Las Mutisias",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Rudecindo Roca 318",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=132"
+    },
+    {
+      "id": "144",
+      "name": "Las Pampas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 341",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=144"
+    },
+    {
+      "id": "238",
+      "name": "Las Retamas 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de Caballería 645",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=238"
+    },
+    {
+      "id": "241",
+      "name": "Las Retamas 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de Caballería 645",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=241"
+    },
+    {
+      "id": "242",
+      "name": "Las Retamas 3",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de Caballería 645",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=242"
+    },
+    {
+      "id": "243",
+      "name": "Las Retamas 4",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de Caballería 645",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=243"
+    },
+    {
+      "id": "41",
+      "name": "Las Rosas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Alte. Brown 290",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=41"
+    },
+    {
+      "id": "331",
+      "name": "Las Taguas",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 23 kms del centro por RN 40.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=331"
+    },
+    {
+      "id": "31",
+      "name": "Las Terrazas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Los Rosales 54",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=31"
+    },
+    {
+      "id": "116",
+      "name": "Las Vertientes",
+      "type": "Alojamiento en Áreas Rurales",
+      "zone": "Alrededores",
+      "address": "Callejón Gingins lote A chacra 13",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=116"
+    },
+    {
+      "id": "171",
+      "name": "Las Walkirias",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Villegas 815",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=171"
+    },
+    {
+      "id": "159",
+      "name": "Latitud 40",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Cap. Drury 841",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=159"
+    },
+    {
+      "id": "153",
+      "name": "Laura",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Misionero Mascardi 632",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=153"
+    },
+    {
+      "id": "3",
+      "name": "Le Chatelet",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Villegas 650",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=3"
+    },
+    {
+      "id": "6",
+      "name": "Le Temps de Cerises",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Mariano Moreno 1180",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=6"
+    },
+    {
+      "id": "145",
+      "name": "Le Village Cabañas",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Gral. Roca 816",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=145"
+    },
+    {
+      "id": "24",
+      "name": "Le Village Hotel",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Gral. Roca 816",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=24"
+    },
+    {
+      "id": "146",
+      "name": "Lelen",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1162",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=146"
+    },
+    {
+      "id": "217",
+      "name": "Lo de Adri",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Ramayón 825, 1º Piso Dto. Nº10.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=217"
+    },
+    {
+      "id": "377",
+      "name": "Lo de Italo",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel Rhode Nº 814 Dpto 31",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=377"
+    },
+    {
+      "id": "212",
+      "name": "Lo de Susy 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "José F. Calderón N.º 1032 UF 1",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=212"
+    },
+    {
+      "id": "228",
+      "name": "Lo de Tere",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Villegas  N.º 313, Dto. Nº1",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=228"
+    },
+    {
+      "id": "61",
+      "name": "Loi Suites Chapelco Hotel",
+      "type": "Hotel",
+      "zone": "Alrededores",
+      "address": "Ruta Nac. 40 Km. 57,5",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=61"
+    },
+    {
+      "id": "262",
+      "name": "Lolén.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 4,5 kms del centro x RN 40 y desvío de 800 metros por camino de ripio.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=262"
+    },
+    {
+      "id": "100",
+      "name": "Los Abedules",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Los Abedules 680",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=100"
+    },
+    {
+      "id": "133",
+      "name": "Los Alamos",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Rivadavia 1140",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=133"
+    },
+    {
+      "id": "355",
+      "name": "Los Coihues- Lago Huechulafquen",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "RP 61 kilómetro 68.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=355"
+    },
+    {
+      "id": "233",
+      "name": "Los Gladiolos",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Cnel. Díaz  447 Dto. N.º 13.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=233"
+    },
+    {
+      "id": "80",
+      "name": "Los Manzanos 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Los Manzanos 111",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=80"
+    },
+    {
+      "id": "81",
+      "name": "Los Manzanos 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Los Manzanos 111",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=81"
+    },
+    {
+      "id": "215",
+      "name": "Los Notros",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Los Notros 200, Cabaña Nº8.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=215"
+    },
+    {
+      "id": "197",
+      "name": "Los Raulies",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Belgrano Nº 438 P.B. \"G\"",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=197"
+    },
+    {
+      "id": "344",
+      "name": "Los Toldos- Lago Huechulafquen.",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Margen sur del lago Huechulafquen (sector cerro Contra)",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=344"
+    },
+    {
+      "id": "135",
+      "name": "Lugar Soñado",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Juez Del Valle 1114",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=135"
+    },
+    {
+      "id": "43",
+      "name": "Luna Azul",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Los Cipreses 1539",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=43"
+    },
+    {
+      "id": "206",
+      "name": "Maby",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "3 de Caballería Nº 889 Dpto. Nº2",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=206"
+    },
+    {
+      "id": "89",
+      "name": "Manantial del Valle",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 850",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=89"
+    },
+    {
+      "id": "101",
+      "name": "Manke",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Pirén 88",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=101"
+    },
+    {
+      "id": "333",
+      "name": "Maná del cielo.",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de Caballería nº 738.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=333"
+    },
+    {
+      "id": "346",
+      "name": "Mari Mari Che Lago Paimún",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "X RN 40 y luego RP61, lago Paimún a 101  kms. de San Martín de los Andes",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=346"
+    },
+    {
+      "id": "25",
+      "name": "Marina Sun",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Misionero Mascardi 555",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=25"
+    },
+    {
+      "id": "102",
+      "name": "Melewe",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Av. Koessler 1805",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=102"
+    },
+    {
+      "id": "225",
+      "name": "Migsu",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Pje. El Paraiso 135",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=225"
+    },
+    {
+      "id": "172",
+      "name": "Monte Verde",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Rivadavia 1165",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=172"
+    },
+    {
+      "id": "103",
+      "name": "My Friends",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Villegas 1217",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=103"
+    },
+    {
+      "id": "62",
+      "name": "Naum",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1120",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=62"
+    },
+    {
+      "id": "104",
+      "name": "Niwen",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 640",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=104"
+    },
+    {
+      "id": "35",
+      "name": "Nonthue",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Cnel. Rohde 1144",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=35"
+    },
+    {
+      "id": "328",
+      "name": "Nonthue.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 37 kms del centro Por RP 48 Parque Nacional Lanín.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=328"
+    },
+    {
+      "id": "231",
+      "name": "Nova Omega",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "3 de caballería 1013",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=231"
+    },
+    {
+      "id": "26",
+      "name": "Nuestro Lugar",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 1130",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=26"
+    },
+    {
+      "id": "259",
+      "name": "Oregón 26",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. San Martin N.º 1359/1363 Dto. 26",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=259"
+    },
+    {
+      "id": "105",
+      "name": "Orilla Mansa",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Av. San Martín 135",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=105"
+    },
+    {
+      "id": "55",
+      "name": "Orlando Rizzi Alquileres",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "La Rioja 26",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=55"
+    },
+    {
+      "id": "147",
+      "name": "Paihuen",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Ruta Nac. 40  Ex. 234 km 78",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=147"
+    },
+    {
+      "id": "222",
+      "name": "Paimun",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Rudecindo Roca N.º 1090 Dto. N.º :02.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=222"
+    },
+    {
+      "id": "188",
+      "name": "Paraiso",
+      "type": "Hotel",
+      "zone": "Alrededores",
+      "address": "PJE. DEL PARAISO 180",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=188"
+    },
+    {
+      "id": "378",
+      "name": "Paraíso I",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "PJE. DEL PARAISO 180   Calle Nº 1",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=378"
+    },
+    {
+      "id": "379",
+      "name": "Paraíso II",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "PJE. DEL PARAISO 180 . Calle Nº 1",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=379"
+    },
+    {
+      "id": "380",
+      "name": "Paraíso III",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "PJE. DEL PARAISO 180   . Calle Nº 1",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=380"
+    },
+    {
+      "id": "1",
+      "name": "Patagonia Plaza",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Av. San Martín 502",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=1"
+    },
+    {
+      "id": "230",
+      "name": "Perito Moreno 791 B",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Perito Moreno 791 B",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=230"
+    },
+    {
+      "id": "337",
+      "name": "Pichi Traful.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 62 kms del centro x RN 40 y desvío por ripio 2 kms.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=337"
+    },
+    {
+      "id": "345",
+      "name": "Pichi Traful.",
+      "type": "Campings",
+      "zone": "7 Lagos",
+      "address": "A 62 km por RN 40 pasndo el puente del rio a mano derecha.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=345"
+    },
+    {
+      "id": "347",
+      "name": "Piedra Mala Lago Paimún",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Ruta 61, a 55 kms de Junin de los Andes y a 100 kms. de San Martín de los Andes",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=347"
+    },
+    {
+      "id": "350",
+      "name": "Pillán Mawiza - Lago Paimún -",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Lago Paimún a 100 kms de San Martín de los Andes, X RN 40 y luego RP 61.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=350"
+    },
+    {
+      "id": "226",
+      "name": "Pitiwe",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Ramayón Nº825 Piso 1º Dto. 7.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=226"
+    },
+    {
+      "id": "329",
+      "name": "Playa Bonita",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "Por RP 48, desvio a 3 km aprox, a mano izq camino interno de la comunidad, a 4 km cobro acceso  y luego casi 3 km mas pasando la islita.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=329"
+    },
+    {
+      "id": "173",
+      "name": "Plaza Mayor",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 1189",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=173"
+    },
+    {
+      "id": "137",
+      "name": "Ponte di Legno",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Amancay 205",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=137"
+    },
+    {
+      "id": "107",
+      "name": "Posada Quinen Apart hotel",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Ruta Nac. 40  Ex. 234 km. 6",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=107"
+    },
+    {
+      "id": "149",
+      "name": "Posada Quinen Cabañas",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Ruta Nac. 40  Ex. 234",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=149"
+    },
+    {
+      "id": "174",
+      "name": "Posada Quinen hostería",
+      "type": "Hosterias",
+      "zone": "Alrededores",
+      "address": "Ruta Nac. 40  Ex. 234 Km. 6",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=174"
+    },
+    {
+      "id": "327",
+      "name": "Pucara.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 55 kms del centro x RP 48 y desvío de 7 kms sobre el puente río Hua Hum.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=327"
+    },
+    {
+      "id": "27",
+      "name": "Pucará 1",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Santa Fe 561",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=27"
+    },
+    {
+      "id": "28",
+      "name": "Pucará 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Santa Fe 561",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=28"
+    },
+    {
+      "id": "336",
+      "name": "Puerto Arturo",
+      "type": "Campings",
+      "zone": "Lolog",
+      "address": "Por RP 62 a 21 kms. del centro de la ciudad",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=336"
+    },
+    {
+      "id": "50",
+      "name": "Puma Youth Hostel",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Fosbery A. 535",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=50"
+    },
+    {
+      "id": "265",
+      "name": "Quila Quina.",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 18 kms por RN 40 y desvío por ripio a la RP 108.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=265"
+    },
+    {
+      "id": "248",
+      "name": "Rama 2",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Tte. Ramayon N.º 845 Dto. Nº1",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=248"
+    },
+    {
+      "id": "196",
+      "name": "Ramayón House",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Tte. Ramayón Nº 765",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=196"
+    },
+    {
+      "id": "365",
+      "name": "Rapan Antu",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "A 6 kms del centro por RN 40 y desvío de 600 metros por RP 108 de ripio a orillas del arroyo Pil Pil.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=365"
+    },
+    {
+      "id": "361",
+      "name": "Raquitue",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "Sobre RP 61 a 93 kms. de San Martín de los Andes.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=361"
+    },
+    {
+      "id": "2",
+      "name": "Refugio del Arroyo",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Los Notros 139",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=2"
+    },
+    {
+      "id": "357",
+      "name": "Refugio Lafquenco - Lago Huechulafquen -",
+      "type": "Campings",
+      "zone": "Huechulafquen - Paimún",
+      "address": "RP 61 a 92.6 kms. de San Martín de los Andes.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=357"
+    },
+    {
+      "id": "108",
+      "name": "Rincón de los Andes",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 611",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=108"
+    },
+    {
+      "id": "109",
+      "name": "Robles del Sur",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Tte. Ramayón 896",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=109"
+    },
+    {
+      "id": "181",
+      "name": "Rosa de los Viajes",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Av. San Martín 817",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=181"
+    },
+    {
+      "id": "95",
+      "name": "Rose Garden",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1156",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=95"
+    },
+    {
+      "id": "42",
+      "name": "Rotui",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Perito Moreno 1378",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=42"
+    },
+    {
+      "id": "84",
+      "name": "Rucalaufquen Boutique",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Juez Del Valle 865 U.F. Nº7",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=84"
+    },
+    {
+      "id": "92",
+      "name": "Rucaleufú",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "El Oasis 220",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=92"
+    },
+    {
+      "id": "51",
+      "name": "Rukalhue",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Juez Del Valle 682",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=51"
+    },
+    {
+      "id": "67",
+      "name": "Rukalhue Apart hotel",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 682",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=67"
+    },
+    {
+      "id": "83",
+      "name": "Ríos",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Av. Gral. San Martín 1257",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=83"
+    },
+    {
+      "id": "371",
+      "name": "Sendero y Arroyo",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Ejido urbano",
+      "address": "El Oasis Nº 280 UF 2",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=371"
+    },
+    {
+      "id": "372",
+      "name": "Sendero y Arroyo",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Ejido urbano",
+      "address": "El Oasis Nº  280 UF 6",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=372"
+    },
+    {
+      "id": "110",
+      "name": "Serena",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Perito Moreno 2014",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=110"
+    },
+    {
+      "id": "8",
+      "name": "Sherpa",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Calderon 960",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=8"
+    },
+    {
+      "id": "148",
+      "name": "Sol y Nieve",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1155",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=148"
+    },
+    {
+      "id": "77",
+      "name": "Sonne",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Alte. Brown  Nº 625 U.F. Nº 04",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=77"
+    },
+    {
+      "id": "93",
+      "name": "Taiquen",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Calderon Jose F. 733",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=93"
+    },
+    {
+      "id": "30",
+      "name": "Temporada",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "PASAJE TRAHUNCO 14",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=30"
+    },
+    {
+      "id": "111",
+      "name": "Terragonia",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Mariano Moreno 1070/1076",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=111"
+    },
+    {
+      "id": "112",
+      "name": "Tierra Nativa",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Alte. Brown 760",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=112"
+    },
+    {
+      "id": "113",
+      "name": "Torres del Sur",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1136",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=113"
+    },
+    {
+      "id": "257",
+      "name": "Travellers on two wheels.",
+      "type": "Campings",
+      "zone": "Ejido urbano",
+      "address": "Cjón.de Bello 140.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=257"
+    },
+    {
+      "id": "223",
+      "name": "Tres Coronas",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Alrededores",
+      "address": "Sunama Isla 1024",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=223"
+    },
+    {
+      "id": "182",
+      "name": "Tunqueley",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Belgrano 700",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=182"
+    },
+    {
+      "id": "183",
+      "name": "Turismo",
+      "type": "Hotel",
+      "zone": "Centro",
+      "address": "Misionero Mascardi 517",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=183"
+    },
+    {
+      "id": "32",
+      "name": "Valldemossa",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 1126",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=32"
+    },
+    {
+      "id": "94",
+      "name": "Valle Hermoso",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 1130",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=94"
+    },
+    {
+      "id": "369",
+      "name": "Ventana al Sur",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Ejido urbano",
+      "address": "Perito Moreno Nº  1975 UF 9",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=369"
+    },
+    {
+      "id": "115",
+      "name": "Vientos Patagónicos",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Juez Del Valle 760",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=115"
+    },
+    {
+      "id": "151",
+      "name": "Villa Cumen Vochai",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Pirén 240",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=151"
+    },
+    {
+      "id": "96",
+      "name": "Villa Pirén",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Pirén 49",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=96"
+    },
+    {
+      "id": "216",
+      "name": "Vistasul",
+      "type": "Alquiler Turístico Temporario",
+      "zone": "Centro",
+      "address": "Sarmiento N.º 445, 1º piso Departamento E11",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=216"
+    },
+    {
+      "id": "250",
+      "name": "Warthon",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Belgrano 315",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=250"
+    },
+    {
+      "id": "175",
+      "name": "Wesley",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 911",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=175"
+    },
+    {
+      "id": "254",
+      "name": "Yuco",
+      "type": "Albergues - Hostel",
+      "zone": "Centro",
+      "address": "Perito Moreno n°1120 esquina Sarmiento.",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=254"
+    },
+    {
+      "id": "366",
+      "name": "Yuco",
+      "type": "Campings",
+      "zone": "Lago Lácar",
+      "address": "Playa de Yuco",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=366"
+    }
+  ],
+  "pageCount": 27
+}

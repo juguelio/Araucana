@@ -1,0 +1,5848 @@
+{
+  "catalogueRetrievedOn": "2026-11-20",
+  "provider": "Photon / OpenStreetMap",
+  "endpoint": "https://photon.komoot.io/api/",
+  "attribution": "© OpenStreetMap contributors — https://www.openstreetmap.org/copyright",
+  "scope": "Nombres oficiales, área restringida del buscador de aeropuerto. Coincidencia nominal automática; dirección y punto requieren revisión. Google y LocationIQ no evaluados: sin credenciales locales.",
+  "rows": [
+    {
+      "id": "45",
+      "query": "Adventure",
+      "checkedAt": "2026-11-20T22:45:00.359Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Adventure Store, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1582117,
+            -71.3553804
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "57",
+      "query": "Agua Escondida",
+      "checkedAt": "2026-11-20T22:45:01.736Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Apart Hotel Agua Escondida, Coronel Rohde, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1625929,
+            -71.3536841
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "219",
+      "query": "Aire y Paz",
+      "checkedAt": "2026-11-20T22:45:03.680Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Centro de Operaciones y Mantenimiento EPEN Zona Sur, Pasaje del Pueblo, Centro, San Martín de los Andes",
+          "point": [
+            -40.1491644,
+            -71.3320403
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Ma y Pa, Perito Moreno, Centro, San Martín de los Andes",
+          "point": [
+            -40.1526735,
+            -71.3452285
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Feria de Productores y Artesanos Locales, Héroes de Malvinas, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1507391,
+            -71.3521808
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Para Vestir Santos y No Tan Santos, Eduardo Elordi 845, Centro, San Martín de los Andes",
+          "point": [
+            -40.1565681,
+            -71.3482266
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Comisaría de la Mujer, Niñez y Familia San Martín de los Andes, Pasaje del Pueblo, Centro, San Martín de los Andes",
+          "point": [
+            -40.1478635,
+            -71.3254488
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Atahualpa Yupanqui y Paseo de los Músicos, Atahualpa Yupanqui, Kaleuche, San Martín de los Andes",
+          "point": [
+            -40.1086239,
+            -71.3115397
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "query": "Aitue",
+      "checkedAt": "2026-11-20T22:45:05.069Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cabañas Aitue, Almirante Brown 781, Centro, San Martín de los Andes",
+          "point": [
+            -40.1604304,
+            -71.3495405
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Paseo Aituén, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1322887,
+            -71.3154934
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Centro de Desarrollo Infantil \"Aitué\", Cerro de la Virgen, Cordones del Chapelco",
+          "point": [
+            -40.1322935,
+            -71.2236122
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "query": "Alcedro",
+      "checkedAt": "2026-11-20T22:45:06.487Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "368",
+      "query": "Alegra",
+      "checkedAt": "2026-11-20T22:45:07.891Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "46",
+      "query": "Alhue",
+      "checkedAt": "2026-11-20T22:45:09.285Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Alhue Patagonia Hostel, Rudecindo Roca 720, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1541206,
+            -71.3536714
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "52",
+      "query": "Alquimia Estelar",
+      "checkedAt": "2026-11-20T22:45:10.676Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "47",
+      "query": "Altavista",
+      "checkedAt": "2026-11-20T22:45:12.108Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "121",
+      "query": "Altos del Alma",
+      "checkedAt": "2026-11-20T22:45:13.507Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1493581,
+            -71.3408591
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Escalera de Altos del Obeid, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1493562,
+            -71.3574456
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Arroyo del Molino, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1444579,
+            -71.2816291
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Paseo del Alba, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1363758,
+            -71.283917
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Alfajores del Oso, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1563354,
+            -71.3495376
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Pradera del Puma, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1350078,
+            -71.2286064
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "256",
+      "query": "Amigos de la naturaleza.",
+      "checkedAt": "2026-11-20T22:45:14.963Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Camping Amigos de la Naturaleza, Callejón de Gin Gins 1553, Vega Maipú, La Vega",
+          "point": [
+            -40.1238025,
+            -71.2927439
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "query": "Amonite Apart 3",
+      "checkedAt": "2026-11-20T22:45:16.526Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "176",
+      "query": "Antares Patagonia",
+      "checkedAt": "2026-11-20T22:45:18.046Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "13",
+      "query": "Antiguos",
+      "checkedAt": "2026-11-20T22:45:19.480Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Antiguos, Coronel Diaz 753, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1587233,
+            -71.357777
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "query": "Antilhue",
+      "checkedAt": "2026-11-20T22:45:20.860Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Antú Hue, Centro, San Martín de los Andes",
+          "point": [
+            -40.1629985,
+            -71.3530485
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "266",
+      "query": "Antu ti Lafquen.",
+      "checkedAt": "2026-11-20T22:45:22.425Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "58",
+      "query": "Antuen",
+      "checkedAt": "2026-11-20T22:45:23.883Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Plazoleta Antonio Jesús Creide, Pablo Gin Gins, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1504033,
+            -71.3140849
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Antonio Berni, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1332475,
+            -71.2913646
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Antonio Ragussi, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1232456,
+            -71.2690219
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Antuken, Manuel Belgrano 1053, Centro, San Martín de los Andes",
+          "point": [
+            -40.1589323,
+            -71.3482043
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "138",
+      "query": "Antuen Cabañas",
+      "checkedAt": "2026-11-20T22:45:25.350Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "34",
+      "query": "Antuken",
+      "checkedAt": "2026-11-20T22:45:26.748Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Antuken, Manuel Belgrano 1053, Centro, San Martín de los Andes",
+          "point": [
+            -40.1589323,
+            -71.3482043
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "139",
+      "query": "Arco Iris",
+      "checkedAt": "2026-11-20T22:45:28.125Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cabañas Arco Iris, Los Cipreses, Centro, San Martín de los Andes",
+          "point": [
+            -40.1527818,
+            -71.3371962
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arco Iris, Quilquihue, Junín de los Andes",
+          "point": [
+            -40.0817945,
+            -71.2902374
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "query": "Arique",
+      "checkedAt": "2026-11-20T22:45:29.524Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cabañas Arique, Rivadavia 1295, Centro, San Martín de los Andes",
+          "point": [
+            -40.1632602,
+            -71.3522198
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "349",
+      "query": "Arroyo Germain. Lago Paimún.",
+      "checkedAt": "2026-11-20T22:45:30.968Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "364",
+      "query": "Arroyo Grande",
+      "checkedAt": "2026-11-20T22:45:32.343Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Arroyo Grande",
+          "point": [
+            -40.1702606,
+            -71.4468929
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Grande",
+          "point": [
+            -40.1708152,
+            -71.4471197
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Grande",
+          "point": [
+            -40.1652588,
+            -71.4495824
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Grande",
+          "point": [
+            -40.1978332,
+            -71.4535741
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Grande, Acceso Quila Quina, Quila Quina",
+          "point": [
+            -40.1760678,
+            -71.444419
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cascada Arroyo Grande",
+          "point": [
+            -40.1855359,
+            -71.4538924
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "69",
+      "query": "Asgard",
+      "checkedAt": "2026-11-20T22:45:34.367Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "154",
+      "query": "Aspen Hostería",
+      "checkedAt": "2026-11-20T22:45:35.758Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "178",
+      "query": "Aspen hotel",
+      "checkedAt": "2026-11-20T22:45:37.233Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "201",
+      "query": "Avanti",
+      "checkedAt": "2026-11-20T22:45:38.644Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "162",
+      "query": "Ayres del Filo",
+      "checkedAt": "2026-11-20T22:45:40.096Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Poma del Filo, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.2181808,
+            -71.3013951
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "70",
+      "query": "Bat",
+      "checkedAt": "2026-11-20T22:45:41.542Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Enigma Resto Bar, Misionero Mascardi, Centro, San Martín de los Andes",
+          "point": [
+            -40.1564854,
+            -71.3453782
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cafecito Bar, Avenida San Martín 973, Centro, San Martín de los Andes",
+          "point": [
+            -40.1563302,
+            -71.3486955
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Torino Bar & Bistro, Eduardo Elordi, Centro, San Martín de los Andes",
+          "point": [
+            -40.1569855,
+            -71.3480351
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Pizza Bar, General Villegas 987, Centro, San Martín de los Andes",
+          "point": [
+            -40.1573365,
+            -71.3479546
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Bar terminal, General Villegas, Centro, San Martín de los Andes",
+          "point": [
+            -40.1606803,
+            -71.3575411
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Caleuche Wine Bar, Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1752061,
+            -71.3935424
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "query": "Bike",
+      "checkedAt": "2026-11-20T22:45:43.003Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Bike, Avenida Koesler 1531, Centro, San Martín de los Andes",
+          "point": [
+            -40.1541924,
+            -71.3410275
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "362",
+      "query": "Bucalemu",
+      "checkedAt": "2026-11-20T22:45:44.409Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "155",
+      "query": "Bärenhaus",
+      "checkedAt": "2026-11-20T22:45:45.846Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "374",
+      "query": "Cabaña Elvira",
+      "checkedAt": "2026-11-20T22:45:47.719Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Elvira, Teniente General Roca, Centro, San Martín de los Andes",
+          "point": [
+            -40.1540282,
+            -71.3461903
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "71",
+      "query": "Caminos",
+      "checkedAt": "2026-11-20T22:45:49.108Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Camino Arrayán, Puente Blanco, San Martín de los Andes",
+          "point": [
+            -40.1597745,
+            -71.3424557
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Miguel A. Camino, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1609542,
+            -71.3590422
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Ruta Nacional 40, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1633811,
+            -71.3564861
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Miguel A. Camino, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1283726,
+            -71.2490122
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Miguel A. Camino, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1278902,
+            -71.2483822
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1978053,
+            -71.3720728
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "358",
+      "query": "Camping 7 Lagos - Lago Correntoso -",
+      "checkedAt": "2026-11-20T22:45:51.061Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "367",
+      "query": "Casa Grande Confortable",
+      "checkedAt": "2026-11-20T22:45:52.634Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "234",
+      "query": "Casa Lita",
+      "checkedAt": "2026-11-20T22:45:54.210Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "59",
+      "query": "Cascadas",
+      "checkedAt": "2026-11-20T22:45:55.590Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cascada Santa Ana, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1356389,
+            -71.2247441
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cascada Escondida, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.137569,
+            -71.2265786
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cascada, Cuesta Sepulveda, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.151109,
+            -71.25754
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cascada",
+          "point": [
+            -40.151109,
+            -71.25754
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Casa MAS, Ruta Nacional 40 Km 2220, Vega Maipú",
+          "point": [
+            -40.1277369,
+            -71.2601753
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "177",
+      "query": "Casona del Alto",
+      "checkedAt": "2026-11-20T22:45:57.004Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Valle Alto, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1304816,
+            -71.2100793
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Valle Alto, Ruta Nacional 40, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1284183,
+            -71.2113497
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Paseo del Encuentro, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1302111,
+            -71.3212922
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Paseo del Atardecer, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1283609,
+            -71.3180256
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Paseo del Pionero, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1277354,
+            -71.3194565
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1493581,
+            -71.3408591
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "17",
+      "query": "Catalanas",
+      "checkedAt": "2026-11-20T22:45:58.444Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cabañas Catalanas, Almirante Brown 351, Centro, San Martin de los Andes",
+          "point": [
+            -40.162184,
+            -71.3550257
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "141",
+      "query": "Catalinas Cabañas 3",
+      "checkedAt": "2026-11-20T22:46:00.040Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "261",
+      "query": "Catrite.",
+      "checkedAt": "2026-11-20T22:46:01.460Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Playa Catritre",
+          "point": [
+            -40.1739034,
+            -71.4033402
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Playa Catritre, Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1739092,
+            -71.4033393
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cámping Catritre, Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1742253,
+            -71.4016904
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "184",
+      "query": "Caupolican",
+      "checkedAt": "2026-11-20T22:46:02.922Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hotel Caupolicán, Avenida San Martín 969, Centro, San Martín de los Andes",
+          "point": [
+            -40.156514,
+            -71.3487905
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cochera Hotel Caupolicán, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1566043,
+            -71.3489108
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "156",
+      "query": "Cerro Nevado",
+      "checkedAt": "2026-11-20T22:46:04.317Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cerro Nevado, Mariano Moreno, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1556676,
+            -71.3546401
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "267",
+      "query": "Chachín.",
+      "checkedAt": "2026-11-20T22:46:05.712Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Pasaje Chachín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1494374,
+            -71.3268695
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "179",
+      "query": "Chapelco Ski",
+      "checkedAt": "2026-11-20T22:46:07.119Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Chapelco Ski Resort, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.1978659,
+            -71.3192884
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Chapelco Ski Resort, San Martín de los Andes",
+          "point": [
+            -40.2098604,
+            -71.3047153
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Chapelco Ski Restaurante, Manuel Belgrano 869, Centro, San Martín de los Andes",
+          "point": [
+            -40.1571028,
+            -71.3495011
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Chapelco Ski Hotel, Manuel Belgrano 869, Centro, San Martín de los Andes",
+          "point": [
+            -40.1572084,
+            -71.3496441
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Escuela de niños chapelco, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.208445,
+            -71.3026996
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Telecabina Chapelco, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.2030073,
+            -71.3111292
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "375",
+      "query": "Chucao",
+      "checkedAt": "2026-11-20T22:46:08.587Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Arroyo Pichi Chacay, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1343634,
+            -71.2835863
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Pichi Chacay, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1347963,
+            -71.2837907
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Pichi Chacay, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1353499,
+            -71.2836833
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Pichi Chacay, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1296408,
+            -71.2850249
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Pichi Chacay, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1330958,
+            -71.283618
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo Pichi Chacay, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1430002,
+            -71.2780421
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "72",
+      "query": "Cipresal",
+      "checkedAt": "2026-11-20T22:46:10.026Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Los Cipreses, Centro, San Martín de los Andes",
+          "point": [
+            -40.1529156,
+            -71.3374842
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Curruhuinca & Los Cipreses, Cacique Curruhuinca, Centro, San Martín de los Andes",
+          "point": [
+            -40.1537174,
+            -71.3434147
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "18",
+      "query": "Club Woodland",
+      "checkedAt": "2026-11-20T22:46:11.458Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "255",
+      "query": "Complejo A.C.A.",
+      "checkedAt": "2026-11-20T22:46:12.884Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Complejo Belgrano, Manuel Belgrano 978, Centro, San Martín de los Andes",
+          "point": [
+            -40.1580669,
+            -71.3485518
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Complejo Don Marques, Capitán Adolfo Drury, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1504443,
+            -71.3543012
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Complejo Polideportivo Chacra 2, Pasaje del Pueblo, Centro, San Martín de los Andes",
+          "point": [
+            -40.1486506,
+            -71.3251276
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "33",
+      "query": "Complejo A.C.A.",
+      "checkedAt": "2026-11-20T22:46:14.261Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Complejo Belgrano, Manuel Belgrano 978, Centro, San Martín de los Andes",
+          "point": [
+            -40.1580669,
+            -71.3485518
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Complejo Don Marques, Capitán Adolfo Drury, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1504443,
+            -71.3543012
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Complejo Polideportivo Chacra 2, Pasaje del Pueblo, Centro, San Martín de los Andes",
+          "point": [
+            -40.1486506,
+            -71.3251276
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "363",
+      "query": "Complejo Playa Bonita",
+      "checkedAt": "2026-11-20T22:46:15.890Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Playa Bonita, Villa Lolog, San Martín de los Andes",
+          "point": [
+            -40.0736344,
+            -71.3203893
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Playa Bonita",
+          "point": [
+            -40.1515084,
+            -71.3996472
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Playa Bonita, Acceso a Playa Bonita",
+          "point": [
+            -40.1514498,
+            -71.3996343
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Acceso a Playa Bonita",
+          "point": [
+            -40.1522414,
+            -71.3963656
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso a Playa Bonita",
+          "point": [
+            -40.1517461,
+            -71.3986301
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "252",
+      "query": "Costa Soñada 1 y 2",
+      "checkedAt": "2026-11-20T22:46:17.605Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "180",
+      "query": "Crismalu",
+      "checkedAt": "2026-11-20T22:46:19.037Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hotel Crismalu, Rudecindo Roca 975, Tiro Federal, San Martin de los Andes",
+          "point": [
+            -40.1532672,
+            -71.3503373
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "152",
+      "query": "Cumelen",
+      "checkedAt": "2026-11-20T22:46:20.504Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hostería Cumelén, Eduardo Elordi, Centro, San Martín de los Andes",
+          "point": [
+            -40.1575812,
+            -71.3477988
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "36",
+      "query": "Cuncumen",
+      "checkedAt": "2026-11-20T22:46:21.917Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "338",
+      "query": "Curruhue Chico",
+      "checkedAt": "2026-11-20T22:46:23.372Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Callejón Altos de Curruhuinca, Centro, San Martín de los Andes",
+          "point": [
+            -40.1513443,
+            -71.3470211
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cacique Curruhuinca, Centro, San Martín de los Andes",
+          "point": [
+            -40.1527035,
+            -71.3442484
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "122",
+      "query": "Cuyen",
+      "checkedAt": "2026-11-20T22:46:24.759Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Paseo del Cuyén, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.136107,
+            -71.2823194
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "376",
+      "query": "Dal Cuore",
+      "checkedAt": "2026-11-20T22:46:26.140Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "16",
+      "query": "De la Cordillera",
+      "checkedAt": "2026-11-20T22:46:27.627Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cordillera del Viento, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1362166,
+            -71.2301655
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Club Hípico Cordillerano \"Yamil Obeid\", Predio Deportivo COTESMA, Vega Maipú",
+          "point": [
+            -40.1298264,
+            -71.2811264
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "123",
+      "query": "De la Patagonia",
+      "checkedAt": "2026-11-20T22:46:29.005Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Huellas de la Patagonia, Avenida San Martín 843, Centro, San Martín de los Andes",
+          "point": [
+            -40.1568646,
+            -71.350232
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Pescadería de la Patagonia, Avenida Koesler 1810, Centro, San Martín de los Andes",
+          "point": [
+            -40.1537302,
+            -71.3378643
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Delicias de la Patagonia, Mariano Moreno 885, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1586149,
+            -71.353301
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Spirit Patagonia, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1559948,
+            -71.3485448
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Balanceados Patagonia, Ruta Nacional 40 8, La Vega",
+          "point": [
+            -40.1377089,
+            -71.2909846
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Balanceados Patagonia, Ruta Nacional 40 Km 2217, La Vega",
+          "point": [
+            -40.1377089,
+            -71.2909846
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "60",
+      "query": "De Sol a Sol",
+      "checkedAt": "2026-11-20T22:46:30.459Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1493581,
+            -71.3408591
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Tierra del Sol, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1401678,
+            -71.2909807
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Pinar del Sol, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1238888,
+            -71.2333883
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Ex-Hotel Sol de los Andes, Cuesta Juez de Paz Julio César Quiroga, Centro, San Martín de los Andes",
+          "point": [
+            -40.157055,
+            -71.3423962
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Paseo del Sol, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1320339,
+            -71.3167588
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Tierra del Sol, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1395239,
+            -71.2906201
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "19",
+      "query": "De Troncos",
+      "checkedAt": "2026-11-20T22:46:31.857Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "124",
+      "query": "Del Abuelo",
+      "checkedAt": "2026-11-20T22:46:33.240Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "85",
+      "query": "Del Chapelco Apart",
+      "checkedAt": "2026-11-20T22:46:34.680Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1310161,
+            -71.225793
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Faldeos del Chapelco, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1371879,
+            -71.2751806
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Cordones del Chapelco, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1313556,
+            -71.2209038
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cisterna Cordones del Chapelco, Cerro Tipiliuke, Cordones del Chapelco",
+          "point": [
+            -40.1357665,
+            -71.222473
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Delegación Municipal Cordones del Chapelco, Avenida Los Lagos 1691, Cordones del Chapelco",
+          "point": [
+            -40.130461,
+            -71.2257339
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Biblioteca Popular Cordones del Chapelco, Cerro Colorado, Cordones del Chapelco",
+          "point": [
+            -40.1318297,
+            -71.2252077
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "117",
+      "query": "Del Chapelco cabañas",
+      "checkedAt": "2026-11-20T22:46:36.056Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cabañas del Chapelco, Almirante Brown, Centro, San Martín de los Andes",
+          "point": [
+            -40.1624414,
+            -71.3560461
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "63",
+      "query": "Del Faldeo",
+      "checkedAt": "2026-11-20T22:46:37.531Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Apart del Faldeo, Coronel Rohde 1250, Centro, San Martín de los Andes",
+          "point": [
+            -40.1634946,
+            -71.3535119
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Faldeos del Chapelco, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1371879,
+            -71.2751806
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Tierra del Sol, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1401678,
+            -71.2909807
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Arroyo del Molino, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.137789,
+            -71.2902908
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1411761,
+            -71.2858532
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1444579,
+            -71.2816291
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "64",
+      "query": "Del Lacar",
+      "checkedAt": "2026-11-20T22:46:38.906Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1493581,
+            -71.3408591
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1310161,
+            -71.225793
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Peñón del Lolog, San Martín de los Andes",
+          "point": [
+            -40.1083757,
+            -71.3047359
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Terrazas del Morro, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1253398,
+            -71.3137419
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Camping del Lácar, Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1742069,
+            -71.3942697
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Piedra del Trompul",
+          "point": [
+            -40.1260381,
+            -71.4259582
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "260",
+      "query": "Del Lácar.",
+      "checkedAt": "2026-11-20T22:46:40.295Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1493581,
+            -71.3408591
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1310161,
+            -71.225793
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Peñón del Lolog, San Martín de los Andes",
+          "point": [
+            -40.1083757,
+            -71.3047359
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Terrazas del Morro, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1253398,
+            -71.3137419
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Camping del Lácar, Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1742069,
+            -71.3942697
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Piedra del Trompul",
+          "point": [
+            -40.1260381,
+            -71.4259582
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "65",
+      "query": "Del Maitén",
+      "checkedAt": "2026-11-20T22:46:41.721Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Apart Del Maitén, Calle 27 540, Centro, San Martín de los Andes",
+          "point": [
+            -40.1633742,
+            -71.3519481
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "126",
+      "query": "Del Mallín",
+      "checkedAt": "2026-11-20T22:46:43.128Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Silla del Mallín, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.2162305,
+            -71.2965342
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "20",
+      "query": "Del Pellin",
+      "checkedAt": "2026-11-20T22:46:44.510Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Apart Hotel del Pellin, Los Notros 188, Centro, San Martín de los Andes",
+          "point": [
+            -40.1521641,
+            -71.3403762
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "66",
+      "query": "Del Sauco",
+      "checkedAt": "2026-11-20T22:46:45.914Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Los Sauces, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.148731,
+            -71.3415809
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "185",
+      "query": "Del Viejo Esquiador",
+      "checkedAt": "2026-11-20T22:46:47.487Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hotel el Viejo Esquiador, Avenida San Martín 1242, Centro, San Martín de los Andes",
+          "point": [
+            -40.1547221,
+            -71.3452056
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Vieja Deli, Paseo de los Madereros, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1608856,
+            -71.3587188
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "224",
+      "query": "Departamento Silvia",
+      "checkedAt": "2026-11-20T22:46:48.917Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "244",
+      "query": "Duendes 1",
+      "checkedAt": "2026-11-20T22:46:50.701Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "245",
+      "query": "Duendes 2",
+      "checkedAt": "2026-11-20T22:46:52.463Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "246",
+      "query": "Duendes 3",
+      "checkedAt": "2026-11-20T22:46:53.988Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "73",
+      "query": "DV 750",
+      "checkedAt": "2026-11-20T22:46:55.489Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "48",
+      "query": "El Andaluz",
+      "checkedAt": "2026-11-20T22:46:57.016Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "El Andaluz, Eduardo Elordi 569, Centro, San Martín de los Andes",
+          "point": [
+            -40.1537791,
+            -71.3496682
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "193",
+      "query": "El Arroyuelo",
+      "checkedAt": "2026-11-20T22:46:58.497Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "382",
+      "query": "El Colibrí",
+      "checkedAt": "2026-11-20T22:46:59.869Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Plaza Colibrí, Los Pehuenes, El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1529516,
+            -71.3202166
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "127",
+      "query": "El Montañes",
+      "checkedAt": "2026-11-20T22:47:01.342Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "37",
+      "query": "El Oasis",
+      "checkedAt": "2026-11-20T22:47:02.717Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1528465,
+            -71.3253005
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1532547,
+            -71.3292924
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Rotonda El Oasis, El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1531875,
+            -71.3297441
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "356",
+      "query": "El Pehuen",
+      "checkedAt": "2026-11-20T22:47:04.175Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Los Pehuenes, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1528931,
+            -71.3197567
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Los Pehuenes, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1536021,
+            -71.3184991
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "202",
+      "query": "El Peral 1",
+      "checkedAt": "2026-11-20T22:47:05.840Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "203",
+      "query": "El Peral 2",
+      "checkedAt": "2026-11-20T22:47:07.535Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "204",
+      "query": "El Peral 3",
+      "checkedAt": "2026-11-20T22:47:09.091Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "205",
+      "query": "El Peral 4",
+      "checkedAt": "2026-11-20T22:47:10.630Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "21",
+      "query": "El Recodo",
+      "checkedAt": "2026-11-20T22:47:12.016Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "22",
+      "query": "El Viejo Nogal",
+      "checkedAt": "2026-11-20T22:47:13.518Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Hotel el Viejo Esquiador, Avenida San Martín 1242, Centro, San Martín de los Andes",
+          "point": [
+            -40.1547221,
+            -71.3452056
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Camino Viejo Lolog, El Pegual, San Martín de los Andes",
+          "point": [
+            -40.0978735,
+            -71.260563
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Viejo Radal, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1311836,
+            -71.2620379
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "258",
+      "query": "El Zorzal.",
+      "checkedAt": "2026-11-20T22:47:14.943Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "164",
+      "query": "El Árbol duende",
+      "checkedAt": "2026-11-20T22:47:16.376Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "53",
+      "query": "Ensueño",
+      "checkedAt": "2026-11-20T22:47:17.802Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Ensueño, Perito Moreno 1332, Centro, San Martín de los Andes",
+          "point": [
+            -40.1523698,
+            -71.3453856
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Enduro, Avenida Rodolfo Koessler, Centro, San Martín de los Andes",
+          "point": [
+            -40.1537441,
+            -71.3384441
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "351",
+      "query": "Espejo Chico Norte.",
+      "checkedAt": "2026-11-20T22:47:19.340Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "354",
+      "query": "Espejo Chico Sur.",
+      "checkedAt": "2026-11-20T22:47:20.807Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "79",
+      "query": "Euskaldunberry Apartments 2",
+      "checkedAt": "2026-11-20T22:47:23.976Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "235",
+      "query": "Fermin",
+      "checkedAt": "2026-11-20T22:47:25.418Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "340",
+      "query": "Filo Hua Hum",
+      "checkedAt": "2026-11-20T22:47:26.899Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Pasaje Hua Hum, San Martín de los Andes",
+          "point": [
+            -40.1490533,
+            -71.3226021
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "FORESTAL HUA HUM, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1293716,
+            -71.2151045
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Lago Hui Hui, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1356623,
+            -71.2277038
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "49",
+      "query": "Gleb",
+      "checkedAt": "2026-11-20T22:47:28.282Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hostel Gleb, Rivadavia 411, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1545479,
+            -71.3570344
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "165",
+      "query": "Hostal del Esquiador",
+      "checkedAt": "2026-11-20T22:47:30.003Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "343",
+      "query": "Huecuifa (Población Aila)",
+      "checkedAt": "2026-11-20T22:47:31.413Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "342",
+      "query": "Hueney  - Lago Huechulafquen -",
+      "checkedAt": "2026-11-20T22:47:32.873Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "359",
+      "query": "Hueney Mawiza - Lago Huechulafquen - Área Diurna",
+      "checkedAt": "2026-11-20T22:47:34.288Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "140",
+      "query": "Hueney Ruca Cabañas",
+      "checkedAt": "2026-11-20T22:47:35.722Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "38",
+      "query": "Hueney Ruca hosteria",
+      "checkedAt": "2026-11-20T22:47:37.119Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "86",
+      "query": "Humo Azul Apart 2",
+      "checkedAt": "2026-11-20T22:47:38.717Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "128",
+      "query": "Humo Azul cab.2",
+      "checkedAt": "2026-11-20T22:47:40.114Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cabañas Humo Azul, Rudecido Roca 334, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1551819,
+            -71.3588289
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "186",
+      "query": "I.S.S.N.",
+      "checkedAt": "2026-11-20T22:47:41.499Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "I, Gobernadores Neuquinos, San Martín de los Andes",
+          "point": [
+            -40.1457178,
+            -71.3119352
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "I, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1430942,
+            -71.3061638
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "I, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1270729,
+            -71.3194119
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "I, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1349035,
+            -71.2978566
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Lote A4-I, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1236977,
+            -71.2370277
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "I, Las Nalcas, San Martín de los Andes",
+          "point": [
+            -40.125854,
+            -71.2344438
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "74",
+      "query": "IL Sole",
+      "checkedAt": "2026-11-20T22:47:42.899Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "360",
+      "query": "Inche Peuma - Lago Huechulafquen-",
+      "checkedAt": "2026-11-20T22:47:44.313Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "23",
+      "query": "Intermonti",
+      "checkedAt": "2026-11-20T22:47:45.704Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Intermonti Hotel, General Villegas 717, Centro, San Martín de los Andes",
+          "point": [
+            -40.1584918,
+            -71.351357
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "190",
+      "query": "Italia",
+      "checkedAt": "2026-11-20T22:47:47.101Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "39",
+      "query": "Kalasur",
+      "checkedAt": "2026-11-20T22:47:48.533Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "130",
+      "query": "Kaleuche",
+      "checkedAt": "2026-11-20T22:47:49.926Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Kaleuche, San Martín de los Andes",
+          "point": [
+            -40.1097273,
+            -71.3137756
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Tecer acceso Kaleuche, Kaleuche, San Martín de los Andes",
+          "point": [
+            -40.1019906,
+            -71.3094391
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Kaleuche, Aimé Painé, Los Robles, San Martín de los Andes",
+          "point": [
+            -40.1129275,
+            -71.3088009
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "335",
+      "query": "La Alameda.",
+      "checkedAt": "2026-11-20T22:47:51.336Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "247",
+      "query": "La Balconada",
+      "checkedAt": "2026-11-20T22:47:52.861Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "97",
+      "query": "La Bora",
+      "checkedAt": "2026-11-20T22:47:54.243Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "La Bora, Teniente Ramayón, Centro, San Martín de los Andes",
+          "point": [
+            -40.1552569,
+            -71.3442925
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "166",
+      "query": "La Casa de Eugenia",
+      "checkedAt": "2026-11-20T22:47:56.292Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Casa de la mujer, Los Alelíes, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1290059,
+            -71.2109798
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Skate Park La Casa, Teniente General Roca, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1581457,
+            -71.3586019
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Casa, Las Lengas, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1488416,
+            -71.3428357
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Casa, Las Lengas, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1486382,
+            -71.3434408
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Casa, Las Lengas, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1491089,
+            -71.3440528
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "La Casa de Ale, Santa Fe 745, La Vega",
+          "point": [
+            -40.1309496,
+            -71.2967695
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "192",
+      "query": "La Casita",
+      "checkedAt": "2026-11-20T22:47:57.743Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "La casita de la miel - cooperativa apícola, General Villegas 1140, Centro, San Martín de los Andes",
+          "point": [
+            -40.1563484,
+            -71.345946
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Casita, Ruta Nacional 40, San Martin de los Andes",
+          "point": [
+            -40.0890702,
+            -71.1438293
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "249",
+      "query": "La Cheminee",
+      "checkedAt": "2026-11-20T22:47:59.151Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "263",
+      "query": "La Costa.",
+      "checkedAt": "2026-11-20T22:48:00.528Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "La Costa del Pueblo, Avenida Costanera 940, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1612248,
+            -71.3582814
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Quirno Costa, Centro, San Martín de los Andes",
+          "point": [
+            -40.1514032,
+            -71.3422236
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "198",
+      "query": "La Cuesta",
+      "checkedAt": "2026-11-20T22:48:01.959Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cuesta de los Andes, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1505264,
+            -71.3193926
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cuesta Félix De Amador, Centro, San Martín de los Andes",
+          "point": [
+            -40.1543665,
+            -71.3381104
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cuesta Juez de Paz Julio César Quiroga, Centro, San Martín de los Andes",
+          "point": [
+            -40.1590438,
+            -71.3466743
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cuesta Alihuén, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1341057,
+            -71.3215251
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cuesta Eduardo Arias, Los Radales, San Martín de los Andes",
+          "point": [
+            -40.1537853,
+            -71.3104289
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "142",
+      "query": "La Encantada Cabaña",
+      "checkedAt": "2026-11-20T22:48:03.361Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cabaña 7 y 8, Los Cipreses, Centro, San Martín de los Andes",
+          "point": [
+            -40.153677,
+            -71.3426074
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Rincón Encantado, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1565196,
+            -71.3501113
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas del Oso, Los Cipreses 1570, Centro, San Martín de los Andes",
+          "point": [
+            -40.1531666,
+            -71.3422315
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Casilda, Manuel Chidiak, Centro, San Martín de los Andes",
+          "point": [
+            -40.1550948,
+            -71.3418724
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Aldea Misenet, Los Cipreses, Centro, San Martín de los Andes",
+          "point": [
+            -40.1530575,
+            -71.3379541
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Amancay, Los Cipreses, Centro, San Martín de los Andes",
+          "point": [
+            -40.1527397,
+            -71.3368061
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "167",
+      "query": "La Fontaine",
+      "checkedAt": "2026-11-20T22:48:04.741Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "La Fontaine, Los Cipreses 1840, Centro, San Martín de los Andes",
+          "point": [
+            -40.1528129,
+            -71.3374134
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "87",
+      "query": "La Fontaine Apart 2",
+      "checkedAt": "2026-11-20T22:48:06.460Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "168",
+      "query": "La Posta del Cazador",
+      "checkedAt": "2026-11-20T22:48:07.849Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "La Posta del Cazador, Avenida San Martín 175, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1598817,
+            -71.3591219
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "169",
+      "query": "La Raclette",
+      "checkedAt": "2026-11-20T22:48:09.278Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hostería La Raclette, Teniente Coronel Pérez, Centro, San Martín de los Andes",
+          "point": [
+            -40.1611093,
+            -71.3500052
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "381",
+      "query": "La Rioja 40",
+      "checkedAt": "2026-11-20T22:48:11.260Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "La Rioja 40, San Martín de los Andes",
+          "point": [
+            -40.1348013,
+            -71.2941619
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "353",
+      "query": "La Tapera",
+      "checkedAt": "2026-11-20T22:48:12.700Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "76",
+      "query": "La Tranquila",
+      "checkedAt": "2026-11-20T22:48:14.114Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "La Tranquera, Alihuén, San Martín de los Andes",
+          "point": [
+            -40.1278233,
+            -71.3044325
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Arroyo de la Tranquera",
+          "point": [
+            -40.1634337,
+            -71.1028025
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "348",
+      "query": "Lago Espejo.",
+      "checkedAt": "2026-11-20T22:48:15.571Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Paseo Lago Espejo Grande, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1256436,
+            -71.2268704
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "332",
+      "query": "Lago Falkner.",
+      "checkedAt": "2026-11-20T22:48:16.947Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Paseo Lago Falkner, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1230227,
+            -71.230058
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "129",
+      "query": "Lago Lolog",
+      "checkedAt": "2026-11-20T22:48:18.322Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Lago Lolog",
+          "point": [
+            -40.0457865,
+            -71.3497384
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Lago Lolog, Ruta Provincial 62, Quilquihue, Junín de los Andes",
+          "point": [
+            -40.0684351,
+            -71.3185762
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Loreto Lodge - Lago Lolog, Las Golondrinas, Quilquihue",
+          "point": [
+            -40.067852,
+            -71.309847
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Playa Lago Lolog, Ruta Provincial 62, Junín de los Andes",
+          "point": [
+            -40.0625162,
+            -71.317619
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "339",
+      "query": "Laguna Verde",
+      "checkedAt": "2026-11-20T22:48:19.763Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Laguna Verde, Vega Maipú",
+          "point": [
+            -40.1380359,
+            -71.238288
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "264",
+      "query": "Las Balsas.",
+      "checkedAt": "2026-11-20T22:48:21.162Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "15",
+      "query": "Las Bandurrias",
+      "checkedAt": "2026-11-20T22:48:22.542Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cerro Bandurrias, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1316226,
+            -71.2276238
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "330",
+      "query": "Las Bandurrias.",
+      "checkedAt": "2026-11-20T22:48:23.959Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cerro Bandurrias, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1316226,
+            -71.2276238
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "54",
+      "query": "Las Catalinas Apart",
+      "checkedAt": "2026-11-20T22:48:25.414Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Apart Hotel del Pellin, Los Notros 188, Centro, San Martín de los Andes",
+          "point": [
+            -40.1521641,
+            -71.3403762
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart Hotel My Friends, General Villegas 1217, Centro, San Martin de los Andes",
+          "point": [
+            -40.1562582,
+            -71.3445248
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart Del Maitén, Calle 27 540, Centro, San Martín de los Andes",
+          "point": [
+            -40.1633742,
+            -71.3519481
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart Hotel Agua Escondida, Coronel Rohde, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1625929,
+            -71.3536841
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart del Faldeo, Coronel Rohde 1250, Centro, San Martín de los Andes",
+          "point": [
+            -40.1634946,
+            -71.3535119
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart hotel, Los Pañiles, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1496685,
+            -71.338942
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "118",
+      "query": "Las Catalinas cabañas",
+      "checkedAt": "2026-11-20T22:48:26.974Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cabañas Catalanas, Almirante Brown 351, Centro, San Martin de los Andes",
+          "point": [
+            -40.162184,
+            -71.3550257
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Casilda, Manuel Chidiak, Centro, San Martín de los Andes",
+          "point": [
+            -40.1550948,
+            -71.3418724
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Aldea Misenet, Los Cipreses, Centro, San Martín de los Andes",
+          "point": [
+            -40.1530575,
+            -71.3379541
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Trabunche, Gabriel Obeid 934, Centro, San Martín de los Andes",
+          "point": [
+            -40.1582454,
+            -71.3481217
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas Humo Azul, Rudecido Roca 334, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1551819,
+            -71.3588289
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cabañas ACA San Martín de los Andes, Avenida Rodolfo Koessler 2176, El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1524269,
+            -71.3341663
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "98",
+      "query": "Las Cumbres",
+      "checkedAt": "2026-11-20T22:48:28.516Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Cumbres Blancas, Rudecindo Rica 643, Tiro Federal, San Martin de los Andes",
+          "point": [
+            -40.1549474,
+            -71.3544969
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cumbres Blancas, R. Roca 643, Tiro Federal, San Martin de los Andes",
+          "point": [
+            -40.1547946,
+            -71.3545686
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Club Atlético Cumbres, Callejón de Bello, La Vega",
+          "point": [
+            -40.1316652,
+            -71.3050011
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "120",
+      "query": "Las Flores",
+      "checkedAt": "2026-11-20T22:48:29.907Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Florencio Molina Campos, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1305979,
+            -71.2934493
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Florencio Molina Campos, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1336895,
+            -71.2893961
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Don Florencio, General Villegas, Centro, San Martín de los Andes",
+          "point": [
+            -40.1585051,
+            -71.3527547
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Florentino Ameghino, Vega Maipú",
+          "point": [
+            -40.1369038,
+            -71.2362724
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "158",
+      "query": "Las Lucarnas",
+      "checkedAt": "2026-11-20T22:48:31.364Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "131",
+      "query": "Las Marias",
+      "checkedAt": "2026-11-20T22:48:32.872Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Las Marías del Valle Club de Campo",
+          "point": [
+            -40.0882112,
+            -71.1441159
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "194",
+      "query": "Las Montañas de S.M.A. 1",
+      "checkedAt": "2026-11-20T22:48:34.614Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "195",
+      "query": "Las Montañas de S.M.A. 2",
+      "checkedAt": "2026-11-20T22:48:36.154Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "199",
+      "query": "Las Montañas de S.M.A. 3",
+      "checkedAt": "2026-11-20T22:48:37.842Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "132",
+      "query": "Las Mutisias",
+      "checkedAt": "2026-11-20T22:48:39.238Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Mutisias, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1536281,
+            -71.3166174
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Las Mutisias, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1489625,
+            -71.3480356
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "144",
+      "query": "Las Pampas",
+      "checkedAt": "2026-11-20T22:48:40.734Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Pampas, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1304469,
+            -71.2348516
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Los Pampas, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1290478,
+            -71.2328381
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Pampa del Trompul",
+          "point": [
+            -40.1142862,
+            -71.4066085
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "238",
+      "query": "Las Retamas 1",
+      "checkedAt": "2026-11-20T22:48:42.831Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Retamas 1, San Martín de los Andes",
+          "point": [
+            -40.1492005,
+            -71.3170885
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "241",
+      "query": "Las Retamas 2",
+      "checkedAt": "2026-11-20T22:48:44.207Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Retamas 2, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1484785,
+            -71.316047
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "242",
+      "query": "Las Retamas 3",
+      "checkedAt": "2026-11-20T22:48:46.225Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Retamas 3, San Martín de los Andes",
+          "point": [
+            -40.1492005,
+            -71.3170885
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "243",
+      "query": "Las Retamas 4",
+      "checkedAt": "2026-11-20T22:48:47.615Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Retamas 4, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1484932,
+            -71.3160662
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "41",
+      "query": "Las Rosas",
+      "checkedAt": "2026-11-20T22:48:49.002Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Rosas, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1339525,
+            -71.2939594
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "EcoPunto Las Rosas, Santa Fe, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1340838,
+            -71.2932715
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Pérgola \"Pioneros de las Rosas\", Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1587786,
+            -71.3573763
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Centro de Salud Las Rosas, Santa Fe, La Vega",
+          "point": [
+            -40.13296,
+            -71.2945992
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Junta Vecinal Las Rosas, Santa Fe 315, La Vega",
+          "point": [
+            -40.1340901,
+            -71.2931427
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Parada de Taxi Las Rosas, Ricardo Güiraldes 300, La Vega, Vega Maipú",
+          "point": [
+            -40.1342251,
+            -71.2932171
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "331",
+      "query": "Las Taguas",
+      "checkedAt": "2026-11-20T22:48:50.512Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "31",
+      "query": "Las Terrazas",
+      "checkedAt": "2026-11-20T22:48:51.900Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Terrazas, Los Rosales 54, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1503898,
+            -71.3422447
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "116",
+      "query": "Las Vertientes",
+      "checkedAt": "2026-11-20T22:48:53.319Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Las Vertientes, San Martín de los Andes",
+          "point": [
+            -40.1167531,
+            -71.2746967
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Las Vertientes Lodge, Callejón de Gin Gins, La Vega",
+          "point": [
+            -40.1273651,
+            -71.3002964
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "171",
+      "query": "Las Walkirias",
+      "checkedAt": "2026-11-20T22:48:54.690Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hostería Las Walkirias, General Villegas 818, Centro, San Martín de los Andes",
+          "point": [
+            -40.1580889,
+            -71.350085
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "159",
+      "query": "Latitud 40",
+      "checkedAt": "2026-11-20T22:48:56.243Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "153",
+      "query": "Laura",
+      "checkedAt": "2026-11-20T22:48:57.629Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Laura, Quilquihue, Junín de los Andes",
+          "point": [
+            -40.0684162,
+            -71.305588
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "query": "Le Chatelet",
+      "checkedAt": "2026-11-20T22:48:59.085Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Le Chátelet Hotel, General Villegas 650, Centro, San Martín de los Andes",
+          "point": [
+            -40.1584436,
+            -71.352569
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "6",
+      "query": "Le Temps de Cerises",
+      "checkedAt": "2026-11-20T22:49:00.661Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "145",
+      "query": "Le Village Cabañas",
+      "checkedAt": "2026-11-20T22:49:02.084Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Le Village, General Roca 816, Centro, San Martín de los Andes",
+          "point": [
+            -40.1557312,
+            -71.3513559
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "24",
+      "query": "Le Village Hotel",
+      "checkedAt": "2026-11-20T22:49:03.572Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Le Village, General Roca 816, Centro, San Martín de los Andes",
+          "point": [
+            -40.1557312,
+            -71.3513559
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Le Ville Hotel, General Roca 816, Centro, San Martín de los Andes",
+          "point": [
+            -40.1555393,
+            -71.3511738
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Le Chátelet Hotel, General Villegas 650, Centro, San Martín de los Andes",
+          "point": [
+            -40.1584436,
+            -71.352569
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "146",
+      "query": "Lelen",
+      "checkedAt": "2026-11-20T22:49:04.979Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "217",
+      "query": "Lo de Adri",
+      "checkedAt": "2026-11-20T22:49:06.433Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Lo de Susy, Perito Moreno, Centro, San Martín de los Andes",
+          "point": [
+            -40.1540468,
+            -71.3490996
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "San Martín de los Andes",
+          "point": [
+            -40.1529857,
+            -71.3377112
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "San Martín de los Andes",
+          "point": [
+            -40.1568791,
+            -71.3525588
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cerro de la Teta, San Martín de los Andes",
+          "point": [
+            -40.1113848,
+            -71.2949553
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Altos de Chapelco, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1427701,
+            -71.2856665
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1978053,
+            -71.3720728
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "377",
+      "query": "Lo de Italo",
+      "checkedAt": "2026-11-20T22:49:07.816Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Lo de Susy, Perito Moreno, Centro, San Martín de los Andes",
+          "point": [
+            -40.1540468,
+            -71.3490996
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "San Martín de los Andes",
+          "point": [
+            -40.1529857,
+            -71.3377112
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "San Martín de los Andes",
+          "point": [
+            -40.1568791,
+            -71.3525588
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cerro de la Teta, San Martín de los Andes",
+          "point": [
+            -40.1113848,
+            -71.2949553
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Altos de Chapelco, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1427701,
+            -71.2856665
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1978053,
+            -71.3720728
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "212",
+      "query": "Lo de Susy 1",
+      "checkedAt": "2026-11-20T22:49:09.432Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "228",
+      "query": "Lo de Tere",
+      "checkedAt": "2026-11-20T22:49:10.900Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Lo de Susy, Perito Moreno, Centro, San Martín de los Andes",
+          "point": [
+            -40.1540468,
+            -71.3490996
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "San Martín de los Andes",
+          "point": [
+            -40.1529857,
+            -71.3377112
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "San Martín de los Andes",
+          "point": [
+            -40.1568791,
+            -71.3525588
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Cerro de la Teta, San Martín de los Andes",
+          "point": [
+            -40.1113848,
+            -71.2949553
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Altos de Chapelco, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1427701,
+            -71.2856665
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1978053,
+            -71.3720728
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "61",
+      "query": "Loi Suites Chapelco Hotel",
+      "checkedAt": "2026-11-20T22:49:12.305Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "262",
+      "query": "Lolén.",
+      "checkedAt": "2026-11-20T22:49:13.676Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Cámping Lolén, Acceso Quila Quina",
+          "point": [
+            -40.1745511,
+            -71.4037736
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "100",
+      "query": "Los Abedules",
+      "checkedAt": "2026-11-20T22:49:15.152Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Abedules, Centro, San Martín de los Andes",
+          "point": [
+            -40.1613357,
+            -71.3504932
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "133",
+      "query": "Los Alamos",
+      "checkedAt": "2026-11-20T22:49:16.525Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Álamos, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1343861,
+            -71.2279696
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Los Álamos, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1368923,
+            -71.2879229
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Los Álamos, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.139781,
+            -71.2839598
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Los Menucos, Cordones del Chapelco, San Martín de los Andes",
+          "point": [
+            -40.1353464,
+            -71.2277306
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Galería Los Coirones, Cerro Chachil 1772, Cordones del Chapelco",
+          "point": [
+            -40.1326862,
+            -71.2280845
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "355",
+      "query": "Los Coihues- Lago Huechulafquen",
+      "checkedAt": "2026-11-20T22:49:17.961Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "233",
+      "query": "Los Gladiolos",
+      "checkedAt": "2026-11-20T22:49:19.401Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "80",
+      "query": "Los Manzanos 1",
+      "checkedAt": "2026-11-20T22:49:20.850Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Manzanos 1, Los Faldeos",
+          "point": [
+            -40.1363054,
+            -71.286074
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "81",
+      "query": "Los Manzanos 2",
+      "checkedAt": "2026-11-20T22:49:22.274Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Manzanos 2, Los Faldeos",
+          "point": [
+            -40.1362385,
+            -71.2859222
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "215",
+      "query": "Los Notros",
+      "checkedAt": "2026-11-20T22:49:23.728Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Notros, Centro, San Martín de los Andes",
+          "point": [
+            -40.1524979,
+            -71.3393383
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Los Notros, Los Robles, San Martín de los Andes",
+          "point": [
+            -40.124435,
+            -71.3171468
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Av. Koessler & Los Notros, Avenida Rodolfo Koessler, Centro, San Martín de los Andes",
+          "point": [
+            -40.1537775,
+            -71.3377143
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "197",
+      "query": "Los Raulies",
+      "checkedAt": "2026-11-20T22:49:25.131Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Los Raulíes, El Arenal, San Martín de los Andes",
+          "point": [
+            -40.1527947,
+            -71.3154394
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "344",
+      "query": "Los Toldos- Lago Huechulafquen.",
+      "checkedAt": "2026-11-20T22:49:26.539Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "135",
+      "query": "Lugar Soñado",
+      "checkedAt": "2026-11-20T22:49:27.999Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "43",
+      "query": "Luna Azul",
+      "checkedAt": "2026-11-20T22:49:29.396Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "206",
+      "query": "Maby",
+      "checkedAt": "2026-11-20T22:49:30.813Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "89",
+      "query": "Manantial del Valle",
+      "checkedAt": "2026-11-20T22:49:32.276Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Valle del Pil Pil, San Martín de los Andes",
+          "point": [
+            -40.1506632,
+            -71.3274991
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Juez del Valle, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1572264,
+            -71.3599828
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Juez del Valle, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1600202,
+            -71.3585115
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Juez del Valle, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1578775,
+            -71.359636
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "101",
+      "query": "Manke",
+      "checkedAt": "2026-11-20T22:49:33.687Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Mankewe, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.1955519,
+            -71.3199338
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Centro Cultural Mankewe, Acceso a Las Pendientes Ski Village, San Martín de los Andes",
+          "point": [
+            -40.1956027,
+            -71.3197573
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "333",
+      "query": "Maná del cielo.",
+      "checkedAt": "2026-11-20T22:49:35.144Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "346",
+      "query": "Mari Mari Che Lago Paimún",
+      "checkedAt": "2026-11-20T22:49:36.615Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "25",
+      "query": "Marina Sun",
+      "checkedAt": "2026-11-20T22:49:38.010Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "102",
+      "query": "Melewe",
+      "checkedAt": "2026-11-20T22:49:39.454Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "225",
+      "query": "Migsu",
+      "checkedAt": "2026-11-20T22:49:40.833Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Miguel A. Camino, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1609542,
+            -71.3590422
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Martín Miguel de Güemes, La Vega, San Martín de los Andes",
+          "point": [
+            -40.136212,
+            -71.290828
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Miguel A. Camino, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1283726,
+            -71.2490122
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Miguel A. Camino, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1278902,
+            -71.2483822
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Miguel A. Camino, Paseo de los Madereros, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1602277,
+            -71.3600539
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Colegio FASTA \"Miguel Ángel Tobares\", Ruta Nacional 40 9, Los Faldeos, La Vega",
+          "point": [
+            -40.1366405,
+            -71.2903735
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "172",
+      "query": "Monte Verde",
+      "checkedAt": "2026-11-20T22:49:42.291Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hosteria Monte Verde, Bernardino Rivadavia, Centro, San Martín de los Andes",
+          "point": [
+            -40.1615235,
+            -71.3532592
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "103",
+      "query": "My Friends",
+      "checkedAt": "2026-11-20T22:49:43.850Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Apart Hotel My Friends, General Villegas 1217, Centro, San Martin de los Andes",
+          "point": [
+            -40.1562582,
+            -71.3445248
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "62",
+      "query": "Naum",
+      "checkedAt": "2026-11-20T22:49:45.421Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Naum apart hotel, Coronel Diaz 1120, Centro, San Martín de los Andes",
+          "point": [
+            -40.1623888,
+            -71.3555165
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "104",
+      "query": "Niwen",
+      "checkedAt": "2026-11-20T22:49:46.998Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "35",
+      "query": "Nonthue",
+      "checkedAt": "2026-11-20T22:49:48.374Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Nonthué, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1463287,
+            -71.3091281
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Naviera Lácar & Nonthué, Paseo de los Madereros, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1615061,
+            -71.3587372
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "328",
+      "query": "Nonthue.",
+      "checkedAt": "2026-11-20T22:49:49.755Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Nonthué, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1463287,
+            -71.3091281
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Naviera Lácar & Nonthué, Paseo de los Madereros, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1615061,
+            -71.3587372
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "231",
+      "query": "Nova Omega",
+      "checkedAt": "2026-11-20T22:49:51.180Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "26",
+      "query": "Nuestro Lugar",
+      "checkedAt": "2026-11-20T22:49:52.574Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "259",
+      "query": "Oregón 26",
+      "checkedAt": "2026-11-20T22:49:54.240Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "105",
+      "query": "Orilla Mansa",
+      "checkedAt": "2026-11-20T22:49:55.614Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Orilla mansa, Avenida San Martín, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1599064,
+            -71.3595289
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "55",
+      "query": "Orlando Rizzi Alquileres",
+      "checkedAt": "2026-11-20T22:49:57.040Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "147",
+      "query": "Paihuen",
+      "checkedAt": "2026-11-20T22:49:58.436Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Paimún, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1435914,
+            -71.3059346
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Paihuén Villa de Montaña, Camino de los Siete Lagos, Centro",
+          "point": [
+            -40.1756048,
+            -71.3943165
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "222",
+      "query": "Paimun",
+      "checkedAt": "2026-11-20T22:49:59.903Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Paimún, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1435914,
+            -71.3059346
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Veterinaria Paimún, Elordi 692, Centro, San Martín de los Andes",
+          "point": [
+            -40.1547565,
+            -71.3488708
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Ruta 40 & Paimún, Ruta Nacional 40, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1446032,
+            -71.3045337
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "188",
+      "query": "Paraiso",
+      "checkedAt": "2026-11-20T22:50:01.325Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Pasaje del Paraíso, Pirén, San Martín de los Andes",
+          "point": [
+            -40.1508109,
+            -71.3375561
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "378",
+      "query": "Paraíso I",
+      "checkedAt": "2026-11-20T22:50:02.730Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "379",
+      "query": "Paraíso II",
+      "checkedAt": "2026-11-20T22:50:04.120Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "380",
+      "query": "Paraíso III",
+      "checkedAt": "2026-11-20T22:50:05.761Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "1",
+      "query": "Patagonia Plaza",
+      "checkedAt": "2026-11-20T22:50:07.244Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Patagonia Plaza Hotel, Avenida San Martín 502, Centro, San Martín de los Andes",
+          "point": [
+            -40.1578774,
+            -71.3547721
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "230",
+      "query": "Perito Moreno 791 B",
+      "checkedAt": "2026-11-20T22:50:08.657Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Perito Moreno 791, Centro, San Martín de los Andes",
+          "point": [
+            -40.154948146808515,
+            -71.3523109212766
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "337",
+      "query": "Pichi Traful.",
+      "checkedAt": "2026-11-20T22:50:10.045Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "345",
+      "query": "Pichi Traful.",
+      "checkedAt": "2026-11-20T22:50:11.515Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "347",
+      "query": "Piedra Mala Lago Paimún",
+      "checkedAt": "2026-11-20T22:50:12.909Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "350",
+      "query": "Pillán Mawiza - Lago Paimún -",
+      "checkedAt": "2026-11-20T22:50:14.367Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "226",
+      "query": "Pitiwe",
+      "checkedAt": "2026-11-20T22:50:15.846Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "329",
+      "query": "Playa Bonita",
+      "checkedAt": "2026-11-20T22:50:17.224Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Playa Bonita, Villa Lolog, San Martín de los Andes",
+          "point": [
+            -40.0736344,
+            -71.3203893
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Playa Bonita",
+          "point": [
+            -40.1515084,
+            -71.3996472
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Playa Bonita, Acceso a Playa Bonita",
+          "point": [
+            -40.1514498,
+            -71.3996343
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Acceso a Playa Bonita",
+          "point": [
+            -40.1522414,
+            -71.3963656
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso a Playa Bonita",
+          "point": [
+            -40.1517461,
+            -71.3986301
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "173",
+      "query": "Plaza Mayor",
+      "checkedAt": "2026-11-20T22:50:18.643Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "137",
+      "query": "Ponte di Legno",
+      "checkedAt": "2026-11-20T22:50:20.103Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "107",
+      "query": "Posada Quinen Apart hotel",
+      "checkedAt": "2026-11-20T22:50:21.543Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "149",
+      "query": "Posada Quinen Cabañas",
+      "checkedAt": "2026-11-20T22:50:22.986Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "174",
+      "query": "Posada Quinen hostería",
+      "checkedAt": "2026-11-20T22:50:24.391Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "327",
+      "query": "Pucara.",
+      "checkedAt": "2026-11-20T22:50:25.928Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Pasaje Pucará, Centro, San Martín de los Andes",
+          "point": [
+            -40.1496694,
+            -71.3265295
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Alojamiento Pucará, Santa Fe, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1320409,
+            -71.2955041
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Bulonera Pucará, Ruta Nacional 40 Km 2218, Los Faldeos, La Vega",
+          "point": [
+            -40.1361614,
+            -71.2871791
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Bulonera Pucará, Ruta Nacional 40 1, Los Faldeos, La Vega",
+          "point": [
+            -40.1361614,
+            -71.2871791
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "27",
+      "query": "Pucará 1",
+      "checkedAt": "2026-11-20T22:50:28.611Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Pje Pucara 1, San Martín de los Andes",
+          "point": null,
+          "source": "georef",
+          "approximate": true,
+          "precision": "none"
+        }
+      ]
+    },
+    {
+      "id": "28",
+      "query": "Pucará 2",
+      "checkedAt": "2026-11-20T22:50:30.610Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Pje Pucara 2, San Martín de los Andes",
+          "point": null,
+          "source": "georef",
+          "approximate": true,
+          "precision": "none"
+        }
+      ]
+    },
+    {
+      "id": "336",
+      "query": "Puerto Arturo",
+      "checkedAt": "2026-11-20T22:50:32.009Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "50",
+      "query": "Puma Youth Hostel",
+      "checkedAt": "2026-11-20T22:50:33.458Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "265",
+      "query": "Quila Quina.",
+      "checkedAt": "2026-11-20T22:50:34.829Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Pasaje Quila Quina, Centro, San Martín de los Andes",
+          "point": [
+            -40.1497411,
+            -71.3282058
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Quila Quina",
+          "point": [
+            -40.1744537,
+            -71.4344147
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Quila Quina",
+          "point": [
+            -40.1845131,
+            -71.3916651
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Quila Quina",
+          "point": [
+            -40.1841208,
+            -71.4021812
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "248",
+      "query": "Rama 2",
+      "checkedAt": "2026-11-20T22:50:36.782Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Teniente Ramayon 2, San Martín de los Andes",
+          "point": [
+            -40.1542679,
+            -71.3447334
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "196",
+      "query": "Ramayón House",
+      "checkedAt": "2026-11-20T22:50:38.190Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "365",
+      "query": "Rapan Antu",
+      "checkedAt": "2026-11-20T22:50:39.752Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "361",
+      "query": "Raquitue",
+      "checkedAt": "2026-11-20T22:50:41.143Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "2",
+      "query": "Refugio del Arroyo",
+      "checkedAt": "2026-11-20T22:50:42.682Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Arroyo del Molino, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1316223,
+            -71.2983073
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1327399,
+            -71.2968905
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1358211,
+            -71.2929241
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1344915,
+            -71.2946597
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, La Vega, San Martín de los Andes",
+          "point": [
+            -40.1368411,
+            -71.2913356
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Arroyo del Molino, La Vega, San Martín de los Andes",
+          "point": [
+            -40.136045,
+            -71.2923732
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "357",
+      "query": "Refugio Lafquenco - Lago Huechulafquen -",
+      "checkedAt": "2026-11-20T22:50:44.664Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "108",
+      "query": "Rincón de los Andes",
+      "checkedAt": "2026-11-20T22:50:46.042Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Rincón de los Andes, Federico Graeff, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1575381,
+            -71.3606282
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Rincón Radales, Los Robles, San Martín de los Andes",
+          "point": [
+            -40.1164692,
+            -71.3098085
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Rincón Radales, Los Robles, San Martín de los Andes",
+          "point": [
+            -40.119002,
+            -71.3072348
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Rincón Encantado, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1565196,
+            -71.3501113
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "109",
+      "query": "Robles del Sur",
+      "checkedAt": "2026-11-20T22:50:47.455Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Los Robles, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1508074,
+            -71.3428784
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Del Bosque sur, El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1540008,
+            -71.3347032
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Tierras del Sur, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.155208,
+            -71.3447144
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Centro de Operaciones y Mantenimiento EPEN Zona Sur, Pasaje del Pueblo, Centro, San Martín de los Andes",
+          "point": [
+            -40.1491644,
+            -71.3320403
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Avícola del Sur, Ruca Choroy 80, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1460414,
+            -71.3082665
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Cruz del Sur, Ruta Nacional 40 4, Vega Maipú",
+          "point": [
+            -40.1252637,
+            -71.2484444
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "181",
+      "query": "Rosa de los Viajes",
+      "checkedAt": "2026-11-20T22:50:48.853Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hotel Rosa de los Viajes, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1569878,
+            -71.3505598
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "95",
+      "query": "Rose Garden",
+      "checkedAt": "2026-11-20T22:50:50.244Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "42",
+      "query": "Rotui",
+      "checkedAt": "2026-11-20T22:50:51.619Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Los Fresnos, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1423166,
+            -71.2863791
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "84",
+      "query": "Rucalaufquen Boutique",
+      "checkedAt": "2026-11-20T22:50:53.081Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "92",
+      "query": "Rucaleufú",
+      "checkedAt": "2026-11-20T22:50:54.641Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1530212,
+            -71.3250319
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "51",
+      "query": "Rukalhue",
+      "checkedAt": "2026-11-20T22:50:56.107Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Rukalhue, Juez del Valle 682, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1579562,
+            -71.3594217
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Ruca Hue, San Martín de los Andes",
+          "point": [
+            -40.1162108,
+            -71.2449235
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Rucahue, Quela, Ruca Hue, San Martín de los Andes",
+          "point": [
+            -40.1171667,
+            -71.244071
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "67",
+      "query": "Rukalhue Apart hotel",
+      "checkedAt": "2026-11-20T22:50:57.579Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Apart hotel, Los Pañiles, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1496685,
+            -71.338942
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "apart hotel, Los Pañiles, Altos del Sol, San Martín de los Andes",
+          "point": [
+            -40.1494787,
+            -71.3390664
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart Hotel del Pellin, Los Notros 188, Centro, San Martín de los Andes",
+          "point": [
+            -40.1521641,
+            -71.3403762
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart Hotel My Friends, General Villegas 1217, Centro, San Martin de los Andes",
+          "point": [
+            -40.1562582,
+            -71.3445248
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Apart Hotel Agua Escondida, Coronel Rohde, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1625929,
+            -71.3536841
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Naum apart hotel, Coronel Diaz 1120, Centro, San Martín de los Andes",
+          "point": [
+            -40.1623888,
+            -71.3555165
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "83",
+      "query": "Ríos",
+      "checkedAt": "2026-11-20T22:50:58.965Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Rio Sur Sin TACC, Eduardo Elordi, Centro, San Martín de los Andes",
+          "point": [
+            -40.152782,
+            -71.3499412
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "371",
+      "query": "Sendero y Arroyo",
+      "checkedAt": "2026-11-20T22:51:00.596Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Sendero a cascada arroyo Grande, Quila Quina",
+          "point": [
+            -40.1813314,
+            -71.4500154
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "372",
+      "query": "Sendero y Arroyo",
+      "checkedAt": "2026-11-20T22:51:02.140Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Sendero a cascada arroyo Grande, Quila Quina",
+          "point": [
+            -40.1813314,
+            -71.4500154
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "110",
+      "query": "Serena",
+      "checkedAt": "2026-11-20T22:51:03.558Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Serenity, Manuel Belgrano, Centro, San Martín de los Andes",
+          "point": [
+            -40.1579952,
+            -71.3490018
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "8",
+      "query": "Sherpa",
+      "checkedAt": "2026-11-20T22:51:04.973Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Sherpa Hostel, José Calderón 960, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1520014,
+            -71.351229
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "148",
+      "query": "Sol y Nieve",
+      "checkedAt": "2026-11-20T22:51:06.489Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Club Social y Deportivo Cordones del Chapelco, Cerro Colorado, Cordones del Chapelco",
+          "point": [
+            -40.1317848,
+            -71.2243044
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "77",
+      "query": "Sonne",
+      "checkedAt": "2026-11-20T22:51:07.932Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "93",
+      "query": "Taiquen",
+      "checkedAt": "2026-11-20T22:51:09.419Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Taique, Vega Maipú, San Martín de los Andes",
+          "point": [
+            -40.1317586,
+            -71.2327939
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ]
+    },
+    {
+      "id": "30",
+      "query": "Temporada",
+      "checkedAt": "2026-11-20T22:51:10.864Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Temporada, Pasaje Trabunco, El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1532897,
+            -71.3219507
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "111",
+      "query": "Terragonia",
+      "checkedAt": "2026-11-20T22:51:12.254Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "112",
+      "query": "Tierra Nativa",
+      "checkedAt": "2026-11-20T22:51:13.627Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Tierra nativa, Almirante Brown 760, Centro, San Martín de los Andes",
+          "point": [
+            -40.1601462,
+            -71.3497102
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "113",
+      "query": "Torres del Sur",
+      "checkedAt": "2026-11-20T22:51:15.090Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Callejón de Torres Sur, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1349543,
+            -71.2578208
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Torres del Parque, Mariano Moreno 823, Tiro Federal, San Martín de los Andes",
+          "point": [
+            -40.1581261,
+            -71.3536399
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Del Bosque sur, El Oasis, San Martín de los Andes",
+          "point": [
+            -40.1540008,
+            -71.3347032
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Tierras del Sur, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.155208,
+            -71.3447144
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Centro de Operaciones y Mantenimiento EPEN Zona Sur, Pasaje del Pueblo, Centro, San Martín de los Andes",
+          "point": [
+            -40.1491644,
+            -71.3320403
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Avícola del Sur, Ruca Choroy 80, Villa Paur, San Martín de los Andes",
+          "point": [
+            -40.1460414,
+            -71.3082665
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "257",
+      "query": "Travellers on two wheels.",
+      "checkedAt": "2026-11-20T22:51:16.481Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "223",
+      "query": "Tres Coronas",
+      "checkedAt": "2026-11-20T22:51:18.020Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "182",
+      "query": "Tunqueley",
+      "checkedAt": "2026-11-20T22:51:19.423Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Hotel Tunqueley, Manuel Belgrano 717, Centro, San Martín de los Andes",
+          "point": [
+            -40.1556889,
+            -71.3502974
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "183",
+      "query": "Turismo",
+      "checkedAt": "2026-11-20T22:51:20.848Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "RG Turismo, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1542808,
+            -71.3433739
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Siete Lagos Turismo, General Villegas 313, Centro, San Martín de los Andes",
+          "point": [
+            -40.1600037,
+            -71.3566682
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Lanín Turismo, Avenida San Martín, Centro, San Martín de los Andes",
+          "point": [
+            -40.1586167,
+            -71.355508
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "32",
+      "query": "Valldemossa",
+      "checkedAt": "2026-11-20T22:51:22.239Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "94",
+      "query": "Valle Hermoso",
+      "checkedAt": "2026-11-20T22:51:23.787Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "369",
+      "query": "Ventana al Sur",
+      "checkedAt": "2026-11-20T22:51:25.239Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Callejón de Bello Sur, Los Faldeos, San Martín de los Andes",
+          "point": [
+            -40.1435782,
+            -71.288157
+          ],
+          "source": "photon",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Sandwich del Sur, Cerro Chachil 1772, Cordones del Chapelco",
+          "point": [
+            -40.1327525,
+            -71.2280701
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "115",
+      "query": "Vientos Patagónicos",
+      "checkedAt": "2026-11-20T22:51:26.709Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "151",
+      "query": "Villa Cumen Vochai",
+      "checkedAt": "2026-11-20T22:51:28.117Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "96",
+      "query": "Villa Pirén",
+      "checkedAt": "2026-11-20T22:51:29.556Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "Villa Pirén, Pirén, San Martín de los Andes",
+          "point": [
+            -40.1505648,
+            -71.3371381
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "216",
+      "query": "Vistasul",
+      "checkedAt": "2026-11-20T22:51:31.010Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "250",
+      "query": "Warthon",
+      "checkedAt": "2026-11-20T22:51:32.454Z",
+      "status": "no_results",
+      "results": []
+    },
+    {
+      "id": "175",
+      "query": "Wesley",
+      "checkedAt": "2026-11-20T22:51:33.947Z",
+      "status": "review",
+      "results": [
+        {
+          "label": "Wesley House Hostería Boutique, Gabriel Obeid 911, Centro, San Martín de los Andes",
+          "point": [
+            -40.158621,
+            -71.3483797
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "254",
+      "query": "Yuco",
+      "checkedAt": "2026-11-20T22:51:35.327Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "YUCO HOSTEL, Sarmiento, Centro, San Martín de los Andes",
+          "point": [
+            -40.1533372,
+            -71.3480287
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "366",
+      "query": "Yuco",
+      "checkedAt": "2026-11-20T22:51:36.702Z",
+      "status": "name_match",
+      "results": [
+        {
+          "label": "YUCO HOSTEL, Sarmiento, Centro, San Martín de los Andes",
+          "point": [
+            -40.1533372,
+            -71.3480287
+          ],
+          "source": "photon",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ]
+    },
+    {
+      "id": "78",
+      "query": "Euskaldunberry Apartments 1",
+      "checkedAt": "2026-11-20T22:51:48.769Z",
+      "status": "no_results",
+      "results": []
+    }
+  ]
+}
