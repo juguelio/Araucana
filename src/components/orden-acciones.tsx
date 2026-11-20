@@ -62,7 +62,7 @@ export function OrdenAcciones({ ordenId, excelHref, link, restablecer }: OrdenAc
       {excelHref ? <a className="ghost-button" href={excelHref}>Descargar Excel</a> : null}
       {link ? (
         <button className="ghost-button" type="button" onClick={copiar} title="Se abre sin usuario y vence al día siguiente del servicio.">
-          {copiado === "si" ? "Link copiado" : copiado === "error" ? "Copiá el link" : "Copiar link"}
+          {copiado === "si" ? "Link copiado" : copiado === "error" ? "Copiá el link" : "Copiar link de la orden"}
         </button>
       ) : null}
       {restablecer ? (
