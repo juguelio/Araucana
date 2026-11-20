@@ -13,3 +13,4 @@ tsconfig.tsbuildinfo
 
 # Comprobantes de prueba del panel local (sin Blob configurado)
 /public/local/
+semana-prototipo.json

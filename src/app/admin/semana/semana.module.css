@@ -1,0 +1,197 @@
+/* Prototipo de la vista «Semana»: los colores imitan la planilla de Quique. */
+
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ayuda {
+  margin: 0.35rem 0 0;
+  color: var(--muted, #5b6470);
+  max-width: 62ch;
+}
+
+.resumen {
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  background: #f0f4f8;
+  font-size: 0.85rem;
+  color: #33414f;
+  white-space: nowrap;
+}
+
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip,
+.chip_escolar,
+.chip_personal,
+.chip_linea,
+.chip_especial,
+.chip_novedad,
+.chip_atencion,
+.chip_aeropuerto,
+.chip_otros {
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #2c333b;
+}
+
+.chip_escolar { background: #f4cccc; }
+.chip_personal { background: #ead1dc; }
+.chip_linea { background: #cfe2f3; }
+.chip_especial { background: #ffe599; }
+.chip_novedad { background: #ffd966; }
+.chip_atencion { background: #ff8a80; }
+.chip_aeropuerto { background: #e8eaed; }
+.chip_otros { background: #ffffff; }
+
+.tablero {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(144px, 1fr);
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.dia {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.diaCabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: #f4f7fa;
+  border: 1px solid #e2e8ee;
+}
+
+.diaCabecera strong {
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: #55616d;
+}
+
+.diaCabecera span {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.diaCabecera em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 0.75rem;
+  color: #66727e;
+}
+
+.filas {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.fila {
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-left-width: 4px;
+  padding: 0.4rem 0.55rem;
+  background: #fff;
+}
+
+.fila[data-categoria="escolar"] { background: #fdf1f1; border-left-color: #d98b8b; }
+.fila[data-categoria="personal"] { background: #f7edf2; border-left-color: #b48ba0; }
+.fila[data-categoria="linea"] { background: #eef5fc; border-left-color: #7ba7d1; }
+.fila[data-categoria="especial"] { background: #fff8e3; border-left-color: #d9b64a; }
+.fila[data-categoria="novedad"] { background: #fff4cc; border-left-color: #c9a227; }
+.fila[data-categoria="atencion"] { background: #ffeceb; border-left-color: #c0392b; }
+.fila[data-categoria="aeropuerto"] { background: #f6f7f9; border-left-color: #9aa5b1; }
+
+.filaArriba {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.hora {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.nave {
+  font-size: 0.68rem;
+  color: #55616d;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 62%;
+}
+
+.recorrido {
+  margin: 0.2rem 0 0.1rem;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.choferes {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #3f4a55;
+}
+
+.nota {
+  margin: 0.15rem 0 0;
+  font-size: 0.68rem;
+  color: #6b7682;
+  font-style: italic;
+}
+
+.estado {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.estado[data-estado="sabe"] { background: #d6efd8; color: #1e5b28; }
+.estado[data-estado="avisado"] { background: #dbe8fb; color: #1c4a86; }
+.estado[data-estado="avisar"] { background: #ffe0b2; color: #7a4a00; }
+
+.alerta {
+  margin-left: auto;
+  background: #ffe0b2;
+  color: #7a4a00;
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+.alerta + em { margin-left: 0.35rem; }
