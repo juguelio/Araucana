@@ -22,6 +22,7 @@
     "@vercel/blob": "2.3.3",
     "bcryptjs": "3.0.3",
     "exceljs": "^4.4.0",
+    "heic-convert": "2.1.0",
     "jsonwebtoken": "9.0.3",
     "leaflet": "1.9.4",
     "next": "16.4.6",
@@ -35,6 +36,7 @@
   "devDependencies": {
     "@playwright/test": "1.59.1",
     "@types/google.maps": "3.66.10",
+    "@types/heic-convert": "2.1.1",
     "@types/jsonwebtoken": "9.0.10",
     "@types/node": "25.6.2",
     "@types/passport": "1.0.17",

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import type { ManualBankDetails } from "@/lib/payments/manual-bank-details";
-import { validateReceiptFile } from "@/lib/payments/receipt-validation";
+import { receiptAccept, receiptFormatsHelp, validateReceiptFile } from "@/lib/payments/receipt-validation";
 import { uploadManualPaymentReceiptAction, type UploadReceiptState } from "./actions";
 
 type ManualPaymentPanelProps = {
@@ -130,11 +130,12 @@ export function ManualPaymentPanel({ reservationCode, existingReceipt, bankDetai
           <input
             name="receipt"
             type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
+            accept={receiptAccept}
             onChange={() => setClientError("")}
             required
           />
         </label>
+        <small className="muted">{receiptFormatsHelp}</small>
         {clientError || state.message ? (
           <p className={clientError || !state.ok ? "error" : "success"} role="status">
             {clientError || state.message}
