@@ -56,7 +56,8 @@ export default async function FichaDeNavePage({ params, searchParams }: FichaDeN
         </Link>
         <Link className="admin-card nave-opcion" href={hrefDeNave(id, "vencimientos")} data-nivel={papeles[0]?.level ?? undefined}>
           <span className="nave-opcion-titulo">Vencimientos y seguro</span>
-          <strong>{pendientes ? `${pendientes} a revisar` : "Al día"}</strong>
+          {/* Sin ninguna fecha cargada no se sabe si está al día: se dice eso. */}
+          <strong>{pendientes ? `${pendientes} a revisar` : papeles.some((p) => p.fecha) ? "Al día" : "Sin fechas cargadas"}</strong>
           <span className="muted">{nave.insurer ? `Seguro: ${nave.insurer}` : "Sin aseguradora cargada"}</span>
           <span className="nave-opcion-ir">Ver papeles →</span>
         </Link>
