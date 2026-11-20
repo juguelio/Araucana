@@ -21,8 +21,9 @@
 .svc-herramientas { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
 .svc-herramientas p { margin: 0; font-size: 13px; }
 
-.svc-bloques { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; align-items: start; }
-.svc-bloque { position: relative; min-inline-size: 0; margin: 0; padding: 10px 12px 8px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf8; }
+/* Columnas que se llenan de arriba hacia abajo (como la planilla de papel): cada bloque queda pegado al de arriba, sin huecos. */
+.svc-bloques { columns: 2 340px; column-gap: 12px; }
+.svc-bloque { position: relative; display: block; width: 100%; min-inline-size: 0; margin: 0 0 12px; break-inside: avoid; padding: 10px 12px 8px; border: 1px solid var(--line); border-radius: 12px; background: #fffdf8; }
 .svc-bloque[data-completo] { border-color: color-mix(in srgb, var(--moss, #4a8568) 45%, var(--line)); }
 .svc-bloque[data-falla] { border-color: var(--accent); }
 .svc-bloque-titulo { display: flex; gap: 8px; align-items: baseline; padding: 0 4px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--primary); }
@@ -67,7 +68,8 @@
 .svc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; padding: 0; list-style: none; }
 .svc-chips .pill { white-space: normal; }
 .svc-detalle summary { cursor: pointer; color: var(--primary); font-size: 13px; font-weight: 700; }
-.svc-detalle-bloques { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px 16px; margin-top: 10px; }
+.svc-detalle-bloques { columns: 4 190px; column-gap: 16px; margin-top: 10px; }
+.svc-detalle-bloque { break-inside: avoid; margin-bottom: 10px; }
 .svc-detalle-bloque strong { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
 .svc-detalle-bloque ul { margin: 4px 0 0; padding: 0; list-style: none; font-size: 13px; }
 .svc-detalle-bloque li[data-estado="vacio"] { color: var(--ink-muted); }
@@ -77,7 +79,7 @@
 @media (max-width: 760px) {
   .svc-cabecera, .svc-textos { grid-template-columns: 1fr; }
   .svc-estado-pendiente, .svc-estado-repite { grid-column: auto; }
-  .svc-bloques { grid-template-columns: 1fr; }
+  .svc-bloques { columns: 1; }
   .svc-opcion-texto { display: none; }
   .svc-opcion { min-width: 40px; justify-content: center; font-size: 15px; }
   .svc-barra .button { width: 100%; }
