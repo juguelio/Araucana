@@ -28,7 +28,7 @@ export default async function NavesEnVivoPage() {
       }
     >
       <p className="lead flota-en-vivo-intro">
-        Dónde está cada nave que tiene el panel del chofer abierto. El mapa se actualiza solo cada 10
+        Dónde está cada nave que tiene el panel del chofer abierto. El mapa se actualiza solo cada 30
         segundos; una nave que deja de reportar sigue en su última posición, marcada como <strong>sin señal</strong>{" "}
         después de {VENTANA_SENAL_MINUTOS} minutos.
       </p>

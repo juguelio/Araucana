@@ -5,9 +5,10 @@ import type { Map as LeafletMap, Marker } from "leaflet";
 import type { EstadoDeNaveEnVivo, FlotaEnVivo, NaveEnVivo } from "@/lib/driver/en-vivo";
 import "leaflet/dist/leaflet.css";
 
-/** Cada cuánto se vuelven a pedir las posiciones. El chofer reporta cada 3 s; 10 s alcanza para
- *  ver la nave moverse sin castigar la base ni el teléfono de quien mira. */
-const REFRESCO_MS = 10_000;
+/** Cada cuánto se vuelven a pedir las posiciones. Criterio de Jugue en #316: el panel lee cada 30 s
+ *  (no cada 3 s, que es lo que reporta el chofer) — así la nave se ve moverse sin castigar la base ni el
+ *  teléfono de quien mira. El envío del chofer mantiene su ritmo propio. */
+const REFRESCO_MS = 30_000;
 
 /** San Martín de los Andes: el encuadre inicial cuando todavía no hay ninguna nave reportando. */
 const CENTRO_SMA: [number, number] = [-40.1579, -71.3534];
