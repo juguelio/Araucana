@@ -27,6 +27,8 @@ export type AirportPlaceSuggestion = {
   point: PickupPoint | null;
   source: "georef" | "locationiq" | "photon" | "municipal";
   lodgingId?: string;
+  isLodging?: true;
+  locationMatch?: "address" | "establishment";
   coordinateSource?: "georef" | "locationiq" | "photon";
   approximate: boolean;
 };
@@ -42,6 +44,8 @@ const photonResponse = z.object({
       housenumber: z.string().optional(),
       city: z.string().optional(),
       district: z.string().optional(),
+      osm_key: z.string().optional(),
+      osm_value: z.string().optional(),
       type: z.string().optional()
     })
   }))
@@ -71,6 +75,7 @@ export function resetStreetPointCache() {
 
 const { south, west, north, east } = airportSearchBounds;
 const viewbox = [west, south, east, north].join(",");
+const lodgingTypes = new Set(["hotel", "guest_house", "hostel", "apartment", "chalet", "motel", "camp_site", "alpine_hut"]);
 const areaTypes = new Set(["city", "locality", "district", "suburb", "neighbourhood", "quarter", "village", "street", "road"]);
 
 function locationIqAutocomplete() {
@@ -110,6 +115,7 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
       return locationIqResponse.parse(payload).map((place) => {
         const coarse = areaTypes.has(place.type ?? "") || ["place", "boundary", "highway"].includes(place.class ?? "");
         return {
+          ...(place.class === "tourism" && lodgingTypes.has(place.type ?? "") ? { isLodging: true as const } : {}),
           label: place.display_name, point: [place.lat, place.lon] as PickupPoint, source: "locationiq" as const,
           approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const
         };
@@ -124,7 +130,7 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
       if (!label) return [];
       const [lon, lat] = geometry.coordinates;
       const coarse = areaTypes.has(type ?? "");
-      return [{ label, point: [lat, lon] as PickupPoint, source: "photon" as const, approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const }];
+      return [{ ...(properties.osm_key === "tourism" && lodgingTypes.has(properties.osm_value ?? "") ? { isLodging: true as const } : {}), label, point: [lat, lon] as PickupPoint, source: "photon" as const, approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const }];
     });
   } catch {
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar lugares. Podés marcar el punto en el mapa.", 503);

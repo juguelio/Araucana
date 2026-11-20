@@ -52,7 +52,7 @@ it("usa el autocompletado de LocationIQ si está configurado", async () => {
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("Patagonia Plaza", new AbortController().signal)).resolves.toEqual([
-    { label: "Patagonia Plaza Hotel, San Martín de los Andes", point: [-40.1578774, -71.3547721], source: "locationiq", approximate: false, precision: "exact" }
+    { isLodging: true, label: "Patagonia Plaza Hotel, San Martín de los Andes", point: [-40.1578774, -71.3547721], source: "locationiq", approximate: false, precision: "exact" }
   ]);
   const [url] = fetchProvider.mock.calls[0];
   expect(url.hostname + url.pathname).toBe("api.locationiq.com/v1/autocomplete");
