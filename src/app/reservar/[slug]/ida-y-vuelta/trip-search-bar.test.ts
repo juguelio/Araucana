@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { TripSearchBar, type TramoDeLaBarra } from "./trip-search-bar";
+import { TripSearchBar, lugaresDelPanel, type TramoDeLaBarra } from "./trip-search-bar";
 
 /**
  * La barra es la misma para un tramo y para dos (17-nov). Lo que fija este test es lo que cambia:
@@ -36,6 +36,13 @@ function render(props: Parameters<typeof TripSearchBar>[0]) {
 function veces(html: string, fragmento: string) {
   return html.split(fragmento).length - 1;
 }
+
+describe("Los lugares del panel", () => {
+  it("no ofrece el mismo lugar en las dos puntas: desde San Martín no se va a San Martín", () => {
+    expect(lugaresDelPanel("SMA")).toEqual(["CPC"]);
+    expect(lugaresDelPanel("CPC")).toEqual(["SMA"]);
+  });
+});
 
 describe("TripSearchBar al llegar desde «Agregar vuelta»", () => {
   const dosTramos = [
