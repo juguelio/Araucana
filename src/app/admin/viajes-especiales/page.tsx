@@ -5,6 +5,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly, localInput, statuses } from "@/lib/special-trips/data";
 import { dayInterval } from "@/lib/special-trips/conflicts";
+import { cantidadDias, esDeVariosDias, estadoDelDia, etiquetaRango, whereSolapa } from "@/lib/special-trips/rango";
 import {
   agruparPorMes, claveDia, condicionVista, etiquetaFecha, etiquetaGrupo, etiquetaRelativa, mesesConViajes, rangoMes, sumarDias,
   tonoFila, vistaDe, vistas, type Vista
@@ -74,11 +75,14 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   // La vista fija el filtro base; un mes elegido la reemplaza por el mes completo en orden cronológico.
   const condicion = condicionVista(vista, hoy);
   const filtroMes = rangoMes(mes);
+  // En AND: la vista y el mes usan su propio OR (un viaje de varios días toca más de un día) y no se pisan con la búsqueda.
   const where: Prisma.SpecialTripWhereInput = {
-    ...(filtroMes ? { serviceDate: filtroMes } : condicion.where),
-    ...(status && { status }),
-    ...(q && { OR: [{ client: { contains: q, mode: "insensitive" } }, { destinationSearch: { contains: q, mode: "insensitive" } }] }),
-    ...(vehicleId && { assignments: { some: { vehicleId } } })
+    AND: [
+      filtroMes ? whereSolapa(filtroMes.gte, filtroMes.lt) : condicion.where,
+      ...(status ? [{ status }] : []),
+      ...(q ? [{ OR: [{ client: { contains: q, mode: "insensitive" as const } }, { destinationSearch: { contains: q, mode: "insensitive" as const } }] }] : []),
+      ...(vehicleId ? [{ assignments: { some: { vehicleId } } }] : [])
+    ]
   };
   // La vista (o el mes) fija el sentido de la fecha; un encabezado clickeado lo reemplaza.
   const porFecha = filtroMes ? "asc" : condicion.orden;
@@ -100,10 +104,10 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
     // Los números de las vistas, en una sola consulta: cada count suelto es otro viaje de ida y vuelta a la base.
     prisma.$queryRaw<{ hoy: number; semana: number; pendientes: number; sinnave: number; total: number }[]>`
       select
-        count(*) filter (where t."serviceDate" = ${claveDia(hoy)}::date)::int as hoy,
-        count(*) filter (where t."serviceDate" >= ${claveDia(hoy)}::date and t."serviceDate" < ${claveDia(semanaFin)}::date)::int as semana,
+        count(*) filter (where t."serviceDate" <= ${claveDia(hoy)}::date and coalesce(t."endDate", t."serviceDate") >= ${claveDia(hoy)}::date)::int as hoy,
+        count(*) filter (where t."serviceDate" < ${claveDia(semanaFin)}::date and coalesce(t."endDate", t."serviceDate") >= ${claveDia(hoy)}::date)::int as semana,
         count(*) filter (where t.status = 'PENDING')::int as pendientes,
-        count(*) filter (where t.status = 'CONFIRMED' and t."serviceDate" >= ${claveDia(hoy)}::date
+        count(*) filter (where t.status = 'CONFIRMED' and coalesce(t."endDate", t."serviceDate") >= ${claveDia(hoy)}::date
           and not exists (select 1 from "SpecialTripAssignment" a where a."tripId" = t.id))::int as sinnave,
         count(*)::int as total
       from "SpecialTrip" t`
@@ -188,7 +192,11 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
             const estado = tonoFila(trip, asignadas.length > 0, hoy);
             const pendientes = pendientesDe(trip, asignadas.length > 0);
             return <tr key={trip.id} data-pendientes={pendientes.length > 0 || undefined}>
-              <td className="vesp-num" data-label="Fecha" data-hoy={claveDia(trip.serviceDate) === claveDia(hoy)}>{etiquetaRelativa(trip.serviceDate, hoy) && <strong>{etiquetaRelativa(trip.serviceDate, hoy)} · </strong>}{etiquetaFecha(trip.serviceDate, hoy)}</td>
+              <td className="vesp-num" data-label="Fecha" data-hoy={claveDia(trip.serviceDate) === claveDia(hoy) || Boolean(estadoDelDia(trip, hoy))}>
+                {esDeVariosDias(trip)
+                  ? <>{etiquetaRango(trip, hoy)}<small className="vesp-rango">{estadoDelDia(trip, hoy) ?? `${cantidadDias(trip)} días`}</small></>
+                  : <>{etiquetaRelativa(trip.serviceDate, hoy) && <strong>{etiquetaRelativa(trip.serviceDate, hoy)} · </strong>}{etiquetaFecha(trip.serviceDate, hoy)}</>}
+              </td>
               <td className="vesp-cliente" data-label="Cliente"><Link href={`${base}/${trip.id}`}>{trip.client}</Link>{trip.contact && <small>{trip.contact}</small>}</td>
               <td data-label="Destino o servicio">{trip.destinationSearch.replaceAll("\n", " · ")}</td>
               <td className="vesp-num" data-label="Pax">{trip.passengers ?? "—"}</td>

@@ -29,6 +29,7 @@ export async function TripEditPage({ id }: { id?: string }) {
       draft={{
         id: trip?.id ?? null, version: trip?.updatedAt.toISOString() ?? null, client: trip?.client ?? "",
         serviceDate: trip?.serviceDate.toISOString().slice(0, 10) ?? localInput(new Date()).slice(0, 10),
+        endDate: trip?.endDate?.toISOString().slice(0, 10) ?? "",
         status: trip?.status ?? "PENDING", contact: trip?.contact, passengers: trip?.passengers, notes: trip?.notes,
         legs: trip ? z.array(legSchema).parse(trip.legs) : [emptyLeg],
         assignments: trip?.assignments.map((a) => ({ vehicleId: a.vehicleId, driverId: a.driverId ?? "", start: localInput(a.startsAt), end: localInput(a.endsAt) })) ?? [],

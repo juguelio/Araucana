@@ -8,6 +8,9 @@ import { argentina, billingModes, legSchema, paymentSchema, statuses } from "@/l
 import { parseTripLegs, planillaKindsForSpecialTrip } from "@/lib/departure-sheets/applicability";
 import { listDepartureSheetsForSpecialTrip } from "@/lib/departure-sheets/repository";
 import { PlanillasSection } from "./planillas-section";
+import { cadenaDeDias, cantidadDias, esDeVariosDias, estadoDelDia, etiquetaRango, etiquetaRangoLarga, motivoParaNoUnir, ultimoDia } from "@/lib/special-trips/rango";
+import { dateOnly, localInput } from "@/lib/special-trips/data";
+import { unirViajesAction } from "../unir-actions";
 import "./ficha.css";
 
 const dateFormat = new Intl.DateTimeFormat("es-AR", { dateStyle: "long", timeZone: "UTC" });
@@ -27,9 +30,9 @@ const capitalizar = (texto: string) => texto.charAt(0).toUpperCase() + texto.sli
 const tonoEstado: Record<string, string> = { PENDING: "atencion", CONFIRMED: "ok", COMPLETED: "normal", CANCELLED: "normal" };
 const paises: Record<string, string> = { AR: "Argentina", CL: "Chile", AR_CL: "Argentina y Chile" };
 
-export default async function TripPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ guardado?: string; planilla?: string }> }) {
+export default async function TripPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ guardado?: string; planilla?: string; aviso?: string }> }) {
   const user = await getCurrentReservationsUserOrRedirect();
-  const [{ id }, { guardado, planilla }] = await Promise.all([params, searchParams]);
+  const [{ id }, { guardado, planilla, aviso }] = await Promise.all([params, searchParams]);
   const trip = await prisma.specialTrip.findUnique({
     where: { id },
     include: {
@@ -42,6 +45,27 @@ export default async function TripPage({ params, searchParams }: { params: Promi
   });
   if (!trip) notFound();
   const legs = z.array(legSchema).safeParse(trip.legs).data ?? [];
+  // Varios días: el viaje figura en cada día del rango. Y si la planilla lo cargó un renglón por día
+  // (mismo cliente, mismo servicio, días seguidos), se ofrece unirlo.
+  const hoy = dateOnly(localInput(new Date()).slice(0, 10))!;
+  const variosDias = esDeVariosDias(trip);
+  const estadoHoy = estadoDelDia(trip, hoy);
+  const vecinos = await prisma.specialTrip.findMany({
+    where: {
+      id: { not: trip.id }, status: { not: "CANCELLED" },
+      client: { equals: trip.client.trim(), mode: "insensitive" },
+      serviceDate: { gte: new Date(+trip.serviceDate - 62 * 86_400_000), lte: new Date(+ultimoDia(trip) + 62 * 86_400_000) }
+    },
+    select: { id: true, client: true, destinationSearch: true, serviceDate: true, endDate: true, status: true, totalCents: true, payments: true, _count: { select: { assignments: true, departureSheets: true } } }
+  });
+  const cadena = cadenaDeDias({ ...trip, _count: { assignments: trip.assignments.length, departureSheets: 0 } }, vecinos as typeof vecinos);
+  const noUnir = cadena.length ? motivoParaNoUnir(cadena.slice(1).map((t) => ({
+    totalCents: t.totalCents, payments: t.payments, assignments: t._count.assignments, planillas: t._count.departureSheets, client: t.client
+  }))) : null;
+  const cadenaRango = cadena.length ? { serviceDate: cadena[0].serviceDate, endDate: cadena.reduce((max, t) => +ultimoDia(t) > +max ? ultimoDia(t) : max, ultimoDia(cadena[0])) } : null;
+  // Naves que quedan libres antes de que el viaje vuelva: el tablero las mostraría disponibles.
+  const ultimoDiaClave = ultimoDia(trip).toISOString().slice(0, 10);
+  const navesCortas = variosDias ? trip.assignments.filter((a) => localInput(a.startsAt).slice(0, 10) > trip.serviceDate.toISOString().slice(0, 10) || localInput(a.endsAt).slice(0, 10) < ultimoDiaClave) : [];
   const departureSheets = await listDepartureSheetsForSpecialTrip(trip.id);
   const planillaKinds = planillaKindsForSpecialTrip({
     destinationSearch: trip.destinationSearch,
@@ -65,7 +89,7 @@ export default async function TripPage({ params, searchParams }: { params: Promi
 
   return (
     <AdminShell title={trip.client} eyebrow="Viaje especial" role={user.role}
-      notice={planilla ? decodeURIComponent(planilla) : guardado ? "Viaje guardado." : undefined}
+      notice={aviso ? decodeURIComponent(aviso) : planilla ? decodeURIComponent(planilla) : guardado ? "Viaje guardado." : undefined}
       action={<div className="inline-actions">
         <Link className="ghost-button" href="/admin/viajes-especiales">Volver a Viajes especiales</Link>
         <Link className="button" href={`/admin/viajes-especiales/${id}/editar`}>Editar viaje</Link>
@@ -73,8 +97,13 @@ export default async function TripPage({ params, searchParams }: { params: Promi
       {/* Cabecera: lo que se consulta de un vistazo. Los mismos datos que abajo, resumidos. */}
       <header className="viaje-cabecera">
         <div className="viaje-cabecera-fecha">
-          <span className="viaje-dia-semana">{weekdayFormat.format(trip.serviceDate)}</span>
-          <strong>{capitalizar(dateFormat.format(trip.serviceDate))}</strong>
+          {variosDias ? <>
+            <span className="viaje-dia-semana">{cantidadDias(trip)} días{estadoHoy ? ` · ${estadoHoy}` : ""}</span>
+            <strong>{capitalizar(etiquetaRangoLarga(trip))}</strong>
+          </> : <>
+            <span className="viaje-dia-semana">{weekdayFormat.format(trip.serviceDate)}</span>
+            <strong>{capitalizar(dateFormat.format(trip.serviceDate))}</strong>
+          </>}
         </div>
         <div className="viaje-cabecera-datos">
           <span className="pill pill-estado" data-tono={tonoEstado[trip.status] ?? "normal"}>{estadoTexto}</span>
@@ -91,6 +120,29 @@ export default async function TripPage({ params, searchParams }: { params: Promi
           </p>
         ) : null}
       </header>
+
+      {cadena.length > 1 && cadenaRango ? (
+        <section className="plain-card admin-section viaje-unir" aria-label="Mismo viaje cargado por día">
+          <h2>¿Es un solo viaje de {cantidadDias(cadenaRango)} días?</h2>
+          <p>
+            La planilla lo cargó un renglón por día: {cadena.length} viajes de <strong>{trip.client}</strong> con el mismo servicio,{" "}
+            {etiquetaRangoLarga(cadenaRango).replace(/^Del /, "del ")}.
+            {" "}Si es el mismo viaje, unilo y va a figurar como un bloque en cada día, con la nave y el chofer ocupados todo el período.
+          </p>
+          <ul className="viaje-unir-dias">{cadena.map((t) => (
+            <li key={t.id} aria-current={t.id === trip.id ? "true" : undefined}>
+              {t.id === trip.id ? <strong>{etiquetaRango({ serviceDate: t.serviceDate }, hoy)} (este)</strong> : <Link href={`/admin/viajes-especiales/${t.id}`}>{etiquetaRango({ serviceDate: t.serviceDate }, hoy)}</Link>}
+            </li>
+          ))}</ul>
+          {noUnir ? <p className="viaje-unir-no">No se une solo: {noUnir.charAt(0).toLowerCase() + noUnir.slice(1)} Si igual es un único viaje, cargá la vuelta en el primero y cancelá los otros.</p> : (
+            <form action={unirViajesAction}>
+              {cadena.map((t) => <input key={t.id} type="hidden" name="ids" value={t.id} />)}
+              <button className="button" type="submit">Unir en un viaje · {etiquetaRangoLarga(cadenaRango).replace(/^Del /, "del ")}</button>
+              <p className="muted">Queda el primer día con su importe y sus datos; los otros {cadena.length - 1} renglones se borran y sus filas de la planilla pasan a este viaje.</p>
+            </form>
+          )}
+        </section>
+      ) : null}
 
       <div className="viaje-columnas">
         <div className="viaje-principal">
@@ -135,6 +187,10 @@ export default async function TripPage({ params, searchParams }: { params: Promi
         <aside className="viaje-lateral">
           <section className="plain-card admin-section" id="naves" data-falta={sinNave || undefined}>
             <h2>Naves y choferes</h2>
+            {navesCortas.length ? <p className="viaje-aviso-naves">
+              {navesCortas.map((a) => a.vehicle.name).join(", ")} no {navesCortas.length === 1 ? "queda ocupada" : "quedan ocupadas"} los {cantidadDias(trip)} días del viaje: en el tablero {navesCortas.length === 1 ? "aparece libre" : "aparecen libres"} mientras está afuera.{" "}
+              <Link className="table-link" href={`/admin/viajes-especiales/${id}/editar`}>Corregir</Link>
+            </p> : null}
             {trip.assignments.length ? <ul className="viaje-asignaciones">{trip.assignments.map((assignment) => (
               <li key={assignment.id}>
                 <strong>{assignment.vehicle.name}</strong>

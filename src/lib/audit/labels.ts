@@ -139,6 +139,7 @@ const fieldLabels: Record<string, string> = {
   documentNumber: "Documento",
   nationality: "Nacionalidad",
   serviceDate: "Fecha del servicio",
+  endDate: "Vuelve el",
   client: "Cliente",
   contact: "Contacto",
   passengers: "Pasajeros",

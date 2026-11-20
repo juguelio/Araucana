@@ -64,3 +64,7 @@
   .vesp-tabla tr { grid-template-columns: minmax(0, 1fr) minmax(0, 46%); }
   .vesp-tabla td[data-label="Estado"] .vesp-falta { text-align: right; }
 }
+
+/* Viajes de varios días: el rango y, abajo, «En viaje · día 2 de 5» o la cantidad de días. */
+.vesp-tabla .vesp-rango { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.vesp-tabla td[data-hoy="true"] .vesp-rango { color: var(--accent); }

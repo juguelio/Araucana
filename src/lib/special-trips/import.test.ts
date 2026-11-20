@@ -32,6 +32,9 @@ describe("historial de viajes especiales", () => {
     expect(result.trips).toHaveLength(1);
     expect(result.trips[0]).toMatchObject({ totalCents: 50_000, currency: "USD", payments: [{ amount: "200.00" }] });
     expect(result.trips[0].legs.map((leg) => leg.included)).toEqual([false, true]);
+    // Sale el 21 y vuelve el 24: un viaje de varios días, no dos.
+    expect(result.trips[0].serviceDate.toISOString().slice(0, 10)).toBe("2026-02-21");
+    expect(result.trips[0].endDate?.toISOString().slice(0, 10)).toBe("2026-02-24");
     expect(result.totals).toEqual({ count: 2, ars: 0, usd: 50_000 });
     expect(result.skipped[0].row).toBe(9);
     expect(sourceVersion(result.trips[0].sources[0])).toEqual(sourceVersion(previewHistory(input, "2026-11-10").trips[0].sources[0]));

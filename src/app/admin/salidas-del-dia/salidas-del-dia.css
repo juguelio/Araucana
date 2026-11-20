@@ -182,3 +182,7 @@
 .sd-programmed > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
 .sd-programmed-list { margin-top: 10px; }
 .sd-programmed-list .sd-row { opacity: 0.82; }
+
+/* Viaje especial de varios días que sigue afuera: arriba, con «Día 3 / de 5» en lugar de la hora. */
+.sd-row[data-sigue] { background: color-mix(in srgb, var(--accent) 4%, transparent); }
+.sd-row[data-sigue] .sd-time strong { font-size: 15px; }

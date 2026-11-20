@@ -12,6 +12,7 @@ import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type Bo
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
+import { diaDelViaje, etiquetaRango, ultimoDia, whereVigenteEn } from "@/lib/special-trips/rango";
 import { addBoardUnitAction, addSpecialVehicleAction, createBoardScheduleAction, removeBoardScheduleAction, removeSpecialVehicleAction, setAirportDriverAction, setChapelcoDriverAction, setSpecialDriverAction } from "./actions";
 import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
@@ -80,8 +81,10 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         }
       }
     }),
+    // Viajes especiales del día: los que salen, los que están afuera (varios días) y los que tienen una
+    // nave ocupada este día aunque se hayan cargado con una sola fecha.
     prisma.specialTrip.findMany({
-      where: { serviceDate, status: { not: "CANCELLED" } },
+      where: { AND: [{ status: { not: "CANCELLED" } }, { OR: [whereVigenteEn(serviceDate), { assignments: { some: { startsAt: { lt: to }, endsAt: { gt: from } } } }] }] },
       include: { assignments: { orderBy: { startsAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } } }
     }),
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { ...VEHICLE_SELECT, internalNumber: true } }),
@@ -142,12 +145,16 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         units: (day?.vehicleDuties ?? []).map((duty) => ({ id: duty.id, capacity: duty.capacity, vehicle: duty.vehicle, driver: duty.driver }))
       };
     }),
-    specialTrips: specialTrips.map((trip) => ({
+    specialTrips: specialTrips.map((trip) => {
+      const day = diaDelViaje(trip, serviceDate);
+      return {
       id: trip.id,
       client: trip.client,
       passengers: trip.passengers,
       status: trip.status,
       firstLegAt: null,
+      day: day ? { number: day.numero, total: day.total, returnLabel: etiquetaRango({ serviceDate: ultimoDia(trip) }, serviceDate) } : null,
+      continuing: day ? !day.primero : trip.serviceDate.toISOString().slice(0, 10) !== dateKey,
       units: trip.assignments.map((assignment) => ({
         id: assignment.id,
         startsAt: assignment.startsAt,
@@ -155,7 +162,8 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: seatsOf(assignment.vehicle) },
         driver: assignment.driver
       }))
-    }))
+      };
+    })
   });
 
   // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
@@ -183,10 +191,11 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       key={row.key}
       className="sd-row"
       data-area={row.area}
+      data-sigue={row.continuing || undefined}
       data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
     >
       <div className="sd-time">
-        <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
+        <strong>{row.at ? hourFormat.format(row.at) : row.timeText ?? "—"}</strong>
         <span>{row.atLabel}</span>
       </div>
 
@@ -451,6 +460,14 @@ function UnitsReadOnly({ units, note }: { units: BoardUnit[]; note: ReactNode })
 }
 
 const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
+const dayKeyAr = (date: Date) => localDateKey(date);
+const shortDayFormat = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "numeric", timeZone: "America/Argentina/Salta" });
+/** «08:00–18:00», o con el día cuando la nave queda ocupada varios días: «jue 19 08:00 → lun 23 20:00». */
+function blockLabel(from?: Date, to?: Date) {
+  if (!from || !to || dayKeyAr(from) === dayKeyAr(to)) return `${timeFormat(from)}–${timeFormat(to)}`;
+  const day = (date: Date) => shortDayFormat.format(date).replace(",", "").replace(".", "");
+  return `${day(from)} ${timeFormat(from)} → ${day(to)} ${timeFormat(to)}`;
+}
 
 /** Rutas: las naves de la salida, cada una con su chofer; abajo, sumar otra nave a la salida. */
 function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
@@ -509,7 +526,7 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
     <div className="sd-units">
       {row.units.map((unit) => (
         <div className="sd-unit" key={unit.id}>
-          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{timeFormat(unit.from)}–{timeFormat(unit.to)}</span></p>
+          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{blockLabel(unit.from, unit.to)}</span></p>
           <DriverForm unit={unit} action={setSpecialDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
           <form action={removeSpecialVehicleAction} className="sd-remove">
             <input type="hidden" name="id" value={unit.id} />
@@ -521,6 +538,7 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
       <div className="sd-sumar" data-campos="4">
 <FleetAssignmentForm action={addSpecialVehicleAction}>
         <input type="hidden" name="tripId" value={row.serviceId} />
+        <input type="hidden" name="date" value={dateKey} />
         <select name="vehicleId" defaultValue="" aria-label="Nave para sumar al viaje" required>
           <option value="" disabled>{row.units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
           {vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
