@@ -10,6 +10,8 @@ import { destinosDesde, origenes, serviciosDeRutas, unificarLugares } from "./vi
 type NewReservationPageProps = {
   searchParams?: Promise<{
     notice?: string; servicio?: string; desde?: string; hacia?: string; date?: string; tramos?: string; sentido?: string; vuelo?: string;
+    /** `abrir=vuelta`: al pasar a ida y vuelta, la vuelta abre sus días sin un segundo toque. */
+    abrir?: string;
   }>;
 };
 
@@ -116,6 +118,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
             date={params.date}
             tramos={params.tramos}
             sentido={params.sentido}
+            abrir={params.abrir}
             // Por defecto, San Martín → Aeropuerto Chapelco (19-nov).
             sentidoPorDefecto="DEPARTURE"
             vuelo={params.vuelo}

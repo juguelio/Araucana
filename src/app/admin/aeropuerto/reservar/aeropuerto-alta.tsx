@@ -11,14 +11,14 @@ import type { LugarDeOtroServicio } from "@/app/reservar/[slug]/ida-y-vuelta/tri
 /** Dónde vive el alta de aeropuerto: la pantalla única de «Reservar», con el aeropuerto elegido. */
 export const ALTA_AEROPUERTO = "/admin/reservas/nueva?servicio=aeropuerto";
 
-export type ParametrosAltaAeropuerto = { date?: string; tramos?: string; sentido?: string; vuelo?: string };
+export type ParametrosAltaAeropuerto = { date?: string; tramos?: string; sentido?: string; vuelo?: string; abrir?: string };
 
 /**
  * El alta de aeropuerto del panel (un tramo o ida y vuelta), sin la página alrededor: la usa la
  * pantalla única de «Reservar» (pedido de Jugue, 19-nov: «que todo se pueda hacer desde la misma
  * pantalla»). Es lo que antes era `/admin/aeropuerto/reservar`, que ahora redirige acá.
  */
-export async function AeropuertoAlta({ date, tramos, sentido, vuelo, lugaresExtra, sentidoPorDefecto }: ParametrosAltaAeropuerto & {
+export async function AeropuertoAlta({ date, tramos, sentido, vuelo, abrir, lugaresExtra, sentidoPorDefecto }: ParametrosAltaAeropuerto & {
   /** Sin sentido en el link: «Reservar» abre en San Martín → Aeropuerto (salida), sin bajar sola. */
   sentidoPorDefecto?: "ARRIVAL" | "DEPARTURE";
   /** Los lugares de las rutas por salida en Desde/Hacia (19-nov: todo desde la misma pantalla). */
@@ -41,6 +41,8 @@ export async function AeropuertoAlta({ date, tramos, sentido, vuelo, lugaresExtr
   return idaYVuelta ? (
     <RoundTripCheckoutForm
       fromAdmin
+      // «Agregar vuelta» ya no pide un segundo toque: la vuelta entra con sus días abiertos.
+      abrirLaVuelta={abrir === "vuelta"}
       lugaresExtra={lugaresExtra}
       singleHrefs={{
         ARRIVAL: `${ALTA_AEROPUERTO}&date=${initialDate}&sentido=ARRIVAL`,
