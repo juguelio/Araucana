@@ -7,6 +7,7 @@ import type { ChapelcoAvailabilityDto } from "@/lib/chapelco/types";
 import { chapelcoAscentSlots, type ChapelcoAscentSlot } from "@/lib/chapelco/constants";
 import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { phoneCountries, phoneCountryLabel } from "@/lib/booking/phone-countries";
 import { createChapelcoReservationAction } from "./chapelco-actions";
 import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
 
@@ -60,14 +61,8 @@ const initialPassenger: PassengerForm = {
   nationality: ""
 };
 
-const countryDialCodes = [
-  { value: "+54", label: "Argentina +54" },
-  { value: "+56", label: "Chile +56" },
-  { value: "+55", label: "Brasil +55" },
-  { value: "+598", label: "Uruguay +598" },
-  { value: "+1", label: "EE.UU./Canada +1" },
-  { value: "+34", label: "Espana +34" }
-];
+// Misma lista (todos los países) que el resto de los formularios de reserva.
+const countryDialCodes = phoneCountries.map((c) => ({ value: c.value, label: phoneCountryLabel(c) }));
 
 function todayInputValue() {
   return new Intl.DateTimeFormat("en-CA", {
