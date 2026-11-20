@@ -7,10 +7,11 @@ import {
 import styles from "./trip-form.module.css";
 import { FleetConflictWarning } from "../fleet-assignment-form";
 import { saveTrip, type TripFormResult } from "./actions";
+import { cantidadDias, navesQueNoCubren, ocupacionDelViaje } from "@/lib/special-trips/rango";
 
 type Option = { id: string; name: string };
 type Draft = {
-  id: string | null; version: string | null; serviceDate: string; client: string; contact?: string | null;
+  id: string | null; version: string | null; serviceDate: string; endDate: string; client: string; contact?: string | null;
   passengers?: number | null; status: string; notes?: string | null; legs: Leg[]; assignments: AssignmentInput[];
   billingMode: string; currency: string; total: string; payments: PaymentInput[];
   supplier?: string | null; invoice?: string | null; invoiceDate?: string; paymentStatus?: string | null;
@@ -22,6 +23,15 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
   const [payments, setPayments] = useState(draft.payments);
   const [total, setTotal] = useState(draft.total);
   const [currency, setCurrency] = useState(draft.currency);
+  // Sale el / vuelve el: con la vuelta cargada el viaje figura en cada día y la nave queda ocupada el bloque.
+  const [serviceDate, setServiceDate] = useState(draft.serviceDate);
+  const [endDate, setEndDate] = useState(draft.endDate);
+  const diaDe = (clave: string) => new Date(clave + "T00:00:00Z");
+  const fechasValidas = /^\d{4}-\d{2}-\d{2}$/.test(serviceDate) && (!endDate || /^\d{4}-\d{2}-\d{2}$/.test(endDate));
+  const dias = fechasValidas && endDate >= serviceDate ? cantidadDias({ serviceDate: diaDe(serviceDate), endDate: endDate ? diaDe(endDate) : null }) : 1;
+  const bloque = ocupacionDelViaje(serviceDate, endDate);
+  const sinCubrir = dias > 1 ? navesQueNoCubren(assignments, serviceDate, endDate) : [];
+  const nombreNave = (id: string) => vehicles.find((v) => v.id === id)?.name ?? "La nave";
   const [state, dispatch, pending] = useActionState(saveTrip.bind(null, draft.id, draft.version), {} as TripFormResult);
   const paid = payments.reduce((sum, p) => sum + (parseMoney(p.amount) ?? 0), 0);
   const cents = parseMoney(total);
@@ -41,7 +51,11 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
           <h2 className="span-2">Datos del viaje</h2>
           <label>Cliente o grupo<input name="client" required defaultValue={draft.client} /></label>
           <label>Contacto<input name="contact" defaultValue={draft.contact ?? ""} /></label>
-          <label>Fecha del servicio<input name="serviceDate" type="date" required defaultValue={draft.serviceDate} /></label>
+          <label>Sale el<input name="serviceDate" type="date" required value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} /></label>
+          <label>Vuelve el <small className="muted">(si dura varios días)</small><input name="endDate" type="date" min={serviceDate} value={endDate} onChange={(e) => setEndDate(e.target.value)} /></label>
+          <p className={`span-2 ${styles.rango}`} aria-live="polite">{endDate && endDate < serviceDate
+            ? "La vuelta no puede ser antes de la salida."
+            : dias > 1 ? `Viaje de ${dias} días: figura en cada día en Viajes especiales y en Salidas del día.` : "Viaje de un día."}</p>
           <label>Pasajeros<input name="passengers" type="number" min="1" defaultValue={draft.passengers ?? ""} /></label>
           <label>Estado<select aria-label="Estado" name="status" defaultValue={draft.status}>{Object.entries(statuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
           <label className="span-2">Observaciones<textarea name="notes" defaultValue={draft.notes ?? ""} /></label>
@@ -71,7 +85,11 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
         </section>
         <section className="plain-card admin-section">
           <h2>Ocupación de naves</h2>
-          <p className="muted">Ingresá el intervalo durante el que la nave no estará disponible, en hora argentina.</p>
+          <p className="muted">Ingresá el intervalo durante el que la nave no estará disponible, en hora argentina.{dias > 1 ? ` Al agregar una, se propone el viaje entero (${dias} días).` : ""}</p>
+          {sinCubrir.length > 0 && <div className={styles.aviso} role="status">
+            <p>{sinCubrir.map((a) => nombreNave(a.vehicleId)).join(", ")} no {sinCubrir.length === 1 ? "queda ocupada" : "quedan ocupadas"} todos los días del viaje: el tablero la{sinCubrir.length === 1 ? "" : "s"} va a mostrar libre{sinCubrir.length === 1 ? "" : "s"} mientras está afuera.</p>
+            <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.map((a) => sinCubrir.includes(a) ? { ...a, ...bloque } : a))}>Ocupar los {dias} días</button>
+          </div>}
           {assignments.map((assignment, index) => {
             const change = (patch: Partial<AssignmentInput>) => setAssignments(assignments.map((item, i) => i === index ? { ...item, ...patch } : item));
             return <fieldset key={index} className="admin-form-grid">
@@ -83,7 +101,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
               <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.filter((_, i) => i !== index))}>Quitar ocupación {index + 1}</button>
             </fieldset>;
           })}
-          <button type="button" className="ghost-button" onClick={() => setAssignments([...assignments, { vehicleId: "", driverId: "", start: "", end: "" }])}>Agregar ocupación</button>
+          <button type="button" className="ghost-button" onClick={() => setAssignments([...assignments, { vehicleId: "", driverId: "", ...bloque }])}>Agregar ocupación</button>
         </section>
         <section className="plain-card admin-section admin-form-grid">
           <h2 className="span-2">Cobros y facturación</h2>

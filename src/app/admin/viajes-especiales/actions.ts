@@ -9,6 +9,7 @@ import {
   argentina, assignmentSchema, billingModes, dateOnly, legSchema, localDateTime, parseMoney, paymentSchema, statuses
 } from "@/lib/special-trips/data";
 import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
+import { leerRango } from "@/lib/special-trips/rango";
 import { listChange, recordEntityAudit } from "@/lib/audit/entity";
 import { formatAuditDate } from "@/lib/audit/labels";
 
@@ -22,13 +23,16 @@ export async function saveTrip(id: string | null, version: string | null, _state
   let tripId: string;
   try {
     const client = value("client");
-    const serviceDate = dateOnly(value("serviceDate"));
+    // Sale el / vuelve el: un viaje de varios días figura en cada día del rango.
+    const rango = leerRango(value("serviceDate"), value("endDate"), dateOnly);
+    if ("error" in rango) throw new TripError(rango.error);
+    const { serviceDate, endDate } = rango;
     const status = value("status");
     const billingMode = value("billingMode");
     const currency = value("currency");
     const invoiceDate = dateOnly(value("invoiceDate"));
     const passengers = value("passengers") ? Number(value("passengers")) : null;
-    if (!client || client.length > 500 || !serviceDate || !Object.hasOwn(statuses, status)) throw new TripError("Revisá el cliente, la fecha y el estado.");
+    if (!client || client.length > 500 || !Object.hasOwn(statuses, status)) throw new TripError("Revisá el cliente y el estado.");
     if (passengers !== null && (!Number.isInteger(passengers) || passengers < 1 || passengers > 100000)) throw new TripError("Ingresá una cantidad válida de pasajeros.");
     if (!Object.hasOwn(billingModes, billingMode) || !["ARS", "USD"].includes(currency)) throw new TripError("Revisá las condiciones de cobro.");
     if (value("invoiceDate") && !invoiceDate) throw new TripError("Revisá la fecha de factura.");
@@ -88,7 +92,7 @@ export async function saveTrip(id: string | null, version: string | null, _state
       if (unique.length && value("confirmation") !== confirmation) return { conflicts: unique, confirmation };
 
       const data = {
-        client, serviceDate, passengers, status, billingMode, currency, totalCents, legs, payments,
+        client, serviceDate, endDate, passengers, status, billingMode, currency, totalCents, legs, payments,
         destinationSearch: legs.map((leg) => leg.destination || leg.description).join("\n"),
         contact: value("contact").slice(0, 500) || null, notes: value("notes").slice(0, 12000) || null,
         supplier: value("supplier").slice(0, 500) || null, invoice: value("invoice").slice(0, 500) || null,
