@@ -231,6 +231,10 @@ export type AdminReservationRowDto = {
   receiptFileName: string | null;
   receiptUploadedAt: Date | null;
   createdAt: Date;
+  /** Hora de salida en Argentina («10:00»), sólo si se conoce: salida programada o vuelo. */
+  travelTime?: string | null;
+  /** Ida y vuelta: el otro tramo, para mostrarlos enlazados en el listado (20-nov). */
+  roundTripPartner?: { code: string; travelDay: string | null; travelTime: string | null; isReturn: boolean } | null;
 };
 
 /** Una página del listado de reservas del panel: `total` es el de la búsqueda, sin paginar. */
