@@ -124,7 +124,16 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
       role={sessionUser.role}
       title="Naves"
       notice={params?.notice}
-      action={<Link className="button" href="/admin/naves/nueva">Agregar nave</Link>}
+      action={
+        <div className="table-actions">
+          <Link className="ghost-button" href="/admin/naves/en-vivo">
+            Naves en vivo
+          </Link>
+          <Link className="button" href="/admin/naves/nueva">
+            Agregar nave
+          </Link>
+        </div>
+      }
     >
       <form action="/admin/naves" method="get" className="naves-buscar" role="search">
         <label className="sr-only" htmlFor="naves-q">Buscar nave</label>
