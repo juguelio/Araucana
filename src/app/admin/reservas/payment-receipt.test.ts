@@ -57,7 +57,7 @@ describe("registrar el pago con su comprobante", () => {
   it("adjunta el comprobante antes de aprobar el pago (aprobado ya no admite archivos)", async () => {
     const url = await aviso(manageReservationAction(form(pdf())));
     expect(mocks.orden).toEqual(["comprobante", "pago"]);
-    expect(mocks.upload).toHaveBeenCalledWith(code, expect.any(File));
+    expect(mocks.upload).toHaveBeenCalledWith(code, expect.any(File), undefined, expect.objectContaining({ role: "SECRETARY" }));
     expect(mocks.manage).toHaveBeenCalledWith(code, expect.objectContaining({ operation: "payment", method: "Transferencia", reference: "OP-1" }), expect.anything());
     expect(url).toContain("Pago registrado con su comprobante.");
   });

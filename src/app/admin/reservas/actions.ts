@@ -6,6 +6,7 @@ import { del } from "@vercel/blob";
 import { ApiError } from "@/lib/api/responses";
 import { AuthorizationError } from "@/lib/auth/service";
 import { uploadReservationReceipt } from "@/lib/payments/receipt-upload";
+import type { AuditActor } from "@/lib/audit/record";
 import { validateReceiptFile } from "@/lib/payments/receipt-storage";
 import { manageReservation, reservationManagementSchema } from "@/lib/booking/admin-management";
 import { revalidatePath } from "next/cache";
@@ -31,9 +32,9 @@ function receiptFile(formData: FormData) {
  * reserva no lo admite (el pago se registra igual y se avisa) o `INVALID_RECEIPT` + motivo si el
  * archivo es inválido (no se registra nada, para que el operador elija otro).
  */
-async function attachReceiptBeforePayment(code: string, receipt: File): Promise<string | null> {
+async function attachReceiptBeforePayment(code: string, receipt: File, actor?: AuditActor | null): Promise<string | null> {
   try {
-    await uploadReservationReceipt(code, receipt);
+    await uploadReservationReceipt(code, receipt, undefined, actor);
     return null;
   } catch (error) {
     if (error instanceof ApiError && error.code === "VALIDATION_ERROR") return `${INVALID_RECEIPT}${error.message}`;
@@ -376,7 +377,7 @@ export async function manageReservationAction(formData: FormData) {
   if (receipt) {
     const invalid = validateReceiptFile(receipt);
     if (invalid) redirect(reservationNotice(returnPath, invalid, listQuery ?? ""));
-    receiptProblem = await attachReceiptBeforePayment(code, receipt);
+    receiptProblem = await attachReceiptBeforePayment(code, receipt, user);
     if (receiptProblem?.startsWith(INVALID_RECEIPT)) {
       redirect(reservationNotice(returnPath, receiptProblem.slice(INVALID_RECEIPT.length), listQuery ?? ""));
     }

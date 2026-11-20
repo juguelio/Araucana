@@ -35,8 +35,14 @@ describe("subir el comprobante desde el panel", () => {
     const result = await uploadReceiptFromAdminAction(inicial, form({ code, receipt: pdf() }));
     expect(result).toEqual({ ok: true, message: expect.stringMatching(/Comprobante cargado/) });
     expect(m.user).toHaveBeenCalled();
-    expect(m.upload).toHaveBeenCalledWith(code, expect.any(File));
+    expect(m.upload).toHaveBeenCalledWith(code, expect.any(File), undefined, expect.objectContaining({ role: "SECRETARY" }));
     expect(m.revalidate).toHaveBeenCalledWith("/admin/reservas");
+  });
+
+  it("con el pago ya registrado avisa que el comprobante quedó adjunto, no que hay que validarlo", async () => {
+    m.upload.mockResolvedValue({ payment: { status: "APPROVED" } });
+    const result = await uploadReceiptFromAdminAction(inicial, form({ code, receipt: pdf() }));
+    expect(result).toEqual({ ok: true, message: "Comprobante adjuntado al pago registrado." });
   });
 
   it("sin archivo no llama a la subida", async () => {

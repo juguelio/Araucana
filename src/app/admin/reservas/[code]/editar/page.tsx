@@ -7,7 +7,8 @@ import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { getReservationByCode } from "@/lib/booking/repository";
-import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
+import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { politicaDeComprobante } from "@/lib/payments/receipt-policy";
 import { tarifaPorPersona } from "@/lib/booking/reservation-edit";
 import { getStopFares } from "@/lib/booking/stop-fares";
 import { isAdminRole } from "@/lib/auth/roles";
@@ -40,10 +41,17 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const esDocumentacion = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
   const puedeVerComprobante = !esDocumentacion || isAdminRole(user.role);
   const tieneComprobante = Boolean(reservation.payment?.receiptBlobPathname) && puedeVerComprobante;
-  const puedeSubirComprobante = Boolean(reservation.payment)
-    && reservation.status === receiptPendingStatus(reservation.payment?.provider ?? null)
-    && ["PENDING", "REJECTED"].includes(reservation.payment?.status ?? "")
-    && puedeVerComprobante;
+  // Regla única (receipt-policy), la misma del guard del servidor: si el pago ya se registró sin
+  // comprobante, la pantalla ofrece adjuntarlo; si ya tiene uno validado, no ofrece nada.
+  const politicaComprobante = politicaDeComprobante(reservation.status, reservation.payment
+    ? {
+        provider: reservation.payment.provider,
+        status: reservation.payment.status,
+        hasReceipt: Boolean(reservation.payment.receiptBlobPathname)
+      }
+    : null);
+  const puedeSubirComprobante = politicaComprobante !== "bloqueado" && puedeVerComprobante;
+  const reemplazaComprobante = politicaComprobante === "reemplazar";
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
   // Cargar el pago también desde acá (no sólo desde el detalle): mismas reglas que «Registrar pago».
@@ -90,7 +98,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
             <p className="muted">Todavía no hay un comprobante cargado.</p>
           )}
           {puedeSubirComprobante ? (
-            <ReceiptUploadForm code={reservation.code} replace={tieneComprobante} />
+            <ReceiptUploadForm code={reservation.code} replace={reemplazaComprobante} />
           ) : (
             <p className="muted">El pago ya no admite un comprobante nuevo.</p>
           )}

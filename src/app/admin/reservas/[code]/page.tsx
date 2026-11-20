@@ -12,7 +12,9 @@ import { CopiarVoucher } from "@/components/copiar-voucher";
 import { siteOrigin } from "@/lib/site-origin";
 import { canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { ComprobanteViewer, fechaDeSubida } from "../comprobante-viewer";
+import { ReceiptUploadForm } from "../receipt-upload-form";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "@/lib/booking/disability-fare";
+import { politicaDeComprobante } from "@/lib/payments/receipt-policy";
 import {
   approveDisabilityDocumentAction,
   approveManualPaymentAction,
@@ -107,6 +109,12 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
       ? reservation.status === DISABILITY_PENDING_STATUS && payment.receiptUploadedAt ? "documentacion" : null
       : reservation.status === "PENDING_PAYMENT" ? "pago" : null
     : null;
+  // Regla única (receipt-policy): cuando el pago se registró sin comprobante y el archivo aparece
+  // después, la ficha ofrece adjuntarlo; si el pago ya tiene uno validado, no ofrece nada.
+  const politicaComprobante = politicaDeComprobante(reservation.status, payment
+    ? { provider: payment.provider, status: payment.status, hasReceipt }
+    : null);
+  const puedeAdjuntarComprobante = canViewReceipt && (politicaComprobante === "subir" || politicaComprobante === "adjuntar");
   const pagoTexto = disability ? "Sin cargo" : paid ? "Pago registrado" : payment?.status === "REJECTED" ? "Comprobante rechazado" : hasReceipt ? "Comprobante por validar" : "Sin pago registrado";
   const pagoTono = disability ? "normal" : paid ? "ok" : payment?.status === "REJECTED" ? "grave" : "atencion";
 
@@ -181,6 +189,17 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
           <p className="muted">
             Comprobante: <Link className="table-link" href={`${detailPath}/comprobante`} target="_blank">{payment?.receiptFileName ?? "ver archivo"}</Link>
           </p>
+        ) : null}
+        {puedeAdjuntarComprobante ? (
+          <div className="admin-section" aria-labelledby="adjuntar-comprobante">
+            <h3 id="adjuntar-comprobante">{disability ? "Documentación" : "Comprobante"}</h3>
+            <p className="muted">
+              {politicaComprobante === "adjuntar"
+                ? "El pago ya está registrado. Si el comprobante de la transferencia llegó después, adjuntalo acá: queda guardado junto al pago y no cambia su estado."
+                : "Todavía no hay un comprobante cargado para este pago."}
+            </p>
+            <ReceiptUploadForm code={reservation.code} replace={false} />
+          </div>
         ) : null}
         <div className="form-actions">
           <Link className="ghost-button" href={`${detailPath}/editar`}>Editar reserva</Link>
