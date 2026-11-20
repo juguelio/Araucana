@@ -1,3 +1,4 @@
+import { verifiedLodgingLocations } from "./lodging-locations";
 import { municipalLodgings, municipalLodgingSuggestion } from "./lodging-catalogue";
 import { airportSearchBounds, airportSearchLocality, normalizePlaceText, splitStreetAddress } from "./place-search-area";
 import { suggestProviderAirportPlaces, type AirportPlaceSuggestion } from "./place-suggestions";
@@ -29,6 +30,12 @@ export async function resolveMunicipalLodging(id: string, requestSignal: AbortSi
   const lodging = municipalLodgings.find((entry) => entry.id === id);
   if (!lodging) return null;
   const fallback = municipalLodgingSuggestion(lodging);
+  if (requestSignal.aborted) return fallback;
+  const verified = verifiedLodgingLocations[id];
+  if (verified && normalizePlaceText(verified.name) === normalizePlaceText(lodging.name)) {
+    return { ...fallback, point: verified.point, precision: "exact", approximate: true,
+      locationMatch: "establishment", coordinateSourceUrl: verified.sourceUrl };
+  }
   const address = municipalStreetAddress(lodging.address);
   if (!urbanZones.has(lodging.zone) || !address || requestSignal.aborted) return fallback;
   const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(8000)]);
