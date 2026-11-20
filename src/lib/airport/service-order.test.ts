@@ -247,6 +247,33 @@ describe("orden de servicio del aeropuerto", () => {
     expect(workbook.byteLength).toBeGreaterThan(10000);
   });
 
+  it.each([
+    [null, "[ ] Efectivo\n[ ] Transferencia"],
+    ["Efectivo", "[x] Efectivo\n[ ] Transferencia"],
+    ["transferencia", "[ ] Efectivo\n[x] Transferencia"],
+    ["Tarjeta", "[ ] Efectivo\n[ ] Transferencia\nOtro: Tarjeta"]
+  ])("la forma de pago %s queda en la orden y en los casilleros del Excel", async (paymentMethod, esperado) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const blocks = buildServiceOrderBlocks([reserva({ paymentMethod })]);
+    const fila = serviceOrderRow(blocks[0].passengers[0]);
+    expect(fila[SERVICE_ORDER_COLUMNS.indexOf("Forma de pago")]).toBe(paymentMethod ?? "");
+    expect(blocks[0].passengers[0].payment).toMatch(/^Cobrar/);
+    const libro = new ExcelJS.Workbook();
+    const buffer = await buildServiceOrderWorkbook({ date: "2026-11-12", generatedAt: new Date() }, blocks);
+    await libro.xlsx.load(buffer as unknown as Parameters<typeof libro.xlsx.load>[0]);
+    const hoja = libro.getWorksheet("Orden de servicio")!;
+    expect(hoja.getCell("H5").value).toBe("Forma de pago");
+    let encontrado = false;
+    hoja.eachRow((renglon) => {
+      if (String(renglon.getCell(1).value ?? "").includes("Faur")) {
+        encontrado = true;
+        expect(renglon.getCell(8).value).toBe(esperado);
+        expect(renglon.height).toBeGreaterThanOrEqual(paymentMethod === "Tarjeta" ? 42 : 30);
+      }
+    });
+    expect(encontrado).toBe(true);
+  });
+
   it("lleva al chofer quién derivó la venta y deja vacío el que se vendió directo", async () => {
     const ExcelJS = (await import("exceljs")).default;
     // Nombres distintos: la hoja ordena por pasajero y el test lee la celda por el nombre.

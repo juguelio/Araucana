@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { AEROPUERTO_CHAPELCO } from "@/lib/airport/route-order";
+import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import "./recorrido-mapa.css";
 
 export type ParadaDelMapa = {
@@ -16,25 +17,33 @@ export type ParadaDelMapa = {
   punto: { latitude: number; longitude: number } | null;
 };
 
+type RecorridoProps = {
+  paradas: ParadaDelMapa[];
+  sentido: "ARRIVAL" | "DEPARTURE";
+  titulo: string;
+  oficina: Pick<AirportOfficePickup, "address" | "point">;
+};
+
 /**
  * «Visualizar recorrido»: debajo de una orden de servicio, el mapa con las paradas numeradas en el orden
- * de la hoja, unidas por una línea, y el aeropuerto donde termina (partidas) o donde arranca (arribos).
+ * de la hoja, unidas por una línea. Las partidas salen de la oficina y terminan en el aeropuerto;
+ * los arribos arrancan en el aeropuerto.
  * Sirve para revisar de un vistazo que el recorrido no vaya y venga. Los pasajeros sin punto en el mapa
  * se listan abajo.
  */
-export function VerRecorrido({ paradas, sentido, titulo }: { paradas: ParadaDelMapa[]; sentido: "ARRIVAL" | "DEPARTURE"; titulo: string }) {
+export function VerRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps) {
   const [abierto, setAbierto] = useState(false);
   return (
     <div className="recorrido-mapa no-print">
       <button className="ghost-button" type="button" aria-expanded={abierto} onClick={() => setAbierto((actual) => !actual)}>
         {abierto ? "Ocultar recorrido" : "Visualizar recorrido"}
       </button>
-      {abierto ? <MapaDelRecorrido paradas={paradas} sentido={sentido} titulo={titulo} /> : null}
+      {abierto ? <MapaDelRecorrido paradas={paradas} sentido={sentido} titulo={titulo} oficina={oficina} /> : null}
     </div>
   );
 }
 
-function MapaDelRecorrido({ paradas, sentido, titulo }: { paradas: ParadaDelMapa[]; sentido: "ARRIVAL" | "DEPARTURE"; titulo: string }) {
+function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<LeafletMap | null>(null);
   const [fallo, setFallo] = useState(false);
@@ -54,16 +63,29 @@ function MapaDelRecorrido({ paradas, sentido, titulo }: { paradas: ParadaDelMapa
       }).addTo(instancia);
 
       const aeropuerto: [number, number] = [AEROPUERTO_CHAPELCO.latitude, AEROPUERTO_CHAPELCO.longitude];
-      const puntos = ubicadas.map((parada) => [parada.punto!.latitude, parada.punto!.longitude] as [number, number]);
-      // Partida: junta a la gente y termina en el aeropuerto. Arribo: sale del aeropuerto y deja a la gente.
-      const camino = sentido === "DEPARTURE" ? [...puntos, aeropuerto] : [aeropuerto, ...puntos];
+      const paradasUbicadas = paradas.filter((parada) => parada.punto);
+      const puntos = paradasUbicadas.map((parada) => [parada.punto!.latitude, parada.punto!.longitude] as [number, number]);
+      // La oficina es el origen de la nave, aunque el atajo del checkout esté desactivado.
+      const origen = sentido === "DEPARTURE" ? oficina.point : null;
+      const puntosEnCiudad = origen ? [origen, ...puntos] : puntos;
+      const camino = sentido === "DEPARTURE" ? [...puntosEnCiudad, aeropuerto] : [aeropuerto, ...puntos];
       L.polyline(camino, { color: "#1f5c4a", weight: 4, opacity: 0.75 }).addTo(instancia);
+
+      if (origen) {
+        const etiqueta = document.createElement("span");
+        etiqueta.textContent = `Oficina · ${oficina.address} (inicio del recorrido)`;
+        L.marker(origen, {
+          icon: L.divIcon({ className: "recorrido-mapa-oficina", html: "O", iconSize: [30, 30] }),
+          title: etiqueta.textContent,
+          zIndexOffset: 1000
+        }).bindTooltip(etiqueta).addTo(instancia);
+      }
 
       L.marker(aeropuerto, {
         icon: L.divIcon({ className: "recorrido-mapa-aeropuerto", html: "✈", iconSize: [30, 30] }),
         title: sentido === "DEPARTURE" ? "Aeropuerto Chapelco (fin del recorrido)" : "Aeropuerto Chapelco (inicio del recorrido)"
       }).addTo(instancia);
-      ubicadas.forEach((parada) => {
+      paradasUbicadas.forEach((parada) => {
         L.marker([parada.punto!.latitude, parada.punto!.longitude], {
           icon: L.divIcon({ className: "recorrido-mapa-parada", html: String(parada.numero), iconSize: [28, 28] }),
           title: `${parada.numero}. ${parada.nombre} · ${parada.pasajeros} · ${parada.lugar}`
@@ -72,8 +94,8 @@ function MapaDelRecorrido({ paradas, sentido, titulo }: { paradas: ParadaDelMapa
           .addTo(instancia);
       });
 
-      // Encuadre: las paradas (el aeropuerto queda lejos y achicaría todo); si no hay ninguna, el aeropuerto.
-      if (puntos.length) instancia.fitBounds(L.latLngBounds(puntos), { padding: [36, 36], maxZoom: 16 });
+      // Encuadre: oficina y paradas; el aeropuerto queda lejos y achicaría todo.
+      if (puntosEnCiudad.length) instancia.fitBounds(L.latLngBounds(puntosEnCiudad), { padding: [36, 36], maxZoom: 16 });
       else instancia.setView(aeropuerto, 13);
     }
     void armar().catch(() => { if (!cancelado) setFallo(true); });
@@ -82,8 +104,7 @@ function MapaDelRecorrido({ paradas, sentido, titulo }: { paradas: ParadaDelMapa
       mapa.current?.remove();
       mapa.current = null;
     };
-    // El mapa se arma una vez por apertura: las paradas cambian al recargar la orden.
-  }, []);
+  }, [paradas, sentido, oficina]);
 
   return (
     <div className="recorrido-mapa-cuerpo">
@@ -94,7 +115,9 @@ function MapaDelRecorrido({ paradas, sentido, titulo }: { paradas: ParadaDelMapa
       )}
       <p className="muted recorrido-mapa-nota">
         {sentido === "DEPARTURE"
-          ? "Los números siguen el orden de la hoja: el 1 es el primer retiro y la línea termina en el aeropuerto."
+          ? oficina.point
+            ? `La línea sale de la oficina (${oficina.address}), sigue los retiros en el orden de la hoja y termina en el aeropuerto. El 1 es el primer retiro.`
+            : `Salida desde la oficina: ${oficina.address}. Falta configurar su punto en el mapa para mostrar el tramo inicial. Los números siguen el orden de la hoja y la línea termina en el aeropuerto.`
           : "Los números siguen el orden de la hoja: la línea sale del aeropuerto y el 1 es la primera parada."}
       </p>
       {sinUbicar.length ? (

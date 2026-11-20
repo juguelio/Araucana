@@ -11,6 +11,7 @@ import {
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
 import { CeldaDeLaOrden } from "./service-order-cells";
+import { FormaDePagoEditable } from "./forma-de-pago-editable";
 import "./service-order-sheet.css";
 
 type ServiceOrderSheetProps = {
@@ -22,7 +23,7 @@ type ServiceOrderSheetProps = {
   accionesDeOrden?: (block: ServiceOrderBlock) => ReactNode;
   /** Reemplaza las filas de una orden, para la recorrida editable del panel. Devuelve un `<tbody>`, o nada para usar las filas de sólo lectura. */
   filasDeOrden?: (block: ServiceOrderBlock) => ReactNode;
-  /** Lo que va debajo de cada orden (el mapa del recorrido en el panel). */
+  /** Lo que va debajo de cada orden (el mapa del recorrido del panel y del enlace del chofer). */
   pieDeOrden?: (block: ServiceOrderBlock) => ReactNode;
 };
 
@@ -91,7 +92,9 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
                         <td key={`${pasajero.code}-${indice}`} data-columna={SERVICE_ORDER_COLUMNS[indice]}>
                           {indice === 0 ? <span className="orden-parada-numero">{parada + 1}.</span> : null}
                           {indice === 0 ? " " : null}
-                          <CeldaDeLaOrden celda={celda} columna={SERVICE_ORDER_COLUMNS[indice]} />
+                          {conAcciones && SERVICE_ORDER_COLUMNS[indice] === "Forma de pago" ? (
+                            <FormaDePagoEditable date={date} code={pasajero.code} nombre={pasajero.name} metodo={celda} />
+                          ) : <CeldaDeLaOrden celda={celda} columna={SERVICE_ORDER_COLUMNS[indice]} />}
                         </td>
                       ))}
                       {conAcciones ? (
@@ -105,8 +108,9 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
               )}
               <tfoot>
                 <tr>
-                  <td colSpan={SERVICE_ORDER_COLUMNS.length - 1}>{tituloDelTotal(block)}</td>
+                  <td colSpan={5}>{tituloDelTotal(block)}</td>
                   <td>{plata(block.totalCents, currency)}</td>
+                  <td colSpan={2} />
                   {conAcciones ? <td className="no-print" /> : null}
                 </tr>
               </tfoot>
@@ -128,7 +132,8 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
 
       <p className="orden-pie">
         «Derivado por» es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío.
-        Cobrar / Pagado es el estado del pago. Las filas están en el orden de la recorrida: el que se acomodó a mano en
+        Cobrar / Pagado es el estado del pago. La forma de pago se puede cargar desde la orden o marcar a mano
+        en los casilleros al imprimir. Elegirla no confirma el cobro. Las filas están en el orden de la recorrida: el que se acomodó a mano en
         el panel y, si no, el sugerido: en los arribos, desde el aeropuerto con el más cercano primero; en las partidas, al
         revés, del más lejano al más cercano al aeropuerto. Al final van los pasajeros que no tienen el punto marcado en
         el mapa. Si el vuelo sale con más de una nave, hay una orden por nave. El

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition, type DragEvent } from "react";
 import { guardarRecorridoAction, moverANaveAction } from "@/app/admin/aeropuerto/orden-de-servicio/ver/actions";
 import { CeldaDeLaOrden } from "./service-order-cells";
+import { FormaDePagoEditable } from "./forma-de-pago-editable";
 
 export type FilaDeLaOrden = { code: string; celdas: string[] };
 
@@ -160,7 +161,9 @@ export function RecorridoEditable({ date, flightId, assignmentId, editable, nave
           >
             {fila.celdas.map((celda, columna) => (
               <td key={`${code}-${columna}`} data-columna={columnas[columna]}>
-                {columna === 0 ? (
+                {columnas[columna] === "Forma de pago" ? (
+                  <FormaDePagoEditable date={date} code={code} nombre={fila.celdas[0]} metodo={celda} />
+                ) : columna === 0 ? (
                   <span className="orden-parada">
                     <span className="orden-arrastre no-print" aria-hidden="true">⠿</span>
                     <span className="orden-parada-numero">{indice + 1}.</span>{" "}

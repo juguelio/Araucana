@@ -12,5 +12,9 @@
   display: grid; place-items: center; border-radius: 50%; background: #d07a12; color: #fff;
   font-size: 16px; border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
 }
+.recorrido-mapa-oficina {
+  display: grid; place-items: center; border-radius: 6px; background: #245c94; color: #fff;
+  font: 700 15px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgb(0 0 0 / .35);
+}
 @media print { .recorrido-mapa { display: none; } }
 @media (max-width: 640px) { .recorrido-mapa-lienzo { height: 320px; } }

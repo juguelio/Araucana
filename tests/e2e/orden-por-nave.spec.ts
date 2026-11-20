@@ -24,8 +24,11 @@ const pasajeros = {
 };
 let flightId = "";
 const chofer = `Rosa ${suffix}`;
+const oficina = { enabled: false, label: "la sucursal", address: "Oficina de prueba 123", point: [-40.16, -71.36] };
+let oficinaAnterior: { value: string; updatedBy: string | null } | null = null;
 
 test.beforeAll(async () => {
+  oficinaAnterior = await db.appSetting.findUnique({ where: { key: "airport.officePickup" }, select: { value: true, updatedBy: true } });
   await db.user.create({ data: { email: `chofer-${suffix}@example.com`, name: chofer, role: "DRIVER", isActive: true } });
   await db.user.create({ data: { email, name: "Admin orden", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 10) } });
   const flight = await db.flight.create({ data: {
@@ -51,10 +54,23 @@ test.beforeAll(async () => {
     } });
   }
 });
-test.afterAll(async () => { await db.$disconnect(); });
+test.afterAll(async () => {
+  if (oficinaAnterior) {
+    await db.appSetting.upsert({ where: { key: "airport.officePickup" }, create: { key: "airport.officePickup", ...oficinaAnterior }, update: oficinaAnterior });
+  } else {
+    await db.appSetting.deleteMany({ where: { key: "airport.officePickup" } });
+  }
+  await db.$disconnect();
+});
 
 test.beforeEach(async ({ page }) => {
   await db.rateLimitHit.deleteMany();
+  await db.payment.deleteMany({ where: { reservation: { code: { in: Object.values(pasajeros).map((pasajero) => pasajero.code) } } } });
+  await db.appSetting.upsert({
+    where: { key: "airport.officePickup" },
+    create: { key: "airport.officePickup", value: JSON.stringify(oficina) },
+    update: { value: JSON.stringify(oficina) }
+  });
   await db.airportReservationDetails.updateMany({ where: { flightId }, data: { routePosition: null, assignmentId: null } });
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
 });
@@ -156,6 +172,9 @@ test("el link copiado abre sólo la orden de esa nave, sin usuario", async ({ pa
   await expect(chofer.locator("section.orden-bloque")).toHaveCount(1);
   await expect(chofer.locator("section.orden-bloque")).toContainText(`Ana ${suffix}`);
   await expect(chofer.locator("section.orden-bloque")).not.toContainText(`Beto ${suffix}`);
+  await chofer.getByRole("button", { name: "Visualizar recorrido" }).click();
+  await expect(chofer.locator(".recorrido-mapa-oficina")).toHaveAttribute("title", `Oficina · ${oficina.address} (inicio del recorrido)`);
+  await expect(chofer.locator(".recorrido-mapa-parada")).toHaveText(["1"]);
   await anonimo.close();
 });
 
@@ -202,11 +221,126 @@ test("«Visualizar recorrido» muestra debajo de la orden el mapa con las parada
   await b.getByRole("button", { name: "Visualizar recorrido" }).click();
   const mapa = b.getByRole("img", { name: /Mapa del recorrido/ });
   await expect(mapa).toBeVisible();
-  // Una marca por parada, con su número en el orden de la hoja, y el aeropuerto donde termina la partida.
+  // La oficina no ocupa un número de pasajero, incluso con el atajo del checkout apagado.
   await expect(b.locator(".recorrido-mapa-parada")).toHaveText(["1", "2"]);
   await expect(b.locator(".recorrido-mapa-aeropuerto")).toHaveCount(1);
-  await expect(b).toContainText("la línea termina en el aeropuerto");
+  const marcaOficina = b.locator(".recorrido-mapa-oficina");
+  await expect(marcaOficina).toHaveAttribute("title", `Oficina · ${oficina.address} (inicio del recorrido)`);
+  await expect(b).toContainText(`La línea sale de la oficina (${oficina.address})`);
+  // El primer vértice de la línea coincide con la oficina, no con el primer retiro.
+  const primerVertice = await b.locator("path.leaflet-interactive").getAttribute("d");
+  const posicionOficina = await marcaOficina.evaluate((element) => {
+    const posicion = element.style.transform.match(/translate3d\((-?[\d.]+)px,\s*(-?[\d.]+)px/)!;
+    return `${posicion[1]} ${posicion[2]}`;
+  });
+  expect(primerVertice?.startsWith(`M${posicionOficina}L`)).toBe(true);
   await b.screenshot({ path: "/tmp/araucana-orden-mapa.png" });
   await b.getByRole("button", { name: "Ocultar recorrido" }).click();
   await expect(mapa).toHaveCount(0);
+});
+
+test("sin coordenadas de la oficina avisa que falta el tramo inicial", async ({ page }) => {
+  await db.appSetting.update({ where: { key: "airport.officePickup" }, data: { value: JSON.stringify({ ...oficina, point: null }) } });
+  await abrir(page);
+  const b = orden(page, naves.b.name);
+  await b.getByRole("button", { name: "Visualizar recorrido" }).click();
+  await expect(b.getByRole("img", { name: /Mapa del recorrido/ })).toBeVisible();
+  await expect(b).toContainText("Falta configurar su punto en el mapa para mostrar el tramo inicial.");
+  await expect(b.locator(".recorrido-mapa-oficina")).toHaveCount(0);
+  await expect(b.locator(".recorrido-mapa-parada")).toHaveText(["1", "2"]);
+});
+
+test("los arribos siguen saliendo del aeropuerto", async ({ page }) => {
+  await db.flight.update({ where: { id: flightId }, data: { direction: "ARRIVAL" } });
+  await db.airportReservationDetails.updateMany({ where: { flightId }, data: { direction: "ARRIVAL" } });
+  try {
+    await abrir(page);
+    const b = orden(page, naves.b.name);
+    await b.getByRole("button", { name: "Visualizar recorrido" }).click();
+    await expect(b.locator(".recorrido-mapa-aeropuerto")).toHaveAttribute("title", "Aeropuerto Chapelco (inicio del recorrido)");
+    await expect(b.locator(".recorrido-mapa-oficina")).toHaveCount(0);
+    await expect(b).toContainText("la línea sale del aeropuerto");
+  } finally {
+    await db.flight.update({ where: { id: flightId }, data: { direction: "DEPARTURE" } });
+    await db.airportReservationDetails.updateMany({ where: { flightId }, data: { direction: "DEPARTURE" } });
+  }
+});
+
+test("la forma de pago se guarda desde la orden y se imprime en los casilleros", async ({ page, context, browser }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await abrir(page);
+  const a = orden(page, naves.a.name);
+  const selector = a.getByRole("combobox", { name: `Forma de pago de Ana ${suffix}` });
+  await expect(selector).toHaveValue("");
+  const casilleros = a.locator(".orden-forma-pago-casillero");
+  await page.emulateMedia({ media: "print" });
+  await expect(selector).toBeHidden();
+  await expect(casilleros.first()).toBeVisible();
+  await expect(casilleros).toHaveText(["", ""]);
+  await page.emulateMedia({ media: "screen" });
+
+  await selector.selectOption("Efectivo");
+  await expect(a.getByRole("status")).toHaveText("Forma de pago guardada.");
+  await expect(selector).toHaveValue("Efectivo");
+  const reserva = await db.reservation.findUniqueOrThrow({ where: { code: pasajeros.ana.code }, include: { payment: true } });
+  expect(reserva.status).toBe("CONFIRMED");
+  expect(reserva.payment).toMatchObject({ method: "Efectivo", status: "PENDING", amountCents: reserva.totalCents });
+
+  await page.reload();
+  await expect(selector).toHaveValue("Efectivo");
+  await page.emulateMedia({ media: "print" });
+  await expect(casilleros).toHaveText(["✓", ""]);
+  await expect(casilleros.first()).toBeVisible();
+  await page.screenshot({ path: "/tmp/araucana-orden-forma-pago-impresa.png", fullPage: true });
+  await page.emulateMedia({ media: "screen" });
+
+  // La descarga lee el método guardado, igual que el papel.
+  const respuesta = await page.request.get((await a.getByRole("link", { name: "Descargar Excel" }).getAttribute("href"))!);
+  expect(respuesta.status()).toBe(200);
+  const ExcelJS = (await import("exceljs")).default;
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(await respuesta.body() as unknown as Parameters<typeof libro.xlsx.load>[0]);
+  let metodoExcel = "";
+  libro.getWorksheet("Orden de servicio")!.eachRow((fila) => {
+    if (String(fila.getCell(1).value).includes(`Ana ${suffix}`)) metodoExcel = String(fila.getCell(8).value);
+  });
+  expect(metodoExcel).toBe("[x] Efectivo\n[ ] Transferencia");
+
+  await a.getByRole("button", { name: "Copiar link" }).click();
+  await expect(a.getByRole("button", { name: "Link copiado" })).toBeVisible();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  const anonimo = await browser.newContext();
+  try {
+    const chofer = await anonimo.newPage();
+    await chofer.goto(link);
+    await expect(chofer.locator(".orden-forma-pago-casillero")).toHaveText(["✓", ""]);
+    await expect(chofer.getByRole("combobox", { name: /Forma de pago/ })).toHaveCount(0);
+  } finally {
+    await anonimo.close();
+  }
+
+  await selector.selectOption("");
+  await expect(selector).toHaveValue("");
+  await expect.poll(async () => (await db.payment.findUnique({ where: { reservationId: reserva.id } }))?.method).toBeNull();
+  await expect(casilleros).toHaveText(["", ""]);
+});
+
+test("cargar transferencia conserva el pago aprobado y sus datos", async ({ page }) => {
+  const reserva = await db.reservation.findUniqueOrThrow({ where: { code: pasajeros.ana.code } });
+  await db.payment.create({ data: {
+    reservationId: reserva.id, method: "Efectivo", status: "APPROVED", provider: "MANUAL",
+    amountCents: reserva.totalCents, currency: "ARS", externalRef: "Referencia previa"
+  } });
+  await abrir(page);
+  const selector = orden(page, naves.a.name).getByRole("combobox", { name: `Forma de pago de Ana ${suffix}` });
+  await selector.selectOption("Transferencia");
+  await expect(selector).toHaveValue("Transferencia");
+  expect(await db.payment.findUniqueOrThrow({ where: { reservationId: reserva.id } })).toMatchObject({
+    method: "Transferencia", status: "APPROVED", amountCents: reserva.totalCents,
+    provider: "MANUAL", currency: "ARS", externalRef: "Referencia previa"
+  });
+  await expect(orden(page, naves.a.name).locator(".orden-forma-pago-casillero")).toHaveText(["", "✓"]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(selector).toBeVisible();
+  await orden(page, naves.a.name).screenshot({ path: "/tmp/araucana-orden-forma-pago-celular.png" });
 });
