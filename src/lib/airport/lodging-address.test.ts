@@ -1,0 +1,54 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { matchesMunicipalAddress, municipalStreetAddress, resolveMunicipalLodging } from "./lodging-address";
+import { suggestProviderAirportPlaces } from "./place-suggestions";
+import { municipalLodgings } from "./lodging-catalogue";
+vi.mock("./place-suggestions", () => ({ suggestProviderAirportPlaces: vi.fn() }));
+afterEach(() => vi.resetAllMocks());
+const hit = { label: "Hostal del Esquiador, Coronel Rohde 975, San Martín de los Andes", point: [-40.16, -71.35] as [number, number], source: "photon" as const, approximate: false, precision: "exact" as const };
+
+it("expande abreviaturas y sólo interpreta domicilios simples", () => {
+  expect(municipalStreetAddress("Cnel. Rohde 975")).toEqual({ street: "coronel rohde", number: "975" });
+  expect(municipalStreetAddress("Av. San Martín Nº 1242")).toEqual({ street: "avenida san martin", number: "1242" });
+  for (const address of ["Ruta 40 km 2220", "Roca 1090 Dto. 2", "Moreno 1070/1076", "Lote 12", "Rohde s/n"]) expect(municipalStreetAddress(address)).toBeNull();
+});
+it("exige calle, altura y localidad y admite el orden número-calle del proveedor", () => {
+  const address = municipalStreetAddress("Cnel. Rohde 975")!;
+  expect(matchesMunicipalAddress(hit.label, address)).toBe(true);
+  expect(matchesMunicipalAddress("975, Coronel Rohde, San Martín de los Andes", address)).toBe(true);
+  for (const label of ["Coronel Rohde 974, San Martín de los Andes", "San Martín 975, San Martín de los Andes", "Coronel Rohde 975, Junín de los Andes"]) expect(matchesMunicipalAddress(label, address)).toBe(false);
+});
+it("conserva la identidad municipal y atribuye el punto sin confirmar la entrada", async () => {
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValueOnce([]).mockResolvedValueOnce([hit]);
+  const result = await resolveMunicipalLodging("165", new AbortController().signal);
+  expect(result).toMatchObject({ lodgingId: "165", source: "municipal", coordinateSource: "photon", point: hit.point, approximate: true });
+  expect(result?.label).toContain("Hostal del Esquiador, Cnel. Rohde 975");
+  expect(suggestProviderAirportPlaces).toHaveBeenCalledWith("coronel rohde 975, San Martín de los Andes", expect.any(AbortSignal));
+});
+it.each([
+  [{ ...hit, label: "Hotel del Viejo Esquiador, Avenida San Martín 1242, San Martín de los Andes" }],
+  [{ ...hit, point: [-41, -71] }],
+  [{ ...hit, precision: "street" }],
+  [{ ...hit, precision: "interpolated" }]
+])("no asigna puntos incorrectos, vagos o contradictorios (%#)", async (candidate) => {
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([candidate] as typeof hit[]);
+  expect((await resolveMunicipalLodging("165", new AbortController().signal))?.point).toBeNull();
+});
+it("rechaza coordenadas contradictorias para el mismo domicilio", async () => {
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([hit, { ...hit, point: [-40.15, -71.34] }]);
+  expect((await resolveMunicipalLodging("165", new AbortController().signal))?.point).toBeNull();
+});
+it("mantiene la ficha si el proveedor falla", async () => {
+  vi.mocked(suggestProviderAirportPlaces).mockRejectedValue(new Error("Offline"));
+  expect(await resolveMunicipalLodging("165", new AbortController().signal)).toMatchObject({ lodgingId: "165", point: null, precision: "none" });
+});
+it("no geocodifica alojamientos rurales como si estuvieran en el centro", async () => {
+  const rural = municipalLodgings.find((place) => place.type === "Alojamiento en Áreas Rurales")!;
+  expect((await resolveMunicipalLodging(rural.id, new AbortController().signal))?.point).toBeNull();
+  expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
+});
+it("no acepta identificadores desconocidos ni una búsqueda cancelada", async () => {
+  expect(await resolveMunicipalLodging("99999999", new AbortController().signal)).toBeNull();
+  const controller = new AbortController(); controller.abort();
+  expect((await resolveMunicipalLodging("165", controller.signal))?.point).toBeNull();
+  expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
+});

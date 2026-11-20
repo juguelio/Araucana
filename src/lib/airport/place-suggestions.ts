@@ -3,10 +3,11 @@ import { ApiError } from "@/lib/api/responses";
 import { lookupAirportIntersection } from "./intersection-lookup";
 import {
   airportSearchBounds, airportSearchCenter, airportSearchLocality, isIntersectionQuery,
-  normalizePlaceText, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
+  lodgingSearchQuery, normalizePlaceText, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
 } from "./place-search-area";
 import type { PickupPoint } from "./pickup-zone";
 import { lookupStreetAddresses } from "./street-address-lookup";
+import { suggestMunicipalLodgings, withMunicipalLodgings } from "./lodging-catalogue";
 
 /**
  * Cuánto se sabe del punto. `approximate` solo no distingue "la fuente ubicó la
@@ -24,7 +25,9 @@ export type AirportPlaceSuggestion = {
    * punto lo marca el operador en el mapa. Nunca se inventan coordenadas.
    */
   point: PickupPoint | null;
-  source: "georef" | "locationiq" | "photon";
+  source: "georef" | "locationiq" | "photon" | "municipal";
+  lodgingId?: string;
+  coordinateSource?: "georef" | "locationiq" | "photon";
   approximate: boolean;
 };
 
@@ -116,7 +119,7 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
     return photonResponse.parse(payload).features.flatMap(({ properties, geometry }) => {
       const { name, street, housenumber, district, city, type } = properties;
       const address = [street, housenumber].filter(Boolean).join(" ");
-      const primary = housenumber && street ? address : name;
+      const primary = name || address;
       const label = [...new Set([primary, address, district, city].filter(Boolean))].join(", ");
       if (!label) return [];
       const [lon, lat] = geometry.coordinates;
@@ -189,10 +192,13 @@ async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Pr
 }
 
 function matchesStreetNumber(label: string, street: string, number: string) {
-  const [first, second] = label.split(",").map(normalizePlaceText);
-  const address = splitStreetAddress(first);
-  const matchedStreet = first === number ? second : address?.number === number ? address.street : undefined;
-  return Boolean(matchedStreet && (matchedStreet === street || matchedStreet.endsWith(` ${street}`)));
+  const parts = label.split(",").map(normalizePlaceText);
+  // Una dirección puede venir precedida por el nombre del hotel.
+  return parts.slice(0, 2).some((part, index) => {
+    const address = splitStreetAddress(part);
+    const matchedStreet = part === number ? parts[index + 1] : address?.number === number ? address.street : undefined;
+    return Boolean(matchedStreet && (matchedStreet === street || matchedStreet.endsWith(` ${street}`)));
+  });
 }
 
 async function suggestStreetAddress(name: string, context: string, address: NonNullable<ReturnType<typeof splitStreetAddress>>, signal: AbortSignal) {
@@ -245,7 +251,7 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
   return suggestions;
 }
 
-export async function suggestAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
+export async function suggestProviderAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
   if (isIntersectionQuery(query)) {
     const corners = await lookupAirportIntersection(query, signal).catch(() => []);
     if (corners.length > 0) {
@@ -260,8 +266,27 @@ export async function suggestAirportPlaces(query: string, signal: AbortSignal): 
   const matches = address
     ? await suggestStreetAddress(name, context, address, signal)
     : await lookupNamedPlaces(search, signal);
+  const lodgingQuery = !address && lodgingSearchQuery(search);
+  if (lodgingQuery && !signal.aborted) {
+    // Complementa el nombre literal: «Hotel del Esquiador» puede estar registrado
+    // como «Hostal del Esquiador». La misma área geográfica sigue restringida.
+    matches.push(...await lookupNamedPlaces(lodgingQuery, signal).catch(() => []));
+  }
   const unique = [...new Map(matches.map((match) => [
     `${match.label}:${match.point ? match.point.join(",") : "sin-punto"}`, match
   ])).values()];
   return context ? unique : prioritizeLocalPlaces(unique, (place) => place.label);
+}
+
+export async function suggestAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
+  if (signal.aborted) return [];
+  try {
+    const external = await suggestProviderAirportPlaces(query, signal);
+    return signal.aborted ? [] : withMunicipalLodgings(query, external);
+  } catch (error) {
+    if (signal.aborted) return [];
+    const municipal = suggestMunicipalLodgings(query);
+    if (municipal.length) return municipal;
+    throw error;
+  }
 }

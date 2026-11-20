@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resetStreetPointCache, suggestAirportPlaces } from "./place-suggestions";
+import { resetStreetPointCache, suggestProviderAirportPlaces as suggestAirportPlaces } from "./place-suggestions";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -191,4 +191,33 @@ it("usa OpenStreetMap cuando el geocoder comercial no devuelve la calle", async 
   expect((fetchProvider.mock.calls.at(-1)?.[1] as RequestInit).headers).toMatchObject({
     "User-Agent": expect.stringContaining("AraucanaViajes")
   });
+});
+
+it("encuentra Hostal del Esquiador aunque se busque como hotel y conserva nombre y dirección", async () => {
+  vi.stubEnv("AIRPORT_PHOTON_URL", "https://photon.test/api/");
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json({ features: [] }))
+    .mockResolvedValueOnce(Response.json({ features: [{
+      geometry: { type: "Point", coordinates: [-71.35, -40.16] },
+      properties: { name: "Hostal del Esquiador", street: "Coronel Rohde", housenumber: "975", city: "San Martín de los Andes", type: "house" }
+    }] }));
+  vi.stubGlobal("fetch", fetchProvider);
+  const results = await suggestAirportPlaces("hote del esquiador", new AbortController().signal);
+  expect(fetchProvider.mock.calls[1][0].searchParams.get("q")).toBe("esquiador");
+  expect(results[0].label).toBe("Hostal del Esquiador, Coronel Rohde 975, San Martín de los Andes");
+  expect(results[0].point).toEqual([-40.16, -71.35]);
+});
+
+it("mantiene la coincidencia de altura cuando Photon incluye el nombre del hotel", async () => {
+  vi.stubEnv("AIRPORT_PHOTON_URL", "https://photon.test/api/");
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "");
+  const fetchProvider = vi.fn().mockResolvedValue(Response.json({ features: [{
+    geometry: { type: "Point", coordinates: [-71.345, -40.154] },
+    properties: { name: "Hotel el Viejo Esquiador", street: "Avenida San Martín", housenumber: "1242", city: "San Martín de los Andes", type: "house" }
+  }] }));
+  vi.stubGlobal("fetch", fetchProvider);
+  const results = await suggestAirportPlaces("San Martín 1242", new AbortController().signal);
+  expect(results[0].label).toBe("Hotel el Viejo Esquiador, Avenida San Martín 1242, San Martín de los Andes");
+  expect(fetchProvider).toHaveBeenCalledOnce();
 });

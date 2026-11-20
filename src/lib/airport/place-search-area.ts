@@ -16,6 +16,19 @@ export function splitStreetAddress(name: string) {
   return match ? { street: match[1], number: match[2].toLowerCase() } : null;
 }
 
+/** Busca por el nombre distintivo aunque el pasajero confunda hotel y hostal. */
+export function lodgingSearchQuery(query: string) {
+  const { name, context } = splitPlaceQuery(query);
+  if (splitStreetAddress(name)) return null;
+  const normalized = normalizePlaceText(name);
+  if (!/^(?:hotel(?:es)?|hote|hostal|hosteria|hostel|cabana(?:s)?|apart(?: hotel)?)\s+/.test(normalized)) return null;
+  const distinctive = normalized
+    .replace(/^(?:hotel(?:es)?|hote|hostal|hosteria|hostel|cabana(?:s)?|apart(?: hotel)?)\s+/, "")
+    .replace(/^(?:(?:de|del|la|las|el|los)(?:\s+|$))+/, "");
+  if (distinctive.length < 3) return null;
+  return [distinctive, context].filter(Boolean).join(", ");
+}
+
 export function prioritizeLocalPlaces<T>(places: T[], label: (place: T) => string) {
   const locality = normalizePlaceText(airportSearchLocality);
   const local = (place: T) => normalizePlaceText(label(place)).includes(locality);
