@@ -137,7 +137,8 @@ export type LugarDeOtroServicio = { nombre: string; detalle: string; href: strin
 
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
-  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref, lugaresExtra
+  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref, lugaresExtra,
+  abrirLaVuelta = false
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
@@ -165,17 +166,33 @@ export function TripSearchBar({
    * `desde` se ofrece siempre; `hacia`, cuando sale de San Martín.
    */
   lugaresExtra?: { desde: LugarDeOtroServicio[]; hacia: LugarDeOtroServicio[] };
+  /**
+   * Se llegó desde «Agregar vuelta» (`?abrir=vuelta`): el segundo tramo abre su panel solo.
+   * Antes el primer toque sólo agregaba la vuelta y había que tocar de nuevo para ver los vuelos
+   * (pedido de Jugue, 20-nov).
+   */
+  abrirLaVuelta?: boolean;
 }) {
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
-  const [abierto, setAbierto] = useState<Campo | null>(null);
+  const [abierto, setAbierto] = useState<Campo | null>(abrirLaVuelta && tramos.length > 1 ? tramos[1].sentido : null);
   /** El primer día de la tira de cada tramo: se corre de a una semana con las flechas. */
   const [inicioTira, setInicioTira] = useState<Partial<Record<Sentido, string>>>({});
   /**
    * El tramo al que se acaba de pasar solo (con la ida elegida se abre la vuelta). Mientras siga abierto,
    * el panel lo anuncia bien a la vista (pedido de Jugue, 18-nov: «la transición tiene que ser mucho más notable»).
    */
-  const [recienPaso, setRecienPaso] = useState<Sentido | null>(null);
+  const [recienPaso, setRecienPaso] = useState<Sentido | null>(
+    abrirLaVuelta && tramos.length > 1 ? tramos[1].sentido : null
+  );
+
+  // Llegada desde «Agregar vuelta»: se baja hasta la vuelta para que el panel entre a la vista.
+  useEffect(() => {
+    if (!abrirLaVuelta) return;
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    raiz.current?.querySelector<HTMLElement>("[data-abierto]")
+      ?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "center" });
+  }, [abrirLaVuelta]);
 
   // Con un solo tramo el sentido es el del tramo; con dos manda el orden del viaje.
   const sentidoBase: Sentido = orden ?? tramos[0]?.sentido ?? "ARRIVAL";

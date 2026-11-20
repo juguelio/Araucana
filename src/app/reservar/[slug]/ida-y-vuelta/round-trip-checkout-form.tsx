@@ -90,6 +90,8 @@ type RoundTripCheckoutFormProps = {
   fromAdmin?: boolean;
   /** Panel: los lugares de las rutas por salida en Desde/Hacia (pantalla única de «Reservar»). */
   lugaresExtra?: LugaresExtra;
+  /** Se llegó desde «Agregar vuelta»: la vuelta abre sus opciones sola (20-nov). */
+  abrirLaVuelta?: boolean;
 };
 
 type LugarPickup = {
@@ -159,7 +161,7 @@ function descripcionVuelo(vuelo: FlightOption) {
 
 type LugaresExtra = { desde: LugarDeOtroServicio[]; hacia: LugarDeOtroServicio[] };
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs, initialOrder = "ARRIVAL", initialFirstFlightId, lugaresExtra }: RoundTripCheckoutFormProps) {
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs, initialOrder = "ARRIVAL", initialFirstFlightId, lugaresExtra, abrirLaVuelta = false }: RoundTripCheckoutFormProps) {
   /**
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
@@ -710,6 +712,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               <TripSearchBar
                 orden={orden}
                 lugaresExtra={lugaresExtra}
+                abrirLaVuelta={abrirLaVuelta}
                 tramos={bloquesDelViaje.map((bloque, i): TramoDeLaBarra => ({
                   sentido: bloque.sentido,
                   etapa: i === 0 ? "Ida" : "Vuelta",

@@ -627,7 +627,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
             onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
             onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
             agregarVuelta={detalleDeLaVuelta(sentido, fares) === null ? undefined : {
-              href: hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined }),
+              // `abrir=vuelta`: al llegar, la vuelta ya muestra sus vuelos (antes había que tocar
+              // el casillero dos veces: una para agregarla y otra para ver las opciones).
+              href: `${hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined })}&abrir=vuelta`,
               detalle: detalleDeLaVuelta(sentido, fares) ?? undefined
             }}
           />

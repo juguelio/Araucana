@@ -37,6 +37,26 @@ function veces(html: string, fragmento: string) {
   return html.split(fragmento).length - 1;
 }
 
+describe("TripSearchBar al llegar desde «Agregar vuelta»", () => {
+  const dosTramos = [
+    tramo({ sentido: "ARRIVAL", etapa: "Ida" }),
+    tramo({ sentido: "DEPARTURE", etapa: "Vuelta", titulo: "Salida desde Chapelco" })
+  ];
+
+  it("abre la vuelta sola: no hay que tocar el casillero una segunda vez", () => {
+    const html = render({ ...manejadores, tramos: dosTramos, abrirLaVuelta: true });
+    // El panel abierto es el del segundo tramo (la vuelta), no el de la ida.
+    expect(html).toContain('data-abierto="true"');
+    expect(html).toContain('data-campo="DEPARTURE"');
+    expect(html).toContain('aria-expanded="true"');
+  });
+
+  it("sin el flag la barra entra cerrada, como siempre", () => {
+    const html = render({ ...manejadores, tramos: dosTramos });
+    expect(html).not.toContain('aria-expanded="true"');
+  });
+});
+
 describe("TripSearchBar con un solo tramo", () => {
   const html = render({ ...manejadores, tramos: [tramo({ etapa: "Tu vuelo" })] });
 
