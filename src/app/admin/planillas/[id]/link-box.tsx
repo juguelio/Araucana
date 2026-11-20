@@ -37,7 +37,7 @@ export function PlanillaLinkBox({ token, title }: PlanillaLinkBoxProps) {
       <code>{url}</code>
       <div className="planilla-link-actions">
         <button type="button" className="ghost-button" onClick={copy}>
-          {copied ? "Link copiado" : "Copiar link"}
+          {copied ? "Link copiado" : "Copiar link de la planilla"}
         </button>
         <a
           className="ghost-button"

@@ -3,7 +3,8 @@
 import { useState } from "react";
 
 /**
- * Copia al portapapeles el link del voucher (#243). El admin lo necesita cuando el pasajero no dejó
+ * Copia al portapapeles el link del voucher (#243). Dice «Copiar voucher», no «Copiar link»: el
+ * admin no copia una dirección, copia el voucher. El admin lo necesita cuando el pasajero no dejó
  * teléfono: se lo pasa por donde pueda, sin tener que abrir el voucher y copiar la barra de
  * direcciones. Si el navegador no permite el portapapeles, cae a un textarea temporal para que el
  * botón nunca quede muerto.
@@ -36,7 +37,7 @@ export function CopiarVoucher({ url }: { url: string }) {
     <button
       type="button"
       className="ghost-button"
-      title="Copia el link del voucher para pegarlo donde quieras"
+      title="Copia el link del voucher para mandárselo al pasajero"
       onClick={async () => {
         try {
           await copiar(url);
@@ -47,7 +48,7 @@ export function CopiarVoucher({ url }: { url: string }) {
         }
       }}
     >
-      {estado === "si" ? "¡Copiado!" : estado === "error" ? "No se pudo copiar" : "Copiar link"}
+      {estado === "si" ? "¡Voucher copiado!" : estado === "error" ? "No se pudo copiar" : "Copiar voucher"}
     </button>
   );
 }

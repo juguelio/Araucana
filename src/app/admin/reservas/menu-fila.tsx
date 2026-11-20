@@ -42,7 +42,7 @@ export function MenuFila({ etiqueta, children }: { etiqueta: string; children: R
         className="reservas-menu-lista"
         onClick={(event) => {
           // Elegir una opción cierra el menú (el modal que abra sigue abierto: está en el body).
-          // «Copiar link» (`data-mantener`) no lo cierra: así se ve el «¡Copiado!».
+          // «Copiar voucher» (`data-mantener`) no lo cierra: así se ve el «¡Voucher copiado!».
           const destino = event.target as HTMLElement;
           if (destino.closest("[data-mantener]")) return;
           if (destino.closest("a, button") && ref.current) ref.current.open = false;
