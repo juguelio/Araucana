@@ -5,8 +5,8 @@ import { requireReservationAccess } from "@/lib/booking/access";
 import { attachManualPaymentReceipt, BookingError, getReservationByCode } from "@/lib/booking/repository";
 import type { AuditActor } from "@/lib/audit/record";
 import { storeManualPaymentReceipt } from "./receipt-storage";
-import { validateReceiptContent } from "./receipt-validation";
 import { politicaDeComprobante } from "./receipt-policy";
+import { normalizeReceipt } from "./receipt-normalization";
 
 // Checks that do not need the file. The API route runs them before reading the request
 // body, so a locked, missing or unconfigured upload never costs a 10 MiB read.
@@ -36,9 +36,8 @@ export async function uploadReservationReceipt(code: string, receipt: File, requ
   if (disabilityDocument && receipt.size > 4 * 1024 * 1024) {
     throw new ApiError("VALIDATION_ERROR", "El comprobante no puede superar 4 MB.", 400);
   }
-  const error = await validateReceiptContent(receipt);
-  if (error) throw new ApiError("VALIDATION_ERROR", error, 400);
-  const stored = await storeManualPaymentReceipt(code, receipt, disabilityDocument);
+  const normalized = await normalizeReceipt(receipt, disabilityDocument ? 4 * 1024 * 1024 : undefined);
+  const stored = await storeManualPaymentReceipt(code, normalized, disabilityDocument);
   let result: Awaited<ReturnType<typeof attachManualPaymentReceipt>>;
   try {
     result = await attachManualPaymentReceipt(code, stored, actor);

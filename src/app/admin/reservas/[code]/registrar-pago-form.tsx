@@ -1,4 +1,5 @@
 import { manageReservationAction } from "../actions";
+import { receiptAccept, receiptFormatsHelp } from "@/lib/payments/receipt-validation";
 
 /**
  * Registrar un pago recibido (efectivo, transferencia…) de una reserva: lo usan la página `/pago`
@@ -15,8 +16,8 @@ export function RegistrarPagoForm({ code, total }: { code: string; total: string
         <label>Referencia (opcional)<input name="reference" maxLength={120} /></label>
         <label>
           Comprobante (opcional)
-          <input name="receipt" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" />
-          <small className="muted">PDF, JPG, PNG o WEBP. Queda guardado junto al pago.</small>
+          <input name="receipt" type="file" accept={receiptAccept} />
+          <small className="muted">{receiptFormatsHelp} Queda guardado junto al pago.</small>
         </label>
         <button className="button" type="submit">Registrar pago</button>
       </form>
