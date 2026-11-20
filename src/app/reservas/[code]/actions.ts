@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api/responses";
 import { AuthorizationError } from "@/lib/auth/service";
 import { BookingError } from "@/lib/booking/repository";
 import { validateReceiptFile } from "@/lib/payments/receipt-storage";
+import { receiptMissingFileMessage } from "@/lib/payments/receipt-validation";
 
 export type UploadReceiptState = {
   ok: boolean;
@@ -30,7 +31,7 @@ export async function uploadManualPaymentReceiptAction(
   if (!(receipt instanceof File)) {
     return {
       ok: false,
-      message: "Subi un comprobante valido."
+      message: receiptMissingFileMessage
     };
   }
 

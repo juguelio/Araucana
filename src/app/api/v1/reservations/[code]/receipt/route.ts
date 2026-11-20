@@ -5,6 +5,7 @@ import { handleApiError, jsonError } from "@/lib/api/responses";
 import { assertReceiptUploadAllowed, uploadReservationReceipt } from "@/lib/payments/receipt-upload";
 import { BookingError } from "@/lib/booking/repository";
 import { validateReceiptFile } from "@/lib/payments/receipt-storage";
+import { receiptMissingFileMessage } from "@/lib/payments/receipt-validation";
 
 type RouteContext = {
   params: Promise<{ code: string }>;
@@ -20,7 +21,7 @@ export async function POST(request: Request, context: RouteContext) {
     const receipt = formData.get("receipt");
 
     if (!(receipt instanceof File)) {
-      return jsonError("VALIDATION_ERROR", "Subi un comprobante valido.", 400, {
+      return jsonError("VALIDATION_ERROR", receiptMissingFileMessage, 400, {
         receipt: "El archivo receipt es requerido."
       });
     }

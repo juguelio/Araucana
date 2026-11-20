@@ -12,17 +12,24 @@ export function isHeicReceipt(file: Pick<File, "type" | "name">) {
     || ((!file.type || file.type === "application/octet-stream") && /\.hei[cf]$/i.test(file.name));
 }
 
+/**
+ * Los mensajes de rechazo dicen **qué hacer**, no sólo qué formatos se aceptan: el admin
+ * sube lo que le llegó por WhatsApp y, si el archivo no entra, necesita saber cómo seguir
+ * sin adivinar. Todo mensaje nombra la salida que siempre funciona (PDF o JPG).
+ */
+export const receiptMissingFileMessage = "No llegó el archivo. Elegí de nuevo el comprobante (PDF, JPG o la foto del celular).";
+
 export function validateReceiptFile(file: File) {
   if (file.size <= 0) {
-    return "Subi un comprobante valido.";
+    return "El archivo está vacío. Volvé a elegirlo o mandá el comprobante como PDF o foto.";
   }
 
   if (file.size > receiptUploadConfig.maxSizeBytes) {
-    return "El comprobante no puede superar 10 MB.";
+    return "El comprobante pesa más de 10 MB. Comprimí la foto o mandalo como PDF más liviano.";
   }
 
   if (!isHeicReceipt(file) && !receiptUploadConfig.allowedContentTypes.includes(file.type as (typeof receiptUploadConfig.allowedContentTypes)[number])) {
-    return "Elegí un comprobante en PDF, JPG, PNG, WEBP o HEIC/HEIF de iPhone.";
+    return "Ese formato no se puede adjuntar. Mandá el comprobante como PDF, JPG o PNG, o sacale una foto con el celular.";
   }
 
   return null;
@@ -51,5 +58,5 @@ export async function validateReceiptContent(file: File) {
     : file.type === "image/jpeg" ? matches([0xff, 0xd8, 0xff])
     : file.type === "image/png" ? matches([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
     : file.type === "image/webp" && matches([0x52, 0x49, 0x46, 0x46]) && matches([0x57, 0x45, 0x42, 0x50], 8);
-  return valid ? null : "El contenido del archivo no coincide con el tipo de comprobante.";
+  return valid ? null : "No pudimos abrir el archivo como comprobante: puede estar dañado o tener otro formato adentro. Volvé a mandarlo como PDF, JPG o PNG.";
 }
