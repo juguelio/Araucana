@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit/record";
 import { diffRecords } from "@/lib/audit/diff";
 import { parseAccountingEntryInput } from "@/lib/accounting/service";
 import { ESTADO_DANIO_LABEL, GRAVEDAD_LABEL, esEstadoDeDanio, leerDanio } from "@/lib/vehicles/ficha";
-import { leerPlanillaDeService, resumenDePlanilla } from "@/lib/vehicles/service-sheet";
+import { checksParaGuardar, errorDeKilometraje, leerPlanillaDeService, resumenDePlanilla } from "@/lib/vehicles/service-sheet";
 import { errorState, type AdminFormState } from "../../form-state";
 import { revalidarNaves } from "../revalidate";
 
@@ -175,8 +175,11 @@ export async function createServiceSheetAction(_state: AdminFormState, formData:
   const actor = await getCurrentAdminOrRedirect();
   const vehicleId = value(formData, "vehicleId");
   const checks: Record<string, string> = {};
+  const notas: Record<string, string> = {};
   for (const [clave, valor] of formData.entries()) {
-    if (clave.startsWith("check:") && typeof valor === "string" && valor) checks[clave.slice("check:".length)] = valor;
+    if (typeof valor !== "string" || !valor) continue;
+    if (clave.startsWith("check:")) checks[clave.slice("check:".length)] = valor;
+    else if (clave.startsWith("nota:")) notas[clave.slice("nota:".length)] = valor;
   }
 
   const leido = leerPlanillaDeService({
@@ -184,9 +187,14 @@ export async function createServiceSheetAction(_state: AdminFormState, formData:
     odometerKm: value(formData, "odometerKm"),
     workDone: value(formData, "workDone"),
     notes: value(formData, "notes"),
-    checks
+    checks,
+    notas
   });
   if (!leido.ok) return errorState("Revisá la planilla de service.", leido.errores);
+  // El cuentakilómetros no va para atrás: se compara con las planillas que ya tiene la nave.
+  const anteriores = await prisma.vehicleServiceSheet.findMany({ where: { vehicleId }, select: { servicedAt: true, odometerKm: true } });
+  const errorKm = errorDeKilometraje(leido.data, anteriores);
+  if (errorKm) return errorState("Revisá el kilometraje.", { odometerKm: errorKm });
 
   const resumen = resumenDePlanilla(leido.data.checks);
 
@@ -195,7 +203,12 @@ export async function createServiceSheetAction(_state: AdminFormState, formData:
       const nave = await tx.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, name: true, internalNumber: true } });
       if (!nave) throw new Error("La nave ya no existe.");
       const planilla = await tx.vehicleServiceSheet.create({
-        data: { vehicleId, ...leido.data, reportedBy: actor.name?.trim() || null }
+        data: {
+          vehicleId, servicedAt: leido.data.servicedAt, odometerKm: leido.data.odometerKm,
+          workDone: leido.data.workDone, notes: leido.data.notes,
+          checks: checksParaGuardar(leido.data.checks, leido.data.notas),
+          reportedBy: actor.name?.trim() || null
+        }
       });
       await recordAudit(tx, {
         actor,
