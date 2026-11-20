@@ -26,10 +26,14 @@ test("un daño señala cada servicio de la nave y se puede resolver y cobrar des
   const code = createReservationCode();
   const pax = await db.passenger.create({ data: { firstName: "Amalia", lastName: "Lagos", email, phone: "", documentType: "DNI", documentId: "32444221" } });
   try {
-    await db.reservation.create({ data: { code, shortCode: createReservationShortCode(), scheduleId: route.schedules[0].id,
+    await db.reservation.create({ data: { roundTripId: tag, code, shortCode: createReservationShortCode(), scheduleId: route.schedules[0].id,
       passengerId: pax.id, status: "PENDING_PAYMENT", passengerCount: 1, totalCents: 100000, currency: "ARS",
       payment: { create: { provider: "MANUAL", status: "PENDING", amountCents: 100000, currency: "ARS" } }
     } });
+    const regreso = await db.schedule.create({ data: { routeId: route.id, vehicleId: bus.id, driverId: driver.id,
+      departureAt: new Date("2032-03-21T13:00:00-03:00"), arrivalAt: new Date("2032-03-21T14:00:00-03:00") } });
+    const vuelta = await db.reservation.create({ data: { roundTripId: tag, code: createReservationCode(), shortCode: createReservationShortCode(),
+      scheduleId: regreso.id, passengerId: pax.id, status: "CONFIRMED", passengerCount: 1, totalCents: 100000, currency: "ARS" } });
     expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
     await page.goto("/admin?date=" + date);
     await page.getByRole("link", { name: /Flota y choferes/ }).click();
@@ -53,7 +57,7 @@ test("un daño señala cada servicio de la nave y se puede resolver y cobrar des
     await expect(afternoon).toContainText("13:00");
     await afternoon.getByRole("link", { name: "Pasajeros y cobros" }).click();
     await expect(page.getByRole("heading", { name: /13:00 · San Martín/ })).toBeVisible();
-    await expect(page.getByText("Sin reservas para estos filtros.")).toBeVisible();
+    await expect(page.getByText("No hay reservas para mostrar.")).toBeVisible();
     await page.getByRole("link", { name: /Flota y choferes/ }).click();
     await busRow.locator("summary").click();
     await busRow.getByLabel("Estado del daño: Falla en frenos").selectOption("REPARADO");
@@ -68,7 +72,12 @@ test("un daño señala cada servicio de la nave y se puede resolver y cobrar des
     await page.getByRole("searchbox", { name: "Buscar reserva" }).fill("Lagos");
     await page.getByLabel("Cola de trabajo").selectOption("pending-payment");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
-    const row = page.getByRole("row").filter({ hasText: "Lagos" });
+    const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Amalia Lagos" }) });
+    await expect(row.getByRole("link", { name: /Vuelta/ })).toHaveAttribute("href", "/admin/reservas/" + vuelta.code);
+    await row.getByLabel(/Más opciones de/).click();
+    await row.getByRole("button", { name: "Copiar voucher" }).click();
+    await expect(row.getByRole("button", { name: "¡Voucher copiado!" })).toBeVisible();
+    await row.getByLabel(/Más opciones de/).click();
     await row.getByRole("button", { name: "Registrar pago" }).click();
     await dialog.getByLabel("Forma de pago").fill("Efectivo");
     await dialog.getByRole("button", { name: "Registrar pago" }).click();
@@ -77,8 +86,7 @@ test("un daño señala cada servicio de la nave y se puede resolver y cobrar des
     await expect(page.getByRole("link", { name: /Reservas y cobros/ })).toContainText("1 viaje por confirmar");
     await page.getByLabel("Cola de trabajo").selectOption("paid-unconfirmed");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
-    await row.getByRole("button", { name: /Estado de la reserva/ }).click();
-    await dialog.getByRole("button", { name: "Confirmar reserva" }).click();
+    await row.getByRole("button", { name: "Confirmar", exact: true }).click();
     await expect(page.getByText("Reserva confirmada.", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: /Reservas y cobros/ }).locator("strong")).toHaveText("0");
     const saved = await db.reservation.findUniqueOrThrow({ where: { code }, include: { payment: true } });

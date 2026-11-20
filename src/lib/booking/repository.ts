@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { mismoLugar } from "./place-names";
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { adminReservationsPageSize, normalizarBusqueda, travelDayKey, adminReservationWhere, adminReservationsPage, adminScheduleWhere, type AdminReservationFilters, type AdminScheduleFilters } from "./admin-filters";
-import { adminReservationOrderBy } from "./admin-reservation-sort";
+import { adminReservationOrder, adminReservationOrderBy } from "./admin-reservation-sort";
+import { claveDeViaje, horaDelViaje, ordenarPorViaje, type ClaveDeViaje } from "./admin-travel-order";
 import { prisma } from "@/lib/db/prisma";
 import { createReservationCode as defaultCreateReservationCode, createReservationShortCode as defaultCreateReservationShortCode, createTicketCode } from "./codes";
 import {
@@ -533,6 +534,18 @@ function adminReservationListInclude() {
     payment: { select: { provider: true, status: true, receiptBlobPathname: true, receiptFileName: true, receiptUploadedAt: true } },
     chapelcoDetails: { select: { serviceDate: true, pickupName: true, ascentSlot: true } },
     airportDetails: { select: { serviceDate: true, flightNumber: true, flight: { select: { scheduledAt: true } } } }
+  };
+}
+
+/** Lo mínimo para ordenar el listado por día y hora del viaje (`admin-travel-order.ts`). */
+function adminTravelOrderSelect() {
+  return {
+    id: true,
+    code: true,
+    createdAt: true,
+    schedule: { select: { departureAt: true } },
+    airportDetails: { select: { serviceDate: true, flight: { select: { scheduledAt: true } } } },
+    chapelcoDetails: { select: { serviceDate: true } }
   };
 }
 
@@ -1333,12 +1346,57 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           skip: (numero - 1) * pageSize
         });
 
-      // Conteo y página a la vez (antes uno esperaba al otro). Sólo si la página pedida quedó fuera
-      // de rango (filtro nuevo, reservas borradas) se vuelve a pedir la última.
-      const [total, enPedida] = await Promise.all([client.reservation.count({ where }), pagina(pedida)]);
-      const totalPages = Math.max(1, Math.ceil(total / pageSize));
-      const page = Math.min(pedida, totalPages);
-      const reservations = page === pedida ? enPedida : await pagina(page);
+      let total: number;
+      let page: number;
+      let totalPages: number;
+      let reservations: ReservationRecord[];
+      const orden = adminReservationOrder(filters);
+      if (orden.columna === "viaje") {
+        // Por día y hora del viaje (20-nov): se ordenan los datos mínimos de todas las que cumplen el
+        // filtro y se trae completa sólo la página. Con un campo persistido de fecha de viaje esto
+        // sería un `orderBy` común (queda anotado en el PR).
+        const claves = (await client.reservation.findMany({ where, select: adminTravelOrderSelect() })) as unknown as ClaveDeViaje[];
+        const ordenadas = ordenarPorViaje(claves, orden.direccion);
+        total = ordenadas.length;
+        totalPages = Math.max(1, Math.ceil(total / pageSize));
+        page = Math.min(pedida, totalPages);
+        const ids = ordenadas.slice((page - 1) * pageSize, page * pageSize).map((clave) => clave.id);
+        const filas = ids.length
+          ? await client.reservation.findMany({ where: { id: { in: ids } }, include: adminReservationListInclude() })
+          : [];
+        const posicion = new Map(ids.map((id, indice) => [id, indice]));
+        reservations = [...filas].sort((a, b) => (posicion.get(a.id) ?? 0) - (posicion.get(b.id) ?? 0));
+      } else {
+        // Conteo y página a la vez (antes uno esperaba al otro). Sólo si la página pedida quedó fuera
+        // de rango (filtro nuevo, reservas borradas) se vuelve a pedir la última.
+        const [cuenta, enPedida] = await Promise.all([client.reservation.count({ where }), pagina(pedida)]);
+        total = cuenta;
+        totalPages = Math.max(1, Math.ceil(total / pageSize));
+        page = Math.min(pedida, totalPages);
+        reservations = page === pedida ? enPedida : await pagina(page);
+      }
+
+      // Ida y vuelta: el otro tramo de cada reserva enlazada, aunque esté en otra página o en otro día.
+      const roundTripIds = [...new Set(reservations.map((reservation) => reservation.roundTripId).filter((id): id is string => Boolean(id)))];
+      const companeros = roundTripIds.length
+        ? ((await client.reservation.findMany({
+            where: { roundTripId: { in: roundTripIds } },
+            select: { ...adminTravelOrderSelect(), roundTripId: true }
+          })) as unknown as Array<ClaveDeViaje & { roundTripId: string | null }>)
+        : [];
+      const companeroDe = (reservation: ReservationRecord) => {
+        if (!reservation.roundTripId) return null;
+        const otro = companeros.find((tramo) => tramo.roundTripId === reservation.roundTripId && tramo.id !== reservation.id);
+        if (!otro) return null;
+        const propia = claveDeViaje(reservation as unknown as ClaveDeViaje);
+        const suya = claveDeViaje(otro);
+        return {
+          code: otro.code,
+          travelDay: suya.slice(0, 10),
+          travelTime: horaDelViaje(otro),
+          isReturn: suya > propia || (suya === propia && otro.code > reservation.code)
+        };
+      };
 
       return {
         items: reservations.map((reservation) => ({
@@ -1373,7 +1431,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           hasReceipt: Boolean(reservation.payment?.receiptBlobPathname),
           receiptFileName: reservation.payment?.receiptFileName ?? null,
           receiptUploadedAt: reservation.payment?.receiptUploadedAt ?? null,
-          createdAt: reservation.createdAt
+          createdAt: reservation.createdAt,
+          travelTime: horaDelViaje(reservation as unknown as ClaveDeViaje),
+          roundTripPartner: companeroDe(reservation)
         })),
         total,
         page,

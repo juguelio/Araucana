@@ -12,6 +12,10 @@ import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS } from "./disab
 export const ADMIN_PAYMENT_QUEUES = ["pending-payment", "paid-unconfirmed", "receipt-pending", "rejected", "documentation-pending"] as const;
 export type AdminPaymentQueue = (typeof ADMIN_PAYMENT_QUEUES)[number];
 
+/** Vistas por día de viaje del listado de reservas (pestañas Hoy, Próximas y Todas). */
+export const ADMIN_RESERVATION_VIEWS = ["hoy", "proximas", "todas"] as const;
+export type AdminReservationView = (typeof ADMIN_RESERVATION_VIEWS)[number];
+
 /** Reservas por página en el panel: 25 filas entran sin scroll en un portátil. */
 export const ADMIN_RESERVATIONS_PAGE_SIZE = 25;
 
@@ -39,7 +43,10 @@ export const adminReservationFiltersSchema = z.object({
   // Orden por columna (issue #192): viaja como texto y lo valida la lista blanca del listado
   // (`admin-reservation-sort.ts`). Un valor desconocido no rompe: cae al orden por defecto.
   orden: z.string().trim().max(30).optional(),
-  dir: z.string().trim().max(8).optional()
+  dir: z.string().trim().max(8).optional(),
+  // Vista por día de viaje (rediseño del 20-nov): «hoy» y «próximas» son los que viajan (sin las
+  // canceladas); «todas» no filtra. Un valor desconocido cae a «todas» en vez de romper la página.
+  vista: z.enum(ADMIN_RESERVATION_VIEWS).optional().catch(undefined)
 });
 export type AdminReservationFilters = z.input<typeof adminReservationFiltersSchema>;
 
@@ -57,9 +64,23 @@ export function adminReservationsPage(input: AdminReservationFilters): number {
 }
 
 // The date is the travel day, not the date on which the reservation was created.
-export function adminReservationWhere(input: AdminReservationFilters, passengerIds: string[] = []): Prisma.ReservationWhereInput {
+export function adminReservationWhere(input: AdminReservationFilters, passengerIds: string[] = [], ahora = new Date()): Prisma.ReservationWhereInput {
   const filters = adminReservationFiltersSchema.parse(input);
   const AND: Prisma.ReservationWhereInput[] = [];
+  if (filters.vista === "hoy" || filters.vista === "proximas") {
+    // Los que viajan: hoy, o de hoy en adelante. Las canceladas no viajan (siguen en «Todas»).
+    const hoy = argentinaDateKey(ahora);
+    const gte = new Date(`${hoy}T00:00:00-03:00`);
+    const calendarFrom = new Date(`${hoy}T00:00:00Z`);
+    const lt = filters.vista === "hoy" ? new Date(gte.getTime() + 86400000) : undefined;
+    const calendarTo = filters.vista === "hoy" ? new Date(calendarFrom.getTime() + 86400000) : undefined;
+    AND.push({ status: { not: "CANCELLED" } });
+    AND.push({ OR: [
+      { schedule: { is: { departureAt: { gte, ...(lt ? { lt } : {}) } } } },
+      { airportDetails: { is: { serviceDate: { gte, ...(lt ? { lt } : {}) } } } },
+      { chapelcoDetails: { is: { serviceDate: { gte: calendarFrom, ...(calendarTo ? { lt: calendarTo } : {}) } } } }
+    ] });
+  }
   if (filters.code) {
     // El mismo campo busca las dos formas del código: el largo del link privado y el corto que
     // se dicta por teléfono (con o sin guiones: "abcd-2345" es "ABCD2345", y también se puede

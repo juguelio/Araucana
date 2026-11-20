@@ -2313,7 +2313,9 @@ a.wizard-option { text-decoration: none; }
 .trip-search-field:focus-visible, .trip-search-option:focus-visible, .trip-search-day:focus-visible, .trip-search-flight:focus-visible, .trip-search-swap:focus-visible, .trip-search-arrow:focus-visible, .trip-search-close:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .trip-search-label { font-size: 14px; font-weight: 700; color: var(--ink-muted); }
 .trip-search-place .trip-search-label { padding-left: 2px; }
-.trip-search-chip { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 7px 12px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 17px; font-weight: 800; line-height: 1.2; }
+/* Los dos lugares se ven iguales aunque uno se parta en dos líneas («San Martín de los Andes»)
+   contra uno corto («Villa Traful»): mismo alto, texto centrado (20-nov). */
+.trip-search-chip { display: inline-flex; align-items: center; gap: 8px; width: 100%; max-width: 100%; min-height: 58px; padding: 7px 12px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 17px; font-weight: 800; line-height: 1.2; }
 .trip-search-chip svg, .trip-search-value svg, .trip-search-option-icon svg { flex: 0 0 auto; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .trip-search-places-row .trip-search-place:first-child { padding-right: 26px; }
 .trip-search-places-row .trip-search-place:last-child { padding-left: 26px; }
@@ -2329,14 +2331,15 @@ a.wizard-option { text-decoration: none; }
 }
 .trip-search-swap svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .trip-search-swap:hover { background: var(--primary); color: #fff; border-color: var(--primary); transform: translate(-50%, -50%) rotate(180deg); }
-.trip-search-value { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--ink); }
+/* Igual que los lugares: «Ida» con salida elegida y «Vuelta + Agregar» comparten alto. */
+.trip-search-value { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--ink); }
 .trip-search-value b { font-weight: 800; }
 .trip-search-value em { font-style: normal; font-weight: 700; color: var(--accent); }
 .trip-search-leg[data-listo] { border-color: rgba(51, 89, 78, 0.55); background: #f3f8f5; }
 .trip-search-hint { margin: 0 2px; font-size: 16px; color: var(--ink-soft); }
 .trip-search-hint strong { color: var(--ink); }
 
-.trip-search-panel { position: relative; display: grid; gap: 10px; padding: 18px 20px 20px; border: 2px solid var(--primary); border-radius: 16px; background: #fff; box-shadow: 0 18px 40px rgba(23, 40, 34, 0.14); animation: trip-search-in .18s ease; }
+.trip-search-panel { position: relative; display: grid; gap: 10px; padding: 18px 20px 20px; border: 2px solid var(--primary); border-radius: 16px; background: #fff; box-shadow: 0 18px 40px rgba(23, 40, 34, 0.14); animation: trip-search-in .24s cubic-bezier(.2, .85, .25, 1); transform-origin: top center; }
 .trip-search-close { position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-soft); font-size: 20px; cursor: pointer; }
 .trip-search-close:hover { background: var(--primary-soft, #e8efeb); color: var(--ink); }
 .trip-search-panel-title { margin: 0; padding-right: 48px; font-size: 20px; font-weight: 800; color: var(--ink); }
@@ -2383,7 +2386,7 @@ a.wizard-option { text-decoration: none; }
 .trip-search-confirm p { margin: 0; font-size: 16px; color: var(--ink); }
 .trip-search-confirm-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .trip-search-confirm-actions > * { min-height: 48px; padding: 0 22px; font-size: 16px; }
-@keyframes trip-search-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes trip-search-in { from { opacity: 0; transform: translateY(-10px) scale(.995); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .trip-search-panel { animation: none; }
   .trip-search-swap, .trip-search-swap:hover { transition: none; }

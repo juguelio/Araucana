@@ -1,169 +1,277 @@
-/* === Listado de reservas del panel ===
-   La página usaba `admin-form` y `admin-page-actions`, dos clases que no existen en globals.css:
-   los campos y el botón quedaban sueltos y el botón de búsqueda flotaba encima de la fecha.
-   Acá van los estilos propios de esta pantalla, sin tocar globals.css. */
+/* === Listado de reservas del panel: lista por día de viaje (rediseño del 20-nov) ===
+   Antes era una tabla de 11 columnas con 7 botones por fila y 7 filtros siempre abiertos. Ahora:
+   una búsqueda, pestañas con las colas de trabajo, y cada reserva en un renglón agrupado por día,
+   con una etiqueta de estado, una acción principal y el resto en «⋯». */
 
-.reservas-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-
-.reservas-toolbar p { margin: 0; color: var(--ink-muted); font-size: 13px; font-weight: 700; }
-.reservas-toolbar .button { flex: 0 0 auto; }
-
-/* --- Filtros: una tarjeta con grilla de campos y los botones en su propia fila --- */
-.reservas-filters {
-  margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--surface);
-}
-
-.reservas-filter-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 14px;
-  align-items: end;
-}
-
-.reservas-filter-grid label {
-  display: grid;
-  gap: 7px;
-  min-width: 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-/* La búsqueda libre ocupa la fila entera: es la que se usa todo el tiempo. */
-.reservas-filter-buscar {
-  grid-column: 1 / -1;
-}
-
-.reservas-filter-buscar input {
-  font-size: 16px;
-  padding: 12px 14px;
-}
-
-.reservas-filter-grid input,
-.reservas-filter-grid select {
-  width: 100%;
+/* --- Búsqueda + «Reservar» --- */
+.reservas-cabecera { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.reservas-buscar { display: flex; flex: 1 1 auto; gap: 8px; min-width: 0; }
+.reservas-buscar input {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 46px;
-  padding: 0 13px;
+  padding: 0 14px;
   border: 1px solid var(--line-strong);
   border-radius: 12px;
   background: #fffaf1;
   color: var(--ink);
   font: inherit;
+  font-size: 16px;
+}
+.reservas-buscar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.reservas-buscar .button, .reservas-nueva { flex: 0 0 auto; min-height: 46px; }
+
+/* --- Pestañas: colas de cobro y vistas por día, con su cantidad --- */
+.reservas-pestanas {
+  display: flex;
+  gap: 6px;
+  max-width: 100%;
+  margin-bottom: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.reservas-pestanas::-webkit-scrollbar { display: none; }
+.reservas-pestana {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
   font-size: 13px;
   font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
 }
-
-.reservas-filter-grid input:focus-visible,
-.reservas-filter-grid select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.reservas-pestana:hover { border-color: var(--line-strong); color: var(--ink); }
+.reservas-pestana:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reservas-pestana[aria-current="page"] { border-color: var(--primary); background: var(--primary); color: #fff; }
+.reservas-pestana-cuenta {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(24, 59, 50, .08);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
 }
+.reservas-pestana[data-alerta] .reservas-pestana-cuenta { background: var(--accent); color: #fff; }
+.reservas-pestana[aria-current="page"] .reservas-pestana-cuenta { background: rgba(255, 255, 255, .22); color: #fff; }
 
-.reservas-filter-actions {
-  grid-column: 1 / -1;
-  display: flex;
+/* --- «Más filtros»: plegado; se abre solo si hay alguno puesto --- */
+.reservas-mas-filtros { margin-bottom: 10px; }
+.reservas-mas-filtros summary {
+  display: inline-flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding-top: 4px;
+  min-height: 32px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
-
-.reservas-filter-actions .button { min-height: 44px; }
+.reservas-mas-filtros summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reservas-mas-filtros[open] summary { margin-bottom: 8px; }
+.reservas-filters-activos { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; letter-spacing: .06em; }
+.reservas-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.reservas-filter-grid label { display: grid; gap: 6px; min-width: 0; color: var(--ink-soft); font-size: 12px; font-weight: 700; }
+.reservas-filter-grid input,
+.reservas-filter-grid select {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.reservas-filter-actions { display: flex; align-items: center; gap: 14px; }
+.reservas-filter-actions .button { min-height: 42px; }
 .reservas-filter-actions a { color: var(--ink-muted); font-size: 13px; font-weight: 700; }
 
-/* --- Tabla: scroll horizontal en vez de comprimir las columnas --- */
-.reservas-table-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-  border-radius: 18px;
-}
+.reservas-resumen { margin: 4px 0 12px; color: var(--ink-muted); font-size: 13px; font-weight: 700; }
+.reservas-resumen a { color: var(--primary); }
 
-/* `border-collapse: collapse` rompe `position: sticky` en celdas: con border-spacing 0 las líneas
-   se siguen viendo igual y la última columna sí queda fija. */
-.reservas-table-scroll .data-table { min-width: 940px; border-collapse: separate; border-spacing: 0; overflow: visible; }
-.reservas-table-scroll .data-table th,
-.reservas-table-scroll .data-table td { padding: 10px 10px; }
-.reservas-table-scroll .data-table th { white-space: nowrap; }
-
-.reservas-date {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.reservas-code {
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-/* El código corto (#75) es el que se dicta y se busca: va arriba y legible; el largo del link
-   privado queda debajo, en gris, porque sirve para copiar el link, no para leerlo. */
-.reservas-code .reservas-short-code {
-  display: block;
+/* --- Un día de viaje: título y sus reservas --- */
+.reservas-dia { margin-bottom: 18px; }
+.reservas-dia-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  color: var(--ink);
   font-size: 13px;
-  letter-spacing: .04em;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
-
-.reservas-code .reservas-long-code {
-  display: block;
-  max-width: 22ch;
-  overflow: hidden;
+.reservas-dia-relativo {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   color: var(--ink-muted);
   font-size: 10px;
-  font-weight: 600;
-  text-overflow: ellipsis;
+  letter-spacing: .08em;
 }
+.reservas-dia-relativo[data-hoy] { border-color: var(--accent); color: var(--accent); }
 
-/* La última columna queda pegada al borde derecho: con la tabla más ancha que la pantalla, los
-   botones de acción siguen a la vista sin tener que scrollear hasta el final. */
-.reservas-table-scroll .data-table th:last-child,
-.reservas-table-scroll .data-table td:last-child {
-  position: sticky;
-  right: 0;
-  z-index: 1;
-  width: 1%;
-  white-space: nowrap;
+.reservas-lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 16px;
   background: var(--surface);
-  box-shadow: -10px 0 14px -12px rgba(24, 59, 50, .45);
 }
 
-/* Los dos botones de la última columna van uno debajo del otro: juntos no entran. */
-.reservas-actions { display: grid; gap: 6px; justify-items: stretch; }
-.reservas-actions .table-action { min-height: 32px; padding: 0 12px; font-size: 12px; }
-
-@media (max-width: 640px) {
-  .reservas-filters { padding: 12px; }
-  .reservas-filter-actions { flex-direction: column; align-items: stretch; }
-  .reservas-filter-actions a { text-align: center; }
-}
-
-.reservas-row-actions {
+/* --- Una reserva: hora · viaje · pasajero · estado · acción · ⋯ --- */
+.reservas-fila {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(2, max-content);
-  gap: 6px;
+  grid-template-columns: 52px minmax(210px, 1.35fr) minmax(170px, 1fr) minmax(150px, 190px) 128px 38px;
+  grid-template-areas: "hora viaje pasajero estado accion menu";
+  align-items: center;
+  gap: 4px 14px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.reservas-fila:last-child { border-bottom: 0; }
+.reservas-fila:first-child { border-radius: 16px 16px 0 0; }
+.reservas-fila:last-child { border-radius: 0 0 16px 16px; }
+.reservas-fila:only-child { border-radius: 16px; }
+/* Comprobante o documentación esperando: la fila lo avisa con un borde. */
+.reservas-fila[data-atencion] { background: #fff8ef; box-shadow: inset 4px 0 0 var(--accent); }
+
+.reservas-fila-hora { grid-area: hora; color: var(--ink); font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.reservas-fila-viaje { grid-area: viaje; display: grid; gap: 2px; min-width: 0; }
+.reservas-fila-ruta { font-size: 14px; font-weight: 700; color: var(--ink); }
+.reservas-fila-pasajero { grid-area: pasajero; display: grid; gap: 2px; min-width: 0; }
+.reservas-fila-nombre { color: var(--ink); font-size: 14px; font-weight: 700; text-decoration: none; overflow-wrap: anywhere; }
+.reservas-fila-nombre:hover, .reservas-fila-nombre:focus-visible { color: var(--primary); text-decoration: underline; }
+.reservas-fila-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--ink-muted); font-size: 12px; }
+.reservas-fila-codigo { font-weight: 700; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.reservas-tramo { color: var(--primary); font-weight: 700; text-decoration: none; }
+.reservas-tramo:hover, .reservas-tramo:focus-visible { text-decoration: underline; }
+.reservas-fila-estado { grid-area: estado; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.reservas-fila-total { color: var(--ink-soft); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.reservas-fila-accion { grid-area: accion; display: flex; justify-content: flex-end; }
+.reservas-fila-accion .table-action { min-height: 34px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+.reservas-fila-menu { grid-area: menu; display: flex; justify-content: flex-end; }
+.pill-tabla { padding: 4px 10px; font-size: 11px; }
+
+/* Cancelada (#108): se sigue viendo, apagada. */
+.reservas-row-cancelled { background: #efece5; }
+.reservas-row-cancelled .reservas-fila-ruta,
+.reservas-row-cancelled .reservas-fila-nombre,
+.reservas-row-cancelled .reservas-fila-hora { color: var(--ink-muted); }
+
+/* --- Menú «⋯» --- */
+.reservas-menu { position: relative; }
+.reservas-menu-boton {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  list-style: none;
+}
+.reservas-menu-boton::-webkit-details-marker { display: none; }
+.reservas-menu-boton:hover, .reservas-menu[open] .reservas-menu-boton { border-color: var(--line-strong); background: #fffaf1; }
+.reservas-menu-boton:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.reservas-menu-lista {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  min-width: 230px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 14px 30px -14px rgba(24, 59, 50, .45);
+}
+.reservas-menu-item,
+.reservas-menu-copiar .ghost-button {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  justify-content: flex-start;
+}
+.reservas-menu-item:hover, .reservas-menu-item:focus-visible,
+.reservas-menu-copiar .ghost-button:hover, .reservas-menu-copiar .ghost-button:focus-visible { background: #f4efe4; outline: none; }
+.reservas-menu-peligro { color: var(--accent); }
+.reservas-menu-nota { padding: 6px 10px; color: var(--ink-muted); font-size: 12px; }
+.reservas-menu form { margin: 0; }
+
+/* --- Celular: cada reserva en tres renglones, sin columnas --- */
+@media (max-width: 760px) {
+  .reservas-cabecera { flex-wrap: wrap; }
+  .reservas-buscar { flex-basis: 100%; order: 2; }
+  .reservas-nueva { margin-left: auto; }
+  .reservas-buscar .button { padding: 0 14px; }
+  .reservas-fila {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "hora viaje menu"
+      "pasajero pasajero pasajero"
+      "estado estado accion";
+    gap: 6px 10px;
+    padding: 12px 12px 12px 14px;
+  }
+  .reservas-fila-hora { align-self: start; padding-top: 6px; }
+  .reservas-fila-viaje { align-self: center; }
+  .reservas-fila-menu { align-self: start; }
+  .reservas-fila-accion .table-action { min-height: 38px; }
+  .reservas-filter-actions { justify-content: space-between; }
 }
 
-.reservas-row-actions .table-action {
-  justify-content: center;
-  min-height: 32px;
-  padding: 0 9px;
-  font-size: 12px;
+/* --- Disparador de modal sin aspecto de botón (la etiqueta de estado) --- */
+.reservas-celda-boton {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
 }
-
-.reservas-row-actions + .reservas-actions { margin-top: 8px; }
+.reservas-celda-boton .pill { cursor: pointer; }
+.reservas-celda-boton:hover .pill,
+.reservas-celda-boton:focus-visible .pill { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .reservation-edit-wide { grid-column: 1 / -1; }
 
@@ -179,94 +287,6 @@
   min-height: 0;
 }
 
-/* --- Reserva cancelada (#108) -------------------------------------------------------------
-   El cliente pidió seguir viéndola en el listado, pero apagada para distinguirla de un vistazo.
-   El fondo se repite en la última celda porque es sticky y tiene fondo propio (si no, queda un
-   parche blanco en la columna de acciones). */
-.reservas-row-cancelled td {
-  background: #efece5;
-  color: var(--ink-muted);
-}
-
-.reservas-row-cancelled td:last-child {
-  background: #efece5;
-}
-
-.reservas-row-cancelled .reservas-short-code,
-.reservas-row-cancelled .table-link {
-  color: var(--ink-muted);
-}
-
-/* --- Estado y pago como etiquetas de color; la fila con comprobante por validar, resaltada --- */
-.pill-tabla { padding: 4px 10px; font-size: 11px; }
-.reservas-table-scroll tr[data-por-validar="true"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
-.reservas-table-scroll tr[data-por-validar="true"] td { background: #fff8ef; }
-
-/* --- Filtros plegables: en escritorio siempre abiertos; en el celular, un renglón que se abre --- */
-.reservas-filters-toggle { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.reservas-filters-summary { display: flex; align-items: center; margin: -4px 0 10px; color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.reservas-filters-activos { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 10px; letter-spacing: .06em; }
-.reservas-filters-toggle:focus-visible + .reservas-filters-summary { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* --- Celular: cada reserva es una tarjeta con sus rótulos, no una tabla de 1010 px --- */
-@media (max-width: 760px) {
-  .reservas-filters { position: relative; }
-  .reservas-filters-summary { cursor: pointer; margin: 0; min-height: 28px; }
-  .reservas-filters-summary::after { content: "▾"; margin-left: auto; font-size: 14px; }
-  .reservas-filters:has(.reservas-filters-toggle:checked) .reservas-filters-summary { margin-bottom: 12px; }
-  .reservas-filters:has(.reservas-filters-toggle:checked) .reservas-filters-summary::after { content: "▴"; }
-  .reservas-filters:not(:has(.reservas-filters-toggle:checked)) .reservas-filter-grid { display: none; }
-
-  .reservas-table-scroll { overflow: visible; border-radius: 0; }
-  .reservas-table-scroll .data-table { min-width: 0; display: block; background: transparent; overflow: visible; }
-  .reservas-table-scroll .data-table thead { display: none; }
-  .reservas-table-scroll .data-table tbody { display: grid; gap: 12px; }
-  .reservas-table-scroll .data-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 14px 14px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
-  .reservas-table-scroll .data-table td { display: block; min-width: 0; padding: 0; border: 0; background: transparent; }
-  .reservas-table-scroll .data-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
-  .reservas-table-scroll .data-table td.reservas-code::before,
-  .reservas-table-scroll .data-table td[data-label="Pasajero"]::before,
-  .reservas-table-scroll .data-table td[data-label="Acciones"]::before { display: none; }
-  .reservas-table-scroll .data-table td.reservas-code { grid-column: 1 / -1; order: -2; }
-  .reservas-table-scroll .data-table td[data-label="Pasajero"] { grid-column: 1 / -1; order: -1; font-size: 16px; }
-  .reservas-table-scroll .data-table td[data-label="WhatsApp"] { justify-self: end; }
-  .reservas-table-scroll .data-table td[data-label="Ruta"],
-  .reservas-table-scroll .data-table td[data-label="Comprobante"] { grid-column: 1 / -1; }
-  .reservas-table-scroll .data-table td:last-child { position: static; grid-column: 1 / -1; width: auto; box-shadow: none; padding-top: 6px; border-top: 1px dashed var(--line); white-space: normal; }
-  .reservas-code .reservas-long-code { max-width: 100%; }
-  .reservas-table-scroll tr[data-por-validar="true"] { border-color: var(--accent); }
-  .reservas-table-scroll tr[data-por-validar="true"] td:first-child { box-shadow: none; }
-  .reservas-table-scroll tr[data-por-validar="true"] td { background: transparent; }
-  .reservas-row-cancelled { background: #efece5; }
-  .reservas-row-actions { grid-template-columns: repeat(4, max-content); }
-  .reservas-actions { grid-template-columns: 1fr 1fr; }
-}
-
-/* Escritorio: la columna «Creada por» y la ruta en un cuerpo más chico, para que a 1280 px se
-   vean también estado y pago sin desplazar la tabla. */
-@media (min-width: 761px) {
-  .reservas-table-scroll .data-table td { font-size: 13px; }
-  .reservas-table-scroll .data-table td[data-label="Creada por"] { font-size: 12px; color: var(--ink-soft); }
-  .reservas-table-scroll .data-table td[data-label="Ruta"] { max-width: 180px; }
-}
-
-/* --- Celdas que abren un modal (estado, pago, comprobante) y código como enlace al detalle --- */
-.reservas-celda-boton {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-align: left;
-}
-.reservas-celda-boton .pill { cursor: pointer; }
-.reservas-celda-boton:hover .pill,
-.reservas-celda-boton:focus-visible .pill { outline: 2px solid var(--primary); outline-offset: 2px; }
-.reservas-celda-link { color: var(--primary); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; word-break: break-word; }
-.reservas-code-link { display: grid; gap: 2px; color: inherit; text-decoration: none; }
-.reservas-code-link:hover .reservas-short-code,
-.reservas-code-link:focus-visible .reservas-short-code { color: var(--primary); text-decoration: underline; }
 
 .reservas-modal { width: min(520px, 100%); }
 /* El comprobante necesita ancho: la foto del celular y el PDF se leen mal en 520px. */

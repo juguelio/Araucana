@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createReservationShortCode } from "../../src/lib/booking/codes";
 
 /**
- * Listado de reservas: el código abre el detalle (ya no hay «Ver»), «Borrar» está dentro de Editar,
+ * Listado de reservas: el nombre del pasajero abre el detalle (ya no hay «Ver»), «Borrar» está dentro de Editar,
  * y estado, pago y comprobante abren un modal con sus opciones.
  */
 if (!process.env.E2E_DATABASE_URL || process.env.E2E_ISOLATED_DATABASE !== "1") throw new Error("Requires isolated E2E database");
@@ -42,16 +42,16 @@ test.beforeEach(async ({ page }) => {
 
 async function fila(page: Page, code: string) {
   await page.goto(`/admin/reservas?code=${code}`);
-  const row = page.getByRole("row").filter({ hasText: code });
+  const row = page.locator(".reservas-fila").filter({ has: page.locator(`a[href="/admin/reservas/${code}"]`) });
   await expect(row).toHaveCount(1);
   return row;
 }
 
-test("el código abre el detalle y la fila ya no tiene Ver ni Borrar", async ({ page }) => {
+test("el pasajero abre el detalle y Borrar queda en la edición", async ({ page }) => {
   const row = await fila(page, codes.pago);
   await expect(row.getByRole("link", { name: "Ver", exact: true })).toHaveCount(0);
   await expect(row.getByRole("button", { name: /Borrar/ })).toHaveCount(0);
-  await row.getByRole("link", { name: /Ver la reserva|ARC-/ }).first().click();
+  await row.getByRole("link", { name: "Modal pago" }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/reservas/${codes.pago}$`));
 });
 
@@ -70,7 +70,7 @@ test("«Registrar pago» abre el modal y registra el pago", async ({ page }) => 
 
 test("la etiqueta «Pago pendiente» abre el modal de estado: registrar pago, cancelar con motivo y restituir", async ({ page }) => {
   const row = await fila(page, codes.estado);
-  await row.getByRole("button", { name: /Estado de la reserva: Pago pendiente/ }).click();
+  await row.getByRole("button", { name: "Por cobrar. Ver estado y pago" }).click();
   const modal = page.getByRole("dialog");
   await expect(modal.getByLabel("Forma de pago")).toBeVisible();
   await expect(modal.getByRole("button", { name: "Confirmar reserva" })).toBeDisabled();
@@ -81,8 +81,8 @@ test("la etiqueta «Pago pendiente» abre el modal de estado: registrar pago, ca
   expect(cancelada.status).toBe("CANCELLED");
   expect(cancelada.cancellationReason).toBe("El pasajero no viaja");
 
-  const otra = page.getByRole("row").filter({ hasText: codes.estado });
-  await otra.getByRole("button", { name: /Estado de la reserva: Cancelada/ }).click();
+  const otra = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Modal estado" }) });
+  await otra.getByRole("button", { name: "Cancelada. Ver estado y pago" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Restituir reserva" }).click();
   await expect(page.getByText("Reserva restituida.")).toBeVisible();
   expect((await db.reservation.findUniqueOrThrow({ where: { code: codes.estado } })).status).not.toBe("CANCELLED");
@@ -90,9 +90,9 @@ test("la etiqueta «Pago pendiente» abre el modal de estado: registrar pago, ca
 
 test("la etiqueta del pago abre sus opciones", async ({ page }) => {
   const row = await fila(page, codes.comprobante);
-  await row.getByRole("button", { name: /^Pago: Pendiente/ }).click();
+  await row.getByRole("button", { name: "Por cobrar. Ver estado y pago" }).click();
   const modal = page.getByRole("dialog");
-  await expect(modal.getByRole("heading", { name: /Pendiente · \$ 15\.000/ })).toBeVisible();
+  await expect(modal.getByRole("heading", { name: /Por cobrar · \$ 15\.000/ })).toBeVisible();
   await expect(modal.getByLabel("Forma de pago")).toBeVisible();
   await page.screenshot({ path: "/tmp/araucana-reservas-modal-pago.png" });
   await modal.getByRole("button", { name: "Cerrar" }).click();
@@ -101,6 +101,7 @@ test("la etiqueta del pago abre sus opciones", async ({ page }) => {
 
 test("«Subir comprobante» abre el modal y muestra el resultado ahí mismo", async ({ page }) => {
   const row = await fila(page, codes.comprobante);
+  await row.getByLabel(/Más opciones de/).click();
   await row.getByRole("button", { name: "Subir comprobante" }).click();
   const modal = page.getByRole("dialog");
   await modal.getByLabel("Archivo del comprobante").setInputFiles({ name: "comprobante.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4\n%prueba\n") });

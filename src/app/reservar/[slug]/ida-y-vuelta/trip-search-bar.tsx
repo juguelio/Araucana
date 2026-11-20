@@ -51,6 +51,15 @@ export type TramoDeLaBarra = {
 type Lugar = "CPC" | "SMA";
 type Campo = "desde" | "hacia" | Sentido;
 
+/**
+ * Las dos puntas del viaje se listan en Desde y en Hacia, pero **nunca el mismo lugar en las dos**:
+ * con San Martín elegido como salida, «¿Adónde va?» ofrecía «San Martín de los Andes» (un viaje de
+ * un lugar a sí mismo). Se ofrece el otro extremo y nada más (20-nov).
+ */
+export function lugaresDelPanel(otro: Lugar): Lugar[] {
+  return (["CPC", "SMA"] as const).filter((lugar) => lugar !== otro);
+}
+
 const LUGARES: Record<Lugar, { nombre: string; detalle: string }> = {
   CPC: { nombre: "Aeropuerto Chapelco", detalle: "El aeropuerto (CPC)" },
   SMA: { nombre: "San Martín de los Andes", detalle: "Te buscamos o te dejamos donde estés" }
@@ -129,9 +138,16 @@ function IconoCalendario() {
   );
 }
 
+/**
+ * Un lugar de otro servicio en Desde/Hacia (pantalla única de «Reservar», 19-nov): Villa Traful,
+ * Villa La Angostura… Elegirlo lleva al alta por salida de ese recorrido, en la misma pantalla.
+ */
+export type LugarDeOtroServicio = { nombre: string; detalle: string; href: string };
+
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
-  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref
+  onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref, lugaresExtra,
+  abrirLaVuelta = false
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
@@ -153,17 +169,39 @@ export function TripSearchBar({
   agregarVuelta?: { href: string; detalle?: string };
   /** Ida y vuelta: la cruz arriba a la derecha de la vuelta la saca y lleva a la reserva de un tramo. */
   quitarVueltaHref?: string;
+  /**
+   * Panel: los lugares de las rutas por salida, para reservar todo desde la misma pantalla (19-nov:
+   * «que eso esté ya en el nombre de los lugares… cuando haya más rutas va a estar muy cluttered»).
+   * `desde` se ofrece siempre; `hacia`, cuando sale de San Martín.
+   */
+  lugaresExtra?: { desde: LugarDeOtroServicio[]; hacia: LugarDeOtroServicio[] };
+  /**
+   * Se llegó desde «Agregar vuelta» (`?abrir=vuelta`): el segundo tramo abre su panel solo.
+   * Antes el primer toque sólo agregaba la vuelta y había que tocar de nuevo para ver los vuelos
+   * (pedido de Jugue, 20-nov).
+   */
+  abrirLaVuelta?: boolean;
 }) {
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
-  const [abierto, setAbierto] = useState<Campo | null>(null);
+  const [abierto, setAbierto] = useState<Campo | null>(abrirLaVuelta && tramos.length > 1 ? tramos[1].sentido : null);
   /** El primer día de la tira de cada tramo: se corre de a una semana con las flechas. */
   const [inicioTira, setInicioTira] = useState<Partial<Record<Sentido, string>>>({});
   /**
    * El tramo al que se acaba de pasar solo (con la ida elegida se abre la vuelta). Mientras siga abierto,
    * el panel lo anuncia bien a la vista (pedido de Jugue, 18-nov: «la transición tiene que ser mucho más notable»).
    */
-  const [recienPaso, setRecienPaso] = useState<Sentido | null>(null);
+  const [recienPaso, setRecienPaso] = useState<Sentido | null>(
+    abrirLaVuelta && tramos.length > 1 ? tramos[1].sentido : null
+  );
+
+  // Llegada desde «Agregar vuelta»: se baja hasta la vuelta para que el panel entre a la vista.
+  useEffect(() => {
+    if (!abrirLaVuelta) return;
+    const suave = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    raiz.current?.querySelector<HTMLElement>("[data-abierto]")
+      ?.scrollIntoView({ behavior: suave ? "smooth" : "auto", block: "center" });
+  }, [abrirLaVuelta]);
 
   // Con un solo tramo el sentido es el del tramo; con dos manda el orden del viaje.
   const sentidoBase: Sentido = orden ?? tramos[0]?.sentido ?? "ARRIVAL";
@@ -173,7 +211,7 @@ export function TripSearchBar({
    * Desde/Hacia se editan si el formulario deja cambiar el sentido (`onPedirOrden`). Desde el 18-nov
    * la reserva de un tramo también: es el mismo recuadro que el ida y vuelta, con las mismas flechas.
    */
-  const lugaresFijos = !onPedirOrden;
+  const lugaresFijos = !onPedirOrden && !lugaresExtra;
 
   // Se cierra con Escape o tocando fuera de la barra, como cualquier menú.
   useEffect(() => {
@@ -341,7 +379,7 @@ export function TripSearchBar({
       <>
         <p className="trip-search-panel-title">{campo === "desde" ? "¿Desde dónde sale?" : "¿Adónde va?"}</p>
         <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? "Desde" : "Hacia"}>
-          {(["CPC", "SMA"] as const).map((lugar) => (
+          {lugaresDelPanel(campo === "desde" ? hacia : desde).map((lugar) => (
             <button
               key={lugar}
               type="button"
@@ -357,6 +395,16 @@ export function TripSearchBar({
               </span>
               {actual === lugar ? <span className="trip-search-tick" aria-hidden="true">✓</span> : null}
             </button>
+          ))}
+          {/* Los lugares de las rutas por salida: llevan a ese recorrido, en la misma pantalla. */}
+          {(campo === "desde" ? lugaresExtra?.desde ?? [] : desde === "SMA" ? lugaresExtra?.hacia ?? [] : []).map((otro) => (
+            <Link key={otro.href} href={otro.href} scroll={false} className="trip-search-option" role="radio" aria-checked={false}>
+              <span className="trip-search-option-icon"><IconoPin /></span>
+              <span className="trip-search-option-text">
+                <b>{otro.nombre}</b>
+                <small>{otro.detalle}</small>
+              </span>
+            </Link>
           ))}
         </div>
       </>

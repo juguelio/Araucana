@@ -48,11 +48,13 @@ function formatPrice(cents: number, currency = "ARS") {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas = [], inicio = null }: {
+export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas = [], inicio = null, aeropuerto = null }: {
   schedules: SalidaOption[];
   rutas?: RutaDelPanel[];
   /** El recorrido del servicio elegido arriba (pantalla única de «Reservar», 19-nov). */
   inicio?: { origen: string; destino: string } | null;
+  /** El aeropuerto en Desde/Hacia (pantalla única de «Reservar», 19-nov). */
+  aeropuerto?: React.ComponentProps<typeof ViajeSearchBar>["aeropuerto"];
 }) {
   // Un nombre por lugar (con o sin tilde es el mismo) y todas las rutas activas, aunque no tengan
   // salidas cargadas (19-nov: «te están faltando rutas»).
@@ -300,6 +302,7 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
             puedeInvertir={inversa.length > 0 || Boolean(rutaEntre(rutas, destino, origen))}
             tramos={tramos}
             ofrecerVuelta={ofrecerVuelta}
+            aeropuerto={aeropuerto}
             rutaSinSalidas={salidasIda.length === 0 ? rutaEntre(rutas, origen, destino) : null}
             onLugar={elegirLugar}
             onInvertir={() => cambiarRuta(destino, origen)}

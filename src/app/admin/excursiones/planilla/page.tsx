@@ -63,7 +63,7 @@ export default async function PlanillaDeExcursionesPage({
         </div>
       }
     >
-      <CopiarLink url={linkGuia} rotulo="Link para el guía" ayuda="La abre sin usuario y vence al día siguiente de la excursión. Mandásela por WhatsApp." />
+      <CopiarLink url={linkGuia} rotulo="Link para el guía" etiquetaBoton="Copiar link del guía" ayuda="La abre sin usuario y vence al día siguiente de la excursión. Mandásela por WhatsApp." />
       <ExcursionSheet date={date} blocks={blocks} variante="panel" />
     </AdminShell>
   );

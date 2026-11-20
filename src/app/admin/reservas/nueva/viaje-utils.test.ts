@@ -10,7 +10,7 @@ const SMA = "San Martín de los Andes";
 const salidas = [
   salida("i1", SMA, "Villa Traful", "2026-11-19", "08:00", { stopFares: [{ name: "Confluencia", priceCents: 1500000 }] }),
   salida("i2", SMA, "Villa Traful", "2026-11-20", "08:00"),
-  salida("j1", SMA, "Junín de los Andes", "2026-11-19", "09:30", { priceCents: 1200000 }),
+  salida("h1", SMA, "Hua Hum", "2026-11-19", "10:30", { priceCents: 1800000 }),
   salida("v0", "Villa Traful", SMA, "2026-11-19", "07:00"),
   salida("v1", "Villa Traful", SMA, "2026-11-19", "16:30"),
   salida("v2", "Villa Traful", SMA, "2026-11-21", "16:30")
@@ -19,7 +19,7 @@ const salidas = [
 describe("viaje de Nueva reserva (template, 18-nov)", () => {
   it("ofrece primero el origen y el destino con más salidas, en su primer día", () => {
     expect(origenes(salidas)[0]).toEqual({ nombre: SMA, salidas: 3 });
-    expect(destinosDesde(salidas, SMA).map((lugar) => lugar.nombre)).toEqual(["Villa Traful", "Junín de los Andes"]);
+    expect(destinosDesde(salidas, SMA).map((lugar) => lugar.nombre)).toEqual(["Villa Traful", "Hua Hum"]);
     expect(viajeInicial(salidas)).toEqual({ origen: SMA, destino: "Villa Traful", dia: "2026-11-19" });
   });
 
@@ -36,8 +36,8 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
   });
 
   it("si San Martín no tiene salidas, abre con el origen que haya", () => {
-    const soloJunin = [salida("j1", "Junín de los Andes", SMA, "2026-11-19", "09:30")];
-    expect(viajeInicial(soloJunin).origen).toBe("Junín de los Andes");
+    const soloHuaHum = [salida("h2", "Hua Hum", SMA, "2026-11-19", "17:00")];
+    expect(viajeInicial(soloHuaHum).origen).toBe("Hua Hum");
   });
 
   it("la tira de días muestra sólo los días con servicio", () => {
@@ -71,7 +71,7 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
     expect(vueltasPosibles(salidas, SMA, "Villa Traful").map((s) => s.id)).toEqual(["v0", "v1", "v2"]);
     // La de las 07:00 del mismo día sale antes que la ida de las 08:00: no sirve.
     expect(vueltasPosibles(salidas, SMA, "Villa Traful", ida).map((s) => s.id)).toEqual(["v1", "v2"]);
-    expect(vueltasPosibles(salidas, SMA, "Junín de los Andes")).toEqual([]);
+    expect(vueltasPosibles(salidas, SMA, "Hua Hum")).toEqual([]);
   });
 
   it("el primer día con salidas desde un mínimo", () => {
@@ -117,7 +117,7 @@ describe("todas las rutas y un nombre por lugar (19-nov: «te están faltando ru
     expect(destinosDesde(unificadas, "Villa Traful", rutasUnificadas).map((l) => [l.nombre, l.salidas])).toEqual([
       [SMA, 3], ["Villa La Angostura", 0]
     ]);
-    expect(destinosDesde(unificadas, SMA, rutasUnificadas).map((l) => l.nombre)).toEqual(["Villa Traful", "Junín de los Andes", "Hua Hum"]);
+    expect(destinosDesde(unificadas, SMA, rutasUnificadas).map((l) => l.nombre)).toEqual(["Villa Traful", "Hua Hum"]);
     expect(rutaEntre(rutasUnificadas, "Villa La Angostura", "Villa Traful")?.id).toBe("r3");
   });
 });
