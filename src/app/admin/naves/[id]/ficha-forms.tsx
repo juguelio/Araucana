@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { GRAVEDADES, GRAVEDAD_LABEL } from "@/lib/vehicles/ficha";
+import { ESTADOS_DE_ITEM, ESTADO_DE_ITEM_LABEL, SECCIONES_DE_SERVICE } from "@/lib/vehicles/service-sheet";
 import { AdminFormAlert, AdminSubmitButton, FieldError } from "../../form-ui";
 import { initialAdminFormState, type AdminFormState } from "../../form-state";
 
@@ -115,6 +116,78 @@ export function RepairForm({
       ) : null}
       <div className="form-actions span-2">
         <AdminSubmitButton>Registrar arreglo</AdminSubmitButton>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * Planilla de service: la misma planilla de papel del taller, ítem por ítem. Cada ítem se deja como
+ * «sin revisar», «bien», «falla» o «no aplica»; el que no se toca no suma al resumen.
+ */
+export function ServiceSheetForm({ action, vehicleId }: { action: FormAction; vehicleId: string }) {
+  const [state, formAction] = useActionState(action, initialAdminFormState);
+  const errors = state.fieldErrors;
+  return (
+    <form className="admin-form-grid" action={formAction}>
+      <AdminFormAlert state={state} />
+      <input type="hidden" name="vehicleId" value={vehicleId} />
+      <label>
+        Fecha del service
+        <input
+          name="servicedAt"
+          type="date"
+          defaultValue={hoyEnArgentina()}
+          required
+          aria-invalid={Boolean(errors.servicedAt)}
+          aria-describedby={errors.servicedAt ? "service-servicedAt-error" : undefined}
+        />
+        <FieldError id="service-servicedAt-error" message={errors.servicedAt} />
+      </label>
+      <label>
+        Kilometraje
+        <input
+          name="odometerKm"
+          inputMode="numeric"
+          placeholder="148.320"
+          required
+          aria-invalid={Boolean(errors.odometerKm)}
+          aria-describedby={errors.odometerKm ? "service-odometerKm-error" : undefined}
+        />
+        <FieldError id="service-odometerKm-error" message={errors.odometerKm} />
+      </label>
+
+      <div className="span-2 service-bloques">
+        {SECCIONES_DE_SERVICE.map((seccion) => (
+          <fieldset className="service-bloque" key={seccion.id}>
+            <legend>{seccion.label}</legend>
+            {seccion.items.map((item) => (
+              <label className="service-item" key={item.id}>
+                <span>{item.label}</span>
+                <select name={`check:${item.id}`} defaultValue="" aria-label={`${seccion.label}: ${item.label}`}>
+                  <option value="">—</option>
+                  {ESTADOS_DE_ITEM.map((estado) => (
+                    <option key={estado} value={estado}>
+                      {ESTADO_DE_ITEM_LABEL[estado]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </fieldset>
+        ))}
+      </div>
+
+      <label className="span-2">
+        Qué se le hizo
+        <textarea name="workDone" rows={2} maxLength={500} placeholder="Ej: cambio de aceite y filtros, pastillas delanteras, alineación" />
+      </label>
+      <label className="span-2">
+        Observaciones
+        <textarea name="notes" rows={2} maxLength={500} placeholder="Cualquier cosa que tenga que saber el próximo que la agarre" />
+      </label>
+      <div className="span-2">
+        <AdminSubmitButton>Guardar planilla</AdminSubmitButton>
       </div>
     </form>
   );
