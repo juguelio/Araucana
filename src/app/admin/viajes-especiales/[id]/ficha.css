@@ -40,3 +40,14 @@
   .viaje-cabecera-fecha strong { font-size: 22px; }
   .viaje-cabecera-datos { gap: 8px 12px; font-size: 13px; }
 }
+
+/* Mismo viaje cargado un renglón por día: propuesta de unirlo. */
+.viaje-unir { border-left: 3px solid var(--accent); }
+.viaje-unir h2 { margin-bottom: 6px; }
+.viaje-unir p { margin: 6px 0; line-height: 1.5; }
+.viaje-unir-dias { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0; padding: 0; list-style: none; font-size: 14px; }
+.viaje-unir-dias li { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; }
+.viaje-unir-dias li[aria-current="true"] { border-color: var(--accent); }
+.viaje-unir form { display: grid; gap: 4px; justify-items: start; margin-top: 10px; }
+.viaje-unir-no { color: var(--ink-muted); }
+.viaje-aviso-naves { margin: 8px 0 12px; padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 6px; background: rgba(162, 40, 27, .05); font-size: 14px; }
