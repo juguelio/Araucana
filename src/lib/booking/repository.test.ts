@@ -604,13 +604,42 @@ describe("booking repository", () => {
     expect(client.payments[0].receiptBlobPathname).toBe("new");
   });
 
-  it("does not replace receipts of approved payments or confirmed reservations", async () => {
+  it("attaches the receipt that arrived after the payment was registered, without reopening it", async () => {
+    const client = new FakeBookingClient();
+    const rows: Array<Record<string, unknown>> = [];
+    Object.assign(client, { auditLog: { create: async ({ data }: { data: Record<string, unknown> }) => { rows.push(data); } } });
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation({ status: "PENDING_PAYMENT" });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "APPROVED", amountCents: 100, currency: "ARS", externalRef: null });
+    const result = await repository.attachManualPaymentReceipt(
+      reservation.code,
+      { blobUrl: "new", blobPathname: "new", fileName: "transferencia.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() },
+      { id: "user-1", name: "Ivo", email: "ivo@example.com", role: "SECRETARY" }
+    );
+    expect(result.replacedBlobPathname).toBeNull();
+    expect(client.payments[0]).toMatchObject({ status: "APPROVED", receiptBlobPathname: "new", receiptFileName: "transferencia.pdf" });
+    // La auditoría dice quién lo subió desde el panel y no inventa un cambio de estado del pago.
+    expect(rows[0]).toMatchObject({ actorRole: "SECRETARY", actorId: "user-1" });
+    expect(String(rows[0].summary)).toContain("adjuntado");
+    expect(rows[0].changes).toEqual({ "payment.receiptFileName": { before: null, after: "transferencia.pdf" } });
+  });
+
+  it("does not replace a receipt that was already validated", async () => {
     const client = new FakeBookingClient();
     const repository = createTestRepository(client);
     const reservation = client.seedReservation({ status: "CONFIRMED" });
-    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "APPROVED", amountCents: 100, currency: "ARS", externalRef: null });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "APPROVED", amountCents: 100, currency: "ARS", externalRef: null, receiptBlobPathname: "old" });
     await expect(repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "x.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
     expect(client.payments[0].status).toBe("APPROVED");
+    expect(client.payments[0].receiptBlobPathname).toBe("old");
+  });
+
+  it("keeps cancelled reservations without new receipts", async () => {
+    const client = new FakeBookingClient();
+    const repository = createTestRepository(client);
+    const reservation = client.seedReservation({ status: "CANCELLED" });
+    client.payments.push({ id: "pay", reservationId: reservation.id, provider: "MANUAL", status: "PENDING", amountCents: 100, currency: "ARS", externalRef: null });
+    await expect(repository.attachManualPaymentReceipt(reservation.code, { blobUrl: "new", blobPathname: "new", fileName: "x.pdf", contentType: "application/pdf", size: 10, uploadedAt: new Date() })).rejects.toMatchObject({ code: "PAYMENT_LOCKED" });
     expect(client.payments[0].receiptBlobPathname).toBeUndefined();
   });
 

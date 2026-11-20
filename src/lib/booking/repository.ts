@@ -18,6 +18,7 @@ import {
 import { fareCounts, reservationTotalCents, seatsFromFares } from "./passenger-fares";
 import { adminPassengerSchema, adminReservationSchema, adminRouteRoundTripSchema, createReservationSchema, type AdminReservationInput, type AdminRouteRoundTripInput, type PassengerInput } from "./validation";
 import { manualPaymentProvider } from "@/lib/payments/manual-provider";
+import { politicaDeComprobante } from "@/lib/payments/receipt-policy";
 import { DISABILITY_DOCUMENT_PROVIDER, DISABILITY_PENDING_STATUS, receiptPendingStatus } from "./disability-fare";
 import { diffRecords, hasChanges } from "@/lib/audit/diff";
 import { guestActor, recordAudit, type AuditActor, type AuditClient } from "@/lib/audit/record";
@@ -1185,7 +1186,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
         contentType: string;
         size: number;
         uploadedAt: Date;
-      }
+      },
+      actor?: AuditActor | null
     ) {
       const normalizedCode = code.toUpperCase();
 
@@ -1205,16 +1207,25 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
               throw new BookingError("PAYMENT_NOT_FOUND", "Payment not found");
             }
 
-            if (reservation.status !== receiptPendingStatus(reservation.payment.provider) || !["PENDING", "REJECTED"].includes(reservation.payment.status)) {
+            const politica = politicaDeComprobante(reservation.status, {
+              provider: reservation.payment.provider,
+              status: reservation.payment.status,
+              hasReceipt: Boolean(reservation.payment.receiptBlobPathname)
+            });
+            if (politica === "bloqueado") {
               throw new BookingError("PAYMENT_LOCKED", "El pago ya no admite comprobantes.");
             }
+            // Adjuntar el comprobante a un pago ya registrado no reabre la validación: el pago queda
+            // aprobado y el archivo se suma como respaldo. Subir o reemplazar sí vuelve a «por validar».
+            const mantieneEstado = politica === "adjuntar";
+            const estadoDelPago = mantieneEstado ? reservation.payment.status : "PENDING";
 
             const replacedBlobPathname = reservation.payment.receiptBlobPathname ?? null;
             const beforeUpload = { "payment.status": reservation.payment.status, "payment.receiptFileName": reservation.payment.receiptFileName ?? null };
             await tx.payment.update({
               where: { reservationId: reservation.id },
               data: {
-                status: "PENDING",
+                ...(mantieneEstado ? {} : { status: "PENDING" }),
                 receiptBlobUrl: receipt.blobUrl,
                 receiptBlobPathname: receipt.blobPathname,
                 receiptFileName: receipt.fileName,
@@ -1223,15 +1234,21 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
                 receiptUploadedAt: receipt.uploadedAt
               }
             });
-            // Lo sube el pasajero desde su enlace, sin sesión. Queda el nombre del archivo, no el archivo.
+            // Lo sube el pasajero desde su enlace, sin sesión, o el equipo desde el panel. Queda el
+            // nombre del archivo, no el archivo.
             await recordAudit(tx, {
-              actor: guestActor,
+              actor: actor ?? guestActor,
               action: "UPDATE",
               entity: "RESERVATION",
               entityId: reservation.id,
               entityLabel: normalizedCode,
-              summary: withShortCode(replacedBlobPathname ? "Comprobante reemplazado por el pasajero." : "Comprobante subido por el pasajero.", reservation.shortCode),
-              changes: diffRecords(beforeUpload, { "payment.status": "PENDING", "payment.receiptFileName": receipt.fileName })
+              summary: withShortCode(
+                mantieneEstado
+                  ? "Comprobante adjuntado a un pago ya registrado."
+                  : replacedBlobPathname ? "Comprobante reemplazado por el pasajero." : "Comprobante subido por el pasajero.",
+                reservation.shortCode
+              ),
+              changes: diffRecords(beforeUpload, { "payment.status": estadoDelPago, "payment.receiptFileName": receipt.fileName })
             });
 
             const detail = await getReservationByCodeWithClient(tx, normalizedCode);

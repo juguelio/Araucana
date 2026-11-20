@@ -33,6 +33,16 @@ describe("estadoDeFila: una etiqueta y una acción por reserva (listado del 20-n
     expect(estadoDeFila({ ...base, paymentStatus: "APPROVED" }, { esAdmin: false })).toMatchObject({ etiqueta: "Pagada · sin confirmar", accion: "confirmar" });
   });
 
+  it("pagada sin comprobante: la fila ofrece subirlo aunque el pago ya esté registrado", () => {
+    const estado = estadoDeFila({ ...base, paymentStatus: "APPROVED" }, { esAdmin: false });
+    expect(estado).toMatchObject({ etiqueta: "Pagada · sin confirmar", accion: "confirmar", puedeSubirComprobante: true });
+    expect(estadoDeFila({ ...base, status: "CONFIRMED", paymentStatus: "APPROVED" }, { esAdmin: false }).puedeSubirComprobante).toBe(true);
+  });
+
+  it("con el comprobante ya validado no se ofrece reemplazarlo", () => {
+    expect(estadoDeFila({ ...base, status: "CONFIRMED", paymentStatus: "APPROVED", hasReceipt: true }, { esAdmin: false }).puedeSubirComprobante).toBe(false);
+  });
+
   it("confirmada y pagada: la acción es mandar el voucher por WhatsApp", () => {
     expect(estadoDeFila({ ...base, status: "CONFIRMED", paymentStatus: "APPROVED" }, { esAdmin: false })).toMatchObject({
       etiqueta: "Pagada",
