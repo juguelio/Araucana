@@ -13,7 +13,7 @@ import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, t
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
-import { TripSearchBar, type TramoDeLaBarra } from "./trip-search-bar";
+import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./trip-search-bar";
 import {
   buildPassengerPayload,
   initialPassenger,
@@ -88,6 +88,8 @@ type RoundTripCheckoutFormProps = {
   initialFirstFlightId?: string;
   /** Alta desde el panel: identidad opcional, sin freno por IP y vuelve a la reserva del panel. */
   fromAdmin?: boolean;
+  /** Panel: los lugares de las rutas por salida en Desde/Hacia (pantalla única de «Reservar»). */
+  lugaresExtra?: LugaresExtra;
 };
 
 type LugarPickup = {
@@ -155,7 +157,9 @@ function descripcionVuelo(vuelo: FlightOption) {
   return partes.join(" · ");
 }
 
-export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs, initialOrder = "ARRIVAL", initialFirstFlightId }: RoundTripCheckoutFormProps) {
+type LugaresExtra = { desde: LugarDeOtroServicio[]; hacia: LugarDeOtroServicio[] };
+
+export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, singleHrefs, initialOrder = "ARRIVAL", initialFirstFlightId, lugaresExtra }: RoundTripCheckoutFormProps) {
   /**
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
@@ -705,6 +709,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   cada campo abre su panel con los lugares, o con los días y los vuelos para tocar. */}
               <TripSearchBar
                 orden={orden}
+                lugaresExtra={lugaresExtra}
                 tramos={bloquesDelViaje.map((bloque, i): TramoDeLaBarra => ({
                   sentido: bloque.sentido,
                   etapa: i === 0 ? "Ida" : "Vuelta",

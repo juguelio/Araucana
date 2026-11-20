@@ -1263,9 +1263,13 @@ describe("booking repository", () => {
 describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", () => {
   const admin = { id: "admin-1", name: "Ana", email: "admin@example.com", role: "ADMIN" } as const;
 
-  /** La vuelta: Bariloche → SMA, dos días después de la ida. */
+  /**
+   * Un viaje real (19-nov: «necesito que se vea como realmente va a ser»): la ida San Martín → Villa
+   * Traful y la vuelta Villa Traful → San Martín, dos días después.
+   */
   function conVuelta(client: FakeBookingClient, cambios: Partial<ScheduleRecord> = {}, ruta: Partial<RouteRecord> = {}) {
-    const route = { ...client.route, id: "route-vuelta", slug: "bariloche-sma", from: "Bariloche", to: "SMA", ...ruta };
+    client.scheduleRecord.route = { ...client.scheduleRecord.route, slug: "sma-villa-traful-verano-2026", from: "San Martin de los Andes", to: "Villa Traful", priceCents: 3000000 };
+    const route = { ...client.route, id: "route-vuelta", slug: "villa-traful-sma-verano-2026", from: "Villa Traful", to: "San Martin de los Andes", priceCents: 3000000, ...ruta };
     const vuelta: ScheduleRecord = {
       ...client.scheduleRecord,
       id: "schedule-vuelta",
@@ -1310,7 +1314,8 @@ describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", (
     // Cada tramo tiene su pago pendiente y su pasaje, como el ida y vuelta del aeropuerto.
     expect(client.payments).toHaveLength(2);
     expect(client.tickets).toHaveLength(2);
-    expect(client.reservations.map((item) => item.totalCents)).toEqual([1890000, 1890000]);
+    // Tarifa real San Martín ⇄ Villa Traful: $ 30.000 por persona y por tramo (tarifario 18/07/2026).
+    expect(client.reservations.map((item) => item.totalCents)).toEqual([3000000, 3000000]);
   });
 
   it("cobra los menores en los dos tramos", async () => {
@@ -1318,7 +1323,7 @@ describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", (
     conVuelta(client);
     await repositorio(client).createRouteRoundTripReservation({ ...viaje, passengerCount: 2, halfFareCount: 1 });
     // Un adulto + un menor de 4 a 8 (media tarifa) por tramo.
-    expect(client.reservations.map((item) => item.totalCents)).toEqual([1890000 + 945000, 1890000 + 945000]);
+    expect(client.reservations.map((item) => item.totalCents)).toEqual([3000000 + 1500000, 3000000 + 1500000]);
     expect(client.reservations.map((item) => (item as ReservationRecord & { halfFareCount?: number }).halfFareCount)).toEqual([1, 1]);
   });
 
@@ -1331,7 +1336,7 @@ describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", (
 
   it("rechaza una vuelta que no es la ruta inversa y no crea nada", async () => {
     const client = new FakeBookingClient();
-    conVuelta(client, {}, { from: "Junín", to: "SMA" });
+    conVuelta(client, {}, { from: "Villa La Angostura", to: "Villa Traful" });
     await expect(repositorio(client).createRouteRoundTripReservation(viaje)).rejects.toMatchObject({ code: "ROUND_TRIP_ROUTE_MISMATCH" });
     expect(client.reservations).toHaveLength(0);
     expect(client.passengers).toHaveLength(0);
@@ -1339,8 +1344,8 @@ describe("ida y vuelta de una ruta regular (Nueva reserva del panel, 18-nov)", (
 
   it("reconoce la vuelta aunque el lugar esté escrito con o sin tilde", async () => {
     const client = new FakeBookingClient();
-    conVuelta(client, {}, { from: "bariloche", to: "SMA" });
-    client.scheduleRecord.route = { ...client.scheduleRecord.route, to: "Bariloche " };
+    conVuelta(client, {}, { from: "villa traful", to: "San Martín de los Andes" });
+    client.scheduleRecord.route = { ...client.scheduleRecord.route, to: "Villa Traful " };
     await repositorio(client).createRouteRoundTripReservation(viaje);
     expect(client.reservations).toHaveLength(2);
   });
