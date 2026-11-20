@@ -37,11 +37,19 @@ it("el listado de pasajeros reúne las salidas agrupadas y distingue vuelo y rut
   const vehicle = { id: "bus", name: "Bus", seats: 30 };
   const route = { routeId: "traful", from: "Centro", to: "Traful", departureAt: date, status: "OPEN", passengers: 2, vehicle, driver: null };
   const [row] = scheduleRows([{ ...route, id: "ida-1" }, { ...route, id: "ida-2" }]);
-  const [inactive] = scheduleRows([{ ...route, id: "oculta", routeActive: false }]);
-  expect(dispatchIssues([inactive], [], new Map()).get(inactive.key)).toContain("Ruta inactiva con pasajeros");
   expect(serviceReservationScope(row)).toEqual({ scheduleId: { in: ["ida-1", "ida-2"] } });
   const flight = flightRow({ id: "f1", number: "AR1657", direction: "ARRIVAL", scheduledAt: date, estimatedAt: null, pickupStart: null, status: "SCHEDULED", passengers: 1, units: [] }, "2030-04-29");
   expect(serviceReservationScope(flight)).toEqual({ airportDetails: { is: { flightId: "f1" } } });
   const cerro = chapelcoRow({ routeId: "cerro-1", operationDayId: null, dateKey: "2030-04-29", status: "OPEN", passengers: 2, firstAscent: date, units: [] });
   expect(serviceReservationScope(cerro)).toEqual({ bookingMode: "CHAPELCO", routeId: "cerro-1" });
+});
+
+it("una ruta inactiva con reservas queda pendiente y la programación vacía sigue consultable", () => {
+  const schedule = { id: "salida", routeId: "ruta", from: "Centro", to: "Terminal", departureAt: new Date(), status: "OPEN",
+    vehicle: { id: "v", name: "Combi", seats: 15 }, driver: null, routeActive: false };
+  const [conReservas] = scheduleRows([{ ...schedule, passengers: 2 }]);
+  expect(dispatchIssues([conReservas], [], new Map()).get(conReservas.key)).toContain("Ruta inactiva con pasajeros");
+  const [sinReservas] = scheduleRows([{ ...schedule, passengers: 0 }]);
+  expect(sinReservas.programmed).toBe(true);
+  expect(dispatchIssues([sinReservas], [], new Map()).size).toBe(0);
 });

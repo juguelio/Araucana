@@ -18,7 +18,7 @@ import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/li
 import { siteOrigin } from "@/lib/site-origin";
 import { approveDisabilityDocumentAction, rejectDisabilityDocumentAction, approveManualPaymentAction, rejectManualPaymentAction, manageReservationAction } from "./actions";
 import { reservationRowClassName } from "./row-style";
-import { RegistrarPagoForm } from "./[code]/registrar-pago-form";
+import { RegistrarPagoForm as FormularioDeCobro } from "./[code]/registrar-pago-form";
 import { RowModal } from "./row-modal";
 import { MenuFila } from "@/components/admin-list/menu-fila";
 import { estadoDeFila, type EstadoDeFila } from "./estado-fila";
@@ -148,6 +148,10 @@ function Ocultos({ code, listQuery }: { code: string; listQuery: string }) {
   );
 }
 
+function RegistrarPagoForm({ reservation, listQuery }: { reservation: AdminReservationRowDto; listQuery: string }) {
+  return <FormularioDeCobro code={reservation.code} total={formatTotal(reservation)} method={reservation.paymentMethod} listQuery={listQuery} />;
+}
+
 /** Ver el comprobante subido y validarlo o rechazarlo (no se valida sin haberlo mirado). */
 function ValidarPagoForm({ reservation, listQuery }: { reservation: AdminReservationRowDto; listQuery: string }) {
   const detailPath = `/admin/reservas/${reservation.code}`;
@@ -207,7 +211,7 @@ function EstadoYPagoModal({ reservation, estado, listQuery }: { reservation: Adm
       {estado.validaPagoManual ? <ValidarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
       {estado.revisaDocumentacion ? <RevisarDocumentacionForm reservation={reservation} listQuery={listQuery} /> : null}
       {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}
-      {estado.puedeRegistrarPago && !estado.validaPagoManual ? <RegistrarPagoForm code={reservation.code} total={formatTotal(reservation)} method={reservation.paymentMethod} listQuery={listQuery} /> : null}
+      {estado.puedeRegistrarPago && !estado.validaPagoManual ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
       {reservation.status === "PENDING_PAYMENT" && !estado.disabilityFare ? (
         <form className="reservas-modal-form" action={manageReservationAction}>
           <Ocultos code={reservation.code} listQuery={listQuery} />
@@ -300,7 +304,7 @@ function FilaDeReserva({
           </RowModal>
         ) : estado.accion === "registrar-pago" ? (
           <RowModal triggerLabel="Registrar pago" triggerClassName="button table-action" trigger="Registrar pago" eyebrow="Registrar pago" title={formatTotal(reservation)} subtitle={subtitulo}>
-            <RegistrarPagoForm code={reservation.code} total={formatTotal(reservation)} method={reservation.paymentMethod} listQuery={listQuery} />
+            <RegistrarPagoForm reservation={reservation} listQuery={listQuery} />
           </RowModal>
         ) : estado.accion === "confirmar" ? (
           <form action={manageReservationAction}>

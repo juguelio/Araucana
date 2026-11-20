@@ -93,7 +93,7 @@ test("un daño señala cada servicio de la nave y se puede resolver y cobrar des
     await expect(page.getByRole("link", { name: /Reservas y cobros/ })).toContainText("1 viaje por confirmar");
     await page.getByLabel("Cola de trabajo").selectOption("paid-unconfirmed");
     await page.getByRole("button", { name: "Buscar", exact: true }).click();
-    await row.getByRole("button", { name: "Confirmar", exact: true }).click();
+    await row.getByRole("button", { name: /^Confirmar(?: reserva)?$/ }).click();
     await expect(page.getByText("Reserva confirmada.", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: /Reservas y cobros/ }).locator("strong")).toHaveText("0");
     const saved = await db.reservation.findUniqueOrThrow({ where: { code }, include: { payment: true } });
