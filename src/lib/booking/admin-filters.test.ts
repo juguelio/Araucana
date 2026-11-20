@@ -87,6 +87,37 @@ describe("reservation search", () => {
   });
 });
 
+describe("vistas por día de viaje del listado (20-nov)", () => {
+  // 20-nov 2026, 23:30 en Argentina: todavía es el 20 (no el 21 de UTC).
+  const ahora = new Date("2026-11-21T02:30:00Z");
+
+  it("«hoy» son los que viajan hoy en Argentina, sin las canceladas", () => {
+    const where = adminReservationWhere({ vista: "hoy" }, [], ahora);
+    expect(where.AND).toEqual([
+      { status: { not: "CANCELLED" } },
+      { OR: [
+        { schedule: { is: { departureAt: { gte: new Date("2026-11-20T03:00:00Z"), lt: new Date("2026-11-21T03:00:00Z") } } } },
+        { airportDetails: { is: { serviceDate: { gte: new Date("2026-11-20T03:00:00Z"), lt: new Date("2026-11-21T03:00:00Z") } } } },
+        { chapelcoDetails: { is: { serviceDate: { gte: new Date("2026-11-20T00:00:00Z"), lt: new Date("2026-11-21T00:00:00Z") } } } }
+      ] }
+    ]);
+  });
+
+  it("«próximas» no tiene fin: de hoy en adelante", () => {
+    const where = adminReservationWhere({ vista: "proximas" }, [], ahora) as { AND: Array<{ OR?: unknown[] }> };
+    expect(where.AND[1].OR).toEqual([
+      { schedule: { is: { departureAt: { gte: new Date("2026-11-20T03:00:00Z") } } } },
+      { airportDetails: { is: { serviceDate: { gte: new Date("2026-11-20T03:00:00Z") } } } },
+      { chapelcoDetails: { is: { serviceDate: { gte: new Date("2026-11-20T00:00:00Z") } } } }
+    ]);
+  });
+
+  it("«todas» no filtra, y una vista desconocida tampoco rompe la página", () => {
+    expect(adminReservationWhere({ vista: "todas" })).toEqual({});
+    expect(adminReservationFiltersSchema.safeParse({ vista: "cualquiera" })).toMatchObject({ success: true, data: { vista: undefined } });
+  });
+});
+
 describe("busqueda de salidas (alta manual)", () => {
   it("filtra por origen/destino y por dia argentino de viaje", () => {
     expect(adminScheduleWhere({ from: " SMA ", to: "Bariloche", date: "2026-11-05" })).toEqual({

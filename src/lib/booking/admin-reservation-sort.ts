@@ -9,11 +9,11 @@ import type { AdminReservationFilters } from "./admin-filters";
  * listado usa el orden de siempre (alta más reciente). Ninguna columna fuera de acá puede terminar en
  * un `orderBy` de Prisma.
  *
- * `Fecha del viaje` no está: no es una columna, es el día que sale de tres fuentes distintas (salida
- * programada, vuelo del aeropuerto o fecha de Chapelco) y Prisma no puede ordenar por esa expresión sin
- * un campo persistido. Queda para una etapa aparte, con el dato guardado en la reserva.
+ * `viaje` (día y hora del viaje, 20-nov) sale de tres fuentes distintas (salida programada, vuelo del
+ * aeropuerto o fecha de Chapelco) y Prisma no puede ordenar por esa expresión sin un campo persistido:
+ * el repositorio lo ordena aparte (`admin-travel-order.ts`). Acá sólo queda un `orderBy` de respaldo.
  */
-export const ADMIN_RESERVATION_ORDER_COLUMNS = ["codigo", "pasajero", "creadaPor", "asiento", "estado", "pago", "alta"] as const;
+export const ADMIN_RESERVATION_ORDER_COLUMNS = ["codigo", "pasajero", "creadaPor", "asiento", "estado", "pago", "alta", "viaje"] as const;
 export type AdminReservationOrderColumn = (typeof ADMIN_RESERVATION_ORDER_COLUMNS)[number];
 
 /**
@@ -59,5 +59,8 @@ export function adminReservationOrderBy(input: AdminReservationFilters): Prisma.
       return [{ status: direccion }, desempate];
     case "pago":
       return [{ payment: { status: direccion } }, desempate];
+    case "viaje":
+      // Respaldo: el orden real por viaje lo arma el repositorio (ver arriba).
+      return [{ createdAt: direccion }, desempate];
   }
 }
