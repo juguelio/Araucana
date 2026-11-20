@@ -33,7 +33,7 @@ describe("comprobantes HEIC de iPhone", () => {
 
   it("rechaza una foto demasiado grande antes de cargar el decodificador", async () => {
     const oversized = { name: "foto.heic", type: "image/heic", size: 10 * 1024 * 1024 + 1 } as File;
-    await expect(normalizeReceipt(oversized)).rejects.toMatchObject({ message: "El comprobante no puede superar 10 MB." });
+    await expect(normalizeReceipt(oversized)).rejects.toMatchObject({ message: "El comprobante pesa más de 10 MB. Comprimí la foto o mandalo como PDF más liviano." });
   });
 
   it("conserva PDF y corrige el nombre si Safari ya convirtió la foto a JPEG", async () => {
