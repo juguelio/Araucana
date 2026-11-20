@@ -2,9 +2,8 @@ import { notFound } from "next/navigation";
 import { ImprimirButton } from "@/components/imprimir-button";
 import { ServiceOrderSheet } from "@/components/service-order-sheet";
 import { ServiceOrderMap } from "@/components/service-order-map";
-import { getAirportOfficePickup } from "@/lib/airport/office-pickup";
-import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
-import { buildServiceOrderBlocks, filtrarPorNave, ordenesDelVuelo } from "@/lib/airport/service-order";
+import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
+import { filtrarPorNave, ordenesDelVuelo } from "@/lib/airport/service-order";
 import { leerTokenDeOrden } from "@/lib/airport/service-order-link";
 import "@/components/service-order-sheet.css";
 
@@ -35,12 +34,9 @@ export default async function OrdenPublicaPage({ params }: PageProps) {
     notFound();
   }
 
-  const [reservas, oficina] = await Promise.all([
-    getAirportServiceOrderReservations(payload.date, payload.flight),
-    getAirportOfficePickup()
-  ]);
+  const { blocks: ordenesDelDia, oficina } = await getAirportServiceOrder(payload.date, payload.flight);
   const blocks = filtrarPorNave(
-    ordenesDelVuelo(buildServiceOrderBlocks(reservas), payload.flight ?? null),
+    ordenesDelVuelo(ordenesDelDia, payload.flight ?? null),
     payload.flight ? (payload.vehicle ?? null) : null
   );
 

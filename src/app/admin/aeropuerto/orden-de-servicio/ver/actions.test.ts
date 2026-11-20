@@ -14,6 +14,7 @@ vi.mock("@/lib/auth/admin", () => ({ getCurrentReservationsUserOrRedirect: vi.fn
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/audit/entity", () => ({ recordEntityAuditAfterCommit: vi.fn() }));
 vi.mock("@/lib/airport/service-order-repository", () => ({ getAirportServiceOrderReservations: mocks.reservations }));
+vi.mock("@/lib/airport/office-pickup", () => ({ getAirportOfficePickup: async () => ({ point: null }) }));
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
     airportReservationDetails: { findMany: mocks.findDetails, update: mocks.updateDetail, updateMany: vi.fn() },

@@ -134,8 +134,9 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
         «Derivado por» es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío.
         Cobrar / Pagado es el estado del pago. La forma de pago se puede cargar desde la orden o marcar a mano
         en los casilleros al imprimir. Elegirla no confirma el cobro. Las filas están en el orden de la recorrida: el que se acomodó a mano en
-        el panel y, si no, el sugerido: en los arribos, desde el aeropuerto con el más cercano primero; en las partidas, al
-        revés, del más lejano al más cercano al aeropuerto. Al final van los pasajeros que no tienen el punto marcado en
+        el panel y, si no, el sugerido: en los arribos, desde el aeropuerto con el más cercano primero; en las partidas,
+        desde la oficina hasta el aeropuerto, minimizando la distancia geográfica. Sin ubicación de la oficina se usa
+        el orden por cercanía al aeropuerto, invertido. Al final van los pasajeros que no tienen el punto marcado en
         el mapa. Si el vuelo sale con más de una nave, hay una orden por nave. El
         botón verde «W» al lado del contacto abre el WhatsApp.
       </p>
