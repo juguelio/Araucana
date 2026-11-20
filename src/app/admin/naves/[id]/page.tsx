@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 import { formatCurrency } from "@/lib/admin/salary";
 import { complianceLabel, formatoFecha, vencimientosOrdenados } from "@/lib/vehicles/compliance";
 import { AREA_LABEL, GRAVEDAD_LABEL, contarPorArea, filtrarRecorridos, resumenDeDanios } from "@/lib/vehicles/ficha";
+import { checksGuardados, resumenDePlanilla } from "@/lib/vehicles/service-sheet";
 import { CabeceraDeNave, SinDatos, cargarNave, diaUtc, fechaDeRecorrido, hrefDeNave, nombreDeNave } from "./ficha-de-nave";
 import { cargarRecorridos } from "./datos";
 
@@ -24,10 +25,11 @@ export default async function FichaDeNavePage({ params, searchParams }: FichaDeN
   const hoy = new Date();
   const nave = await cargarNave(id);
 
-  const [recorridos, danios, arreglos] = await Promise.all([
+  const [recorridos, danios, arreglos, planillas] = await Promise.all([
     cargarRecorridos(id),
     prisma.vehicleDamage.findMany({ where: { vehicleId: id }, orderBy: { occurredAt: "desc" } }),
-    prisma.accountingEntry.findMany({ where: { vehicleId: id, category: "REPAIR" }, orderBy: { occurredAt: "desc" } })
+    prisma.accountingEntry.findMany({ where: { vehicleId: id, category: "REPAIR" }, orderBy: { occurredAt: "desc" } }),
+    prisma.vehicleServiceSheet.findMany({ where: { vehicleId: id }, orderBy: { servicedAt: "desc" }, take: 2 })
   ]);
 
   const proximos = filtrarRecorridos(recorridos, "proximos", null, hoy);
@@ -40,6 +42,8 @@ export default async function FichaDeNavePage({ params, searchParams }: FichaDeN
   // Los arreglos se cargan en pesos; si algún día hay otra moneda, se suma aparte.
   const totalArreglos = arreglos.filter((a) => a.currency === "ARS").reduce((t, a) => t + a.amountCents, 0);
   const ultimoArreglo = arreglos[0];
+  const ultimaPlanilla = planillas[0];
+  const resumenService = ultimaPlanilla ? resumenDePlanilla(checksGuardados(ultimaPlanilla.checks)) : null;
 
   return (
     <AdminShell role={sessionUser.role} title={nombreDeNave(nave)} eyebrow="Naves" notice={notice}>
@@ -69,6 +73,24 @@ export default async function FichaDeNavePage({ params, searchParams }: FichaDeN
             {resumenDanios.total} en total
           </span>
           <span className="nave-opcion-ir">Ver daños →</span>
+        </Link>
+        <Link
+          className="admin-card nave-opcion"
+          href={hrefDeNave(id, "service")}
+          data-nivel={resumenService && resumenService.fallas > 0 ? "proximo" : undefined}
+        >
+          <span className="nave-opcion-titulo">Service</span>
+          <strong>
+            {ultimaPlanilla
+              ? `${ultimaPlanilla.odometerKm.toLocaleString("es-AR")} km`
+              : "Sin planillas"}
+          </strong>
+          <span className="muted">
+            {ultimaPlanilla
+              ? `${diaUtc(ultimaPlanilla.servicedAt)}${resumenService && resumenService.fallas > 0 ? ` · ${resumenService.fallas} falla${resumenService.fallas === 1 ? "" : "s"}` : ""}`
+              : "Cargá la primera planilla del taller"}
+          </span>
+          <span className="nave-opcion-ir">Ver service →</span>
         </Link>
         <Link className="admin-card nave-opcion" href={hrefDeNave(id, "reparaciones")}>
           <span className="nave-opcion-titulo">Reparaciones</span>

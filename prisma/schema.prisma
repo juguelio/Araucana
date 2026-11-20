@@ -160,6 +160,7 @@ model Vehicle {
   airportAssignments AirportVehicleAssignment[]
   specialTripAssignments SpecialTripAssignment[]
   damages      VehicleDamage[]
+  serviceSheets VehicleServiceSheet[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -877,4 +878,24 @@ model ExcursionBooking {
 
   @@index([departureAt])
   @@index([excursionId, departureAt])
+}
+
+/// Planilla de service de una nave: la que hoy el taller llena en papel. `checks` guarda
+/// { <id del ítem>: "OK" | "FALLA" | "NA" } sobre el catálogo de src/lib/vehicles/service-sheet.ts.
+model VehicleServiceSheet {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// Día del service, a medianoche UTC (igual que los días de Chapelco).
+  servicedAt DateTime
+  odometerKm Int
+  checks     Json     @default("{}")
+  /// Qué se le hizo: aceite, filtros, frenos, cubiertas.
+  workDone   String?
+  notes      String?
+  reportedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt @default(now())
+
+  @@index([vehicleId, servicedAt])
 }
