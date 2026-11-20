@@ -12,7 +12,7 @@ import { peorVencimiento, type UnidadConVencimientos } from "./compliance";
 export type TonoDeNave = "ok" | "curso" | "atencion" | "grave" | "normal";
 
 export type EstadoDeNave = {
-  clave: "inactiva" | "uso-interno" | "danio-grave" | "en-reparacion" | "en-servicio" | "disponible";
+  clave: "inactiva" | "uso-interno" | "danio-grave" | "en-reparacion" | "en-recorrido" | "en-la-calle" | "en-servicio" | "disponible";
   etiqueta: string;
   tono: TonoDeNave;
 };
@@ -29,11 +29,19 @@ export type NaveDelTablero = UnidadConVencimientos & {
   danios: ReadonlyArray<{ status: string; severity: string }>;
   /** Servicios de hoy (los ya hechos y los que faltan). */
   serviciosHoy: number;
+  /** Tiene un servicio programado en curso ahora (salida, viaje especial o vuelo). */
+  enRecorrido?: boolean;
+  /** El chofer mandó señal en movimiento hace poco, desde la app del chofer. */
+  enMovimiento?: boolean;
 };
 
 const abierto = (danio: { status: string }) => danio.status !== "REPARADO";
 
-/** ¿Puede salir? Lo más grave manda: inactiva, daño grave, en reparación, con servicios hoy, libre. */
+/**
+ * ¿Puede salir? Lo más grave manda: inactiva, daño grave, en reparación, en recorrido (programado),
+ * en la calle (hay señal del chofer en movimiento sin un servicio en curso cargado), con servicios
+ * hoy, libre.
+ */
 export function estadoDeNave(nave: NaveDelTablero): EstadoDeNave {
   if (!nave.isActive) return { clave: "inactiva", etiqueta: "Inactiva", tono: "normal" };
   if (nave.kind === "UTILITARIO") return { clave: "uso-interno", etiqueta: "Uso interno", tono: "normal" };
@@ -44,8 +52,10 @@ export function estadoDeNave(nave: NaveDelTablero): EstadoDeNave {
   if (abiertos.some((danio) => danio.status === "EN_REPARACION")) {
     return { clave: "en-reparacion", etiqueta: "En reparación", tono: "atencion" };
   }
+  if (nave.enRecorrido) return { clave: "en-recorrido", etiqueta: "En recorrido", tono: "curso" };
+  if (nave.enMovimiento) return { clave: "en-la-calle", etiqueta: "En la calle", tono: "atencion" };
   if (nave.serviciosHoy > 0) {
-    return { clave: "en-servicio", etiqueta: `Hoy: ${nave.serviciosHoy} ${nave.serviciosHoy === 1 ? "servicio" : "servicios"}`, tono: "curso" };
+    return { clave: "en-servicio", etiqueta: `Hoy: ${nave.serviciosHoy} ${nave.serviciosHoy === 1 ? "servicio" : "servicios"}`, tono: "ok" };
   }
   return { clave: "disponible", etiqueta: "Disponible", tono: "ok" };
 }
@@ -78,7 +88,7 @@ export function papelEnPalabras(tipo: string, dias: number): string {
 }
 
 /** Pestañas del tablero, con lo que entra en cada una. */
-export const PESTANAS_DE_FLOTA = ["activas", "alertas", "taller", "publico", "inactivas"] as const;
+export const PESTANAS_DE_FLOTA = ["activas", "recorrido", "alertas", "taller", "publico", "inactivas"] as const;
 export type PestanaDeFlota = (typeof PESTANAS_DE_FLOTA)[number];
 
 export function leerPestanaDeFlota(valor: string | undefined): PestanaDeFlota {
@@ -94,6 +104,8 @@ export function entraEnPestana(
   switch (pestana) {
     case "activas":
       return nave.isActive;
+    case "recorrido":
+      return nave.isActive && (estado.clave === "en-recorrido" || estado.clave === "en-la-calle");
     case "alertas":
       // Lo que pide hacer algo: un papel vencido o por vencer, un daño, la capacidad sin cargar.
       return nave.isActive && (estado.tono === "grave" || estado.tono === "atencion" || alerta?.tono === "grave" || alerta?.tono === "atencion");

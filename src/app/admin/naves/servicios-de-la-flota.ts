@@ -1,20 +1,17 @@
+import { airportServiceWindow } from "@/lib/airport/service-window";
 import { prisma } from "@/lib/db/prisma";
-import { recorridosDeNave, type FuentesDeRecorridos, type Recorrido } from "@/lib/vehicles/ficha";
+import { recorridosDeNave, type FuentesDeRecorridos } from "@/lib/vehicles/ficha";
+import { inicioDeHoyArgentina, type ServicioDeNave } from "@/lib/vehicles/servicio-en-curso";
+
 
 const ruta = { select: { id: true, from: true, to: true } } as const;
-
-/** Inicio del día de hoy en Argentina (UTC-3, sin horario de verano). */
-export function inicioDeHoyArgentina(ahora: Date = new Date()) {
-  const dia = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).format(ahora);
-  return { dia, desde: new Date(`${dia}T00:00:00-03:00`) };
-}
 
 /**
  * Los servicios de toda la flota desde hoy y por `dias` días, agrupados por nave: con esto el tablero
  * muestra el próximo servicio y cuántos tiene hoy cada unidad, con cinco consultas en total (no cinco
  * por nave, como la ficha). Se descartan las salidas, viajes y días de Chapelco cancelados.
  */
-export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 60): Promise<Map<string, Recorrido[]>> {
+export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 60): Promise<Map<string, ServicioDeNave[]>> {
   const { dia, desde } = inicioDeHoyArgentina(ahora);
   const hasta = new Date(desde.getTime() + dias * 86400000);
   // Chapelco guarda el día como medianoche UTC.
@@ -39,11 +36,17 @@ export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 
       select: { id: true, vehicleId: true, startsAt: true, endsAt: true, trip: { select: { id: true, client: true, status: true, passengers: true } } }
     }),
     prisma.airportVehicleAssignment.findMany({
-      where: { flight: { scheduledAt: { gte: desde, lt: hasta } } },
+      // Desde 3 horas antes de hoy: un arribo de anoche puede seguir repartiendo pasajeros.
+      where: { flight: { scheduledAt: { gte: new Date(desde.getTime() - 3 * 3600000), lt: hasta } } },
       select: {
         id: true,
         vehicleId: true,
-        flight: { select: { id: true, number: true, airline: true, origin: true, destination: true, direction: true, scheduledAt: true, status: true } }
+        flight: {
+          select: {
+            id: true, number: true, airline: true, origin: true, destination: true, direction: true, scheduledAt: true, status: true,
+            estimatedAt: true, pickupStartOverrideAt: true
+          }
+        }
       }
     }),
     prisma.chapelcoVehicleDuty.findMany({
@@ -67,21 +70,47 @@ export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 
   for (const asignacion of aeropuerto) de(asignacion.vehicleId).aeropuerto.push(asignacion);
   for (const turno of chapelco) de(turno.vehicleId).chapelco.push(turno);
 
-  const resultado = new Map<string, Recorrido[]>();
+  const ventanas = new Map<string, { desde: Date; hasta: Date }>();
+  for (const salida of salidas) ventanas.set(`SALIDA:${salida.id}`, { desde: salida.departureAt, hasta: salida.arrivalAt });
+  for (const unidad of unidadesExtra) ventanas.set(`SALIDA_EXTRA:${unidad.id}`, { desde: unidad.schedule.departureAt, hasta: unidad.schedule.arrivalAt });
+  for (const viaje of viajesEspeciales) ventanas.set(`VIAJE_ESPECIAL:${viaje.id}`, { desde: viaje.startsAt, hasta: viaje.endsAt });
+  for (const asignacion of aeropuerto) {
+    const ventana = airportServiceWindow({ ...asignacion.flight, status: asignacion.flight.status ?? undefined });
+    ventanas.set(`AEROPUERTO:${asignacion.id}`, { desde: ventana.startsAt, hasta: ventana.endsAt });
+  }
+
+  const resultado = new Map<string, ServicioDeNave[]>();
   for (const [vehicleId, fuentes] of porNave) {
     // recorridosDeNave los deja del más nuevo al más viejo; el tablero los quiere en orden de salida.
-    resultado.set(vehicleId, recorridosDeNave(fuentes).sort((a, b) => a.desde.getTime() - b.desde.getTime()));
+    const lista = recorridosDeNave(fuentes)
+      .map((recorrido) => ({ ...recorrido, ventana: ventanas.get(recorrido.key) ?? null }))
+      .sort((a, b) => a.desde.getTime() - b.desde.getTime());
+    resultado.set(vehicleId, lista);
   }
   return resultado;
 }
 
-/** El próximo servicio que todavía no salió, y cuántos tiene hoy (los hechos y los que faltan). */
-export function proximoYHoy(recorridos: Recorrido[] | undefined, ahora: Date = new Date()) {
-  const { dia } = inicioDeHoyArgentina(ahora);
-  const diaDe = (recorrido: Recorrido) =>
-    recorrido.soloDia ? recorrido.desde.toISOString().slice(0, 10) : inicioDeHoyArgentina(recorrido.desde).dia;
-  const lista = recorridos ?? [];
-  const hoy = lista.filter((recorrido) => diaDe(recorrido) === dia).length;
-  const proximo = lista.find((recorrido) => (recorrido.soloDia ? diaDe(recorrido) >= dia : recorrido.desde >= ahora)) ?? null;
-  return { proximo, hoy, diaDe };
+export type SenalDelChofer = { minutos: number; detenido: boolean; chofer: string | null };
+
+/**
+ * La última ubicación que mandó cada chofer desde su celular (app del chofer), por nave, si llegó en
+ * los últimos `minutos`. Es la otra mitad del cruce: lo programado dice dónde debería estar la nave;
+ * la señal, que alguien la está manejando.
+ */
+export async function cargarSenalesDeChoferes(ahora: Date = new Date(), minutos = 20): Promise<Map<string, SenalDelChofer>> {
+  const ubicaciones = await prisma.driverVehicleLocation.findMany({
+    where: { recordedAt: { gte: new Date(ahora.getTime() - minutos * 60000) } },
+    orderBy: { recordedAt: "desc" },
+    select: { vehicleId: true, recordedAt: true, isStopped: true, driver: { select: { name: true } } }
+  });
+  const porNave = new Map<string, SenalDelChofer>();
+  for (const ubicacion of ubicaciones) {
+    if (porNave.has(ubicacion.vehicleId)) continue; // vienen de la más nueva a la más vieja
+    porNave.set(ubicacion.vehicleId, {
+      minutos: Math.max(0, Math.round((ahora.getTime() - ubicacion.recordedAt.getTime()) / 60000)),
+      detenido: ubicacion.isStopped,
+      chofer: ubicacion.driver.name?.trim() || null
+    });
+  }
+  return porNave;
 }

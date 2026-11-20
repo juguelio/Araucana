@@ -13,7 +13,8 @@ import {
   type PestanaDeFlota
 } from "@/lib/vehicles/estado-en-flota";
 import type { Recorrido } from "@/lib/vehicles/ficha";
-import { cargarServiciosDeLaFlota, proximoYHoy } from "./servicios-de-la-flota";
+import { proximoYHoy, type ServicioDeNave } from "@/lib/vehicles/servicio-en-curso";
+import { cargarSenalesDeChoferes, cargarServiciosDeLaFlota, type SenalDelChofer } from "./servicios-de-la-flota";
 import "./naves.css";
 
 type AdminVehiclesPageProps = {
@@ -29,6 +30,7 @@ const GRUPOS: Array<{ kind: string; titulo: string }> = [
 
 const PESTANAS: Array<{ id: PestanaDeFlota; etiqueta: string }> = [
   { id: "activas", etiqueta: "Activas" },
+  { id: "recorrido", etiqueta: "En recorrido" },
   { id: "alertas", etiqueta: "Con alertas" },
   { id: "taller", etiqueta: "En reparación" },
   { id: "publico", etiqueta: "Transporte público" },
@@ -58,6 +60,17 @@ function tituloCorto(recorrido: Recorrido) {
   return recorrido.titulo.split(" → ").map(lugarCorto).join(" → ");
 }
 
+/** «Ahora · hasta 10:15»: el servicio en curso y cuándo termina (llegada, fin del viaje o del reparto). */
+function hastaCuando(servicio: ServicioDeNave) {
+  return servicio.ventana ? `Ahora · hasta ${horaArgentina.format(servicio.ventana.hasta)}` : "Ahora";
+}
+
+/** «Señal del chofer hace 3 min» (la app del chofer manda la ubicación con la nave que maneja). */
+function senalEnPalabras(senal: SenalDelChofer) {
+  const hace = senal.minutos === 0 ? "recién" : `hace ${senal.minutos} min`;
+  return [senal.detenido ? "Detenida" : null, senal.chofer, `señal ${hace}`].filter(Boolean).join(" · ");
+}
+
 export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesPageProps) {
   const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
@@ -65,10 +78,11 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
   const pestana = leerPestanaDeFlota(params?.vista);
   const busqueda = params?.q?.trim() ?? "";
 
-  const [flota, danios, servicios] = await Promise.all([
+  const [flota, danios, servicios, senales] = await Promise.all([
     prisma.vehicle.findMany({ include: { _count: { select: { seats: true } } } }),
     prisma.vehicleDamage.findMany({ where: { status: { not: "REPARADO" } }, select: { vehicleId: true, status: true, severity: true } }),
-    cargarServiciosDeLaFlota(ahora)
+    cargarServiciosDeLaFlota(ahora),
+    cargarSenalesDeChoferes(ahora)
   ]);
 
   const hoyDia = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).format(ahora);
@@ -78,11 +92,20 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
     "asc",
     ahora
   ).map((vehicle) => {
-    const { proximo, hoy, diaDe } = proximoYHoy(servicios.get(vehicle.id), ahora);
-    const datos = { ...vehicle, danios: danios.filter((danio) => danio.vehicleId === vehicle.id), serviciosHoy: hoy };
+    // Cruce de datos: lo programado en salidas, viajes especiales y aeropuerto dice si la nave está en
+    // un servicio ahora; la señal del celular del chofer, si alguien la está manejando.
+    const { enCurso, proximo, hoy, diaDe } = proximoYHoy(servicios.get(vehicle.id), ahora);
+    const senal = senales.get(vehicle.id) ?? null;
+    const datos = {
+      ...vehicle,
+      danios: danios.filter((danio) => danio.vehicleId === vehicle.id),
+      serviciosHoy: hoy,
+      enRecorrido: Boolean(enCurso),
+      enMovimiento: Boolean(senal && !senal.detenido)
+    };
     const estado = estadoDeNave(datos);
     const alertas = alertasDeNave(datos, ahora);
-    return { vehicle, estado, alertas, proximo, proximoDia: proximo ? diaDe(proximo) : null };
+    return { vehicle, estado, alertas, enCurso, senal, proximo, proximoDia: proximo ? diaDe(proximo) : null };
   });
 
   const cuentas = Object.fromEntries(
@@ -94,6 +117,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
       coincideBusqueda(nave.vehicle, busqueda)
   );
   const asientos = visibles.reduce((total, nave) => total + nave.vehicle.asientos, 0);
+  const ahoraEnLaCalle = naves.filter((nave) => nave.estado.clave === "en-recorrido" || nave.estado.clave === "en-la-calle" || (nave.vehicle.isActive && nave.enCurso));
 
   return (
     <AdminShell
@@ -131,6 +155,40 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
         {busqueda ? <> · <Link href="/admin/naves">Ver todas</Link></> : null}
       </p>
 
+      {/* «Ahora»: qué nave está en recorrido y cuál, de un vistazo y sin entrar a cada una. */}
+      {pestana === "activas" && !busqueda && ahoraEnLaCalle.length > 0 ? (
+        <section className="naves-ahora" aria-label="Naves en recorrido ahora">
+          <h2 className="naves-ahora-titulo">
+            <span className="naves-ahora-punto" aria-hidden="true" /> Ahora en la calle <span>{ahoraEnLaCalle.length}</span>
+            {/* La página no se actualiza sola: la hora dice de cuándo es el dato. */}
+            <span className="naves-ahora-hora">a las {horaArgentina.format(ahora)}</span>
+          </h2>
+          <ul>
+            {ahoraEnLaCalle.map(({ vehicle, enCurso, senal }) => (
+              <li key={vehicle.id}>
+                <Link href={`/admin/naves/${vehicle.id}`} className="naves-ahora-interno">
+                  {vehicle.internalNumber ?? vehicle.name}
+                </Link>
+                {enCurso ? (
+                  <>
+                    {enCurso.href ? <Link href={enCurso.href}>{tituloCorto(enCurso)}</Link> : <span>{tituloCorto(enCurso)}</span>}
+                    {enCurso.ventana ? <span className="naves-ahora-hasta">hasta {horaArgentina.format(enCurso.ventana.hasta)}</span> : null}
+                  </>
+                ) : (
+                  <span className="naves-ahora-sin">Sin servicio cargado</span>
+                )}
+                {senal ? (
+                  <span className="naves-ahora-senal" data-detenida={senal.detenido || undefined}>{senalEnPalabras(senal)}</span>
+                ) : (
+                  // Programado pero sin señal: puede que el chofer no tenga la app abierta. Se dice, no se supone.
+                  <span className="naves-ahora-hasta">sin señal del chofer</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {GRUPOS.map((grupo) => {
         const delGrupo = visibles.filter((nave) => (GRUPOS.some((g) => g.kind === nave.vehicle.kind) ? nave.vehicle.kind : "CAMIONETA") === grupo.kind);
         if (delGrupo.length === 0) return null;
@@ -140,7 +198,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
               {grupo.titulo} <span>{delGrupo.length}</span>
             </h2>
             <ul className="naves-lista">
-              {delGrupo.map(({ vehicle, estado, alertas, proximo, proximoDia }) => {
+              {delGrupo.map(({ vehicle, estado, alertas, enCurso, senal, proximo, proximoDia }) => {
                 const ficha = `/admin/naves/${vehicle.id}`;
                 const nombre = vehicle.internalNumber ? `Interno ${vehicle.internalNumber}` : vehicle.name;
                 return (
@@ -165,7 +223,21 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                       </span>
                     </div>
                     <div className="naves-fila-servicio">
-                      {proximo && proximoDia ? (
+                      {enCurso ? (
+                        <>
+                          <span className="naves-fila-cuando naves-fila-ahora">{hastaCuando(enCurso)}</span>
+                          {enCurso.href ? (
+                            <Link className="naves-fila-que" href={enCurso.href}>{tituloCorto(enCurso)}</Link>
+                          ) : (
+                            <span className="naves-fila-que">{tituloCorto(enCurso)}</span>
+                          )}
+                        </>
+                      ) : senal && !senal.detenido ? (
+                        <>
+                          <span className="naves-fila-cuando naves-fila-ahora">En movimiento</span>
+                          <span className="naves-fila-que">Sin un servicio cargado para esta hora</span>
+                        </>
+                      ) : proximo && proximoDia ? (
                         <>
                           <span className="naves-fila-cuando">{cuandoSale(proximo, proximoDia, hoyDia)}</span>
                           {proximo.href ? (
@@ -177,6 +249,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                       ) : (
                         <span className="naves-fila-nada">{vehicle.isActive && vehicle.kind !== "UTILITARIO" ? "Sin servicios próximos" : "—"}</span>
                       )}
+                      {senal ? <span className="naves-fila-senal" data-detenida={senal.detenido || undefined}>{senalEnPalabras(senal)}</span> : null}
                     </div>
                     <div className="naves-fila-estado">
                       <span className="pill pill-estado pill-tabla" data-tono={estado.tono}>{estado.etiqueta}</span>

@@ -25,6 +25,19 @@ describe("estadoDeNave: ¿puede salir? (tablero del 20-nov)", () => {
     expect(estadoDeNave({ ...sprinter, serviciosHoy: 1 }).etiqueta).toBe("Hoy: 1 servicio");
   });
 
+  it("con un servicio en curso está en recorrido (antes que «Hoy: N servicios»)", () => {
+    expect(estadoDeNave({ ...sprinter, serviciosHoy: 2, enRecorrido: true })).toMatchObject({ clave: "en-recorrido", etiqueta: "En recorrido", tono: "curso" });
+  });
+
+  it("con señal del chofer en movimiento y sin servicio en curso está «en la calle»", () => {
+    expect(estadoDeNave({ ...sprinter, enMovimiento: true })).toMatchObject({ clave: "en-la-calle", tono: "atencion" });
+    expect(estadoDeNave({ ...sprinter, enMovimiento: true, enRecorrido: true }).clave).toBe("en-recorrido");
+  });
+
+  it("un daño grave se ve aunque la nave esté en recorrido", () => {
+    expect(estadoDeNave({ ...sprinter, enRecorrido: true, danios: [{ status: "PENDIENTE", severity: "GRAVE" }] }).clave).toBe("danio-grave");
+  });
+
   it("un daño en reparación la saca de servicio aunque tenga salidas", () => {
     expect(estadoDeNave({ ...sprinter, serviciosHoy: 2, danios: [{ status: "EN_REPARACION", severity: "MODERADO" }] }).clave).toBe("en-reparacion");
   });
@@ -92,6 +105,9 @@ describe("pestañas y búsqueda del tablero", () => {
     expect(entraEnPestana("alertas", { isActive: true }, disponible, { etiqueta: "x", tono: "atencion" })).toBe(true);
     expect(entraEnPestana("alertas", { isActive: true }, disponible, { etiqueta: "Sin fechas de papeles", tono: "normal" })).toBe(false);
     expect(entraEnPestana("taller", { isActive: true }, enTaller, null)).toBe(true);
+    expect(entraEnPestana("recorrido", { isActive: true }, estadoDeNave({ ...sprinter, enRecorrido: true }), null)).toBe(true);
+    expect(entraEnPestana("recorrido", { isActive: true }, estadoDeNave({ ...sprinter, enMovimiento: true }), null)).toBe(true);
+    expect(entraEnPestana("recorrido", { isActive: true }, disponible, null)).toBe(false);
     expect(entraEnPestana("publico", { isActive: true, publicTransport: true }, disponible, null)).toBe(true);
     expect(entraEnPestana("inactivas", { isActive: false }, disponible, null)).toBe(true);
     expect(entraEnPestana("activas", { isActive: false }, disponible, null)).toBe(false);

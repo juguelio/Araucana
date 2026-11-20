@@ -141,3 +141,21 @@ a.naves-fila-que:hover, a.naves-fila-que:focus-visible { color: var(--primary); 
   .naves-fila-estado { display: flex; }
 }
 .naves-fila .pill-tabla { padding: 4px 10px; font-size: 11px; }
+
+/* --- «Ahora en la calle» (20-nov): cruce de lo programado con la señal del chofer --- */
+.naves-ahora { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--primary-soft, var(--line)); border-radius: 16px; background: #eef4f1; }
+.naves-ahora-titulo { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--primary); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.naves-ahora-titulo span:not(.naves-ahora-punto) { color: var(--ink-muted); }
+.naves-ahora-hora { margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+.naves-ahora-punto { width: 9px; height: 9px; border-radius: 50%; background: #2f8f5b; box-shadow: 0 0 0 4px rgba(47, 143, 91, .18); }
+.naves-ahora ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.naves-ahora li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 13px; }
+.naves-ahora li a { color: var(--ink); font-weight: 700; text-decoration: none; }
+.naves-ahora li a:hover, .naves-ahora li a:focus-visible { color: var(--primary); text-decoration: underline; }
+.naves-ahora-interno { min-width: 44px; font-size: 15px; font-weight: 800 !important; font-variant-numeric: tabular-nums; }
+.naves-ahora-hasta, .naves-ahora-senal { color: var(--ink-muted); font-size: 12px; }
+.naves-ahora-sin { color: #8a4b12; font-weight: 700; }
+.naves-ahora-senal::before, .naves-fila-senal::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; background: #2f8f5b; vertical-align: 1px; }
+.naves-ahora-senal[data-detenida]::before, .naves-fila-senal[data-detenida]::before { background: var(--line-strong); }
+.naves-fila-ahora { color: var(--primary); }
+.naves-fila-senal { color: var(--ink-muted); font-size: 11px; }
