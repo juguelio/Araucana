@@ -51,6 +51,15 @@ export type TramoDeLaBarra = {
 type Lugar = "CPC" | "SMA";
 type Campo = "desde" | "hacia" | Sentido;
 
+/**
+ * Las dos puntas del viaje se listan en Desde y en Hacia, pero **nunca el mismo lugar en las dos**:
+ * con San Martín elegido como salida, «¿Adónde va?» ofrecía «San Martín de los Andes» (un viaje de
+ * un lugar a sí mismo). Se ofrece el otro extremo y nada más (20-nov).
+ */
+export function lugaresDelPanel(otro: Lugar): Lugar[] {
+  return (["CPC", "SMA"] as const).filter((lugar) => lugar !== otro);
+}
+
 const LUGARES: Record<Lugar, { nombre: string; detalle: string }> = {
   CPC: { nombre: "Aeropuerto Chapelco", detalle: "El aeropuerto (CPC)" },
   SMA: { nombre: "San Martín de los Andes", detalle: "Te buscamos o te dejamos donde estés" }
@@ -370,7 +379,7 @@ export function TripSearchBar({
       <>
         <p className="trip-search-panel-title">{campo === "desde" ? "¿Desde dónde sale?" : "¿Adónde va?"}</p>
         <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? "Desde" : "Hacia"}>
-          {(["CPC", "SMA"] as const).map((lugar) => (
+          {lugaresDelPanel(campo === "desde" ? hacia : desde).map((lugar) => (
             <button
               key={lugar}
               type="button"
