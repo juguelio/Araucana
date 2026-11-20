@@ -4,7 +4,11 @@ import {
   ITEMS_DE_SERVICE,
   SECCIONES_DE_SERVICE,
   checksGuardados,
+  checksParaGuardar,
+  errorDeKilometraje,
+  fallasQueSeRepiten,
   leerPlanillaDeService,
+  notasGuardadas,
   resumenDePlanilla
 } from "./service-sheet";
 
@@ -105,5 +109,59 @@ describe("checksGuardados", () => {
     expect(checksGuardados(null)).toEqual({});
     expect(checksGuardados(["bujes"])).toEqual({});
     expect(checksGuardados("bujes")).toEqual({});
+  });
+});
+
+describe("notas de las fallas", () => {
+  const base = { servicedAt: "2026-11-20", odometerKm: "150.100", workDone: "", notes: "" };
+  it("guarda la nota sólo de los ítems con falla, recortada", () => {
+    const leido = leerPlanillaDeService({
+      ...base,
+      checks: { "cubierta-delantera-derecha": "FALLA", bujes: "OK" },
+      notas: { "cubierta-delantera-derecha": "  desgaste del lado de afuera ", bujes: "nada", crucetas: "sin estado", "no-existe": "x" }
+    });
+    expect(leido.ok && leido.data.notas).toEqual({ "cubierta-delantera-derecha": "desgaste del lado de afuera" });
+    expect(leerPlanillaDeService({ ...base, checks: { bujes: "FALLA" }, notas: { bujes: "x".repeat(500) } })).toMatchObject({ ok: true, data: { notas: { bujes: "x".repeat(200) } } });
+  });
+
+  it("las guarda junto a los estados sin que los lectores viejos las vean", () => {
+    const json = checksParaGuardar({ bujes: "FALLA" }, { bujes: "golpeado" });
+    expect(json).toEqual({ bujes: "FALLA", _notas: { bujes: "golpeado" } });
+    expect(checksParaGuardar({ bujes: "OK" }, {})).toEqual({ bujes: "OK" });
+    expect(checksGuardados(json)).toEqual({ bujes: "FALLA" });
+    expect(notasGuardadas(json)).toEqual({ bujes: "golpeado" });
+    expect(notasGuardadas({ bujes: "OK" })).toEqual({});
+    expect(notasGuardadas({ _notas: ["x"] })).toEqual({});
+    expect(notasGuardadas({ _notas: { inventado: "x", bujes: 3 } })).toEqual({});
+  });
+});
+
+describe("errorDeKilometraje", () => {
+  const p = (fecha: string, km: number) => ({ servicedAt: new Date(`${fecha}T00:00:00Z`), odometerKm: km });
+  const historial = [p("2026-08-12", 138_900), p("2026-10-28", 148_320)];
+  it("acepta un número igual o mayor al último", () => {
+    expect(errorDeKilometraje(p("2026-11-20", 150_100), historial)).toBeNull();
+    expect(errorDeKilometraje(p("2026-11-20", 148_320), historial)).toBeNull();
+    expect(errorDeKilometraje(p("2026-11-20", 1), [])).toBeNull();
+  });
+  it("frena el cuentakilómetros que va para atrás", () => {
+    expect(errorDeKilometraje(p("2026-11-20", 14_832), historial)).toBe("Es menos que el service del 28/10/2026 (148.320 km). Revisá el número.");
+  });
+  it("una planilla vieja tiene que quedar entre las de antes y las de después", () => {
+    expect(errorDeKilometraje(p("2026-09-15", 142_000), historial)).toBeNull();
+    expect(errorDeKilometraje(p("2026-09-15", 160_000), historial)).toBe("Es más que el service posterior, del 28/10/2026 (148.320 km). Revisá el número o la fecha.");
+  });
+});
+
+describe("fallasQueSeRepiten", () => {
+  it("marca lo que falló en dos de las últimas tres planillas", () => {
+    const planillas = [
+      { checks: { "cubierta-delantera-derecha": "FALLA", bujes: "OK" } },
+      { checks: { "cubierta-delantera-derecha": "FALLA", "pastillas-delanteras": "FALLA" } },
+      { checks: { "pastillas-delanteras": "OK" } },
+      { checks: { bujes: "FALLA" } }
+    ];
+    expect(fallasQueSeRepiten(planillas).map((i) => [i.id, i.veces, i.de])).toEqual([["cubierta-delantera-derecha", 2, 3]]);
+    expect(fallasQueSeRepiten([])).toEqual([]);
   });
 });

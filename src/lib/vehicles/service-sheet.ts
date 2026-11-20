@@ -138,10 +138,15 @@ export type PlanillaCruda = {
   notes: string;
   /** Un valor por ítem: `checks[<id>]`. Los que no vienen quedan sin revisar. */
   checks: Record<string, string>;
+  /** Qué tiene cada ítem con falla («desgaste del lado de afuera»): `notas[<id>]`. Opcional. */
+  notas?: Record<string, string>;
 };
 
+/** Largo máximo de la nota de una falla: una línea, lo que entra en el renglón de la planilla de papel. */
+export const MAX_NOTA_DE_FALLA = 200;
+
 export type ResultadoDePlanilla =
-  | { ok: true; data: { servicedAt: Date; odometerKm: number; workDone: string | null; notes: string | null; checks: Record<string, EstadoDeItem> } }
+  | { ok: true; data: { servicedAt: Date; odometerKm: number; workDone: string | null; notes: string | null; checks: Record<string, EstadoDeItem>; notas: Record<string, string> } }
   | { ok: false; errores: Record<string, string> };
 
 /** El día se guarda a medianoche UTC, igual que los días de Chapelco y los egresos. */
@@ -172,6 +177,13 @@ export function leerPlanillaDeService(crudo: PlanillaCruda): ResultadoDePlanilla
     checks[id] = estado;
   }
 
+  // Sólo se guarda la nota de un ítem que quedó con falla: la de un ítem «Bien» sería ruido.
+  const notas: Record<string, string> = {};
+  for (const [id, nota] of Object.entries(crudo.notas ?? {})) {
+    const limpia = nota.trim().slice(0, MAX_NOTA_DE_FALLA);
+    if (limpia && checks[id] === "FALLA") notas[id] = limpia;
+  }
+
   if (Object.keys(errores).length > 0) return { ok: false, errores };
 
   return {
@@ -181,7 +193,8 @@ export function leerPlanillaDeService(crudo: PlanillaCruda): ResultadoDePlanilla
       odometerKm,
       workDone: crudo.workDone.trim() || null,
       notes: crudo.notes.trim() || null,
-      checks
+      checks,
+      notas
     }
   };
 }
@@ -216,4 +229,57 @@ export function checksGuardados(valor: unknown): Record<string, EstadoDeItem> {
     if (typeof estado === "string" && esEstadoDeItem(estado)) salida[id] = estado;
   }
   return salida;
+}
+
+/**
+ * Lo que va a la columna `checks` (JSON): el estado de cada ítem y, si hay, las notas de las fallas bajo
+ * `_notas`. `checksGuardados` ignora `_notas` (no es un ítem del catálogo), así que las planillas viejas y
+ * los lectores que sólo quieren los estados siguen igual.
+ */
+export function checksParaGuardar(checks: Record<string, EstadoDeItem>, notas: Record<string, string>) {
+  return Object.keys(notas).length ? { ...checks, _notas: notas } : { ...checks };
+}
+
+/** Las notas de las fallas que vuelven de la base; `{}` si no hay o si el JSON no tiene la forma esperada. */
+export function notasGuardadas(valor: unknown): Record<string, string> {
+  if (!valor || typeof valor !== "object" || Array.isArray(valor)) return {};
+  const notas = (valor as Record<string, unknown>)._notas;
+  if (!notas || typeof notas !== "object" || Array.isArray(notas)) return {};
+  const salida: Record<string, string> = {};
+  for (const [id, nota] of Object.entries(notas as Record<string, unknown>)) {
+    if (IDS_DE_SERVICE.has(id) && typeof nota === "string" && nota.trim()) salida[id] = nota.trim().slice(0, MAX_NOTA_DE_FALLA);
+  }
+  return salida;
+}
+
+type PlanillaConKm = { servicedAt: Date; odometerKm: number };
+
+/**
+ * El cuentakilómetros no va para atrás: la planilla nueva no puede tener menos km que una anterior (por
+ * fecha) ni más que una posterior (cuando se carga una planilla vieja). Devuelve el error para mostrar
+ * en el campo, o `null` si cuadra.
+ */
+export function errorDeKilometraje(nueva: PlanillaConKm, anteriores: PlanillaConKm[]) {
+  const km = (n: number) => `${n.toLocaleString("es-AR")} km`;
+  const fecha = (d: Date) => d.toISOString().slice(0, 10).split("-").reverse().join("/");
+  const antes = anteriores.filter((p) => +p.servicedAt <= +nueva.servicedAt).sort((a, b) => b.odometerKm - a.odometerKm)[0];
+  if (antes && nueva.odometerKm < antes.odometerKm) {
+    return `Es menos que el service del ${fecha(antes.servicedAt)} (${km(antes.odometerKm)}). Revisá el número.`;
+  }
+  const despues = anteriores.filter((p) => +p.servicedAt > +nueva.servicedAt).sort((a, b) => a.odometerKm - b.odometerKm)[0];
+  if (despues && nueva.odometerKm > despues.odometerKm) {
+    return `Es más que el service posterior, del ${fecha(despues.servicedAt)} (${km(despues.odometerKm)}). Revisá el número o la fecha.`;
+  }
+  return null;
+}
+
+/**
+ * Ítems que fallaron en al menos dos de las últimas tres planillas (más reciente primero). Es lo que
+ * conviene mirar con el taller: una falla que vuelve no se arregló o tiene otra causa.
+ */
+export function fallasQueSeRepiten(planillas: Array<{ checks: unknown }>, ultimas = 3, minimo = 2) {
+  const recientes = planillas.slice(0, ultimas).map((p) => checksGuardados(p.checks));
+  return ITEMS_DE_SERVICE
+    .map((item) => ({ ...item, veces: recientes.filter((c) => c[item.id] === "FALLA").length, de: recientes.length }))
+    .filter((item) => item.veces >= minimo);
 }
