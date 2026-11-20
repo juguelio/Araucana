@@ -7,6 +7,7 @@ import { recordScheduleAudit } from "@/lib/audit/schedule";
 import { recordEntityAuditAfterCommit } from "@/lib/audit/entity";
 import { formatAuditDate } from "@/lib/audit/labels";
 import { vehicleConflictNotice } from "@/lib/booking/schedule-vehicle";
+import { ultimoDia } from "@/lib/special-trips/rango";
 import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
 import type { Prisma } from "@prisma/client";
 import { isDateKey, localDateKey } from "@/lib/operations/day-board";
@@ -45,6 +46,12 @@ function checkConflicts(conflicts: FleetConflict[], proposal: unknown, confirmat
 function boardDate(formData: FormData, fallback: Date) {
   const date = value(formData, "date");
   return isDateKey(date) ? date : localDateKey(fallback);
+}
+
+/** El día del tablero desde el que se editó un viaje especial; si no vino, el día en que sale (un DATE a las 00:00Z). */
+function tripBoardDate(formData: FormData, serviceDate: Date) {
+  const date = value(formData, "date");
+  return isDateKey(date) ? date : serviceDate.toISOString().slice(0, 10);
 }
 
 /**
@@ -336,7 +343,8 @@ export async function setSpecialDriverAction(formData: FormData) {
   });
   const fallback = boardDate(formData, new Date());
   if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.");
-  const dateKey = assignment.trip.serviceDate.toISOString().slice(0, 10);
+  // Se vuelve al día que se estaba mirando: un viaje de varios días se edita desde cualquiera de sus días.
+  const dateKey = tripBoardDate(formData, assignment.trip.serviceDate);
   if (assignment.driverId === driverId) redirectToBoard(dateKey, "La nave ya tenía ese chofer.");
   const driver = driverId ? await activeDriver(driverId) : null;
   if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.");
@@ -359,11 +367,12 @@ export async function addSpecialVehicleAction(_state: BoardFormState, formData: 
   const tripId = value(formData, "tripId");
   const vehicleId = value(formData, "vehicleId");
   const driverId = value(formData, "driverId") || null;
-  const trip = await prisma.specialTrip.findUnique({ where: { id: tripId }, select: { id: true, client: true, serviceDate: true, status: true } });
+  const trip = await prisma.specialTrip.findUnique({ where: { id: tripId }, select: { id: true, client: true, serviceDate: true, endDate: true, status: true } });
   if (!trip) return { error: "El viaje ya no existe." };
-  const dateKey = trip.serviceDate.toISOString().slice(0, 10);
-  const startsAt = timeOnDay(dateKey, value(formData, "from"));
-  const endsAt = timeOnDay(dateKey, value(formData, "to"));
+  const dateKey = tripBoardDate(formData, trip.serviceDate);
+  // La nave queda ocupada el viaje entero: «desde» el día que sale y «hasta» el día que vuelve.
+  const startsAt = timeOnDay(trip.serviceDate.toISOString().slice(0, 10), value(formData, "from"));
+  const endsAt = timeOnDay(ultimoDia(trip).toISOString().slice(0, 10), value(formData, "to"));
   if (!vehicleId) return { error: "Elegí la nave." };
   if (!startsAt || !endsAt || endsAt <= startsAt) return { error: "Revisá el horario: «hasta» tiene que ser después de «desde»." };
   const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { name: true, isActive: true } });
@@ -399,7 +408,7 @@ export async function removeSpecialVehicleAction(formData: FormData) {
   });
   const fallback = boardDate(formData, new Date());
   if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.");
-  const dateKey = assignment.trip.serviceDate.toISOString().slice(0, 10);
+  const dateKey = tripBoardDate(formData, assignment.trip.serviceDate);
   await prisma.$transaction(async (tx) => {
     await tx.specialTripAssignment.delete({ where: { id } });
     await touchTrip(tx, assignment.tripId);

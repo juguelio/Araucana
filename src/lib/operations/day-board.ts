@@ -57,6 +57,13 @@ export type BoardRow = {
    * Se dibuja aparte porque no es un servicio del día (issue #258).
    */
   programmed: boolean;
+  /**
+   * Viaje especial de varios días que ya salió (o una nave ocupada desde antes): no sale hoy, sigue
+   * afuera. Va arriba de todo, con «Día 3 / de 5» en lugar de la hora.
+   */
+  continuing?: boolean;
+  /** Lo que va en la columna de la hora cuando no hay hora: «Día 3». */
+  timeText?: string;
   /** Cerrada, cancelada, demorada: lo que conviene ver antes de asignar. */
   status: string | null;
   href: string;
@@ -123,6 +130,10 @@ export type SpecialTripInput = {
   status: string;
   firstLegAt: Date | null;
   units: Array<{ id: string; startsAt: Date; endsAt?: Date; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
+  /** Varios días: qué día del viaje es este («día 2 de 5») y qué día vuelve. */
+  day?: { number: number; total: number; returnLabel: string } | null;
+  /** El viaje no sale este día: está afuera (varios días) o tiene la nave ocupada desde antes. */
+  continuing?: boolean;
 };
 
 export function personName(person: BoardPerson | null): string | null {
@@ -287,14 +298,22 @@ export function specialTripRow(trip: SpecialTripInput): BoardRow {
   }));
   const firstUnit = trip.units.reduce<Date | null>((min, unit) => (!min || unit.startsAt < min ? unit.startsAt : min), null);
   const passengers = trip.passengers ?? 0;
+  const day = trip.day && trip.day.total > 1 ? trip.day : null;
+  const lastDay = day ? day.number === day.total : false;
+  // El día que sale va con su hora; los días siguientes el viaje sigue afuera: arriba, con el número de día.
+  const continuing = Boolean(trip.continuing);
+  const detail = day
+    ? `Viaje especial · ${continuing ? (lastDay ? "vuelve hoy" : `en viaje, vuelve el ${day.returnLabel}`) : `sale hoy, vuelve el ${day.returnLabel}`}`
+    : continuing ? "Viaje especial · la nave sigue ocupada desde antes" : "Viaje especial";
   return {
     key: `especial-${trip.id}`,
     area: "ESPECIAL",
     serviceId: trip.id,
-    at: firstUnit ?? trip.firstLegAt,
-    atLabel: "Sale",
+    at: continuing ? null : firstUnit ?? trip.firstLegAt,
+    atLabel: continuing ? (day ? `de ${day.total}` : "En viaje") : "Sale",
+    ...(continuing ? { continuing: true, timeText: day ? `Día ${day.number}` : "—" } : {}),
     title: trip.client,
-    detail: "Viaje especial",
+    detail,
     passengers,
     ...crewFlags(passengers, units, true),
     programmed: false,
@@ -308,6 +327,8 @@ export function specialTripRow(trip: SpecialTripInput): BoardRow {
 /** Ordena por la hora en que sale la unidad; lo que no tiene hora va al final. */
 export function sortBoard(rows: BoardRow[]): BoardRow[] {
   return [...rows].sort((a, b) => {
+    // Lo que sigue afuera desde otro día (viajes de varios días) va primero: esas naves y choferes no están.
+    if (Boolean(a.continuing) !== Boolean(b.continuing)) return a.continuing ? -1 : 1;
     if (a.at && b.at) return a.at.getTime() - b.at.getTime() || a.title.localeCompare(b.title, "es");
     if (a.at) return -1;
     if (b.at) return 1;

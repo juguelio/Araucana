@@ -177,4 +177,31 @@ describe("salidas del día: la programación no es servicio (issue #258)", () =>
     });
     expect(rows.map((row) => row.programmed)).toEqual([false, false]);
   });
+
+  it("un viaje de varios días figura cada día: sale con su hora y después sigue afuera, arriba de todo", () => {
+    const nave = { id: "a1", startsAt: at("07:00"), endsAt: new Date("2026-11-21T23:00:00Z"), vehicle: combi, driver: chofer };
+    const viaje = { id: "t9", client: "Collipulli (Chile)", passengers: 23, status: "CONFIRMED", firstLegAt: null, units: [nave] };
+    const otro = { id: "s1", routeId: "r1", from: "San Martín", to: "Villa Traful", departureAt: at("06:30"), status: "OPEN", passengers: 6, vehicle: combi, driver: null };
+    const sale = buildDayBoard({ dateKey: "2026-11-17", schedules: [otro], flights: [], chapelco: [], specialTrips: [{ ...viaje, day: { number: 1, total: 5, returnLabel: "vie 21" } }] }).rows;
+    expect(sale.map((r) => r.area)).toEqual(["RUTA", "ESPECIAL"]);
+    const especialSale = sale.find((r) => r.area === "ESPECIAL")!;
+    expect(especialSale).toMatchObject({ at: at("07:00"), atLabel: "Sale", detail: "Viaje especial · sale hoy, vuelve el vie 21" });
+    expect(especialSale.continuing).toBeUndefined();
+
+    const afuera = buildDayBoard({ dateKey: "2026-11-18", schedules: [otro], flights: [], chapelco: [], specialTrips: [{ ...viaje, continuing: true, day: { number: 2, total: 5, returnLabel: "vie 21" } }] }).rows;
+    expect(afuera[0]).toMatchObject({ area: "ESPECIAL", at: null, continuing: true, timeText: "Día 2", atLabel: "de 5", detail: "Viaje especial · en viaje, vuelve el vie 21" });
+    // Con su nave y su chofer a la vista, y sin pedir nada que ya está asignado.
+    expect(afuera[0].units[0]).toMatchObject({ vehicleName: "Combi 243", driverName: "Ramón Paz" });
+    expect(afuera[0]).toMatchObject({ missingVehicle: false, missingDriver: false });
+
+    const vuelve = buildDayBoard({ dateKey: "2026-11-21", schedules: [], flights: [], chapelco: [], specialTrips: [{ ...viaje, continuing: true, day: { number: 5, total: 5, returnLabel: "vie 21" } }] }).rows;
+    expect(vuelve[0]).toMatchObject({ timeText: "Día 5", detail: "Viaje especial · vuelve hoy" });
+  });
+
+  it("un viaje de un día con la nave ocupada desde antes también sigue arriba", () => {
+    const rows = buildDayBoard({ dateKey: "2026-11-18", schedules: [], flights: [], chapelco: [], specialTrips: [
+      { id: "t1", client: "Viejo", passengers: 10, status: "CONFIRMED", firstLegAt: null, continuing: true, units: [{ id: "x", startsAt: at("06:00"), vehicle: combi, driver: chofer }] }
+    ] }).rows;
+    expect(rows[0]).toMatchObject({ continuing: true, timeText: "—", atLabel: "En viaje", detail: "Viaje especial · la nave sigue ocupada desde antes" });
+  });
 });
