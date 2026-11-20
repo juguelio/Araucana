@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { airportServiceWindow } from "@/lib/airport/service-window";
 import { prisma } from "@/lib/db/prisma";
 import { recorridosDeNave, type FuentesDeRecorridos } from "@/lib/vehicles/ficha";
@@ -5,6 +6,15 @@ import { inicioDeHoyArgentina, type ServicioDeNave } from "@/lib/vehicles/servic
 
 
 const ruta = { select: { id: true, from: true, to: true } } as const;
+
+/**
+ * Qué salidas cuentan como servicio de una nave: en la ventana pedida, no canceladas y **de una ruta
+ * activa**. Sin lo último, el tablero mostraba servicios de rutas desactivadas (p. ej. Hua Hum) como si
+ * la nave estuviera en la calle.
+ */
+export function salidasVigentes(desde: Date, hasta: Date): Prisma.ScheduleWhereInput {
+  return { departureAt: { gte: desde, lt: hasta }, status: { not: "CANCELLED" }, route: { isActive: true } };
+}
 
 /**
  * Los servicios de toda la flota desde hoy y por `dias` días, agrupados por nave: con esto el tablero
@@ -20,11 +30,11 @@ export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 
 
   const [salidas, unidadesExtra, viajesEspeciales, aeropuerto, chapelco] = await Promise.all([
     prisma.schedule.findMany({
-      where: { departureAt: { gte: desde, lt: hasta }, status: { not: "CANCELLED" } },
+      where: salidasVigentes(desde, hasta),
       select: { id: true, vehicleId: true, routeId: true, departureAt: true, arrivalAt: true, status: true, route: ruta }
     }),
     prisma.scheduleUnit.findMany({
-      where: { schedule: { departureAt: { gte: desde, lt: hasta }, status: { not: "CANCELLED" } } },
+      where: { schedule: salidasVigentes(desde, hasta) },
       select: {
         id: true,
         vehicleId: true,
