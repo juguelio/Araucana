@@ -25,6 +25,10 @@
   margin-bottom: 18px;
 }
 
+.orden-bloque > .orden-cabecera {
+  display: none;
+}
+
 .orden-marca {
   margin: 0 0 2px;
   font-size: 12px;
@@ -109,6 +113,12 @@
   padding-top: 9px;
 }
 
+.orden-pasajeros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+}
+
 .orden-vacio {
   color: #b3aca0;
 }
@@ -172,7 +182,7 @@
   .orden-forma-pago-impresa { display: inline; }
   @page {
     size: A4 landscape;
-    margin: 10mm;
+    margin: 8mm;
   }
 
   .no-print,
@@ -188,12 +198,19 @@
     display: block !important;
     padding: 0 !important;
     margin: 0 !important;
+    min-height: 0 !important;
   }
 
   section.admin-main {
     padding: 0 !important;
     margin: 0 !important;
     max-width: none !important;
+  }
+
+  main.orden-publica {
+    width: auto;
+    padding: 0;
+    margin: 0;
   }
 
   body {
@@ -207,12 +224,18 @@
     max-width: none;
   }
 
-  /* Las órdenes van seguidas, sin saltos de página forzados, para gastar las menos hojas posibles.
-     Una orden larga puede seguir en la hoja siguiente: se corta entre filas (nunca a mitad de un
-     pasajero), el título no queda solo al pie y el encabezado de la tabla se repite arriba. */
   .orden-bloque {
-    break-inside: auto;
-    margin: 0 0 6mm;
+    margin: 0;
+  }
+
+  html:not([data-imprimir-una]) .orden-bloque + .orden-bloque {
+    break-before: page;
+    margin-top: 0;
+  }
+
+  .orden-bloque > .orden-cabecera {
+    display: flex;
+    break-after: avoid;
   }
 
   .orden-bloque-cabeza,
@@ -224,25 +247,53 @@
     display: table-header-group;
   }
 
+  .orden-tabla {
+    table-layout: fixed;
+  }
+
+  .orden-bloque[data-impresion-compacta] .orden-tabla {
+    zoom: 0.9;
+  }
+
+  .orden-tabla th:nth-child(1) { width: 15%; }
+  .orden-tabla th:nth-child(2) { width: 4%; }
+  .orden-tabla th:nth-child(3) { width: 7%; }
+  .orden-tabla th:nth-child(4) { width: 32%; }
+  .orden-tabla th:nth-child(5) { width: 9%; }
+  .orden-tabla th:nth-child(6) { width: 9%; }
+  .orden-tabla th:nth-child(7) { width: 11%; }
+  .orden-tabla th:nth-child(8) { width: 13%; }
+
+  .orden-tabla tfoot {
+    display: table-row-group;
+  }
+
   .orden-tabla tr {
     break-inside: avoid;
   }
 
   .orden-tabla th,
   .orden-tabla td {
-    padding: 3px 6px;
-    font-size: 10.5px;
+    padding: 1px 4px;
+    font-size: 9.5px;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
   }
 
-  .orden-cabecera {
-    margin-bottom: 4mm;
-    padding-bottom: 2mm;
-  }
-
-  .orden-pie {
-    margin-top: 4mm;
+  .orden-forma-pago {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 8px;
     font-size: 9px;
   }
+
+  .orden-forma-pago-casillero {
+    width: 11px;
+    height: 11px;
+    font-size: 10px;
+  }
+
+  .orden-tabla tfoot td { padding-top: 4px; }
 
   .orden-bloque-titulo {
     background: #fff !important;
@@ -255,6 +306,7 @@
   .orden-tabla thead th {
     background: #fff !important;
     border-bottom: 1px solid #000;
+    font-size: 9px;
   }
 
   .orden-tabla tbody tr:nth-child(even) td,
@@ -264,7 +316,16 @@
 
   .orden-cabecera {
     border-bottom: 2px solid #000;
+    margin-bottom: 1.5mm;
+    padding-bottom: 1.5mm;
+    line-height: 1.15;
   }
+
+  .orden-marca,
+  .orden-subtitulo,
+  .orden-fecha { font-size: 10px; }
+  .orden-titulo { font-size: 18px; }
+  .orden-fecha strong { font-size: 14px; }
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -569,11 +630,9 @@
   color: #a32a1f;
 }
 
-/* Imprimir una sola orden: el botón marca la orden y en papel se esconden las demás y el total del día. */
+/* Impresión individual: el botón marca la orden que debe salir en papel. */
 @media print {
-  html[data-imprimir-una] .orden-bloque:not([data-imprimir]),
-  html[data-imprimir-una] .orden-total,
-  html[data-imprimir-una] .orden-fecha-alcance {
+  html[data-imprimir-una] .orden-bloque:not([data-imprimir]) {
     display: none !important;
   }
 

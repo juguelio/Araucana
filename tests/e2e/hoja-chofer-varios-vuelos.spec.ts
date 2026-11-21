@@ -7,7 +7,7 @@ import { createReservationCode, createReservationShortCode } from "../../src/lib
 /**
  * En Aeropuerto, «Hoja del chofer» abre un modal donde se eligen las órdenes del día —una por vuelo, o
  * una por combi en las recorridas que salen con varias— y las abre juntas, con el diálogo de impresión,
- * para imprimirlas en las menos hojas posibles.
+ * con una página de impresión por orden.
  */
 if (!process.env.E2E_DATABASE_URL || process.env.E2E_ISOLATED_DATABASE !== "1") throw new Error("Requires isolated E2E database");
 if (!["localhost", "127.0.0.1"].includes(new URL(process.env.E2E_DATABASE_URL).hostname)) throw new Error("Local database only");
@@ -134,12 +134,22 @@ test("«Hoja del chofer» abre un modal para elegir los vuelos y abre sus órden
   await expect.poll(() => hoja.evaluate(() => (window as unknown as { impresiones: number }).impresiones)).toBe(1);
   await expect(hoja.getByRole("button", { name: "Imprimir las 2 órdenes" })).toBeVisible();
 
-  // En papel (A4 apaisado) las dos órdenes de tres pasajeros entran en una sola hoja.
+  // En papel (A4 apaisado) cada orden lleva su propia cabecera en una sola hoja.
   await hoja.emulateMedia({ media: "print" });
+  await expect(hoja.locator(".orden-bloque > .orden-cabecera:visible")).toHaveCount(2);
+  await expect(hoja.locator(".orden-total")).toBeHidden();
+  await expect(hoja.locator(".orden-pie")).toBeHidden();
   await hoja.screenshot({ path: "/tmp/araucana-hoja-impresion.png", fullPage: true });
   const pdf = await hoja.pdf({ preferCSSPageSize: true, printBackground: true });
   const paginas = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
-  expect(paginas).toBe(1);
+  expect(paginas).toBe(2);
+
+  await hoja.emulateMedia({ media: "screen" });
+  await hoja.locator("section.orden-bloque").nth(1).getByRole("button", { name: "Imprimir", exact: true }).click();
+  await hoja.emulateMedia({ media: "print" });
+  await expect(hoja.locator("section.orden-bloque:visible")).toHaveCount(1);
+  const pdfIndividual = await hoja.pdf({ preferCSSPageSize: true, printBackground: true });
+  expect((pdfIndividual.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(1);
 });
 
 test("en una recorrida con dos trafics, la hoja del chofer se elige por combi", async ({ page }) => {
@@ -191,6 +201,10 @@ test("«Por chofer» muestra el día de cada trafic, le suma el IN y abre su hoj
   await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(`Trafic Lago ${suffix}`);
   await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(recorrida[0].number);
   await expect(hoja.locator("section.orden-bloque").nth(1)).toContainText(`Ivo ${suffix}`);
+  await expect(hoja.locator("section.orden-bloque").nth(0).locator(".orden-pasajeros > span"))
+    .toHaveText(["Pasajeros IN 0", "Pasajeros OUT 8"]);
+  await expect(hoja.locator("section.orden-bloque").nth(1).locator(".orden-pasajeros > span"))
+    .toHaveText(["Pasajeros IN 3", "Pasajeros OUT 0"]);
   await hoja.close();
 });
 

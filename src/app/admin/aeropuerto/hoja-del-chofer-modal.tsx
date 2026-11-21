@@ -23,7 +23,7 @@ export type OrdenParaLaHoja = OrdenElegida & {
 /**
  * «Hoja del chofer» de un vuelo: un modal con las órdenes del día, una por combi en las recorridas (lo que
  * recibe cada chofer), con las de este vuelo ya marcadas. Las marcadas se abren juntas en otra pestaña,
- * listas para imprimir en las menos hojas posibles.
+ * listas para imprimir con una hoja por orden.
  */
 export function HojaDelChoferModal({ date, flightId, flightNumber, ordenes }: {
   date: string;
