@@ -1,8 +1,8 @@
 import { expect, it } from "vitest";
-import { municipalLodgings, municipalLodgingSuggestion } from "./lodging-catalogue";
+import { catalogueLodgings, municipalLodgings, municipalLodgingSuggestion } from "./lodging-catalogue";
 import { getVerifiedLodgingLocation, verifiedLodgingLocations } from "./lodging-locations";
 
-it.each(municipalLodgings)("selecciona $name ($id) con su referencia y precisión, incluso sin red", (lodging) => {
+it.each(catalogueLodgings)("selecciona $name ($id) con su referencia y precisión, incluso sin red", (lodging) => {
   const suggestion = municipalLodgingSuggestion(lodging);
   const location = getVerifiedLodgingLocation(lodging);
   expect(suggestion.lodgingId).toBe(lodging.id);
@@ -31,9 +31,12 @@ it("no reutiliza la referencia cuando cambia el nombre o domicilio municipal", (
 });
 
 it("no transforma referencias de calle o zona en establecimientos exactos", () => {
-  for (const id of ["225", "30", "351", "354", "366"]) {
+  for (const id of ["225", "351", "354", "366"]) {
     expect(verifiedLodgingLocations[id]).toMatchObject({ precision: "street", locationMatch: "address" });
   }
+  // Temporada pasó a establecimiento por el marcador con su nombre en el mismo pasaje; la altura difiere entre fuentes.
+  expect(verifiedLodgingLocations["30"]).toMatchObject({ precision: "exact", locationMatch: "establishment" });
+  expect(verifiedLodgingLocations["30"].evidence).toContain("la altura difiere");
   expect(verifiedLodgingLocations["190"].evidence).toContain("977");
   expect(verifiedLodgingLocations["190"].point).not.toEqual(verifiedLodgingLocations["186"].point);
   expect(verifiedLodgingLocations["343"].point[0]).toBeGreaterThan(-40);

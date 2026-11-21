@@ -1,4 +1,4 @@
-import { municipalLodgings, municipalLodgingSuggestion } from "./lodging-catalogue";
+import { catalogueLodgings, municipalLodgingSuggestion } from "./lodging-catalogue";
 import { airportSearchBounds, airportSearchLocality, normalizePlaceText, splitStreetAddress } from "./place-search-area";
 import { suggestProviderAirportPlaces, type AirportPlaceSuggestion } from "./place-suggestions";
 
@@ -26,7 +26,7 @@ export function matchesMunicipalAddress(label: string, address: NonNullable<Retu
 
 /** Prioriza el domicilio; admite establecimientos identificados por su nombre exacto y tipo. */
 export async function resolveMunicipalLodging(id: string, requestSignal: AbortSignal): Promise<AirportPlaceSuggestion | null> {
-  const lodging = municipalLodgings.find((entry) => entry.id === id);
+  const lodging = catalogueLodgings.find((entry) => entry.id === id);
   if (!lodging) return null;
   const fallback = municipalLodgingSuggestion(lodging);
   if (requestSignal.aborted) return { ...fallback, point: null, precision: "none" };
@@ -46,7 +46,7 @@ export async function resolveMunicipalLodging(id: string, requestSignal: AbortSi
     // Algunos predios figuran sobre otra calle. Sólo aceptar el nombre completo,
     // categoría de alojamiento, localidad y un nombre único en el directorio.
     const name = normalizePlaceText(lodging.name);
-    const uniqueName = municipalLodgings.filter((entry) => normalizePlaceText(entry.name) === name).length === 1;
+    const uniqueName = catalogueLodgings.filter((entry) => normalizePlaceText(entry.name) === name).length === 1;
     if (!candidates.length && uniqueName) {
       candidates = named.filter((result) => result.isLodging && result.precision === "exact" && result.point
         && normalizePlaceText(result.label.split(",")[0]) === name

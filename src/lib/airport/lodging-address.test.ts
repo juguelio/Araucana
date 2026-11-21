@@ -3,7 +3,7 @@ import { matchesMunicipalAddress, municipalStreetAddress, resolveMunicipalLodgin
 import { suggestProviderAirportPlaces } from "./place-suggestions";
 import * as locations from "./lodging-locations";
 import { verifiedLodgingLocations } from "./lodging-locations";
-import { municipalLodgings } from "./lodging-catalogue";
+import { catalogueLodgings, municipalLodgings } from "./lodging-catalogue";
 vi.mock("./place-suggestions", () => ({ suggestProviderAirportPlaces: vi.fn() }));
 beforeEach(() => { vi.spyOn(locations, "getVerifiedLodgingLocation").mockReturnValue(null); });
 afterEach(() => { vi.restoreAllMocks(); vi.resetAllMocks(); });
@@ -88,11 +88,21 @@ it("usa una referencia verificada aun cuando el proveedor no tenga el alojamient
 it("todas las referencias pertenecen a una ficha vigente y conservan su precisión", async () => {
   vi.mocked(locations.getVerifiedLodgingLocation).mockRestore();
   for (const [id, reference] of Object.entries(verifiedLodgingLocations)) {
-    expect(municipalLodgings.find((place) => place.id === id)?.name).toBe(reference.name);
+    expect(catalogueLodgings.find((place) => place.id === id)?.name).toBe(reference.name);
     expect(reference.point[0]).toBeGreaterThan(-41);
     expect(reference.point[0]).toBeLessThan(-39);
     expect(reference.point[1]).toBeGreaterThan(-72);
     expect(reference.point[1]).toBeLessThan(-70);
     expect((await resolveMunicipalLodging(id, new AbortController().signal))?.point).toEqual(reference.point);
   }
+});
+
+it("ubica las fichas complementarias con su referencia, sin geocodificar", async () => {
+  vi.mocked(locations.getVerifiedLodgingLocation).mockRestore();
+  const terraAlta = await resolveMunicipalLodging("nqn-terra-alta", new AbortController().signal);
+  expect(terraAlta).toMatchObject({ lodgingId: "nqn-terra-alta", source: "municipal", precision: "exact", locationMatch: "establishment" });
+  expect(terraAlta?.label).toContain("Terra Alta, Las Pendientes lote 71");
+  expect((await resolveMunicipalLodging("sma-170", new AbortController().signal))?.label).toContain("Las Lengas, Tte. Cnel. Pérez 1175");
+  expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
+  expect(await resolveMunicipalLodging("nqn-inexistente", new AbortController().signal)).toBeNull();
 });
