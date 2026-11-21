@@ -1,3 +1,4 @@
+import { getVerifiedLodgingLocation } from "./lodging-locations";
 import catalogue from "./data/sma-lodgings.json";
 import { airportSearchLocality, normalizePlaceText, splitPlaceQuery } from "./place-search-area";
 import type { AirportPlaceSuggestion } from "./place-suggestions";
@@ -6,9 +7,12 @@ export const municipalLodgings = catalogue.lodgings;
 export const municipalLodgingsSource = catalogue.sourceUrl;
 
 export function municipalLodgingSuggestion(lodging: typeof municipalLodgings[number]): AirportPlaceSuggestion {
+  const location = getVerifiedLodgingLocation(lodging);
   return {
     label: `${lodging.name}, ${lodging.address} · ${lodging.zone} · ${lodging.type}`,
-    lodgingId: lodging.id, source: "municipal", point: null, approximate: true, precision: "none"
+    lodgingId: lodging.id, source: "municipal", point: location?.point ?? null, approximate: true,
+    precision: location?.precision ?? "none",
+    ...(location ? { locationMatch: location.locationMatch, coordinateSourceUrl: location.sourceUrl } : {})
   };
 }
 
@@ -81,12 +85,11 @@ export function suggestMunicipalLodgings(query: string): AirportPlaceSuggestion[
 export function withMunicipalLodgings<T extends { label: string; source: string }>(query: string, external: T[]) {
   const municipal = suggestMunicipalLodgings(query);
   const signature = (label: string) => lodgingNameWords(label.split(",")[0]).sort().join(" ");
-  // Primero las opciones del proveedor que coinciden por nombre con el catálogo:
-  // permiten elegir un punto disponible sin adjudicárselo a otra ficha homónima.
-  // Se conservan ambas direcciones para que el pasajero pueda compararlas.
+  // La referencia revisada del catálogo tiene prioridad sobre coincidencias externas.
+  // Conservamos otras direcciones para no confundir establecimientos homónimos.
   const matching = external.filter((place) => place.source !== "municipal" && place.source !== "georef"
     && (!("precision" in place) || place.precision === "exact")
     && municipal.some((local) => signature(local.label) === signature(place.label)));
-  const combined: (T | AirportPlaceSuggestion)[] = [...matching, ...municipal, ...external];
+  const combined: (T | AirportPlaceSuggestion)[] = [...municipal.filter((place) => place.point), ...matching, ...municipal.filter((place) => !place.point), ...external];
   return [...new Map(combined.map((place) => [`${place.source}:${place.label}`, place])).values()];
 }

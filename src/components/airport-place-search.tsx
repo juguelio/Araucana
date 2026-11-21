@@ -253,14 +253,16 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       setLocatingLodging(true);
       let selected = suggestion;
       try {
-        const response = await fetch("/api/v1/airport/address", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "lodging", id: suggestion.lodgingId }),
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.match?.lodgingId === suggestion.lodgingId) selected = data.match;
+        if (!suggestion.point) {
+          const response = await fetch("/api/v1/airport/address", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind: "lodging", id: suggestion.lodgingId }),
+            signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10000)])
+          });
+          if (response.ok) {
+            const data = await response.json();
+            if (data.match?.lodgingId === suggestion.lodgingId) selected = data.match;
+          }
         }
       } catch { /* Conserva el alojamiento aunque no se pueda ubicar su domicilio. */ }
       if (version !== selectionVersion.current) return;
@@ -268,7 +270,9 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
       setCoordinateSource(selected.coordinateSource ?? null);
       setCoordinateSourceUrl(selected.coordinateSourceUrl ?? null);
       setSelectionMessage(selected.point
-        ? selected.locationMatch === "establishment"
+        ? selected.precision === "street"
+          ? "Ubicamos la zona de referencia. Ajustá el marcador hasta la entrada exacta del alojamiento."
+          : selected.locationMatch === "establishment"
           ? "Encontramos el alojamiento. Confirmá en el mapa dónde está la entrada."
           : "Ubicamos la dirección. Confirmá en el mapa que el punto corresponde a la entrada del alojamiento."
         : "Conservamos el alojamiento y su dirección. Marcá en el mapa dónde está la entrada.");
@@ -393,7 +397,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
           <SearchAttribution sources={suggestions.map((suggestion) => suggestion.source)} />
         </>
       ) : null}
-      {coordinateSourceUrl ? <p><a href={coordinateSourceUrl} target="_blank" rel="noreferrer">Ubicación publicada por el alojamiento</a></p> : null}
+      {coordinateSourceUrl ? <p><a href={coordinateSourceUrl} target="_blank" rel="noreferrer">Fuente de la ubicación</a></p> : null}
       {selectionSource ? <SearchAttribution sources={coordinateSource ? [selectionSource, coordinateSource] : [selectionSource]} /> : null}
 
       <div className={styles.manual}>
