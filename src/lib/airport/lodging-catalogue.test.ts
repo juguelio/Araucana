@@ -80,3 +80,14 @@ it("no prioriza una calle homónima como si fuera un alojamiento", () => {
   const street = { label: "Las Retamas 1, San Martín de los Andes", source: "georef", precision: "interpolated" };
   expect(withMunicipalLodgings("Las Retamas 1", [street])[0].source).toBe("municipal");
 });
+
+
+it("reconoce el nombre comercial Turismo Patagonia sin confundirlo con Patagonia Plaza", () => {
+  for (const query of ["Hotel Turismo Patagonia", "Turismo Patagonia", "Hotel Turismo Pat", "hotel turismo patagnia"]) {
+    const [result] = suggestMunicipalLodgings(query);
+    expect(result).toMatchObject({ lodgingId: "183", point: expect.any(Array), locationMatch: "establishment" });
+    expect(result.label).toContain("Turismo,");
+  }
+  expect(suggestMunicipalLodgings("Hotel Turismo Patagonia, Junín de los Andes")).toEqual([]);
+  expect(findMunicipalLodgings("Patagonia Plaza")[0].id).toBe("1");
+});
