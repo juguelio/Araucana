@@ -14,6 +14,7 @@ import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
+import { nombreDelLugarSugerido, pickupNameParaElChofer } from "./pickup-name";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
@@ -214,6 +215,13 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
   const [useGooglePickup, setUseGooglePickup] = useState(googlePickupConfigured);
   const [pickupAddress, setPickupAddress] = useState("");
+  /**
+   * Nombre del lugar («Hostal del Esquiador»): es lo que el chofer lee en la orden de servicio.
+   * Se propone solo con la sugerencia elegida y el pasajero lo puede corregir (#320).
+   */
+  const [pickupName, setPickupName] = useState("");
+  /** El pasajero escribió el nombre: no se lo pisa con la próxima sugerencia. */
+  const [pickupNameTocado, setPickupNameTocado] = useState(false);
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
   const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
   const [pickupMode, setPickupMode] = useState<"address" | "location">("address");
@@ -432,6 +440,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setLocationError("");
     const google = place.source === "google";
     setPickupAddress(google ? "" : place.label.slice(0, 160));
+    // El nombre del lugar sale de la sugerencia (si es un lugar, no una calle) mientras el pasajero
+    // no lo haya escrito él mismo: es el dato que va a la orden del chofer (#320).
+    if (!pickupNameTocado) setPickupName(nombreDelLugarSugerido(place));
     selectPickupPoint(google ? null : place.point);
     setApproximateAddress(place.approximate);
     setPickupPrecision(place.precision);
@@ -551,7 +562,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           referredBy: fromAdmin ? referredBy.trim() || undefined : undefined,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
-          pickupName: usandoSucursal && officePickup ? officePickup.label : undefined,
+          pickupName: pickupNameParaElChofer({ usandoSucursal, sucursalLabel: officePickup?.label, escrito: pickupName }),
           pickupPoint: pickupPoint ?? undefined,
           pickupNotes: pickupNotes.trim() || undefined,
           ...(esPrivado
@@ -787,6 +798,17 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   <label>Dirección o referencia para el chofer (opcional)
                     <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
                       disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />
+                  </label>
+                ) : null}
+                {/* El nombre del lugar es lo que el chofer busca en la calle; la dirección sola no
+                    siempre alcanza (issue #320). Con el atajo de la sucursal ya viene el de la oficina. */}
+                {!usandoSucursal && (pickupPoint || pickupAddress) ? (
+                  <label>Nombre del lugar (opcional)
+                    <input name="pickupName" maxLength={120} value={pickupName} placeholder="Ej.: Hostal del Esquiador"
+                      disabled={isSubmitting} onChange={(event) => {
+                        setPickupName(event.target.value);
+                        setPickupNameTocado(true);
+                      }} />
                   </label>
                 ) : null}
                 <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
