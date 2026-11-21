@@ -15,7 +15,8 @@ import {
 } from "./passenger-fields";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { diaEfectivo, diasConSalidas } from "@/lib/booking/schedule-days";
-import { getStopFares } from "@/lib/booking/stop-fares";
+import { corridorStops, destinationsFrom, segmentPrice } from "@/lib/booking/segment-fares";
+import { SegmentStopFields } from "@/components/segment-stop-fields";
 import { terminalConocida } from "@/lib/booking/terminals";
 import { createReservationAction } from "./actions";
 import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
@@ -46,6 +47,13 @@ type CheckoutFormProps = {
   route: PublicRouteDto;
   schedules: CheckoutSchedule[];
   initialScheduleId?: string;
+  initialFrom?: string;
+  initialTo?: string;
+  initialRoundTrip?: boolean;
+  returnServices?: {
+    route: Pick<PublicRouteDto, "from" | "to" | "bookingMode" | "currency" | "priceCents" | "stops">;
+    schedules: Pick<CheckoutSchedule, "id" | "departureAt" | "availableSeats" | "priceCents">[];
+  }[];
 };
 
 const bookableScheduleStatuses = new Set(["OPEN", "DOCUMENTATION"]);
@@ -81,7 +89,7 @@ function formatPrice(cents: number, currency: string) {
   }).format(cents / 100);
 }
 
-export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFormProps) {
+export function CheckoutForm({ route, schedules, initialScheduleId, initialFrom, initialTo, initialRoundTrip, returnServices = [] }: CheckoutFormProps) {
   const router = useRouter();
   // Sólo lo que se puede reservar de verdad: abiertas, con lugares y de hoy en adelante.
   // El día es el eje (igual que el alta del panel): con 258 salidas la tira plana era inusable.
@@ -98,13 +106,16 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
     [bookableOptions.schedules, diaElegido]
   );
   const [scheduleId, setScheduleId] = useState(salidaInicial?.id ?? "");
-  const [dropoffStop, setDropoffStop] = useState("");
-  const stopFares = getStopFares(route);
-  const stop = stopFares.find((fare) => fare.name === dropoffStop);
+  const stops = corridorStops(route);
+  const [boardingStop, setBoardingStop] = useState(stops.slice(1, -1).find((name) => name === initialFrom) ?? "");
+  const [dropoffStop, setDropoffStop] = useState(() =>
+    initialTo && initialTo !== route.to && segmentPrice(route, boardingStop, initialTo) !== undefined ? initialTo : "");
+  const [roundTrip, setRoundTrip] = useState(Boolean(initialRoundTrip && stops.length));
+  const [returnId, setReturnId] = useState("");
   // Los micros salen y llegan a la terminal: el resumen lo dice antes de confirmar (#276).
   const terminalesDelViaje =
     route.bookingMode === "SEATED"
-      ? { salida: terminalConocida(route.from), llegada: terminalConocida(stop?.name ?? route.to) }
+      ? { salida: terminalConocida(boardingStop || route.from), llegada: terminalConocida(dropoffStop || route.to) }
       : { salida: null, llegada: null };
   const [requestDisabilityFare, setRequestDisabilityFare] = useState(false);
   const [passengerCount, setPassengerCount] = useState(1);
@@ -126,9 +137,21 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
   );
 
   const personas = passengerCount + halfFareCount + freeFareCount;
-  const precioUnitario = stop?.priceCents ?? selectedSchedule?.priceCents ?? route.priceCents;
-  const totalPorEdad = reservationTotalCents(precioUnitario, fareCounts(personas, halfFareCount, freeFareCount));
-  const lugaresLibres = selectedSchedule?.availableSeats ?? 0;
+  const precioUnitario = segmentPrice(route, boardingStop, dropoffStop) ?? route.priceCents;
+  const vueltas = useMemo(() => {
+    if (!selectedSchedule || !roundTrip) return [];
+    return returnServices.flatMap((service) => {
+      const tarifa = segmentPrice(service.route, dropoffStop, boardingStop);
+      if (tarifa === undefined) return [];
+      return service.schedules.filter((s) => s.departureAt > selectedSchedule.departureAt)
+        .map((s) => ({ ...s, priceCents: tarifa }));
+    }).sort((a, b) => +new Date(a.departureAt) - +new Date(b.departureAt));
+  }, [selectedSchedule, roundTrip, returnServices, boardingStop, dropoffStop]);
+  const vuelta = roundTrip ? vueltas.find((s) => s.id === returnId) : undefined;
+  const precioVuelta = vuelta?.priceCents ?? 0;
+  const tarifas = fareCounts(personas, halfFareCount, freeFareCount);
+  const totalPorEdad = reservationTotalCents(precioUnitario, tarifas) + (vuelta ? reservationTotalCents(precioVuelta, tarifas) : 0);
+  const lugaresLibres = Math.min(selectedSchedule?.availableSeats ?? 0, vuelta?.availableSeats ?? Infinity);
 
   function updatePassenger(field: keyof PassengerForm, value: string) {
     setPassenger((current) => ({
@@ -164,17 +187,22 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
       return;
     }
 
+    if ((roundTrip && !vuelta) || personas > lugaresLibres) {
+      setError("Revisá la salida elegida y la cantidad de lugares disponibles.");
+      return;
+    }
     setIsSubmitting(true);
 
     const result = await createReservationAction({
       scheduleId: selectedSchedule.id,
-      dropoffStop: stop?.name,
+      boardingStop: boardingStop || undefined,
+      dropoffStop: dropoffStop || undefined,
       requestDisabilityFare: requestDisabilityFare && personas === 1,
       passengerCount: personas,
       halfFareCount,
       freeFareCount,
       passenger: buildPassengerPayload(passenger)
-    });
+    }, vuelta?.id);
 
     if (result.ok) {
       router.push(`/reservas/${result.code}`);
@@ -222,7 +250,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
                 ))}
               </div>
               <fieldset className="schedule-picker" disabled={isSubmitting}>
-                <legend>Salidas del día</legend>
+                <legend>Salidas del día{boardingStop && ` desde ${route.from}`}</legend>
                 <div className="schedule-rail" aria-label="Salidas del día">
                   {salidasDelDia.map((schedule) => (
                     <label className="schedule-option" key={schedule.id}>
@@ -255,17 +283,29 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
           ) : null}
         </section>
 
-        {stopFares.length > 0 && (
+        {destinationsFrom(route, "").length > 1 && (
           <section className="form-panel checkout-panel">
-            <label>
-              Dónde bajás
-              <select value={stop?.name ?? ""} disabled={isSubmitting} onChange={(event) => setDropoffStop(event.target.value)}>
-                <option value="">{route.to} · {formatPrice(route.priceCents, route.currency)}</option>
-                {stopFares.map((fare) => (
-                  <option key={fare.name} value={fare.name}>{fare.name} · {formatPrice(fare.priceCents, route.currency)}</option>
-                ))}
-              </select>
-            </label>
+            <SegmentStopFields route={route} boarding={boardingStop} dropoff={dropoffStop} disabled={isSubmitting}
+              onChange={(start, end) => { setBoardingStop(start); setDropoffStop(end); }} />
+            {stops.length > 0 && (
+              <>
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={roundTrip} disabled={isSubmitting}
+                    onChange={(event) => setRoundTrip(event.target.checked)} />
+                  Ida y vuelta
+                </label>
+                {roundTrip && (
+                  <label>
+                    Vuelta · {dropoffStop || route.to} → {boardingStop || route.from}
+                    <select value={vuelta?.id ?? ""} disabled={isSubmitting} onChange={(event) => setReturnId(event.target.value)}>
+                      <option value="">{vueltas.length ? "Elegí la salida de vuelta" : "Sin vueltas disponibles después de la ida"}</option>
+                      {vueltas.map((s) => <option key={s.id} value={s.id}>{formatDateTime(s.departureAt)} desde {route.to} · {s.availableSeats} lugares</option>)}
+                    </select>
+                    <small>Cada tramo tiene su reserva y su pago.</small>
+                  </label>
+                )}
+              </>
+            )}
           </section>
         )}
 
@@ -334,7 +374,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
       <aside className="checkout-summary plain-card">
         <p className="eyebrow">Resumen</p>
         <h2 className="route-title">
-          {route.from} - {stop?.name ?? route.to}
+          {boardingStop || route.from} → {dropoffStop || route.to}
         </h2>
         <div className="summary-list">
           <div>
@@ -354,7 +394,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             </div>
           ) : null}
           <div>
-            <span>Fecha</span>
+            <span>{boardingStop ? `Salida de ${route.from}` : "Fecha"}</span>
             <strong>{selectedSchedule ? formatDateTime(selectedSchedule.departureAt) : "Sin salida"}</strong>
           </div>
           <div>
@@ -374,7 +414,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
             </div>
           ) : null}
           <div>
-            <span>Precio</span>
+            <span>{vuelta ? "Total ida y vuelta" : "Precio"}</span>
             <strong className="price">
               {requestDisabilityFare && personas === 1
                 ? "Sin cargo, sujeto a aprobación"
@@ -391,7 +431,7 @@ export function CheckoutForm({ route, schedules, initialScheduleId }: CheckoutFo
         <button
           className="button checkout-submit"
           type="submit"
-          disabled={isSubmitting || !hasBookableSchedules || !selectedSchedule}
+          disabled={isSubmitting || !hasBookableSchedules || !selectedSchedule || (roundTrip && !vuelta)}
         >
           {isSubmitting ? "Confirmando..." : "Confirmar reserva"}
         </button>

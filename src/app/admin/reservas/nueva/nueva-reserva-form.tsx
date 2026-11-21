@@ -352,8 +352,10 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
                   ))}
                 </section>
               ) : null}
-              <input type="hidden" name="dropoffStop" value={paradaIda} />
-              {vuelta.activa ? <input type="hidden" name="returnDropoffStop" value={paradaVuelta} /> : null}
+              <input type="hidden" name="boardingStop" value={salidaIda?.boardingStop ?? ""} />
+              <input type="hidden" name="dropoffStop" value={salidaIda?.dropoffStop ?? paradaIda} />
+              {vuelta.activa && <input type="hidden" name="returnBoardingStop" value={salidaVuelta?.boardingStop ?? ""} />}
+              {vuelta.activa ? <input type="hidden" name="returnDropoffStop" value={salidaVuelta?.dropoffStop ?? paradaVuelta} /> : null}
 
               <section className="leg-card alta-pasajeros" aria-label="Pasajeros">
                 <header className="leg-head">

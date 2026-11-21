@@ -518,6 +518,7 @@ model Reservation {
   seatId      String?
   seat        Seat?      @relation(fields: [seatId], references: [id], onDelete: Restrict)
   seatNumber  String?
+  boardingStop String?
   dropoffStop String?
   passengerCount Int     @default(1)
   // Tarifas por edad (issue #33): los pasajeros vienen dentro de passengerCount, que es el total

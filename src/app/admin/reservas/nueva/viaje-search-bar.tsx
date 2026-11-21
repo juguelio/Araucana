@@ -348,7 +348,7 @@ export function ViajeSearchBar({
             <span className="trip-search-handoff-check" aria-hidden="true">✓</span>
             <span className="trip-search-handoff-text">
               <b>Ida lista</b>
-              <span>{diaCorto(salidaIda.dayKey)} · {salidaIda.timeLabel} · {salidaIda.from} → {salidaIda.to}</span>
+              <span>{diaCorto(salidaIda.dayKey)} · {salidaIda.timeLabel} · {salidaIda.boardingStop || salidaIda.from} → {salidaIda.dropoffStop || salidaIda.to}</span>
             </span>
           </div>
         ) : null}
@@ -423,8 +423,8 @@ export function ViajeSearchBar({
                   <b className="trip-search-flight-time">{salida.timeLabel}</b>
                   <span className="viaje-combi viaje-combi-grande" aria-hidden="true"><IconoCombi /></span>
                   <span className="trip-search-flight-text">
-                    <b>{salida.from} → {salida.to}</b>
-                    <small>{salida.status === "DOCUMENTATION" ? "En documentación" : salida.stopFares?.length ? `Con ${salida.stopFares.length === 1 ? "una parada" : `${salida.stopFares.length} paradas`} en el camino` : "Directo"}</small>
+                    <b>{salida.boardingStop || salida.from} → {salida.dropoffStop || salida.to}</b>
+                    <small>{salida.boardingStop || salida.dropoffStop ? `Salida de ${salida.from} · ${salida.timeLabel}` : salida.status === "DOCUMENTATION" ? "En documentación" : salida.stopFares?.length ? `Con ${salida.stopFares.length === 1 ? "una parada" : `${salida.stopFares.length} paradas`} en el camino` : "Directo"}</small>
                   </span>
                   <span className="trip-search-flight-seats">
                     {elegida ? "✓ Elegida" : `${salida.availableSeats} ${salida.availableSeats === 1 ? "libre" : "libres"}`}

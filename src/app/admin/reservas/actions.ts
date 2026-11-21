@@ -87,6 +87,7 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
     overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
+    boardingStop: value(formData, "boardingStop") || undefined,
     dropoffStop: value(formData, "dropoffStop") || undefined,
     referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
@@ -153,7 +154,9 @@ async function createAdminRouteRoundTrip(
     scheduleId: value(formData, "scheduleId"),
     returnScheduleId: value(formData, "returnScheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
+    boardingStop: value(formData, "boardingStop") || undefined,
     dropoffStop: value(formData, "dropoffStop") || undefined,
+    returnBoardingStop: value(formData, "returnBoardingStop") || undefined,
     returnDropoffStop: value(formData, "returnDropoffStop") || undefined,
     referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
@@ -294,6 +297,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   const halfFareCount = formData.has("halfFareCount") ? value(formData, "halfFareCount") : undefined;
   const freeFareCount = formData.has("freeFareCount") ? value(formData, "freeFareCount") : undefined;
   // Vacío = baja en el destino final; por eso viaja aunque esté vacío.
+  const boardingStop = formData.has("boardingStop") ? value(formData, "boardingStop") : undefined;
   const dropoffStop = formData.has("dropoffStop") ? value(formData, "dropoffStop") : undefined;
   const pickupName = formData.has("pickupName") ? value(formData, "pickupName") : undefined;
   // Cambio de servicio: el formulario manda sólo el campo del tipo de reserva y sólo si cambió.
@@ -309,13 +313,13 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   } : undefined;
   if (!pickup && notes === undefined && referredBy === undefined && !financial
     && passengerCount === undefined && sportsLuggageCount === undefined && halfFareCount === undefined
-    && freeFareCount === undefined && dropoffStop === undefined && pickupName === undefined && !move && Object.keys(passenger).length === 0) {
+    && freeFareCount === undefined && boardingStop === undefined && dropoffStop === undefined && pickupName === undefined && !move && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
   const command = reservationManagementSchema.safeParse({
     operation: "edit", passenger, pickup, notes, referredBy, financial,
-    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName, move,
+    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, boardingStop, dropoffStop, pickupName, move,
     acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
   });
   if (!command.success) {

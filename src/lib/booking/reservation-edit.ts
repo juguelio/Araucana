@@ -11,7 +11,7 @@
  * de `manageReservation` sólo trae los datos y aplica la cuenta.
  */
 import { fareCounts, hasFullFare, reservationTotalCents, sinAdultoMensaje } from "./passenger-fares";
-import { getStopFares } from "./stop-fares";
+import { segmentPrice } from "./segment-fares";
 
 /**
  * Tope de una reserva, no del servicio: es el máximo que vende el alta de Chapelco (60 personas) y
@@ -100,10 +100,10 @@ export function minimoDePasajeros(basis: Pick<ReservationPriceBasis, "halfFareCo
  */
 export function tarifaPorPersona(
   route: { from: string; to: string; priceCents: number; stops?: unknown },
-  dropoffStop: string | null | undefined
+  dropoffStop: string | null | undefined,
+  boardingStop?: string | null
 ): number {
-  if (!dropoffStop) return route.priceCents;
-  return getStopFares(route).find((fare) => fare.name === dropoffStop)?.priceCents ?? route.priceCents;
+  return segmentPrice(route, boardingStop, dropoffStop) ?? route.priceCents;
 }
 
 /**

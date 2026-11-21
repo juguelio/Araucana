@@ -179,19 +179,28 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
       observaciones: notas.filter(Boolean).join(" · ")
     });
   } else {
-    const salida = reservation.schedule.departureAt;
-    rows.push({
-      fecha: salida ? fechaArgentina(salida) : "A confirmar",
-      horario: salida ? horaArgentina(salida) : "A confirmar",
-      inicio: lugarDeTerminal(reservation.route.from),
-      fin: lugarDeTerminal(reservation.dropoffStop ?? reservation.route.to),
-      observaciones: ""
-    });
+    const ida = {
+      from: reservation.boardingStop ?? reservation.route.from,
+      to: reservation.dropoffStop ?? reservation.route.to,
+      departureAt: reservation.schedule.departureAt,
+      serviceOrigin: reservation.boardingStop ? reservation.route.from : undefined
+    };
+    const legs = socio?.seated ? [ida, socio.seated] : [ida];
+    legs.sort((a, b) => +new Date(a.departureAt) - +new Date(b.departureAt));
+    for (const leg of legs) {
+      rows.push({
+        fecha: leg.departureAt ? fechaArgentina(leg.departureAt) : "A confirmar",
+        horario: leg.departureAt ? horaArgentina(leg.departureAt) : "A confirmar",
+        inicio: lugarDeTerminal(leg.from),
+        fin: lugarDeTerminal(leg.to),
+        observaciones: leg.serviceOrigin ? `Horario de salida desde ${leg.serviceOrigin}` : ""
+      });
+    }
   }
 
   // Ida y vuelta: cada tramo es una reserva con su importe y su pago, pero el pasajero compró un viaje.
   // El voucher suma los dos, así no muestra la mitad del valor ni la mitad de lo pagado.
-  const conImporte = airport && socio?.airport && typeof socio.totalCents === "number";
+  const conImporte = ((airport && socio?.airport) || socio?.seated) && typeof socio.totalCents === "number";
   const tramosCobrados = [
     { totalCents: reservation.totalCents, payment: reservation.payment ?? null },
     ...(conImporte ? [{ totalCents: socio.totalCents as number, payment: socio.payment ?? null }] : [])
@@ -215,7 +224,7 @@ export function buildVoucher(reservation: ReservationDetailDto, now = new Date()
     referredBy: reservation.referredBy ?? null,
     code: reservation.code,
     shortCode: reservation.shortCode,
-    partnerShortCode: airport && socio ? socio.shortCode : null,
+    partnerShortCode: (airport || socio?.seated) && socio ? socio.shortCode : null,
     rows,
     totalCents,
     paidCents,

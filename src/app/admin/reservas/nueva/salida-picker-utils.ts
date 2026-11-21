@@ -24,6 +24,8 @@ export type SalidaOption = {
   timeLabel: string;
   availableSeats: number;
   status: string;
+  boardingStop?: string;
+  dropoffStop?: string;
   stopFares?: StopFare[];
   bookingMode?: string;
   priceCents?: number;

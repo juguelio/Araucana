@@ -24,6 +24,7 @@ import { diffRecords, hasChanges } from "@/lib/audit/diff";
 import { guestActor, recordAudit, type AuditActor, type AuditClient } from "@/lib/audit/record";
 import { recordReservationCreated, withShortCode } from "@/lib/audit/reservation";
 import { reservationCreatorData, reservationCreatorLabel, type ReservationCreationContext } from "./reservation-creator";
+import { corridorStops, segmentPrice } from "./segment-fares";
 import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
 
@@ -121,6 +122,7 @@ type ReservationRecord = {
   scheduleId: string | null;
   routeId?: string | null;
   passengerId: string;
+  boardingStop?: string | null;
   dropoffStop?: string | null;
   seatId: string | null;
   seatNumber: string | null;
@@ -175,6 +177,7 @@ type ReservationRecord = {
 /** Lo que hace falta para crear un tramo de salida regular (ver `crearTramoDeSalida`). */
 type TramoDeSalida = {
   scheduleId: string;
+  boardingStop?: string;
   dropoffStop?: string;
   seatNumber?: string;
   passengerCount: number;
@@ -389,6 +392,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     roundTripId: reservation.roundTripId ?? null,
     referredBy: reservation.referredBy ?? null,
     bookingMode: reservation.bookingMode,
+    boardingStop: reservation.boardingStop ?? null,
     dropoffStop: reservation.dropoffStop ?? null,
     passengerCount: reservation.passengerCount,
     halfFareCount: reservation.halfFareCount ?? 0,
@@ -622,6 +626,9 @@ async function tramoCompanero(client: BookingTransactionClient, roundTripId: str
     select: {
       code: true,
       shortCode: true,
+      boardingStop: true,
+      dropoffStop: true,
+      schedule: { select: { departureAt: true, route: { select: { from: true, to: true } } } },
       status: true,
       totalCents: true,
       payment: { select: { status: true, amountCents: true, provider: true } },
@@ -650,6 +657,12 @@ async function tramoCompanero(client: BookingTransactionClient, roundTripId: str
     totalCents: socio.totalCents,
     payment: socio.payment ?? null,
     direction: airport?.direction ?? null,
+    seated: socio.schedule ? {
+      from: socio.boardingStop ?? socio.schedule.route.from,
+      to: socio.dropoffStop ?? socio.schedule.route.to,
+      departureAt: socio.schedule.departureAt,
+      serviceOrigin: socio.boardingStop ? socio.schedule.route.from : undefined
+    } : undefined,
     airport: airport
       ? {
           direction: airport.direction ?? null,
@@ -723,11 +736,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       .filter((reservation) => reservation.status !== "CANCELLED")
       .reduce((total, reservation) => total + reservation.passengerCount, 0);
     const requestedSeats = tramo.passengerCount;
-    const stop = tramo.dropoffStop && schedule.route.bookingMode === "SEATED"
-      ? getStopFares(schedule.route).find((fare) => fare.name === tramo.dropoffStop)
-      : undefined;
-    if (tramo.dropoffStop && !stop) {
-      throw new BookingError("STOP_NOT_AVAILABLE", "La parada seleccionada ya no está disponible.");
+    const unitPrice = segmentPrice(schedule.route, tramo.boardingStop, tramo.dropoffStop);
+    if (unitPrice === undefined) {
+      throw new BookingError("STOP_NOT_AVAILABLE", "No hay tarifa para ese tramo en el sentido elegido.");
     }
     const disabilityFare = tramo.requestDisabilityFare === true;
     const fares = fareCounts(requestedSeats, tramo.halfFareCount, tramo.freeFareCount);
@@ -736,7 +747,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     }
     const totalCents = disabilityFare
       ? 0
-      : tramo.overrideTotalCents ?? reservationTotalCents(stop?.priceCents ?? schedule.route.priceCents, fares);
+      : tramo.overrideTotalCents ?? reservationTotalCents(unitPrice, fares);
     // El cupo es el de todas las naves de la salida, no sólo el de la principal.
     const seatPool = scheduleSeatPool(schedule);
     const availableSeats = Math.max(seatPool.length - occupiedSeats, 0);
@@ -810,7 +821,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
         freeFareCount: fares.free,
         bookingMode: "SEATED",
         status: disabilityFare ? DISABILITY_PENDING_STATUS : "PENDING_PAYMENT",
-        ...(stop ? { dropoffStop: stop.name } : {}),
+        ...(tramo.boardingStop && { boardingStop: tramo.boardingStop }),
+        ...(tramo.dropoffStop && { dropoffStop: tramo.dropoffStop }),
         totalCents,
         currency: schedule.route.currency
       }
@@ -1059,10 +1071,14 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             ]);
             if (!ida || !vuelta) throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
             // Sin tildes ni mayúsculas: «San Martin» y «San Martín» son el mismo lugar (19-nov).
-            if (!mismoLugar(vuelta.route.from, ida.route.to) || !mismoLugar(vuelta.route.to, ida.route.from)) {
+            const bySegment = corridorStops(ida.route).length > 0 && corridorStops(vuelta.route).length > 0;
+            const from = (bySegment && parsed.boardingStop) || ida.route.from;
+            const to = (bySegment && parsed.dropoffStop) || ida.route.to;
+            if (!mismoLugar((bySegment && parsed.returnBoardingStop) || vuelta.route.from, to)
+              || !mismoLugar((bySegment && parsed.returnDropoffStop) || vuelta.route.to, from)) {
               throw new BookingError(
                 "ROUND_TRIP_ROUTE_MISMATCH",
-                `La vuelta tiene que salir de ${ida.route.to} y llegar a ${ida.route.from}.`
+                `La vuelta tiene que salir de ${to} y llegar a ${from}.`
               );
             }
             if (vuelta.departureAt <= ida.departureAt) {
@@ -1074,6 +1090,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             const codigoIda = await crearTramoDeSalida(tx, {
               ...comun,
               scheduleId: ida.id,
+              boardingStop: parsed.boardingStop,
               dropoffStop: parsed.dropoffStop,
               overrideTotalCents: precioIda,
               pasajero: { id: passenger.id },
@@ -1082,6 +1099,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             const codigoVuelta = await crearTramoDeSalida(tx, {
               ...comun,
               scheduleId: vuelta.id,
+              boardingStop: parsed.returnBoardingStop,
               dropoffStop: parsed.returnDropoffStop,
               overrideTotalCents: precioVuelta,
               pasajero: { id: passenger.id },
@@ -1423,7 +1441,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           passengerDocumentId: reservation.passenger.documentId,
           creatorLabel: reservationCreatorLabel(reservation),
           route: reservation.schedule
-            ? `${reservation.schedule.route.from} -> ${reservation.dropoffStop ?? reservation.schedule.route.to}`
+            ? `${reservation.boardingStop ?? reservation.schedule.route.from} -> ${reservation.dropoffStop ?? reservation.schedule.route.to}`
             : reservation.route
               ? `${reservation.route.from} -> ${reservation.route.to}`
               : "Ruta sin datos",

@@ -10,7 +10,6 @@ import { getReservationByCode } from "@/lib/booking/repository";
 import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
 import { politicaDeComprobante } from "@/lib/payments/receipt-policy";
 import { tarifaPorPersona } from "@/lib/booking/reservation-edit";
-import { getStopFares } from "@/lib/booking/stop-fares";
 import { isAdminRole } from "@/lib/auth/roles";
 import { manageReservationAction, updateReservationAction } from "../../actions";
 import { ConfirmReservationButton } from "../confirm-reservation-button";
@@ -65,9 +64,8 @@ export default async function EditReservationPage({ params }: { params: Promise<
   // Base del total (#267): con esto el formulario muestra la diferencia antes de guardar y la
   // cantidad de pasajeros/equipaje se recalcula sin volver a consultar la base.
   // Ruta con paradas: la tarifa por persona es la de la parada donde baja (la misma cuenta del alta).
-  const paradas = reservation.bookingMode === "SEATED" ? getStopFares(reservation.route) : [];
   const priceBasis = {
-    priceCents: tarifaPorPersona(reservation.route, reservation.dropoffStop),
+    priceCents: tarifaPorPersona(reservation.route, reservation.dropoffStop, reservation.boardingStop),
     passengerCount: reservation.passengerCount,
     halfFareCount: reservation.halfFareCount ?? 0,
     freeFareCount: reservation.freeFareCount ?? 0,
@@ -115,9 +113,8 @@ export default async function EditReservationPage({ params }: { params: Promise<
             airport: Boolean(airport),
             // La tarifa sin cargo por discapacidad es de un solo pasajero adulto: ahí no se cargan menores.
             disability,
-            routePriceCents: reservation.route.priceCents,
-            destination: reservation.route.to,
-            stops: paradas,
+            route: reservation.route,
+            boardingStop: reservation.boardingStop ?? "",
             dropoffStop: reservation.dropoffStop ?? "",
             zoneExtraConfigCents,
             paymentApproved: reservation.payment?.status === "APPROVED" && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER,

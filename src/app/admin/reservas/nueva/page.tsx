@@ -41,7 +41,7 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
   // Chapelco van por su cuenta.
   const rutasCrudas = (await listAdminRoutes())
     .filter((ruta) => ruta.isActive && ruta.bookingMode !== "AIRPORT" && ruta.bookingMode !== "CHAPELCO")
-    .map((ruta) => ({ id: ruta.id, from: ruta.from, to: ruta.to }));
+    .map((ruta) => ({ id: ruta.id, from: ruta.from, to: ruta.to, bookingMode: ruta.bookingMode, currency: ruta.currency }));
   // `excludeAirport`: el aeropuerto se reserva por vuelo, no por salida horaria (issue #79).
   const salidasCrudas = (await listAdminSchedules({ bookableOnly: true, excludeAirport: true }))
     .filter((schedule) => schedule.availableSeats > 0)
@@ -63,7 +63,8 @@ export default async function NewReservationPage({ searchParams }: NewReservatio
   const lugar = (pedido?: string) => {
     if (!pedido) return null;
     const clave = claveDeLugar(pedido);
-    return [...salidas.flatMap((s) => [s.from, s.to]), ...rutas.flatMap((r) => [r.from, r.to])].find((nombre) => claveDeLugar(nombre) === clave) ?? null;
+    return [...origenes(salidas, rutas).map((item) => item.nombre), ...rutas.map((r) => r.to), ...salidas.map((s) => s.to)]
+      .find((nombre) => claveDeLugar(nombre) === clave) ?? null;
   };
   const sanMartin = lugar(SAN_MARTIN) ?? "San Martín de los Andes";
 

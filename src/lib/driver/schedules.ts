@@ -25,6 +25,7 @@ export type DriverSchedulePassenger = {
   reservationId: string;
   code: string;
   passengerName: string;
+  boardingStop?: string | null;
   dropoffStop?: string | null;
   phone: string;
   documentLabel: string;
@@ -187,6 +188,7 @@ export async function listDriverUpcomingSchedules(options: {
           ticket: { select: { code: true } },
           seatNumber: true,
           passengerCount: true,
+          boardingStop: true,
           dropoffStop: true,
           status: true,
           passenger: {
@@ -215,6 +217,7 @@ export async function listDriverUpcomingSchedules(options: {
       // Ticket code, never the reservation code: the latter is the passenger's private link.
       code: reservation.ticket?.code ?? "Sin ticket",
       passengerName: passengerName(reservation.passenger),
+      boardingStop: reservation.boardingStop ?? null,
       dropoffStop: reservation.dropoffStop ?? null,
       phone: reservation.passenger.phone,
       documentLabel: documentLabel(reservation.passenger),

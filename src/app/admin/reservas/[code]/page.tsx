@@ -273,7 +273,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             <div>
               <span>Ruta</span>
               <strong>
-                {reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
+                {reservation.boardingStop ?? reservation.route.from} - {reservation.dropoffStop ?? reservation.route.to}
               </strong>
             </div>
             {airport ? (

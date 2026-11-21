@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { getI18n } from "@/i18n/server";
 import { localizePath } from "@/i18n/config";
+import { corridorStops, segmentPrice } from "@/lib/booking/segment-fares";
 import { airportOptions, airportSlugFromSelection, routeOptions } from "@/lib/booking/public-search";
 import { listPublicAirportRoutes, listPublicRoutes, listSchedulesForRoute } from "@/lib/booking/repository";
 import { claveDia, claveHoy, diasConSalidas, etiquetaDia, fechaDeClave, horaDia, tiraDeDias } from "./dias";
@@ -74,10 +75,16 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
   const allRoutes = await getRoutesWithSchedules();
   const airportRoutes = await listPublicAirportRoutes();
   const airportChoices = airportOptions(airportRoutes);
-  const originChoices = routeOptions(allRoutes.map((route) => route.from));
-  const destinationChoices = routeOptions(allRoutes.map((route) => route.to));
+  const originChoices = routeOptions(allRoutes.flatMap((route) => [route.from, ...corridorStops(route).slice(0, -1)]));
+  const destinationChoices = routeOptions(allRoutes.flatMap((route) => [route.to, ...corridorStops(route).slice(1)]));
 
-  const candidatas = allRoutes.filter((route) => (!from || route.from === from) && (!to || route.to === to));
+  const candidatas = allRoutes.flatMap((route) => {
+    const boardingStop = from && from !== route.from ? from : "";
+    const dropoffStop = to && to !== route.to ? to : "";
+    const priceCents = segmentPrice(route, boardingStop, dropoffStop);
+    if (priceCents === undefined) return [];
+    return [{ ...route, boardingStop, dropoffStop, priceCents }];
+  });
   const dias = diasConSalidas(candidatas.flatMap((route) => route.vigentes.map((schedule) => schedule.departureAt)));
   // Sólo se filtra por un día que tenga salidas: si el día pedido no tiene, se muestran las próximas
   // y se avisa, en vez de responder «no encontramos rutas» a un día sin servicio.
@@ -98,6 +105,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
     const query = new URLSearchParams();
     if (from) query.set("from", from);
     if (to) query.set("to", to);
+    if (idaYVuelta) query.set("tramos", "ida-y-vuelta");
     if (dia) query.set("date", dia);
     const cadena = query.toString();
     return cadena ? `/rutas?${cadena}` : "/rutas";
@@ -157,6 +165,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
               ))}
             </select>
           </label>
+          {idaYVuelta && <input type="hidden" name="tramos" value="ida-y-vuelta" />}
           <input type="hidden" name="date" value={fechaValida} />
           <button className="button" type="submit">
             Buscar salidas
@@ -189,7 +198,7 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
 
           {idaYVuelta ? (
             <p className="dia-aviso">
-              <strong>{dict.featured.roundTrip}.</strong> {dict.featured.roundTripOnlyAirport}
+              <strong>{dict.featured.roundTrip}.</strong> {dict.featured.roundTripAvailability}
             </p>
           ) : null}
 
@@ -209,17 +218,20 @@ export default async function RoutesPage({ searchParams }: RoutesPageProps) {
                 <div className="route-body">
                   <span className="route-kicker">{route.category}</span>
                   <h2 className="route-title">
-                    {route.from} → {route.to}
+                    {route.boardingStop || route.from} → {route.dropoffStop || route.to}
                   </h2>
                   <p className="muted">{route.via}</p>
                   <p>{route.description}</p>
                   <div className="route-meta">
-                    <span>{formatDuration(route.durationMin)} · {route.scheduleCount} salidas disponibles</span>
+                    <span>{route.boardingStop || route.dropoffStop ? `Servicio ${route.from} → ${route.to}` : formatDuration(route.durationMin)} · {route.scheduleCount} salidas disponibles</span>
                     <span className="price">{formatPrice(route.priceCents, route.currency)}</span>
                   </div>
                   <form className="route-quick-book" action={`/reservar/${route.slug}`}>
+                    {route.boardingStop && <input type="hidden" name="from" value={route.boardingStop} />}
+                    {route.dropoffStop && <input type="hidden" name="to" value={route.dropoffStop} />}
+                    {idaYVuelta && <input type="hidden" name="tramos" value="ida-y-vuelta" />}
                     {route.schedules.length ? <fieldset className="schedule-picker">
-                      <legend>{t.pickDeparture}</legend>
+                      <legend>{t.pickDeparture}{route.boardingStop && ` · desde ${route.from}`}</legend>
                       <div className="schedule-rail" aria-label="Salidas disponibles">
                         {route.schedules.map((schedule, index) => (
                           <label className="schedule-option" key={schedule.id}>

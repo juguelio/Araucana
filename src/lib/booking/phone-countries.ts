@@ -13,8 +13,12 @@ export type PhoneCountry = { value: string; label: string; flag: string; name: s
 /** Primeros en la lista: los que más llegan. El resto va en orden alfabético. */
 const FIRST = ["AR", "CL", "BR", "UY", "PY", "BO", "PE", "US", "ES"];
 
-/** Nombres a mano para códigos compartidos por varios países. */
+/** Nombres de códigos compartidos y variantes de Intl que cambian entre servidor y navegador. */
 const NAMES: Record<string, string> = {
+  FK: "Islas Malvinas",
+  HK: "Hong Kong",
+  MO: "Macao",
+  PS: "Territorios Palestinos",
   US: "EE.UU./Canadá",
   RU: "Rusia/Kazajistán",
   GB: "Reino Unido",

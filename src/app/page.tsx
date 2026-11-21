@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { WeatherForecast } from "@/components/weather-forecast";
 import { getI18n } from "@/i18n/server";
 import { localizePath } from "@/i18n/config";
+import { corridorStops } from "@/lib/booking/segment-fares";
 import { airportOptions, routeOptions } from "@/lib/booking/public-search";
 import { listPublicAirportRoutes, listPublicRoutes } from "@/lib/booking/repository";
 import laninSummer from "../../lanin-verano.webp";
@@ -26,8 +27,8 @@ export default async function HomePage() {
   const rutaAeropuerto = rutasAeropuerto.find((r) => r.specialType !== "DEPARTURE") ?? rutasAeropuerto[0] ?? null;
   const rutaAeropuertoVuelta = rutasAeropuerto.find((r) => r.specialType === "DEPARTURE") ?? null;
   const airportChoices = airportOptions(rutasAeropuerto);
-  const originChoices = routeOptions(routes.map((route) => route.from));
-  const destinationChoices = routeOptions(routes.map((route) => route.to));
+  const originChoices = routeOptions(routes.flatMap((route) => [route.from, ...corridorStops(route).slice(0, -1)]));
+  const destinationChoices = routeOptions(routes.flatMap((route) => [route.to, ...corridorStops(route).slice(1)]));
   const finalStyle = { "--final-image": `url(${laninSummer.src})` } as CSSProperties;
   const servicios = dict.services.items.map((item, index) => ({
     number: `0${index + 1}`,

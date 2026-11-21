@@ -105,6 +105,7 @@ const reservationFields = z.object({
     scheduleId: z.string().min(1, "Selecciona una salida."),
     seatNumber: z.string().optional(),
     requestDisabilityFare: z.boolean().optional(),
+    boardingStop: z.string().trim().min(1).max(160).optional(),
     dropoffStop: z.string().trim().min(1).max(160).optional(),
     passengerCount: z.coerce.number().int().min(1, "Selecciona al menos un asiento.").max(24, "La cantidad de asientos no es valida.").default(1),
     // Tarifas por edad: ambos contadores van incluidos dentro de passengerCount.
@@ -148,6 +149,7 @@ export const adminRouteRoundTripSchema = reservationFields
   .omit({ seatNumber: true })
   .extend({
     returnScheduleId: z.string().min(1, "Elegí la salida de la vuelta."),
+    returnBoardingStop: z.string().trim().min(1).max(160).optional(),
     returnDropoffStop: z.string().trim().min(1).max(160).optional(),
     passenger: adminPassengerSchema,
     overrideTotalCents: reservationPriceCents.optional(),

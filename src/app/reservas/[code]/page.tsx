@@ -64,9 +64,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
     : formatDateTime(reservation.schedule.departureAt);
   // El título del traslado sale del sentido del vuelo: la ruta guardada es una sola para ida y vuelta,
   // así que «Aeropuerto Chapelco - San Martín» podía quedar al revés para quien se va.
+  const salidaRegular = reservation.boardingStop ? `Salida de ${reservation.route.from}` : "Salida";
   const tripTitle = airport
     ? airport.direction === "ARRIVAL" ? "Traslado desde el Aeropuerto Chapelco" : "Traslado al Aeropuerto Chapelco"
-    : `${reservation.route.from} → ${reservation.dropoffStop ?? reservation.route.to}`;
+    : `${reservation.boardingStop ?? reservation.route.from} → ${reservation.dropoffStop ?? reservation.route.to}`;
   const showPaymentPanel = Boolean(reservation.payment && reservation.status === receiptPendingStatus(reservation.payment.provider) && ["PENDING", "REJECTED"].includes(reservation.payment.status));
   const receiptRejected = reservation.payment?.status === "REJECTED" && reservation.status === "PENDING_PAYMENT";
   const paymentText = disabilityFare ? "Sin cargo" : paymentLabel(reservation.payment?.status);
@@ -90,7 +91,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <h1 className="section-title rp-title">{headingMain}</h1>
             <p className="lead rp-lead">{statusCopy(reservation.status)}</p>
             <dl className="rp-facts">
-              <div><dt>{airport ? "Vuelo" : isChapelco ? "Fecha" : "Salida"}</dt><dd>{departureLabel}</dd></div>
+              <div><dt>{airport ? "Vuelo" : isChapelco ? "Fecha" : salidaRegular}</dt><dd>{departureLabel}</dd></div>
               <div><dt>{isChapelco ? "Cupo" : "Lugares"}</dt><dd>{placesLabel(reservation.passengerCount)}</dd></div>
               <div><dt>Total</dt><dd>{formatPrice(reservation.totalCents, reservation.currency)}</dd></div>
             </dl>
@@ -131,7 +132,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                 </div>
               ) : null}
               <div>
-                <dt>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</dt>
+                <dt>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : salidaRegular}</dt>
                 <dd>{departureLabel}</dd>
               </div>
               {airport && (airport.pickupAddress || airportMapUrl) ? (
@@ -156,8 +157,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               {/* «Regreso: Segun ruta» no decía nada en un traslado al aeropuerto; ahí no se muestra. */}
               {!airport ? (
                 <div>
-                  <dt>Regreso</dt>
-                  <dd>{isChapelco ? "Incluido desde las 17:00" : "Según la ruta"}</dd>
+                  <dt>{reservation.roundTripPartner ? "Ida y vuelta" : "Regreso"}</dt>
+                  <dd>{reservation.roundTripPartner
+                    ? <Link href={`/reservas/${reservation.roundTripPartner.code}`}>Ver el otro tramo · {formatShortCode(reservation.roundTripPartner.shortCode)}</Link>
+                    : isChapelco ? "Incluido desde las 17:00" : "Según la ruta"}</dd>
                 </div>
               ) : null}
             </dl>

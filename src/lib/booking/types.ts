@@ -110,6 +110,7 @@ export type ReservationDetailDto = {
     totalCents?: number;
     payment?: { status: string; amountCents: number; provider: string } | null;
     direction: string | null;
+    seated?: { from: string; to: string; departureAt: Date; serviceOrigin?: string };
     /** Datos del tramo compañero que imprime el voucher. `null` si no es un traslado al aeropuerto. */
     airport?: {
       direction: string | null;
@@ -129,6 +130,7 @@ export type ReservationDetailDto = {
   /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
   shortCode: string;
   bookingMode: string;
+  boardingStop?: string | null;
   dropoffStop?: string | null;
   passengerCount: number;
   halfFareCount?: number;

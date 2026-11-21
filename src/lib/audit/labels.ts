@@ -62,6 +62,7 @@ const fieldLabels: Record<string, string> = {
   currency: "Moneda",
   passengerCount: "Pasajeros",
   seatNumber: "Asiento",
+  boardingStop: "Parada de ascenso",
   dropoffStop: "Parada de descenso",
   referredBy: "Derivado por",
   cancellationReason: "Motivo de cancelación",

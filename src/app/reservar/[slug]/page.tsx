@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
-import { getPublicRouteBySlug, listSchedulesForRoute } from "@/lib/booking/repository";
+import { getPublicRouteBySlug, listPublicRoutes, listSchedulesForRoute } from "@/lib/booking/repository";
 import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
 import { getAirportFares } from "@/lib/airport/fares";
 import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getAirportOfficePickup, officePickupReady } from "@/lib/airport/office-pickup";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
+import { mismoLugar } from "@/lib/booking/place-names";
+import { corridorStops } from "@/lib/booking/segment-fares";
 import { etiquetasDeSalida } from "@/lib/booking/schedule-days";
 import { CheckoutForm } from "./checkout-form";
 import { AirportCheckoutForm } from "./airport-checkout-form";
@@ -21,6 +23,9 @@ type ReservationPageProps = {
   }>;
   searchParams?: Promise<{
     scheduleId?: string;
+    from?: string;
+    to?: string;
+    tramos?: string;
     /** Día elegido (YYYY-MM-DD) para el flujo del aeropuerto: permite linkear "vuelos del 20/10". */
     date?: string;
     /** Llegada o salida elegida en la tarjeta de otra pantalla (ida y vuelta): entra directo al vuelo. */
@@ -195,7 +200,17 @@ export default async function ReservationPage({ params, searchParams }: Reservat
     );
   }
 
-  const schedules = await listSchedulesForRoute(route.id);
+  const [schedules, returnServices] = await Promise.all([
+    listSchedulesForRoute(route.id),
+    corridorStops(route).length ? listPublicRoutes().then(async (routes) => {
+      const reverse = routes.filter((r) => corridorStops(r).length && mismoLugar(r.from, route.to) && mismoLugar(r.to, route.from));
+      return Promise.all(reverse.map(async (r) => ({
+        route: { from: r.from, to: r.to, bookingMode: r.bookingMode, currency: r.currency, priceCents: r.priceCents, stops: r.stops },
+        schedules: (await listSchedulesForRoute(r.id)).filter((s) => s.availableSeats > 0)
+          .map(({ id, departureAt, availableSeats, priceCents }) => ({ id, departureAt, availableSeats, priceCents }))
+      })));
+    }) : []
+  ]);
   const today = todayInputValue();
   const bookableSchedules = schedules
     // Sólo días con lugares: una salida llena no se puede reservar y no tiene por qué aparecer.
@@ -215,7 +230,7 @@ export default async function ReservationPage({ params, searchParams }: Reservat
             </h1>
           </div>
           <div className="route-summary plain-card">
-            <span>{route.via}</span>
+            <span>{corridorStops(route).length ? "Tarifa del recorrido completo" : route.via}</span>
             <strong>{formatPrice(route.priceCents, route.currency)}</strong>
           </div>
         </div>
@@ -238,7 +253,9 @@ export default async function ReservationPage({ params, searchParams }: Reservat
           </div>
         </section>
 
-        <CheckoutForm route={route} schedules={bookableSchedules} initialScheduleId={initialScheduleId} />
+        <CheckoutForm route={route} schedules={bookableSchedules} initialScheduleId={initialScheduleId}
+          initialFrom={query?.from} initialTo={query?.to} returnServices={returnServices}
+          initialRoundTrip={query?.tramos === "ida-y-vuelta"} />
       </main>
       <SiteFooter />
     </>

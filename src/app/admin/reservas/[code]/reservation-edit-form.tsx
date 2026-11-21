@@ -1,11 +1,14 @@
 "use client";
 
+import { SegmentStopFields } from "@/components/segment-stop-fields";
+import { segmentPrice } from "@/lib/booking/segment-fares";
+
 import { useActionState, useEffect, useRef, useState } from "react";
 import { MAX_SPORTS_LUGGAGE } from "@/lib/airport/extras";
 import { chargesZoneExtra, isInsideAirportPickupZone, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import { parseReservationPrice, reservationPriceCents, reservationPriceError } from "@/lib/booking/admin-price";
 import { MAX_PASSENGERS, errorDeMenores, totalAlEditar, type ReservationPriceBasis } from "@/lib/booking/reservation-edit";
-import type { PassengerDto } from "@/lib/booking/types";
+import type { PassengerDto, PublicRouteDto } from "@/lib/booking/types";
 import { AdminFormAlert, FieldError } from "../../form-ui";
 import { initialAdminFormState, type AdminFormState } from "../../form-state";
 import { PassengerFields, type PassengerDraft } from "./passenger-form";
@@ -35,11 +38,8 @@ type ReservationEditFormProps = {
     /** Tarifa sin cargo por discapacidad: es de un solo pasajero adulto, sin menores. */
     disability: boolean;
     /** Tarifa entera de la ruta (la de bajar en el destino final). */
-    routePriceCents: number;
-    /** Destino final de la ruta y paradas intermedias con su tarifa (vacío si no tiene). */
-    destination: string;
-    stops: Array<{ name: string; priceCents: number }>;
-    /** Parada donde baja hoy; vacío = destino final. */
+    route: PublicRouteDto;
+    boardingStop: string;
     dropoffStop: string;
     /** Recargo por zona vigente hoy, para mostrar cuánto se suma si el punto entra en la zona. */
     zoneExtraConfigCents: number;
@@ -70,6 +70,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const [sportsLuggage, setSportsLuggage] = useState(counts ? String(counts.price.sportsLuggageCount) : "");
   const [halfFare, setHalfFare] = useState(counts ? String(counts.price.halfFareCount) : "");
   const [freeFare, setFreeFare] = useState(counts ? String(counts.price.freeFareCount) : "");
+  const [boarding, setBoarding] = useState(counts?.boardingStop ?? "");
   const [dropoff, setDropoff] = useState(counts?.dropoffStop ?? "");
   const [pickupName, setPickupName] = useState(transfer?.name ?? "");
   const [acknowledged, setAcknowledged] = useState(false);
@@ -110,6 +111,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   // Otra salida de otra ruta: las paradas de esta ruta ya no aplican y la bajada vuelve al destino final.
   const otraRuta = move?.mode === "SEATED" && service?.mode === "SEATED" && move.routeId !== service.currentRouteId;
   const dropoffFinal = otraRuta ? "" : dropoff;
+  const boardingChanged = Boolean(counts && !otraRuta && boarding !== counts.boardingStop);
   const dropoffChanged = Boolean(counts && !otraRuta && dropoff !== counts.dropoffStop);
   // Pasajeros y menores se validan juntos: los menores van dentro del total y siempre queda un adulto.
   const minorsError = counts && countInRange && minorsInRange && (countTouched || minorsTouched)
@@ -131,7 +133,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     ? (chargesZoneExtra(pickup.point, transfer.coverage) ? (zoneNow || counts.zoneExtraConfigCents) : 0)
     : zoneNow;
   const zoneChanged = zoneNext !== zoneNow;
-  const stopPrice = (name: string) => counts?.stops.find((stop) => stop.name === name)?.priceCents ?? counts?.routePriceCents ?? 0;
+  const stopPrice = counts && segmentPrice(counts.route, boarding, dropoffFinal);
   // Tarifa por persona después del cambio de servicio: la de la ruta nueva o la del otro sentido.
   const movedPrice = move?.mode === "SEATED" && otraRuta ? move.priceCents
     : move?.mode === "AIRPORT" && service?.mode === "AIRPORT" && move.direction !== service.currentDirection
@@ -146,15 +148,15 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     freeFareCount: countValid ? parsedFree : counts.price.freeFareCount,
     sportsLuggageCount: counts.airport && luggageValid ? parsedLuggage : counts.price.sportsLuggageCount,
     zoneExtraCents: zoneNext,
-    priceCents: movedPrice ?? stopPrice(dropoffFinal)
+    priceCents: movedPrice ?? stopPrice
   }) : null;
   const totalChanged = Boolean(proposal?.seRecalcula && proposal.totalCents !== counts?.totalCents);
   const moved = move !== null;
-  const movesTotal = countChanged || minorsChanged || luggageChanged || dropoffChanged || zoneChanged || moved;
+  const movesTotal = countChanged || minorsChanged || luggageChanged || boardingChanged || dropoffChanged || zoneChanged || moved;
   // Un precio escrito a mano manda sobre la cuenta automática: ahí no hay diferencia que confirmar.
   const needsAcknowledgement = Boolean(counts?.paymentApproved && totalChanged && !priceChanged);
   const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || pickupNameChanged || referredByChanged
-    || countChanged || minorsChanged || luggageChanged || dropoffChanged || moved || priceChanged || methodChanged || referenceChanged;
+    || countChanged || minorsChanged || luggageChanged || boardingChanged || dropoffChanged || moved || priceChanged || methodChanged || referenceChanged;
   const savePickup = canSavePickup(addressChanged, pickup, { airport: Boolean(transfer?.airport), outside });
   const priceInputError = priceChanged && !reservationPriceCents.safeParse(parseReservationPrice(total)).success
     ? reservationPriceError : undefined;
@@ -177,6 +179,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
       changes.set("freeFareCount", String(parsedFree));
     }
     // Vacío = baja en el destino final: viaja igual para poder volver atrás una parada intermedia.
+    if (boardingChanged) changes.set("boardingStop", boarding);
     if (dropoffChanged) changes.set("dropoffStop", dropoff);
     if (move?.mode === "SEATED") changes.set("moveScheduleId", move.scheduleId);
     if (move?.mode === "AIRPORT") changes.set("moveFlightId", move.flightId);
@@ -290,21 +293,14 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
               <FieldError id="reservation-minors-error" message={combinedMinorsError} />
             </>
           )}
-          {counts.stops.length > 0 && !otraRuta ? (
-            <label className="span-2">
-              Baja en
-              <select name="dropoffStop" value={dropoff} disabled={pending || countsLocked}
-                aria-invalid={Boolean(errors.dropoffStop)} aria-describedby={errors.dropoffStop ? "reservation-dropoff-error" : undefined}
-                onChange={(event) => { setDropoff(event.target.value); setAcknowledged(false); }}>
-                <option value="">{counts.destination} (destino final) · {money(counts.routePriceCents)}</option>
-                {counts.stops.map((stop) => (
-                  <option key={stop.name} value={stop.name}>{stop.name} · {money(stop.priceCents)}</option>
-                ))}
-              </select>
-              <small>La tarifa por persona es la de la parada donde baja.</small>
+          {counts.route.bookingMode === "SEATED" && !otraRuta && (
+            <>
+              <SegmentStopFields route={counts.route} boarding={boarding} dropoff={dropoff} disabled={pending || countsLocked}
+                dropoffErrorId={errors.dropoffStop ? "reservation-dropoff-error" : undefined}
+                onChange={(start, end) => { setBoarding(start); setDropoff(end); setAcknowledged(false); }} />
               <FieldError id="reservation-dropoff-error" message={errors.dropoffStop} />
-            </label>
-          ) : null}
+            </>
+          )}
           {counts.airport ? (
             <label>
               Equipaje deportivo (bultos)

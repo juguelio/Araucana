@@ -71,7 +71,7 @@ const es = {
     tripType: "Tipo de viaje",
     oneWay: "Un tramo",
     roundTrip: "Ida y vuelta",
-    roundTripOnlyAirport: "Ida y vuelta está disponible para el traslado al aeropuerto.",
+    roundTripAvailability: "Podés reservar los dos tramos juntos en los servicios de Villa Traful y del aeropuerto.",
     submit: "Ver horarios"
   },
   destinations: {
@@ -256,7 +256,7 @@ const en: Dictionary = {
     tripType: "Trip type",
     oneWay: "One leg",
     roundTrip: "Round trip",
-    roundTripOnlyAirport: "Round trip is available for the airport transfer.",
+    roundTripAvailability: "You can book both legs together on Villa Traful and airport services.",
     submit: "See schedules"
   },
   destinations: {
@@ -439,7 +439,7 @@ const pt: Dictionary = {
     tripType: "Tipo de viagem",
     oneWay: "Um trecho",
     roundTrip: "Ida e volta",
-    roundTripOnlyAirport: "Ida e volta está disponível para o transfer do aeroporto.",
+    roundTripAvailability: "Você pode reservar os dois trechos juntos nos serviços de Villa Traful e do aeroporto.",
     submit: "Ver horários"
   },
   destinations: {
