@@ -9,19 +9,24 @@ const suffix = randomUUID();
 const origin = "San Martín de los Andes";
 const terminal = "Villa Traful";
 const email = `tramos-${suffix}@example.com`;
-let returnId: string;
+
 
 test.beforeAll(async () => {
   await db.user.create({ data: { email, name: "Operador", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(suffix, 4) } });
+  for (const direction of ["DEPARTURE", "ARRIVAL"]) {
+    await db.travelRoute.create({data: {slug: `airport-${direction.toLowerCase()}-${suffix}`, from: direction === "DEPARTURE" ? origin : "Aeropuerto Chapelco",
+      to: direction === "DEPARTURE" ? "Aeropuerto Chapelco" : origin, via: "Directo", category: "Aeropuerto", bookingMode: "AIRPORT", specialType: direction,
+      stops: [], description: "Traslado de prueba", durationMin: 40, priceCents: 1000000 }});
+  }
   const vehicle = await db.vehicle.create({ data: { name: suffix, seats: { create: [{ number: "1", row: 1, column: 1 }, { number: "2", row: 1, column: 2 }] } } });
   for (const [i, [from, to]] of [[origin, terminal], [terminal, origin]].entries()) {
     const departureAt = new Date(Date.now() + (7 + i) * 86400000);
-    const schedule = await db.schedule.create({ data: {
+    await db.schedule.create({ data: {
       departureAt, arrivalAt: new Date(+departureAt + 7200000), vehicle: { connect: { id: vehicle.id } },
       route: { create: { from, to, slug: `tramos-${i}-${suffix}`, via: "7 Lagos", category: "Argentina",
         description: "Servicio de prueba", stops: [], durationMin: 120, priceCents: 3000000 } }
     } });
-    if (i === 1) returnId = schedule.id;
+
   }
 });
 
@@ -37,20 +42,24 @@ async function waitForCheckout(page: Page) {
 }
 
 test("reserva y cobra dos tramos intermedios desde el buscador", async ({ page }) => {
-  await page.goto("/rutas");
-  await page.locator('select[name="from"]').selectOption("Río Hermoso");
-  await page.locator('select[name="to"]').selectOption("Falkner");
-  await page.getByRole("button", { name: "Buscar salidas" }).click();
-  const card = page.locator("article").filter({ has: page.locator(`form[action="/reservar/tramos-0-${suffix}"]`) });
-  await expect(card.getByRole("heading")).toHaveText("Río Hermoso → Falkner");
-  await card.getByRole("button").click();
+  await page.setViewportSize({width: 390, height: 844});
+  await page.goto("/");
+  const search = page.locator(".public-trip-search");
+  await expect(search.locator('[data-campo="hacia"]')).toContainText("Aeropuerto Chapelco");
+  await search.locator('[data-campo="desde"]').click();
+  await search.getByRole("radio", {name: /Río Hermoso/}).click();
+  await expect(page).toHaveURL(/\/rutas\?from=/);
+  await expect(search.locator('[data-campo="desde"]')).toContainText("Río Hermoso");
+  await search.locator('[data-campo="hacia"]').click();
+  await search.getByRole("radio", {name: /Falkner/}).click();
+  await search.locator(".trip-search-flight").first().click();
+  await search.locator('[data-campo="agregar-vuelta"]').click();
+  await search.locator(".trip-search-flight").first().click();
+  await page.getByRole("link", {name: "Continuar con la reserva"}).click();
   await waitForCheckout(page);
-  await expect(page.getByLabel("Parada de subida")).toHaveValue("Río Hermoso");
-  const bajada = page.getByLabel("Parada de bajada");
-  await expect(bajada).toHaveValue("Falkner");
-  await expect(bajada.getByRole("option", { name: /Río Hermoso|Acceso Chapelco/ })).toHaveCount(0);
-  await page.getByLabel("Ida y vuelta", { exact: true }).check();
-  await page.getByLabel(/Vuelta · Falkner → Río Hermoso/).selectOption(returnId);
+  await expect(page.locator('[data-campo="desde"]')).toContainText("Río Hermoso");
+  await expect(page.locator('[data-campo="hacia"]')).toContainText("Falkner");
+  await expect(page.locator('[data-campo="vuelta"]')).toHaveAttribute("data-listo", "true");
   await expect(page.locator(".checkout-summary .price")).toContainText(/12[.]000/);
   await page.getByLabel("Nombre", { exact: true }).fill("Camila");
   await page.getByLabel("Apellido").fill("Vidal");
@@ -72,12 +81,30 @@ test("reserva y cobra dos tramos intermedios desde el buscador", async ({ page }
   await expect(page.getByRole("row").filter({ hasText: "Río Hermoso" })).toHaveCount(2);
 });
 
+test("el buscador de rutas conserva el vuelo elegido al continuar o agregar vuelta", async ({ page }) => {
+  await page.route("**/api/v1/airport/flights?*", async request => {
+    const day = new URL(request.request().url()).searchParams.get("date");
+    await request.fulfill({json: { flights: [{
+      id: "flight-test", number: "AR9999", direction: "DEPARTURE", available: 8,
+      bookable: true, airline: "AR", scheduledAt: day + "T18:00:00-03:00", estimatedAt: null
+    }] }});
+  });
+  await page.goto("/rutas");
+  const search = page.locator(".public-trip-search");
+  await search.locator('[data-campo="DEPARTURE"]').click();
+  await search.getByRole("button", {name: /AR9999/}).click();
+  await expect(search.getByRole("link", {name: "Continuar con la reserva"})).toHaveAttribute("href", /sentido=DEPARTURE&vuelo=flight-test/);
+  await expect(search.getByRole("link", {name: /Agregar vuelta/})).toHaveAttribute("href", /ida-y-vuelta.*vuelo=flight-test/);
+});
+
 test("el mostrador selecciona la subida y la bajada en Desde y Hacia", async ({ page }) => {
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password: suffix } })).status()).toBe(200);
-  await page.goto(`/admin/reservas/nueva?desde=${encodeURIComponent(origin)}&hacia=Villa+Traful`);
+  await page.goto("/admin/reservas/nueva");
   await waitForCheckout(page);
   await page.locator('[data-campo="desde"]').click();
   await page.getByRole("radio", { name: /Río Hermoso/ }).click();
+  await expect(page).toHaveURL(/desde=/);
+  await page.locator('[data-campo="hacia"]').click();
   await page.getByRole("radio", { name: /Falkner/ }).click();
   await page.locator(".trip-search-flight").first().click();
   await page.locator('[data-campo="agregar-vuelta"]').click();

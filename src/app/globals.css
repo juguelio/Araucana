@@ -2773,3 +2773,8 @@ a.wizard-option { text-decoration: none; }
   .pickup-flow .place-shortcut { padding: 7px 10px; }
   .trip-search-panel[data-paso="siguiente"] .trip-search-panel-title { font-size: 21px; }
 }
+
+.booking-search-card { min-width: 0; padding: 16px; border-radius: 18px; background: var(--surface, #fff); color: var(--ink); }
+.booking-search-card .booking-card-top { margin-bottom: 12px; }
+.public-trip-search { display: grid; min-width: 0; gap: 16px; }
+.public-trip-search > .button { justify-self: start; }

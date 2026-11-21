@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
-import { detalleDeLaVuelta, hrefConViaje } from "./airport-trip-options";
+import { useAirportSearch, type FlightOption } from "./airport-search";
 import { statusLabel } from "@/lib/airport/flights";
-import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
-import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./ida-y-vuelta/trip-search-bar";
+import type { LugarDeOtroServicio } from "./ida-y-vuelta/trip-search-bar";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
@@ -70,28 +69,6 @@ type AirportRouteProps = {
   currency: string;
 };
 
-type FlightOption = {
-  id: string;
-  number: string;
-  direction: "ARRIVAL" | "DEPARTURE";
-  airline: string | null;
-  /**
-   * Aeropuerto del otro extremo del vuelo: en una llegada es de dónde viene, en una salida desde
-   * Chapelco es a dónde va. Se muestra porque el número solo no alcanza para reconocer el vuelo.
-   */
-  origin?: string | null;
-  scheduledAt: string;
-  estimatedAt: string | null;
-  pickupStartAt?: string | null;
-  pickupStartCoordinated?: boolean;
-  status: string;
-  /** "API" = dato real; "ESTIMADO" = patrón proyectado (AirLabs no publica horarios futuros). */
-  source?: string;
-  available: number;
-  bookable: boolean;
-  reason: string | null;
-};
-
 type AirportCheckoutFormProps = {
   route: AirportRouteProps;
   /** Tarifa vigente por sentido: es la misma que graba la reserva (no la del slug de la página). */
@@ -105,6 +82,7 @@ type AirportCheckoutFormProps = {
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   fromAdmin?: boolean;
+  locale?: "es" | "en" | "pt";
   /** Panel: los lugares de las rutas por salida en Desde/Hacia (pantalla única de «Reservar»). */
   lugaresExtra?: LugaresExtra;
   /** A dónde lleva «Ida y vuelta»: la pantalla pública o la del panel. */
@@ -194,18 +172,8 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId, lugaresExtra }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId, lugaresExtra, locale }: AirportCheckoutFormProps) {
   const router = useRouter();
-  const [date, setDate] = useState(initialDate);
-  const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
-  const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(
-    // Si el sentido con el que entra la página no tiene tarifa activa, se arranca por el otro.
-    fares[initialDirection] ? initialDirection : fares.DEPARTURE ? "DEPARTURE" : "ARRIVAL"
-  );
-  const [selectedId, setSelectedId] = useState<string>(
-    // Al volver del ida y vuelta se conserva el vuelo de ese sentido, si sigue en la lista del día.
-    () => initialFlights.find((vuelo) => vuelo.id === initialFlightId && vuelo.direction === initialDirection)?.id ?? ""
-  );
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
   // Derivación de otra agencia (#109): sólo existe en el alta del panel.
@@ -245,8 +213,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   // El error tiene que quedar a la vista y el foco ir al campo culpable, no a un cartel lejano.
   useFocusFirstError(fieldErrors, AIRPORT_FIELD_ORDER, formRef);
   const [error, setError] = useState("");
+  const { date, sentido, selectedId, selected, setSelectedId, searchBar } = useAirportSearch({
+    slug: route.slug, fares, initialDirection, initialDate, initialFlights, initialFlightId, fromAdmin, lugaresExtra,
+    roundTripHref: roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, locale
+  }, setError);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [cargandoVuelos, setCargandoVuelos] = useState(false);
+
   // Vuelo privado: charter o avión particular que no figura en la lista del día. Lo carga el
   // pasajero y queda marcado como "privado" para que la operación lo revise.
   const [esPrivado, setEsPrivado] = useState(false);
@@ -270,35 +242,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     claveDeIdempotencia.current = "";
   }, [selectedId, date, sentido, esPrivado, privadoNumero, privadoHora]);
 
-  // La barra muestra los vuelos del sentido elegido en las tarjetas que hoy se pueden reservar; el
-  // vuelo elegido manda en la reserva. Los que ya no se pueden reservar tienen su motivo y quedan
-  // afuera de la barra: para eso está el vuelo privado o el panel.
-  const { reservables } = useMemo(
-    () => separarVuelosDelSelector(flights, sentido),
-    [flights, sentido]
-  );
-  const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
-
-  /**
-   * El único tramo de la barra (pedido de Jugue, 17-nov: «el mismo wizard de ida y vuelta, para un
-   * tramo»). Se arma con el sentido elegido en las tarjetas, el día y los vuelos, igual que el ida
-   * y vuelta arma los suyos. `minimo` usa la misma fórmula que allá: en la web no se reserva para
-   * días que ya pasaron y el panel puede cargar atrasados.
-   */
-  const tramoDeLaBarra: TramoDeLaBarra = {
-    sentido,
-    // Igual que el primer casillero del ida y vuelta: «Ida · Llegada» / «Ida · Salida».
-    etapa: "Ida",
-    titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín",
-    pregunta: sentido === "ARRIVAL"
-      ? "¿Qué día aterriza en Chapelco y en qué vuelo?"
-      : "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
-    fecha: date,
-    minimo: fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10),
-    opciones: reservables,
-    elegido: selectedId,
-    cargando: cargandoVuelos
-  };
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
   const pickupStart = esPrivado && privadoListo
@@ -472,26 +415,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     });
   }
 
-  async function cargarVuelos(fecha: string) {
-    setCargandoVuelos(true);
-    setError("");
-    try {
-      const res = await fetch(`/api/v1/airport/flights?slug=${encodeURIComponent(route.slug)}&date=${fecha}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setFlights([]);
-        setError(data?.error?.message ?? "No pudimos traer los vuelos de ese día.");
-      } else {
-        setFlights(data.flights ?? []);
-        setSelectedId("");
-      }
-    } catch {
-      setFlights([]);
-      setError("No pudimos traer los vuelos de ese día. Probá de nuevo.");
-    }
-    setCargandoVuelos(false);
-  }
-
   /** Muestra el problema arriba del formulario y lo deja a la vista (puede estar lejos de donde está la persona). */
   function mostrarProblema(problema: string) {
     setError(problema);
@@ -621,29 +544,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
           {/* El mismo recuadro que el ida y vuelta (pedido de Jugue, 18-nov): Desde ⇄ Hacia cambia
               entre llegada y salida, y al lado de la fecha está la vuelta, apagada, para sumarla. */}
-          <TripSearchBar
-            tramos={[tramoDeLaBarra]}
-            lugaresExtra={lugaresExtra}
-            routeSlug={route.slug}
-            onPedirOrden={(nuevo) => {
-              // Pasar de llegada a salida (o al revés) es otro viaje: se borra el vuelo y el lugar.
-              if (nuevo === sentido || !fares[nuevo]) return;
-              useAddress();
-              setPickupAddress("");
-              setSentido(nuevo);
-              setSelectedId("");
-              setEsPrivado(false);
-              setError("");
-            }}
-            onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
-            onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
-            agregarVuelta={detalleDeLaVuelta(sentido, fares) === null ? undefined : {
-              // `abrir=vuelta`: al llegar, la vuelta ya muestra sus vuelos (antes había que tocar
-              // el casillero dos veces: una para agregarla y otra para ver las opciones).
-              href: `${hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined })}&abrir=vuelta`,
-              detalle: detalleDeLaVuelta(sentido, fares) ?? undefined
-            }}
-          />
+          {searchBar(() => {
+            useAddress();
+            setPickupAddress("");
+            setEsPrivado(false);
+          }, () => setEsPrivado(false))}
           {fieldErrors.flight ? <p className="field-error" role="alert">{fieldErrors.flight}</p> : null}
 
 

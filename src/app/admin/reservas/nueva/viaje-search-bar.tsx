@@ -103,8 +103,9 @@ function IconoCombi() {
 
 export function ViajeSearchBar({
   origenes, destinos, origen, destino, puedeInvertir, tramos, ofrecerVuelta,
-  rutaSinSalidas, aeropuerto, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
+  locale = "es", rutaSinSalidas, aeropuerto, onLugar, onInvertir, onDia, onSalida, onAgregarVuelta, onQuitarVuelta
 }: {
+  locale?: "es" | "en" | "pt";
   origenes: Lugar[];
   /** Los destinos del origen elegido. */
   destinos: Lugar[];
@@ -122,7 +123,7 @@ export function ViajeSearchBar({
    * El aeropuerto como un lugar más (pantalla única de «Reservar», 19-nov): encabeza «Desde» y, si sale
    * de San Martín, «Hacia». Elegirlo lleva al alta por vuelo, en la misma pantalla.
    */
-  aeropuerto?: { desde: { href: string; detalle: string }; hacia: { href: string; detalle: string }; saleDe: string } | null;
+  aeropuerto?: { desde?: { href: string; detalle: string }; hacia?: { href: string; detalle: string }; saleDe: string } | null;
   onLugar: (campo: "desde" | "hacia", nombre: string) => void;
   onInvertir: () => void;
   onDia: (tramo: ClaveTramo, dia: string) => void;
@@ -130,6 +131,7 @@ export function ViajeSearchBar({
   onAgregarVuelta: () => void;
   onQuitarVuelta: () => void;
 }) {
+  const t = (es: string, en: string, pt: string) => locale === "en" ? en : locale === "pt" ? pt : es;
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
   const [abierto, setAbierto] = useState<Campo | null>(null);
@@ -223,10 +225,10 @@ export function ViajeSearchBar({
         aria-controls={panelId}
         onClick={() => alternar(campo)}
       >
-        <span className="trip-search-label">{campo === "desde" ? "Desde" : "Hacia"}</span>
+        <span className="trip-search-label">{campo === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}</span>
         <span className="trip-search-chip">
           <IconoPin />
-          {nombre || (campo === "desde" ? "Elegí el origen" : "Elegí el destino")}
+          {nombre || (campo === "desde" ? t("Elegí el origen", "Choose your origin", "Escolha a origem") : t("Elegí el destino", "Choose your destination", "Escolha o destino"))}
         </span>
       </button>
     );
@@ -249,14 +251,14 @@ export function ViajeSearchBar({
           aria-controls={panelId}
           onClick={() => alternar(tramo.clave)}
         >
-          <span className="trip-search-label">{tramo.clave === "ida" ? "Ida" : "Vuelta"}</span>
+          <span className="trip-search-label">{tramo.clave === "ida" ? t("Ida", "Outbound", "Ida") : t("Vuelta", "Return", "Volta")}</span>
           <span className="trip-search-value">
             {salida ? <span className="viaje-combi" aria-hidden="true"><IconoCombi /></span> : <IconoCalendario />}
             <span>
               {diaCorto(tramo.dia)}
               {salida
                 ? <b><span className="trip-search-sep"> · </span>{salida.timeLabel}</b>
-                : <em><span className="trip-search-sep"> · </span>elegir salida</em>}
+                : <em><span className="trip-search-sep"> · </span>{t("elegir salida", "choose departure", "escolher saída")}</em>}
             </span>
           </span>
         </button>
@@ -272,10 +274,10 @@ export function ViajeSearchBar({
   function campoAgregarVuelta(oferta: { detalle: string }) {
     return (
       <button type="button" className="trip-search-field trip-search-leg trip-search-add" data-vacio="true" data-campo="agregar-vuelta" onClick={agregarVuelta}>
-        <span className="trip-search-label">Vuelta</span>
+        <span className="trip-search-label">{t("Vuelta", "Return", "Volta")}</span>
         <span className="trip-search-value">
           <span className="trip-search-add-icon" aria-hidden="true">+</span>
-          <span>Agregar vuelta</span>
+          <span>{t("Agregar vuelta", "Add return", "Adicionar volta")}</span>
         </span>
         <small className="trip-search-add-detail">{oferta.detalle}</small>
       </button>
@@ -285,17 +287,18 @@ export function ViajeSearchBar({
   function panelLugar(campo: "desde" | "hacia") {
     const lista = campo === "desde" ? origenes : destinos;
     const actual = campo === "desde" ? origen : destino;
+    const airportOption = campo === "desde" ? aeropuerto?.desde : origen === aeropuerto?.saleDe ? aeropuerto.hacia : undefined;
     return (
       <>
-        <p className="trip-search-panel-title">{campo === "desde" ? "¿Desde dónde sale?" : "¿Adónde va?"}</p>
-        <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? "Desde" : "Hacia"}>
+        <p className="trip-search-panel-title">{campo === "desde" ? t("¿Desde dónde sale?", "Where are you leaving from?", "De onde você sai?") : t("¿Adónde va?", "Where are you going?", "Para onde você vai?")}</p>
+        <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}>
           {/* El aeropuerto primero: se reserva por vuelo, así que lleva a su alta en la misma pantalla. */}
-          {aeropuerto && (campo === "desde" || origen === aeropuerto.saleDe) ? (
-            <Link href={campo === "desde" ? aeropuerto.desde.href : aeropuerto.hacia.href} scroll={false} className="trip-search-option" role="radio" aria-checked={false}>
+          {airportOption ? (
+            <Link href={airportOption.href} scroll={false} className="trip-search-option" role="radio" aria-checked={false}>
               <span className="trip-search-option-icon"><IconoAvion /></span>
               <span className="trip-search-option-text">
                 <b>Aeropuerto Chapelco</b>
-                <small>{campo === "desde" ? aeropuerto.desde.detalle : aeropuerto.hacia.detalle}</small>
+                <small>{airportOption.detalle}</small>
               </span>
             </Link>
           ) : null}
@@ -311,7 +314,7 @@ export function ViajeSearchBar({
               <span className="trip-search-option-icon"><IconoPin /></span>
               <span className="trip-search-option-text">
                 <b>{lugar.nombre}</b>
-                <small>{lugar.salidas ? `${lugar.salidas} ${lugar.salidas === 1 ? "salida" : "salidas"} con lugar` : "Sin salidas cargadas"}</small>
+                <small>{lugar.salidas ? `${lugar.salidas} ${lugar.salidas === 1 ? "salida" : "salidas"} con lugar` : t("Sin salidas cargadas", "No scheduled departures", "Sem saídas programadas")}</small>
               </span>
               {actual === lugar.nombre ? <span className="trip-search-tick" aria-hidden="true">✓</span> : null}
             </button>
@@ -347,22 +350,22 @@ export function ViajeSearchBar({
           <div className="trip-search-handoff" role="status">
             <span className="trip-search-handoff-check" aria-hidden="true">✓</span>
             <span className="trip-search-handoff-text">
-              <b>Ida lista</b>
+              <b>{t("Ida lista", "Outbound selected", "Ida escolhida")}</b>
               <span>{diaCorto(salidaIda.dayKey)} · {salidaIda.timeLabel} · {salidaIda.boardingStop || salidaIda.from} → {salidaIda.dropoffStop || salidaIda.to}</span>
             </span>
           </div>
         ) : null}
         {tramos.length > 1 ? (
           <p className="trip-search-panel-kicker">
-            {recienLlegado ? "Ahora, la vuelta" : `Tramo ${tramo.clave === "ida" ? 1 : 2} de 2 · ${tramo.clave === "ida" ? "Ida" : "Vuelta"}`}
+            {recienLlegado ? "Ahora, la vuelta" : `Tramo ${tramo.clave === "ida" ? 1 : 2} de 2 · ${tramo.clave === "ida" ? t("Ida", "Outbound", "Ida") : t("Vuelta", "Return", "Volta")}`}
           </p>
         ) : null}
         <p className="trip-search-panel-title">{tramo.desde} → {tramo.hacia}</p>
         <p className="trip-search-panel-help">
-          {tramo.clave === "ida" ? "¿Qué día viaja y en qué salida?" : "¿Qué día vuelve? Sólo se ofrecen las salidas posteriores a la ida."}
+          {tramo.clave === "ida" ? t("¿Qué día viaja y en qué salida?", "Choose a day and departure.", "Escolha um dia e uma saída.") : t("¿Qué día vuelve? Sólo se ofrecen las salidas posteriores a la ida.", "Choose a return after your outbound trip.", "Escolha uma volta posterior à ida.")}
         </p>
 
-        <p className="trip-search-step">1. El día</p>
+        <p className="trip-search-step">{t("1. El día", "1. Day", "1. Dia")}</p>
         <div className="trip-search-days">
           <button type="button" className="trip-search-arrow" aria-label="Días anteriores" disabled={!tira.hayAntes}
             onClick={() => mover(conServicio[Math.max(0, tira.base - 7)] ?? inicio)}>‹<span className="trip-search-arrow-text"> Días anteriores</span></button>
@@ -424,7 +427,13 @@ export function ViajeSearchBar({
                   <span className="viaje-combi viaje-combi-grande" aria-hidden="true"><IconoCombi /></span>
                   <span className="trip-search-flight-text">
                     <b>{salida.boardingStop || salida.from} → {salida.dropoffStop || salida.to}</b>
-                    <small>{salida.boardingStop || salida.dropoffStop ? `Salida de ${salida.from} · ${salida.timeLabel}` : salida.status === "DOCUMENTATION" ? "En documentación" : salida.stopFares?.length ? `Con ${salida.stopFares.length === 1 ? "una parada" : `${salida.stopFares.length} paradas`} en el camino` : "Directo"}</small>
+                    <small>{salida.boardingStop || salida.dropoffStop ? `Salida de ${salida.from} · ${salida.timeLabel}` : salida.status === "DOCUMENTATION" ? "En documentación" : salida.stopFares?.length ? `Con ${salida.stopFares.length === 1 ? "una parada" : `${salida.stopFares.length} paradas`} en el camino` : t("Directo", "Direct", "Direto")}
+                      {salida.priceCents !== undefined && salida.priceCents > 0 && (
+                        <> · {new Intl.NumberFormat(locale === "es" ? "es-AR" : locale, {
+                          style: "currency", currency: salida.currency ?? "ARS", maximumFractionDigits: 2
+                        }).format(salida.priceCents / 100)}</>
+                      )}
+                    </small>
                   </span>
                   <span className="trip-search-flight-seats">
                     {elegida ? "✓ Elegida" : `${salida.availableSeats} ${salida.availableSeats === 1 ? "libre" : "libres"}`}
@@ -471,7 +480,7 @@ export function ViajeSearchBar({
           id={panelId}
           role="group"
           data-paso={recienPaso && abierto === recienPaso ? "siguiente" : undefined}
-          aria-label={tramoAbierto ? (tramoAbierto.clave === "ida" ? "Ida" : "Vuelta") : abierto === "desde" ? "Desde" : "Hacia"}
+          aria-label={tramoAbierto ? (tramoAbierto.clave === "ida" ? t("Ida", "Outbound", "Ida") : t("Vuelta", "Return", "Volta")) : abierto === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}
         >
           <button type="button" className="trip-search-close" aria-label="Cerrar" onClick={() => setAbierto(null)}>✕</button>
           {abierto === "desde" || abierto === "hacia" ? panelLugar(abierto) : tramoAbierto ? panelTramo(tramoAbierto) : null}

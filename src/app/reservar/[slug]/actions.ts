@@ -35,7 +35,7 @@ const bookingMessages: Record<string, string> = {
   CODE_COLLISION: "No pudimos generar el codigo de reserva. Intentalo nuevamente."
 };
 
-export async function createReservationAction(input: CreateReservationInput, returnScheduleId?: string): Promise<ReservationActionResult> {
+export async function createReservationAction(input: CreateReservationInput, returnScheduleId?: string, regreso?: { boardingStop?: string; dropoffStop?: string }): Promise<ReservationActionResult> {
   const parsed = createReservationSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -61,7 +61,8 @@ export async function createReservationAction(input: CreateReservationInput, ret
     if (returnScheduleId) {
       const { ida, vuelta } = await createRouteRoundTripReservation({
         ...parsed.data, returnScheduleId,
-        returnBoardingStop: parsed.data.dropoffStop, returnDropoffStop: parsed.data.boardingStop
+        returnBoardingStop: regreso ? regreso.boardingStop : parsed.data.dropoffStop,
+        returnDropoffStop: regreso ? regreso.dropoffStop : parsed.data.boardingStop
       }, { creator });
       revalidatePath(`/reservar/${ida.route.slug}`);
       revalidatePath(`/reservar/${vuelta.route.slug}`);

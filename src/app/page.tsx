@@ -6,29 +6,20 @@ import { SiteFooter } from "@/components/site-footer";
 import { WeatherForecast } from "@/components/weather-forecast";
 import { getI18n } from "@/i18n/server";
 import { localizePath } from "@/i18n/config";
-import { corridorStops } from "@/lib/booking/segment-fares";
-import { airportOptions, routeOptions } from "@/lib/booking/public-search";
-import { listPublicAirportRoutes, listPublicRoutes } from "@/lib/booking/repository";
+import { PublicBookingSearch } from "@/components/public-booking-search";
+import { getTripCatalog } from "@/lib/booking/public-trip-catalog";
 import laninSummer from "../../lanin-verano.webp";
 
 export const revalidate = 300;
 const whatsappUrl = "https://wa.me/5492944649049";
 
-function todayDateKey() {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Salta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-}
-
 export default async function HomePage() {
   const { locale, dict } = await getI18n();
   const home = (path: string) => localizePath(path, locale);
-  const routes = await listPublicRoutes();
-  // El traslado al aeropuerto se reserva por vuelo: el home enlaza directo a cada sentido.
-  const rutasAeropuerto = await listPublicAirportRoutes();
+  const catalog = await getTripCatalog();
+  const rutasAeropuerto = catalog.airports;
   const rutaAeropuerto = rutasAeropuerto.find((r) => r.specialType !== "DEPARTURE") ?? rutasAeropuerto[0] ?? null;
   const rutaAeropuertoVuelta = rutasAeropuerto.find((r) => r.specialType === "DEPARTURE") ?? null;
-  const airportChoices = airportOptions(rutasAeropuerto);
-  const originChoices = routeOptions(routes.flatMap((route) => [route.from, ...corridorStops(route).slice(0, -1)]));
-  const destinationChoices = routeOptions(routes.flatMap((route) => [route.to, ...corridorStops(route).slice(1)]));
   const finalStyle = { "--final-image": `url(${laninSummer.src})` } as CSSProperties;
   const servicios = dict.services.items.map((item, index) => ({
     number: `0${index + 1}`,
@@ -88,46 +79,10 @@ export default async function HomePage() {
               <Link className="cream-button" href={home("/rutas")} prefetch={true}>{dict.featured.ctaTransfer} <span>↗</span></Link>
             </div>
           </div>
-          <form className="chapelco-form" action={home("/rutas")} method="get">
-            <div className="booking-card-top"><span>{dict.featured.formTitle}</span><span className="status-dot">● {dict.featured.formStatus}</span></div>
-            <fieldset className="trip-toggle">
-              <legend>{dict.featured.tripType}</legend>
-              <label>
-                <input type="radio" name="tramos" value="solo-ida" defaultChecked />
-                <span>{dict.featured.oneWay}</span>
-              </label>
-              <label>
-                <input type="radio" name="tramos" value="ida-y-vuelta" />
-                <span>{dict.featured.roundTrip}</span>
-              </label>
-            </fieldset>
-            <label>
-              <small>{dict.featured.origin}</small>
-              <select name="from" defaultValue="">
-                <option value="">{dict.featured.pickOrigin}</option>
-                {airportChoices.length ? (
-                  <optgroup label={dict.routes.airportGroup}>
-                    {airportChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-                  </optgroup>
-                ) : null}
-                {originChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <label>
-              <small>{dict.featured.destination}</small>
-              <select name="to" defaultValue="">
-                <option value="">{dict.featured.pickDestination}</option>
-                {airportChoices.length ? (
-                  <optgroup label={dict.routes.airportGroup}>
-                    {airportChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-                  </optgroup>
-                ) : null}
-                {destinationChoices.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <label><small>{dict.featured.date}</small><input type="date" name="date" defaultValue={todayDateKey()} /></label>
-            <button className="accent-button" type="submit">{dict.featured.submit} ↗</button>
-          </form>
+          <div className="booking-search-card">
+            <div className="booking-card-top"><span>{dict.featured.formTitle}</span></div>
+            <PublicBookingSearch catalog={catalog} locale={locale} />
+          </div>
         </section>
 
         <section className="page-shell new-section destination-section" id="destinos">

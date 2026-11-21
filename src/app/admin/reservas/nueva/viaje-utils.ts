@@ -119,7 +119,7 @@ export function conteoPorDia(salidas: SalidaOption[]) {
  */
 export function vueltasPosibles(salidas: SalidaOption[], origen: string, destino: string, ida?: SalidaOption | null) {
   const inversa = salidasDelTramo(salidas, destino, origen);
-  return ida ? inversa.filter((salida) => momento(salida) > momento(ida)) : inversa;
+  return ida ? inversa.filter((salida) => momento(salida) > momento(ida) && (!ida.currency || !salida.currency || ida.currency === salida.currency)) : inversa;
 }
 
 /** El primer día con salidas desde `minimo` (o el primero de todos). */

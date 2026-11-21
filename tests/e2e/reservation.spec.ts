@@ -48,10 +48,9 @@ test.describe("Reserva web", () => {
     await expect(page).toHaveURL(new RegExp(`/reservar/${slug}$`));
     await waitForReactFormHydration(page);
 
-    const departure = page.locator("label.schedule-option").first();
-    await expect(departure).toBeVisible();
-    await departure.click();
-    await expect(departure.locator('input[name="scheduleId"]')).toBeChecked();
+    await page.locator('[data-campo="ida"]').click();
+    await page.locator(".trip-search-flight").first().click();
+    await expect(page.locator('[data-campo="ida"]')).toHaveAttribute("data-listo", "true");
 
     await page.getByLabel("Nombre").fill("Camila");
     await page.getByLabel("Apellido").fill("Vidal");
@@ -64,7 +63,8 @@ test.describe("Reserva web", () => {
     await page.getByRole("button", { name: "Confirmar reserva" }).click();
 
     await expect(page).toHaveURL(/\/reservas\/ARC-/, { timeout: 20000 });
-    await expect(page.getByRole("heading", { name: "Reserva recibida · pago pendiente" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reserva recibida", exact: true })).toBeVisible();
+    await expect(page.locator(".rp-hero .pill-estado")).toContainText(/pago pendiente/i);
     await expect(page.getByText("1 lugar", { exact: true }).first()).toBeVisible();
   });
 });

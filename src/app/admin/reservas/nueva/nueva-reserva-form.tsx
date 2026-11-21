@@ -9,11 +9,9 @@ import {
   PassengerFields, initialPassenger, validateCheckoutPassenger, type PassengerFieldErrors, type PassengerForm
 } from "@/app/reservar/[slug]/passenger-fields";
 import type { SalidaOption } from "./salida-picker-utils";
-import { ViajeSearchBar, diaCorto, type ClaveTramo, type TramoDelViaje } from "./viaje-search-bar";
-import {
-  destinosDesde, origenes as listarOrigenes, precioDelTramo, primerDia, rutaEntre, salidasDelTramo, totalDelViaje, unificarLugares,
-  vueltasPosibles, viajeInicial, type RutaDelPanel
-} from "./viaje-utils";
+import { ViajeSearchBar, diaCorto, type ClaveTramo } from "./viaje-search-bar";
+import { precioDelTramo, totalDelViaje, unificarLugares, type RutaDelPanel } from "./viaje-utils";
+import { useViaje } from "./use-viaje";
 import "./salida-picker.css";
 import "./alta-template.css";
 
@@ -96,28 +94,12 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
     setIntento((n) => n + 1);
   }
 
-  // El viaje.
-  const inicial = useMemo(() => viajeInicial(schedules, inicio), [schedules, inicio]);
-  const [origen, setOrigen] = useState(inicial.origen);
-  const [destino, setDestino] = useState(inicial.destino);
-  const [ida, setIda] = useState({ dia: inicial.dia, salidaId: "" });
-  const [vuelta, setVuelta] = useState({ activa: false, dia: "", salidaId: "" });
-  const [paradaIda, setParadaIda] = useState("");
-  const [paradaVuelta, setParadaVuelta] = useState("");
+  const { barra, origen, destino, salidaIda, salidaVuelta, vuelta, viajeListo, moneda, paradaIda, paradaVuelta,
+    setParadaIda, setParadaVuelta, rutaSinSalidas } = useViaje(schedules, rutas, inicio);
   // Los pasajeros.
   const [lugares, setLugares] = useState(1);
   const [media, setMedia] = useState(0);
   const [sinCargo, setSinCargo] = useState(0);
-
-  const origenes = useMemo(() => listarOrigenes(schedules, rutas), [schedules, rutas]);
-  const destinos = useMemo(() => destinosDesde(schedules, origen, rutas), [schedules, origen, rutas]);
-  const salidasIda = useMemo(() => salidasDelTramo(schedules, origen, destino), [schedules, origen, destino]);
-  const inversa = useMemo(() => salidasDelTramo(schedules, destino, origen), [schedules, origen, destino]);
-  const salidaIda = salidasIda.find((salida) => salida.id === ida.salidaId) ?? null;
-  const salidasVuelta = useMemo(() => vueltasPosibles(schedules, origen, destino, salidaIda), [schedules, origen, destino, salidaIda]);
-  const salidaVuelta = vuelta.activa ? salidasVuelta.find((salida) => salida.id === vuelta.salidaId) ?? null : null;
-  const viajeListo = Boolean(salidaIda && (!vuelta.activa || salidaVuelta));
-  const moneda = salidaIda?.currency ?? salidasIda[0]?.currency ?? "ARS";
 
   // Lugares: nunca más que los libres de las salidas elegidas.
   const maxLugares = Math.max(1, Math.min(salidaIda?.availableSeats ?? 24, salidaVuelta?.availableSeats ?? 24));
@@ -162,79 +144,6 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
     }
     listoAntes.current = viajeListo;
   }, [viajeListo]);
-
-  /** Otro origen o destino: las salidas elegidas ya no sirven; el día se queda si tiene salidas. */
-  function cambiarRuta(nuevoOrigen: string, nuevoDestino: string) {
-    const tramo = salidasDelTramo(schedules, nuevoOrigen, nuevoDestino);
-    const dia = tramo.some((salida) => salida.dayKey === ida.dia) ? ida.dia : primerDia(tramo);
-    const hayVuelta = salidasDelTramo(schedules, nuevoDestino, nuevoOrigen).length > 0;
-    setOrigen(nuevoOrigen);
-    setDestino(nuevoDestino);
-    setIda({ dia, salidaId: "" });
-    setVuelta((actual) => ({
-      activa: actual.activa && hayVuelta,
-      dia: primerDia(vueltasPosibles(schedules, nuevoOrigen, nuevoDestino), dia),
-      salidaId: ""
-    }));
-    setParadaIda("");
-    setParadaVuelta("");
-  }
-
-  function elegirLugar(campoLugar: "desde" | "hacia", nombre: string) {
-    if (campoLugar === "desde") {
-      const posibles = destinosDesde(schedules, nombre, rutas);
-      cambiarRuta(nombre, posibles.some((lugar) => lugar.nombre === destino) ? destino : posibles[0]?.nombre ?? "");
-    } else {
-      cambiarRuta(origen, nombre);
-    }
-  }
-
-  function elegirDia(tramo: ClaveTramo, dia: string) {
-    if (tramo === "ida") setIda({ dia, salidaId: "" });
-    else setVuelta((actual) => ({ ...actual, dia, salidaId: "" }));
-  }
-
-  function elegirSalida(tramo: ClaveTramo, id: string) {
-    if (tramo === "vuelta") {
-      setVuelta((actual) => ({ ...actual, salidaId: id }));
-      setParadaVuelta("");
-      return;
-    }
-    const nueva = salidasIda.find((salida) => salida.id === id);
-    setIda((actual) => ({ ...actual, salidaId: id }));
-    setParadaIda("");
-    if (!nueva) return;
-    // Si la vuelta elegida quedó antes que la nueva ida, se suelta; el día de la vuelta nunca queda
-    // antes que el de la ida.
-    const posibles = vueltasPosibles(schedules, origen, destino, nueva);
-    setVuelta((actual) => {
-      const sigue = posibles.some((salida) => salida.id === actual.salidaId);
-      const dia = actual.dia && actual.dia >= nueva.dayKey && posibles.some((salida) => salida.dayKey === actual.dia)
-        ? actual.dia
-        : primerDia(posibles, nueva.dayKey);
-      return { ...actual, dia, salidaId: sigue ? actual.salidaId : "" };
-    });
-  }
-
-  function agregarVuelta() {
-    setVuelta({ activa: true, dia: primerDia(salidasVuelta, salidaIda?.dayKey ?? ida.dia), salidaId: "" });
-  }
-
-  function quitarVuelta() {
-    setVuelta({ activa: false, dia: "", salidaId: "" });
-    setParadaVuelta("");
-  }
-
-  const tramos: TramoDelViaje[] = [
-    { clave: "ida", desde: origen, hacia: destino, dia: ida.dia, minimo: "", salidas: salidasIda, elegida: ida.salidaId },
-    ...(vuelta.activa
-      ? [{ clave: "vuelta" as const, desde: destino, hacia: origen, dia: vuelta.dia, minimo: salidaIda?.dayKey ?? ida.dia, salidas: salidasVuelta, elegida: vuelta.salidaId }]
-      : [])
-  ];
-  const precioVuelta = inversa[0]?.priceCents;
-  const ofrecerVuelta = !vuelta.activa && inversa.length > 0
-    ? { detalle: precioVuelta ? `${destino} → ${origen} · ${formatPrice(precioVuelta, moneda)} más por persona` : `${destino} → ${origen}` }
-    : null;
 
   // El documento no entra acá: el alta se puede guardar sin DNI (19-nov) y la reserva queda marcada.
   const datosListos = Boolean(pasajero.firstName.trim() && pasajero.lastName.trim() && pasajero.phone.trim());
@@ -294,23 +203,7 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
             <p className="muted">Tocá cada recuadro: desde dónde sale, adónde va, y el día y la salida. La vuelta se suma con «Agregar vuelta».</p>
           </div>
 
-          <ViajeSearchBar
-            origenes={origenes}
-            destinos={destinos}
-            origen={origen}
-            destino={destino}
-            puedeInvertir={inversa.length > 0 || Boolean(rutaEntre(rutas, destino, origen))}
-            tramos={tramos}
-            ofrecerVuelta={ofrecerVuelta}
-            aeropuerto={aeropuerto}
-            rutaSinSalidas={salidasIda.length === 0 ? rutaEntre(rutas, origen, destino) : null}
-            onLugar={elegirLugar}
-            onInvertir={() => cambiarRuta(destino, origen)}
-            onDia={elegirDia}
-            onSalida={elegirSalida}
-            onAgregarVuelta={agregarVuelta}
-            onQuitarVuelta={quitarVuelta}
-          />
+          <ViajeSearchBar {...barra} aeropuerto={aeropuerto} rutaSinSalidas={rutaSinSalidas} />
           <input type="hidden" name="scheduleId" value={salidaIda?.id ?? ""} />
           {vuelta.activa ? <input type="hidden" name="returnScheduleId" value={salidaVuelta?.id ?? ""} /> : null}
           <FieldError id="error-scheduleId" message={errores.scheduleId} />

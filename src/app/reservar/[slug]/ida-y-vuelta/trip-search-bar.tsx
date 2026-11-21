@@ -142,24 +142,26 @@ function IconoCalendario() {
  * Un lugar de otro servicio en Desde/Hacia (pantalla única de «Reservar», 19-nov): Villa Traful,
  * Villa La Angostura… Elegirlo lleva al alta por salida de ese recorrido, en la misma pantalla.
  */
-export type LugarDeOtroServicio = { nombre: string; detalle: string; href: string };
+export type LugarDeOtroServicio = { nombre: string; detalle: string; href: string; scroll?: boolean };
 
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
   onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref, lugaresExtra,
-  abrirLaVuelta = false
+  onAbrirVuelos, locale = "es", abrirLaVuelta = false
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
   /** Los tramos en el orden del viaje: uno (reserva simple) o dos (ida y vuelta). */
   tramos: TramoDeLaBarra[];
   routeSlug: string;
+  locale?: "es" | "en" | "pt";
   /** Pedir un orden: si cambia y ya hay vuelos elegidos, el formulario pregunta antes. */
   onPedirOrden?: (orden: Orden) => void;
   /** Pregunta «¿Invertir el viaje?» abierta: sólo existe con dos tramos. */
   confirmarCambio?: boolean;
   onConfirmarCambio?: () => void;
   onCancelarCambio?: () => void;
+  onAbrirVuelos?: () => void;
   onFecha: (sentido: Sentido, fecha: string) => void;
   onVuelo: (sentido: Sentido, id: string) => void;
   /**
@@ -182,6 +184,7 @@ export function TripSearchBar({
    */
   abrirLaVuelta?: boolean;
 }) {
+  const t = (es: string, en: string, pt: string) => locale === "en" ? en : locale === "pt" ? pt : es;
   const id = useId();
   const raiz = useRef<HTMLDivElement>(null);
   const [abierto, setAbierto] = useState<Campo | null>(abrirLaVuelta && tramos.length > 1 ? tramos[1].sentido : null);
@@ -252,6 +255,7 @@ export function TripSearchBar({
   }, [recienPaso]);
 
   function alternar(campo: Campo) {
+    if ((campo === "ARRIVAL" || campo === "DEPARTURE") && campo !== abierto) onAbrirVuelos?.();
     if (confirmarCambio) onCancelarCambio?.();
     setRecienPaso(null);
     setAbierto((actual) => (actual === campo ? null : campo));
@@ -262,6 +266,7 @@ export function TripSearchBar({
     if (nuevo !== sentidoBase) onPedirOrden?.(nuevo);
     // Se sigue al campo siguiente, como en Kiwi: de «Desde» a «Hacia», y de «Hacia» al día de ida
     // (el tramo de ida es siempre el del orden elegido). Si hay que confirmar, el panel espera.
+    if (campo === "hacia") onAbrirVuelos?.();
     setAbierto(campo === "desde" ? "hacia" : nuevo);
   }
 
@@ -283,7 +288,7 @@ export function TripSearchBar({
     const lugar = campo === "desde" ? desde : hacia;
     const contenido = (
       <>
-        <span className="trip-search-label">{campo === "desde" ? "Desde" : "Hacia"}</span>
+        <span className="trip-search-label">{campo === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}</span>
         <span className="trip-search-chip">
           {lugar === "CPC" ? <IconoAvion /> : <IconoPin />}
           {LUGARES[lugar].nombre}
@@ -329,7 +334,7 @@ export function TripSearchBar({
           aria-controls={panelId}
           onClick={() => alternar(tramo.sentido)}
         >
-          <span className="trip-search-label">{tramo.etapa} · {tramo.sentido === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+          <span className="trip-search-label">{tramo.etapa === "Ida" ? t("Ida", "Outbound", "Ida") : tramo.etapa === "Vuelta" ? t("Vuelta", "Return", "Volta") : tramo.etapa} · {tramo.sentido === "ARRIVAL" ? t("Llegada", "Arrival", "Chegada") : t("Salida", "Departure", "Partida")}</span>
           <span className="trip-search-value">
             {/* Con el vuelo elegido, el logo de la aerolínea dice más que el calendario. */}
             {vuelo ? <AirlineBadge code={vuelo.airline} size={28} /> : <IconoCalendario />}
@@ -338,7 +343,7 @@ export function TripSearchBar({
               {/* El « · » se esconde en el celular, donde la hora y el vuelo van en su propio renglón. */}
               {vuelo
                 ? <b><span className="trip-search-sep"> · </span>{hora(vuelo.estimatedAt ?? vuelo.scheduledAt)} {vuelo.number}</b>
-                : <em><span className="trip-search-sep"> · </span>elegir vuelo</em>}
+                : <em><span className="trip-search-sep"> · </span>{t("elegir vuelo", "choose flight", "escolher voo")}</em>}
             </span>
           </span>
         </button>
@@ -363,10 +368,10 @@ export function TripSearchBar({
     const otro: Sentido = sentidoBase === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL";
     return (
       <Link href={oferta.href} scroll={false} className="trip-search-field trip-search-leg trip-search-add" data-vacio="true">
-        <span className="trip-search-label">Vuelta · {otro === "ARRIVAL" ? "Llegada" : "Salida"}</span>
+        <span className="trip-search-label">{t("Vuelta", "Return", "Volta")} · {otro === "ARRIVAL" ? t("Llegada", "Arrival", "Chegada") : t("Salida", "Departure", "Partida")}</span>
         <span className="trip-search-value">
           <span className="trip-search-add-icon" aria-hidden="true">+</span>
-          <span>Agregar vuelta</span>
+          <span>{t("Agregar vuelta", "Add return", "Adicionar volta")}</span>
         </span>
         {oferta.detalle ? <small className="trip-search-add-detail">{oferta.detalle}</small> : null}
       </Link>
@@ -377,8 +382,8 @@ export function TripSearchBar({
     const actual = campo === "desde" ? desde : hacia;
     return (
       <>
-        <p className="trip-search-panel-title">{campo === "desde" ? "¿Desde dónde sale?" : "¿Adónde va?"}</p>
-        <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? "Desde" : "Hacia"}>
+        <p className="trip-search-panel-title">{campo === "desde" ? t("¿Desde dónde sale?", "Where are you leaving from?", "De onde você sai?") : t("¿Adónde va?", "Where are you going?", "Para onde você vai?")}</p>
+        <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}>
           {lugaresDelPanel(campo === "desde" ? hacia : desde).map((lugar) => (
             <button
               key={lugar}
@@ -398,7 +403,7 @@ export function TripSearchBar({
           ))}
           {/* Los lugares de las rutas por salida: llevan a ese recorrido, en la misma pantalla. */}
           {(campo === "desde" ? lugaresExtra?.desde ?? [] : desde === "SMA" ? lugaresExtra?.hacia ?? [] : []).map((otro) => (
-            <Link key={otro.href} href={otro.href} scroll={false} className="trip-search-option" role="radio" aria-checked={false}>
+            <Link key={otro.href} href={otro.href} scroll={otro.scroll ?? false} className="trip-search-option" role="radio" aria-checked={false}>
               <span className="trip-search-option-icon"><IconoPin /></span>
               <span className="trip-search-option-text">
                 <b>{otro.nombre}</b>
@@ -562,7 +567,7 @@ export function TripSearchBar({
           id={panelId}
           role="group"
           data-paso={recienPaso && abierto === recienPaso ? "siguiente" : undefined}
-          aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? "Desde" : "Hacia"}
+          aria-label={tramoAbierto ? tramoAbierto.titulo : abierto === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}
         >
           <button type="button" className="trip-search-close" aria-label="Cerrar" onClick={() => setAbierto(null)}>✕</button>
           {abierto === "desde" || abierto === "hacia" ? panelLugar(abierto) : tramoAbierto ? panelTramo(tramoAbierto) : null}
