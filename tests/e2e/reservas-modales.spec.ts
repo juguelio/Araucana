@@ -80,10 +80,20 @@ test("«Pagada» muestra el comprobante junto al formulario de cancelación", as
 
   const modal = page.getByRole("dialog", { name: /^Pagada/ });
   const receipt = modal.getByRole("img", { name: "Comprobante pago.png" });
+  const reason = modal.getByLabel("Motivo de la cancelación");
   await expect(receipt).toHaveAttribute("src", receiptPath);
   await expect(receipt).toBeVisible();
-  await expect(modal.getByLabel("Motivo de la cancelación")).toBeVisible();
+  await expect(reason).toBeVisible();
   await expect(modal.getByRole("button", { name: "Cancelar reserva" })).toBeVisible();
+
+  const receiptDesktop = (await receipt.boundingBox())!;
+  const reasonDesktop = (await reason.boundingBox())!;
+  expect(receiptDesktop.x + receiptDesktop.width).toBeLessThan(reasonDesktop.x);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const receiptMobile = (await receipt.boundingBox())!;
+  const reasonMobile = (await reason.boundingBox())!;
+  expect(receiptMobile.y + receiptMobile.height).toBeLessThan(reasonMobile.y);
 });
 
 test("la etiqueta «Pago pendiente» abre el modal de estado: registrar pago, cancelar con motivo y restituir", async ({ page }) => {

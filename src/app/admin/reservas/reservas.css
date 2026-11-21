@@ -235,6 +235,15 @@
 /* El comprobante necesita ancho: la foto del celular y el PDF se leen mal en 520px. */
 .reservas-modal-comprobante { width: min(760px, 100%); }
 .reservas-modal-body { display: grid; gap: 14px; margin-top: 16px; }
+.reservas-modal-acciones-estado { display: grid; gap: 14px; min-width: 0; }
+@media (min-width: 760px) {
+  .reservas-modal-pago-aprobado { width: min(1020px, 100%); }
+  .reservas-modal-pago-aprobado .reservas-modal-body {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 20px;
+    align-items: start;
+  }
+}
 .reservas-modal-form { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .reservas-modal-form p { margin: 0; }
 .reservas-modal-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
@@ -280,5 +289,6 @@
 }
 .comprobante-viewer figcaption { font-size: 12px; }
 .reservas-modal-ok { margin: 0; color: var(--primary); font-weight: 700; }
-.reservas-modal-body > .ghost-button { justify-self: start; }
+.reservas-modal-body > .ghost-button,
+.reservas-modal-acciones-estado > .ghost-button { justify-self: start; }
 
