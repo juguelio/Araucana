@@ -1,12 +1,26 @@
 import { getVerifiedLodgingLocation } from "./lodging-locations";
 import catalogue from "./data/sma-lodgings.json";
+import complementary from "./data/sma-lodgings-complementary.json";
 import { airportSearchLocality, normalizePlaceText, splitPlaceQuery } from "./place-search-area";
 import type { AirportPlaceSuggestion } from "./place-suggestions";
 
 export const municipalLodgings = catalogue.lodgings;
 export const municipalLodgingsSource = catalogue.sourceUrl;
 
-export function municipalLodgingSuggestion(lodging: typeof municipalLodgings[number]): AirportPlaceSuggestion {
+/**
+ * Fichas verificadas fuera del listado municipal: fichas municipales que el listado no muestra
+ * («sma-N») y alojamientos habilitados sólo por la provincia («nqn-…»). Si el padrón vuelve a listar
+ * una ficha municipal, manda el padrón y la complementaria se descarta para no duplicarla.
+ */
+export function unlistedLodgings<T extends { municipalId: string | null }>(entries: T[], listedIds: Set<string>) {
+  return entries.filter((entry) => !entry.municipalId || !listedIds.has(entry.municipalId));
+}
+export const complementaryLodgings = unlistedLodgings(complementary.lodgings, new Set(municipalLodgings.map(({ id }) => id)));
+/** Padrón municipal más las fichas complementarias: lo que busca y selecciona el buscador. */
+export const catalogueLodgings: CatalogueLodging[] = [...municipalLodgings, ...complementaryLodgings];
+export type CatalogueLodging = { id: string; name: string; type: string; zone: string; address: string; sourceUrl: string };
+
+export function municipalLodgingSuggestion(lodging: CatalogueLodging): AirportPlaceSuggestion {
   const location = getVerifiedLodgingLocation(lodging);
   return {
     label: `${lodging.name}, ${lodging.address} · ${lodging.zone} · ${lodging.type}`,
@@ -48,7 +62,7 @@ function oneLetterAway(a: string, b: string) {
 const commercialNames: Record<string, { municipalName: string; aliases: string[] }> = {
   "183": { municipalName: "Turismo", aliases: ["Hotel Turismo Patagonia", "Turismo Patagonia"] }
 };
-const indexed = municipalLodgings.map((lodging) => ({
+const indexed = catalogueLodgings.map((lodging) => ({
   lodging,
   names: [lodging.name, ...(commercialNames[lodging.id]?.municipalName === lodging.name
     ? commercialNames[lodging.id].aliases : [])].map((name) => ({ name: normalizePlaceText(name), words: lodgingNameWords(name) })),

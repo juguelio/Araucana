@@ -1,6 +1,7 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import catalogue from "./data/sma-lodgings.json";
-import { findMunicipalLodgings, municipalLodgings, suggestMunicipalLodgings, withMunicipalLodgings } from "./lodging-catalogue";
+import { complementaryLodgings, findMunicipalLodgings, municipalLodgings, suggestMunicipalLodgings, unlistedLodgings, withMunicipalLodgings } from "./lodging-catalogue";
+import complementary from "./data/sma-lodgings-complementary.json";
 import { normalizePlaceText } from "./place-search-area";
 import { suggestAirportPlaces } from "./place-suggestions";
 
@@ -90,4 +91,47 @@ it("reconoce el nombre comercial Turismo Patagonia sin confundirlo con Patagonia
   }
   expect(suggestMunicipalLodgings("Hotel Turismo Patagonia, Junín de los Andes")).toEqual([]);
   expect(findMunicipalLodgings("Patagonia Plaza")[0].id).toBe("1");
+});
+
+describe("catálogo complementario", () => {
+  it("no duplica ni reemplaza el padrón municipal", () => {
+    const municipalIds = new Set(municipalLodgings.map(({ id }) => id));
+    const ids = complementaryLodgings.map(({ id }) => id);
+    expect(complementaryLodgings).toHaveLength(complementary.lodgings.length);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const place of complementaryLodgings) {
+      expect(municipalIds.has(place.id)).toBe(false);
+      expect(place.id).toMatch(/^(?:sma-\d{1,8}|nqn-[a-z0-9]+(?:-[a-z0-9]+)*)$/);
+      for (const field of [place.name, place.type, place.zone, place.address, place.zoneBasis]) expect(field.trim()).not.toBe("");
+      expect(new URL(place.registry.url).hostname).toBe("turismo.neuquen.gob.ar");
+      if (place.id.startsWith("sma-")) {
+        expect(place.municipalId).toBe(place.id.slice(4));
+        expect(municipalIds.has(place.municipalId!)).toBe(false);
+        expect(place.sourceUrl).toBe(`https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=${place.municipalId}`);
+      } else {
+        expect(place.municipalId).toBeNull();
+        expect(place.sourceUrl).toBe(place.registry.url);
+      }
+    }
+  });
+
+  it("descarta la ficha complementaria cuando el padrón la vuelve a listar", () => {
+    const entries = [{ id: "sma-170", municipalId: "170" }, { id: "nqn-terra-alta", municipalId: null }];
+    expect(unlistedLodgings(entries, new Set(["170"])).map(({ id }) => id)).toEqual(["nqn-terra-alta"]);
+  });
+
+  it.each(complementaryLodgings)("encuentra $name ($id) por nombre, sin tildes, con la localidad y con su zona", (place) => {
+    for (const query of [place.name, normalizePlaceText(place.name), `${place.name}, San Martín de los Andes`, `${place.name}, ${place.zone}`]) {
+      expect(findMunicipalLodgings(query).map((result) => result.id), query).toContain(place.id);
+    }
+  });
+
+  it("distingue nombres parecidos y domicilios compartidos", () => {
+    expect(findMunicipalLodgings("Hostal del Lago")[0].id).toBe("nqn-hostal-del-lago");
+    expect(findMunicipalLodgings("Hostal del Esquiador")[0].id).toBe("165");
+    expect(findMunicipalLodgings("Las Lengas")[0].id).toBe("sma-170");
+    expect(findMunicipalLodgings("Peumayen")[0].address).toBe("Perito Moreno 1797");
+    expect(findMunicipalLodgings("Antuen").map(({ id }) => id)).not.toContain("sma-106");
+    expect(findMunicipalLodgings("Terra Alta, Junín de los Andes")).toEqual([]);
+  });
 });

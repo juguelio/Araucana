@@ -8,7 +8,7 @@ import {
 } from "@/lib/airport/place-search-area";
 import type { AirportPlaceSuggestion, PickupPrecision } from "@/lib/airport/place-suggestions";
 import type { StreetOption } from "@/lib/airport/street-address";
-import { municipalLodgings, municipalLodgingsSource, suggestMunicipalLodgings, withMunicipalLodgings } from "@/lib/airport/lodging-catalogue";
+import { catalogueLodgings, municipalLodgingsSource, suggestMunicipalLodgings, withMunicipalLodgings } from "@/lib/airport/lodging-catalogue";
 import styles from "./airport-address-map.module.css";
 
 type Suggestion = AirportPlaceSuggestion | GoogleSuggestion;
@@ -61,11 +61,20 @@ async function searchStreetAddress(street: string, number: string, signal: Abort
   return data.match;
 }
 
-function SearchAttribution({ sources }: { sources: Suggestion["source"][] }) {
+type AttributionSource = Suggestion["source"] | "provincial";
+
+function attributionSource(suggestion: Suggestion): AttributionSource {
+  return suggestion.source === "municipal" && suggestion.lodgingId?.startsWith("nqn-")
+    ? "provincial"
+    : suggestion.source;
+}
+
+function SearchAttribution({ sources }: { sources: AttributionSource[] }) {
   return (
     <p className="muted">
       {sources.includes("google") ? <span translate="no">Google Maps </span> : null}
       {sources.includes("municipal") ? <><a href={municipalLodgingsSource} target="_blank" rel="noreferrer">Turismo San Martín de los Andes</a>{" · "}</> : null}
+      {sources.includes("provincial") ? <a href="https://turismo.neuquen.gob.ar/alojamientos/" target="_blank" rel="noreferrer">Turismo Neuquén</a> : null}
       {sources.includes("georef") ? <a href="https://www.argentina.gob.ar/georef" target="_blank" rel="noreferrer">GeoRef Argentina</a> : null}
       {sources.includes("locationiq") ? <><a href="https://locationiq.com" target="_blank" rel="noreferrer">LocationIQ</a>{" · "}</> : null}
       {sources.some((source) => source === "locationiq" || source === "photon") ? (
@@ -76,7 +85,7 @@ function SearchAttribution({ sources }: { sources: Suggestion["source"][] }) {
 }
 
 function SuggestionLabel({ suggestion }: { suggestion: Suggestion }) {
-  const lodging = suggestion.source === "municipal" && municipalLodgings.find((entry) => entry.id === suggestion.lodgingId);
+  const lodging = suggestion.source === "municipal" && catalogueLodgings.find((entry) => entry.id === suggestion.lodgingId);
   return lodging ? <><strong>{lodging.name}</strong><small>{lodging.address}</small><small>{lodging.type} · {lodging.zone}</small></> : <>{suggestion.label}</>;
 }
 
@@ -103,7 +112,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
   const [query, setQuery] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [selectionSource, setSelectionSource] = useState<Suggestion["source"] | null>(null);
+  const [selectionSource, setSelectionSource] = useState<AttributionSource | null>(null);
   const [coordinateSourceUrl, setCoordinateSourceUrl] = useState<string | null>(null);
   const [coordinateSource, setCoordinateSource] = useState<Suggestion["source"] | null>(null);
   const [selectionMessage, setSelectionMessage] = useState("");
@@ -243,7 +252,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
     setActiveIndex(-1);
     setError("");
     setEmptySearch(false);
-    setSelectionSource(suggestion.source);
+    setSelectionSource(attributionSource(suggestion));
 
     token.current = null;
     if (suggestion.source === "municipal" && suggestion.lodgingId) {
@@ -386,7 +395,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
                 onClick={() => { if (!disabled) void choose(suggestion); }}>
                 <SuggestionLabel suggestion={suggestion} />
                 {suggestion.source !== "google" && suggestion.precision === "none" ? <small>{suggestion.source === "municipal" ? "Directorio de Turismo · Confirmá la ubicación al elegirlo" : "Ubicá el punto en el mapa"}</small> : null}
-                {suggestion.source !== "google" && suggestion.precision === "street" ? <small>Encontramos la calle, no la altura: ajustá el punto</small> : null}
+                {suggestion.source !== "google" && suggestion.precision === "street" ? <small>{suggestion.source === "municipal" ? "Referencia de zona: ajustá el punto" : "Encontramos la calle, no la altura: ajustá el punto"}</small> : null}
                 {suggestion.source !== "google" && suggestion.precision === "interpolated" ? <small>Referencia aproximada</small> : null}
                 {coverage.enabled && suggestion.source !== "google" && suggestion.point && suggestion.precision === "exact" ? (
                   <small>{isInsideAirportPickupZone(suggestion.point, coverage) ? "Dentro de la cobertura" : "Fuera de la cobertura"}</small>
@@ -394,7 +403,7 @@ export function AirportPlaceSearch({ coverage, useGoogle, disabled, onChange, on
               </li>
             ))}
           </ul>
-          <SearchAttribution sources={suggestions.map((suggestion) => suggestion.source)} />
+          <SearchAttribution sources={suggestions.map(attributionSource)} />
         </>
       ) : null}
       {coordinateSourceUrl ? <p><a href={coordinateSourceUrl} target="_blank" rel="noreferrer">Fuente de la ubicación</a></p> : null}

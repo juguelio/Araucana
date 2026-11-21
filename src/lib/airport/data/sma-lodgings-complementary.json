@@ -1,0 +1,406 @@
+{
+  "description": "Alojamientos verificados fuera del listado público municipal. Los ids «sma-N» son fichas municipales existentes (ver-alojamiento/?id=N) que el listado no muestra; los «nqn-…» sólo figuran en el registro provincial. Si el padrón municipal vuelve a listar una ficha, manda el padrón.",
+  "checkedOn": "2026-11-20",
+  "lodgings": [
+    {
+      "id": "sma-125",
+      "name": "Del Chacay",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Paseo Del Alba 58",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=125",
+      "municipalId": "125",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=DEL+CHACAY&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Cuyen, a 53 m)."
+    },
+    {
+      "id": "sma-44",
+      "name": "Huilko",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Chimehuin 170",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=44",
+      "municipalId": "44",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=HUILKO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Bärenhaus, a 110 m)."
+    },
+    {
+      "id": "sma-119",
+      "name": "La Lomada",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "El Oasis 75",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=119",
+      "municipalId": "119",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LA+LOMADA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Rucaleufú, a 64 m)."
+    },
+    {
+      "id": "sma-143",
+      "name": "Las Aljabas",
+      "type": "Cabañas",
+      "zone": "Alrededores",
+      "address": "Pje. Michai 388",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=143",
+      "municipalId": "143",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAS+ALJABAS&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (La Balconada, a 212 m)."
+    },
+    {
+      "id": "sma-170",
+      "name": "Las Lengas",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Tte. Cnel. Pérez 1175",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=170",
+      "municipalId": "170",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Hostería",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAS+LENGAS&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Plaza Mayor, a 25 m)."
+    },
+    {
+      "id": "sma-134",
+      "name": "Los Retoños",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Perito Moreno 1473",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=134",
+      "municipalId": "134",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LOS+RETO%C3%91OS&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Rotui, a 132 m)."
+    },
+    {
+      "id": "sma-136",
+      "name": "Luz de Luna",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Cnel. Díaz 1195",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=136",
+      "municipalId": "136",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LUZ+DE+LUNA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (La Casa de Eugenia, a 38 m)."
+    },
+    {
+      "id": "sma-90",
+      "name": "Matices de otoño",
+      "type": "Apart Hoteles",
+      "zone": "Barrio La Cascada",
+      "address": "Ruta Nac. 40 Ex. 234 Lote 7. Barrio La Cascada",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=90",
+      "municipalId": "90",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Apart Hotel",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=MATICES+DE+OTO%C3%91O&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "sma-160",
+      "name": "Melingo",
+      "type": "Hosterias",
+      "zone": "Alrededores",
+      "address": "Las Lengas 139",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=160",
+      "municipalId": "160",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Hostería",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=MELINGO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (La Balconada, a 30 m)."
+    },
+    {
+      "id": "sma-106",
+      "name": "Peumayen",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Perito Moreno 1797",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=106",
+      "municipalId": "106",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Apart Hotel",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=PEUMAYEN&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Migsu, a 92 m)."
+    },
+    {
+      "id": "sma-150",
+      "name": "Trabunche",
+      "type": "Cabañas",
+      "zone": "Centro",
+      "address": "Gabriel Obeid 934",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=150",
+      "municipalId": "150",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=TRABUNCHE&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Wesley, a 50 m)."
+    },
+    {
+      "id": "sma-68",
+      "name": "Yepún",
+      "type": "Apart Hoteles",
+      "zone": "Alrededores",
+      "address": "Yepún 50",
+      "sourceUrl": "https://sanmartindelosandes.gob.ar/ver-alojamiento/?id=68",
+      "municipalId": "68",
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Apart Hotel",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=YEPUN&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Antilhue, a 43 m)."
+    },
+    {
+      "id": "nqn-casa-de-piedra",
+      "name": "Casa de Piedra",
+      "type": "Cabañas",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes U.F. 13, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=CASA+DE+PIEDRA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=CASA+DE+PIEDRA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-colonos-del-sur",
+      "name": "Colonos del Sur",
+      "type": "Hosterias",
+      "zone": "Alrededores",
+      "address": "Los Raulíes 148",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=COLONOS+DEL+SUR&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Hostería",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=COLONOS+DEL+SUR&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Las Vertientes, a 1615 m)."
+    },
+    {
+      "id": "nqn-del-tilo",
+      "name": "Del Tilo",
+      "type": "Apart Hoteles",
+      "zone": "Centro",
+      "address": "Rivadavia 739",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=DEL+TILO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Apart Hotel",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=DEL+TILO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Patagonia Plaza, a 63 m)."
+    },
+    {
+      "id": "nqn-hostal-del-lago",
+      "name": "Hostal del Lago",
+      "type": "Hosterias",
+      "zone": "Centro",
+      "address": "Cnel. Rohde 854",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=HOSTAL+DEL+LAGO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Hostería",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=HOSTAL+DEL+LAGO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: zona de la ficha municipal ubicada más cercana (Lo de Italo, a 30 m)."
+    },
+    {
+      "id": "nqn-huella-blanca",
+      "name": "Huella Blanca",
+      "type": "Cabañas",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes lote 103, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=HUELLA+BLANCA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=HUELLA+BLANCA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-la-madriguera",
+      "name": "La Madriguera",
+      "type": "Cabañas",
+      "zone": "Las Pendientes",
+      "address": "Condominio Las Pendientes U.F. 128/129, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LA+MADRIGUERA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LA+MADRIGUERA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-ladera-sur",
+      "name": "Ladera Sur",
+      "type": "Viviendas Amobladas",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes lote 164, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LADERA+SUR&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Viviendas Amobladas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LADERA+SUR&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-lago-villarino",
+      "name": "Lago Villarino",
+      "type": "Hosterias",
+      "zone": "7 Lagos",
+      "address": "Ruta Nacional 40 (ex 234), Lago Villarino",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAGO+VILLARINO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Hostería",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAGO+VILLARINO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: corredor de la Ruta 40 hacia los Siete Lagos, como los campings municipales de la zona 7 Lagos."
+    },
+    {
+      "id": "nqn-land-of-hope-and-dreams",
+      "name": "Land of Hope and Dreams",
+      "type": "Viviendas Amobladas",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes unidad 3, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAND+OF+HOPE+AND+DREAMS&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Viviendas Amobladas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAND+OF+HOPE+AND+DREAMS&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-las-elcira",
+      "name": "Las Elcira",
+      "type": "Cabañas",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAS+ELCIRA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=LAS+ELCIRA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-miradores-del-lanin",
+      "name": "Miradores del Lanín",
+      "type": "Cabañas",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes lote pastoril 70, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=MIRADORES+DEL+LANIN&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Cabañas y Dormis",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=MIRADORES+DEL+LANIN&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-terra-alta",
+      "name": "Terra Alta",
+      "type": "Hotel",
+      "zone": "Las Pendientes",
+      "address": "Las Pendientes lote 71, Cerro Chapelco",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=TERRA+ALTA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Hotel",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=TERRA+ALTA&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Según el domicilio publicado."
+    },
+    {
+      "id": "nqn-rio-hermoso",
+      "name": "Río Hermoso",
+      "type": "Viviendas Amobladas",
+      "zone": "7 Lagos",
+      "address": "Ruta Nacional 40 Nº 2188",
+      "sourceUrl": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=RIO+HERMOSO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+      "municipalId": null,
+      "registry": {
+        "name": "Turismo Neuquén · alojamientos habilitados",
+        "class": "Viviendas Amobladas",
+        "url": "https://turismo.neuquen.gob.ar/alojamientos/?turapi_busqueda=RIO+HERMOSO&turapi_localidad=San+Mart%C3%ADn+de+los+Andes+%2802972%29",
+        "checkedOn": "2026-11-20"
+      },
+      "zoneBasis": "Derivada: corredor de la Ruta 40 hacia los Siete Lagos, como los campings municipales de la zona 7 Lagos."
+    }
+  ]
+}

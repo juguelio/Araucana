@@ -887,14 +887,14 @@
     "name": "Italia",
     "address": "Tte. Cnel. Pérez 977",
     "point": [
-      -40.1592096,
-      -71.3515288
+      -40.1592207,
+      -71.3515322
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Tte.+Coronel+P%C3%A9rez+977,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1531292,-71.3343543,4278m/data=!3m1!1e3!4m6!3m5!1s0x96110e717589ef4f:0xdd30de6e0ff5b884!8m2!3d-40.1592096!4d-71.3515288!16s%2Fg%2F11gwkz0vxp",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Residencial+Italia/@-40.1592207,-71.3515322,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e719f8fde8b:0xaef8db373768a77e!5m2!4m1!1i2!8m2!3d-40.1592207!4d-71.3515322!16s%2Fg%2F1hc1z5lw5",
     "checkedOn": "2026-11-20",
-    "evidence": "Tte. Coronel Pérez 977. Domicilio publicado; confirmar entrada."
+    "evidence": "Residencial Italia, Tte. Coronel Pérez 977. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "193": {
     "name": "El Arroyuelo",
@@ -1004,14 +1004,14 @@
     "name": "El Recodo",
     "address": "Fosbery A. 212",
     "point": [
-      -40.154075,
-      -71.3609277
+      -40.1541339,
+      -71.3608912
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Asunci%C3%B3n+Fosbery+212,+Q8370DQB+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.154075,-71.3609277,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e0a8fe23697:0xc1706688aff63af!8m2!3d-40.154075!4d-71.3609277!16s%2Fg%2F11s9k9pp45",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+El+Recodo/@-40.1541339,-71.3608912,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e0a8ad13865:0xca672fd780f11a90!8m2!3d-40.1541339!4d-71.3608912!16s%2Fg%2F1tmg7rb0",
     "checkedOn": "2026-11-20",
-    "evidence": "Asunción Fosbery 212. Domicilio publicado; confirmar entrada."
+    "evidence": "Cabañas El Recodo, Asunción Fosbery 212. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "215": {
     "name": "Los Notros",
@@ -1043,14 +1043,14 @@
     "name": "El Viejo Nogal",
     "address": "Rivadavia 445",
     "point": [
-      -40.1548824,
-      -71.3569279
+      -40.1548834,
+      -71.3569075
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Rivadavia+445,+Q8370ESE+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1548824,-71.3569279,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e7519361503:0xc3a8391b7974dada!8m2!3d-40.1548824!4d-71.3569279!16s%2Fg%2F11s9jy440_",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Apart+Hotel+El+Viejo+Nogal/@-40.1548834,-71.3569075,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110e751bf27885:0x644f5895fdceedf7!5m2!4m1!1i2!8m2!3d-40.1548834!4d-71.3569075!16s%2Fg%2F1hc3m7xk4",
     "checkedOn": "2026-11-20",
-    "evidence": "Rivadavia 445. Domicilio publicado; confirmar entrada."
+    "evidence": "Apart Hotel El Viejo Nogal, Rivadavia 445. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "222": {
     "name": "Paimun",
@@ -1524,14 +1524,14 @@
     "name": "Antuken",
     "address": "Belgrano 1053",
     "point": [
-      -40.1590676,
-      -71.3485604
+      -40.1592472,
+      -71.34854
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Belgrano+1053,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1590676,-71.3485604,1069m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e705e9e67bb:0x7811d25dbf89d29f!8m2!3d-40.1590676!4d-71.3485604!16s%2Fg%2F11thr6203k",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Antuken/@-40.1592472,-71.34854,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e70f8cf4fb5:0x89bb42a3a0174a42!5m2!4m1!1i2!8m2!3d-40.1592472!4d-71.34854!16s%2Fg%2F11clw8nfk2",
     "checkedOn": "2026-11-20",
-    "evidence": "Belgrano 1053. Domicilio publicado; confirmar entrada."
+    "evidence": "Cabañas Antuken, Belgrano 1053. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "340": {
     "name": "Filo Hua Hum",
@@ -1862,27 +1862,27 @@
     "name": "Warthon",
     "address": "Belgrano 315",
     "point": [
-      -40.1518235,
-      -71.3524981
+      -40.1518033,
+      -71.3525477
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Belgrano+315,+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1518235,-71.3524981,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110dd8abb24f1b:0xaa69555248f37b0c!8m2!3d-40.1518235!4d-71.3524981!16s%2Fg%2F11jylxbp4b",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Warthon+Hostel/@-40.1518033,-71.3525477,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110d007c9f4b81:0x1d7a07ddbaef0097!5m2!4m1!1i2!8m2!3d-40.1518033!4d-71.3525477!16s%2Fg%2F11vm6tt1y2",
     "checkedOn": "2026-11-20",
-    "evidence": "Belgrano 315. Domicilio publicado; confirmar entrada."
+    "evidence": "Warthon Hostel, Belgrano 315. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "254": {
     "name": "Yuco",
     "address": "Perito Moreno n°1120 esquina Sarmiento.",
     "point": [
-      -40.1536181,
-      -71.3481546
+      -40.1533319,
+      -71.3479804
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Sarmiento+%26+Perito+Moreno,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1536181,-71.3481546,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e77757dce55:0xdd33822a38151804!8m2!3d-40.1536181!4d-71.3481546!16s%2Fg%2F11f2zm0fy6",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/CASA+Yuco+Hostel/@-40.1533319,-71.3479804,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110fa64e20550f:0x27421412721e67c!5m2!4m1!1i2!8m2!3d-40.1533319!4d-71.3479804!16s%2Fg%2F11lnjqt09y",
     "checkedOn": "2026-11-20",
-    "evidence": "Sarmiento & Perito Moreno. Domicilio publicado; confirmar entrada."
+    "evidence": "CASA Yuco Hostel, Perito Moreno 1120 (esquina Sarmiento según la ficha municipal). Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "257": {
     "name": "Travellers on two wheels.",
@@ -1914,27 +1914,27 @@
     "name": "Temporada",
     "address": "PASAJE TRAHUNCO 14",
     "point": [
-      -40.1532042,
-      -71.321741
+      -40.1531411,
+      -71.3217485
     ],
-    "precision": "street",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Pje.+Trahunco,+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1532042,-71.321741,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e9b684a4a15:0x654dd1926fcb1233!8m2!3d-40.1532042!4d-71.321741!16s%2Fg%2F11bymy6cw3",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Temporada/@-40.1531411,-71.3217485,1121m/data=!3m1!1e3!4m9!3m8!1s0x96110e847ca1eaa5:0x9afbcc6f36000ad8!5m2!4m1!1i2!8m2!3d-40.1531411!4d-71.3217485!16s%2Fg%2F11_kcz496",
     "checkedOn": "2026-11-20",
-    "evidence": "Pje. Trahunco. Referencia de zona/acceso; confirmar punto exacto."
+    "evidence": "Cabañas Temporada sobre el Pasaje Trahunco, a 7 m de la referencia anterior. Google publica Pje. Trahunco 215 y la ficha municipal PASAJE TRAHUNCO 14: el establecimiento es el mismo, la altura difiere entre fuentes. Establecimiento identificado; confirmar entrada."
   },
   "32": {
     "name": "Valldemossa",
     "address": "Juez Del Valle 1126",
     "point": [
-      -40.1628627,
-      -71.3564413
+      -40.1628167,
+      -71.356409
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Juez+del+Valle+1126,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1628627,-71.3564413,1069m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e6d7b55ed57:0xc4d076252627eda1!8m2!3d-40.1628627!4d-71.3564413!16s%2Fg%2F11thq_sw2w",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Valldemossa+Apart+Hotel/@-40.1628167,-71.356409,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e729e2bad3f:0x892ff8ef2318bce8!5m2!4m1!1i2!8m2!3d-40.1628167!4d-71.356409!16s%2Fg%2F1tdchkpl",
     "checkedOn": "2026-11-20",
-    "evidence": "Juez del Valle 1126. Domicilio publicado; confirmar entrada."
+    "evidence": "Valldemossa Apart Hotel, Juez del Valle 1126. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "327": {
     "name": "Pucara.",
@@ -2044,14 +2044,14 @@
     "name": "Cuncumen",
     "address": "Av. Koessler 2301",
     "point": [
-      -40.1536845,
-      -71.3315513
+      -40.1536989,
+      -71.33153
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Av.+Koessler+2301,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1536845,-71.3315513,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e86d38dbd53:0xc5cbe29d052bf068!8m2!3d-40.1536845!4d-71.3315513!16s%2Fg%2F11thrj10gp",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/CUNCUMEN+Apart+de+Monta%C3%B1a/@-40.1536989,-71.33153,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110e872991900f:0x1835d80eefe1a921!5m2!4m1!1i2!8m2!3d-40.1536989!4d-71.33153!16s%2Fg%2F1hdz9j6kr",
     "checkedOn": "2026-11-20",
-    "evidence": "Av. Koessler 2301. Domicilio publicado; confirmar entrada."
+    "evidence": "CUNCUMEN Apart de Montaña, Av. Koessler 2301. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "360": {
     "name": "Inche Peuma - Lago Huechulafquen-",
@@ -2083,14 +2083,14 @@
     "name": "Bucalemu",
     "address": "Cnel. Diaz Nº 1021",
     "point": [
-      -40.1614988,
-      -71.3565049
+      -40.161323,
+      -71.3565567
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Cnel.+D%C3%ADaz+1021,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1614988,-71.3565049,1069m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e72927cab3b:0x42f31503d016580!8m2!3d-40.1614988!4d-71.3565049!16s%2Fg%2F11ffk0by6x",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hostel+Bucalemu/@-40.161323,-71.3565567,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110f01b32bee4b:0x890afe654a3c10d3!8m2!3d-40.161323!4d-71.3565567!16s%2Fg%2F11x5vjxrkq",
     "checkedOn": "2026-11-20",
-    "evidence": "Cnel. Díaz 1021. Domicilio publicado; confirmar entrada."
+    "evidence": "Hostel Bucalemu en Cnel. Díaz y Gabriel Obeid, a 20 m de Cnel. Díaz 1021; coincide con la ficha municipal (media cuadra de la terminal). Establecimiento identificado; confirmar entrada."
   },
   "363": {
     "name": "Complejo Playa Bonita",
@@ -2148,14 +2148,14 @@
     "name": "El Oasis",
     "address": "El Oasis 450",
     "point": [
-      -40.1533462,
-      -71.3235385
+      -40.1533653,
+      -71.3234534
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/El+Oasis+450,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1533462,-71.3235385,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e84b623e39f:0xa3c3953e0aed8eea!8m2!3d-40.1533462!4d-71.3235385!16s%2Fg%2F11thr2hyz9",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/El+Oasis+Apart+Hotel/@-40.1533653,-71.3234534,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110e84c8fd45ff:0x6492e7dc137bde2e!5m2!4m1!1i2!8m2!3d-40.1533653!4d-71.3234534!16s%2Fg%2F11b7vsq545",
     "checkedOn": "2026-11-20",
-    "evidence": "El Oasis 450. Domicilio publicado; confirmar entrada."
+    "evidence": "El Oasis Apart Hotel, El Oasis 450. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "375": {
     "name": "Chucao",
@@ -2200,14 +2200,14 @@
     "name": "Kalasur",
     "address": "Los Pañiles 55",
     "point": [
-      -40.1497292,
-      -71.339096
+      -40.149966,
+      -71.338923
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Los+Pa%C3%B1iles+55,+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1497292,-71.339096,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110dd58a361d17:0xd67285806b5016c5!8m2!3d-40.1497292!4d-71.339096!16s%2Fg%2F11c29gh01p",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Kalasur+Patagonia+Apart+Hotel/@-40.149966,-71.338923,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110e7f63c09c49:0xc411b8d04c1df907!5m2!4m1!1i2!8m2!3d-40.149966!4d-71.338923!16s%2Fg%2F1jkxd0y9z",
     "checkedOn": "2026-11-20",
-    "evidence": "Los Pañiles 55. Domicilio publicado; confirmar entrada."
+    "evidence": "Kalasur Patagonia Apart Hotel, Los Pañiles 55 Barrio Altos del Sol. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "42": {
     "name": "Rotui",
@@ -2408,14 +2408,14 @@
     "name": "Cascadas",
     "address": "Gabriel Obeid 859",
     "point": [
-      -40.1588532,
-      -71.3491745
+      -40.1588701,
+      -71.3491686
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Gabriel+Obeid+859,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1588532,-71.3491745,1069m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e70f8775799:0x304316897bad8b78!8m2!3d-40.1588532!4d-71.3491745!16s%2Fg%2F11jzr1rl47",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Apart+Hotel+Cascadas/@-40.1588701,-71.3491686,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e7057ef057f:0x7e90cc4bd3afe416!5m2!4m1!1i2!8m2!3d-40.1588701!4d-71.3491686!16s%2Fg%2F1hc286n5w",
     "checkedOn": "2026-11-20",
-    "evidence": "Gabriel Obeid 859. Domicilio publicado; confirmar entrada."
+    "evidence": "Apart Hotel Cascadas, Gabriel Obeid 859. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "6": {
     "name": "Le Temps de Cerises",
@@ -2863,14 +2863,14 @@
     "name": "Valle Hermoso",
     "address": "Juez Del Valle 1130",
     "point": [
-      -40.1627196,
-      -71.3569253
+      -40.162919,
+      -71.356737
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Juez+del+Valle+1130,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1592055,-71.3541037,1069m/data=!3m1!1e3!4m5!3m4!1s0x96110e6d66a8288b:0xd482a4be958d25f4!8m2!3d-40.1627196!4d-71.3569253",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Valle+Hermoso+Apart+Hotel/@-40.162919,-71.356737,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e6d64752ab3:0x275d3ff2aeb083a0!5m2!4m1!1i2!8m2!3d-40.162919!4d-71.356737!16s%2Fg%2F11n42rf4q6",
     "checkedOn": "2026-11-20",
-    "evidence": "Juez del Valle 1130. Domicilio publicado; confirmar entrada."
+    "evidence": "Valle Hermoso Apart Hotel, Juez del Valle 1130. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "95": {
     "name": "Rose Garden",
@@ -2941,14 +2941,14 @@
     "name": "Adventure",
     "address": "Atahualpa Yupanqui 289",
     "point": [
-      -40.1085861,
-      -71.3126648
+      -40.1085689,
+      -71.3128132
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Atahualpa+Yupanqui+289,+Neuqu%C3%A9n/@-40.108582,-71.3152397,1070m/data=!3m2!1e3!4b1!4m5!3m4!1s0x96110c5e496fd581:0xb9b06d624bf37efb!8m2!3d-40.1085861!4d-71.3126648",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1a+Grande+para+Grupos+Adventure/@-40.1085689,-71.3128132,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110c5e4ca5c0a1:0x2a183326a3efeb2!5m2!4m1!1i2!8m2!3d-40.1085689!4d-71.3128132!16s%2Fg%2F11c2p875c5",
     "checkedOn": "2026-11-20",
-    "evidence": "Atahualpa Yupanqui 289. Domicilio publicado; confirmar entrada."
+    "evidence": "Cabaña Grande para Grupos Adventure, Atahualpa Yupanqui 289. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada. Mismo nombre y domicilio que la ficha municipal y el registro provincial (hostel); predio cercano a Laguna Rosales."
   },
   "71": {
     "name": "Caminos",
@@ -2993,27 +2993,27 @@
     "name": "Complejo A.C.A.",
     "address": "Av. Koessler  2176",
     "point": [
-      -40.1533419,
-      -71.3334126
+      -40.1533761,
+      -71.333164
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Av.+Koessler+2176,+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1536319,-71.3439154,1070m/data=!3m1!1e3!4m6!3m5!1s0x96110e80c9d0f8a1:0xaeb36a6695366dfe!8m2!3d-40.1533419!4d-71.3334126!16s%2Fg%2F11tg0v8g6v",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Complejo+Tur%C3%ADstico+ACA+San+Mart%C3%ADn+de+los+Andes/@-40.1533761,-71.333164,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110e80ce009fdb:0x5e10a8aa21a5ca33!5m2!4m1!1i2!8m2!3d-40.1533761!4d-71.333164!16s%2Fg%2F11c5758_0d",
     "checkedOn": "2026-11-20",
-    "evidence": "Av. Koessler 2176. Domicilio publicado; confirmar entrada."
+    "evidence": "Complejo Turístico ACA San Martín de los Andes, Av. Koessler 2176. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada. La ficha municipal lo registra como camping del Complejo A.C.A."
   },
   "124": {
     "name": "Del Abuelo",
     "address": "Los Cipreses 1541",
     "point": [
-      -40.1536189,
-      -71.3427664
+      -40.1536064,
+      -71.3427421
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Los+Cipreses+1541,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1533378,-71.3359875,1070m/data=!3m1!1e3!4m6!3m5!1s0x96110e7910d71371:0x1959664f45b0e858!8m2!3d-40.1536189!4d-71.3427664!16s%2Fg%2F11thrmvq_s",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+del+Abuelo/@-40.1536064,-71.3427421,1070m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e7917109d79:0x6554bbdbf7713e75!8m2!3d-40.1536064!4d-71.3427421!16s%2Fg%2F11c55w28yh",
     "checkedOn": "2026-11-20",
-    "evidence": "Los Cipreses 1541. Domicilio publicado; confirmar entrada."
+    "evidence": "Cabañas del Abuelo, Los Cipreses 1541. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "224": {
     "name": "Departamento Silvia",
@@ -3058,14 +3058,14 @@
     "name": "Hueney Ruca hosteria",
     "address": "Gabriel Obeid 697",
     "point": [
-      -40.1593969,
-      -71.3512331
+      -40.1595733,
+      -71.3511677
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Gabriel+Obeid+697,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1593928,-71.353808,1069m/data=!3m2!1e3!4b1!4m5!3m4!1s0x96110e719affedff:0x45f2f0a67d0eccac!8m2!3d-40.1593969!4d-71.3512331",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hueney+Ruca/@-40.1595733,-71.3511677,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e719803098f:0x3292daaafe6b6f25!5m2!4m1!1i2!8m2!3d-40.1595733!4d-71.3511677!16s%2Fg%2F1tnpm5z5",
     "checkedOn": "2026-11-20",
-    "evidence": "Gabriel Obeid 697. Domicilio publicado; confirmar entrada."
+    "evidence": "Hueney Ruca, Gabriel Obeid 697. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "23": {
     "name": "Intermonti",
@@ -3074,11 +3074,11 @@
       -40.1584593,
       -71.3514619
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Gral.+Villegas+717,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1593928,-71.353808,1069m/data=!3m1!1e3!4m6!3m5!1s0x96110e716c5429b9:0xd86acf6afb72a454!8m2!3d-40.1584593!4d-71.3514619!16s%2Fg%2F11x86vw5tl",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hotel+Intermonti/@-40.1584593,-71.3514619,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e716db07633:0x8503535f153a3379!5m2!4m1!1i2!8m2!3d-40.1584593!4d-71.3514619!16s%2Fg%2F1hc1q7pw5",
     "checkedOn": "2026-11-20",
-    "evidence": "Gral. Villegas 717. Domicilio publicado; confirmar entrada."
+    "evidence": "Hotel Intermonti, Gral. Villegas 717. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "247": {
     "name": "La Balconada",
@@ -3136,27 +3136,27 @@
     "name": "Las Rosas",
     "address": "Alte. Brown 290",
     "point": [
-      -40.1621037,
-      -71.3558617
+      -40.1621551,
+      -71.356575
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Almte.+Brown+290,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1514614,-71.3472598,1070m/data=!3m1!1e3!4m5!3m4!1s0x96110e7282c61727:0x7ec6b2c9c2dcd83c!8m2!3d-40.1621037!4d-71.3558617",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Las+Rosas/@-40.1621551,-71.356575,1069m/data=!3m1!1e3!4m9!3m8!1s0x96110e7280ff8803:0x8ddf311b57ce296b!5m2!4m1!1i2!8m2!3d-40.1621551!4d-71.356575!16s%2Fg%2F11r9748rc",
     "checkedOn": "2026-11-20",
-    "evidence": "Almte. Brown 290. Domicilio publicado; confirmar entrada."
+    "evidence": "Cabañas Las Rosas, Almte. Brown 290. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "153": {
     "name": "Laura",
     "address": "Misionero Mascardi 632",
     "point": [
-      -40.1534407,
-      -71.3464793
+      -40.1534714,
+      -71.3465766
     ],
-    "precision": "interpolated",
-    "locationMatch": "address",
-    "sourceUrl": "https://www.google.com/maps/place/Misionero+Mascardi+632,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1620996,-71.3584366,1069m/data=!3m1!1e3!4m6!3m5!1s0x96110e782b500d77:0x631dc4288398e331!8m2!3d-40.1534407!4d-71.3464793!16s%2Fg%2F11thrh3dwf",
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hoster%C3%ADa+Laura/@-40.1534714,-71.3465766,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110e79d50f8d55:0x611d61f75a0fd25c!5m2!4m1!1i2!8m2!3d-40.1534714!4d-71.3465766!16s%2Fg%2F1hc771z1k",
     "checkedOn": "2026-11-20",
-    "evidence": "Misionero Mascardi 632. Domicilio publicado; confirmar entrada."
+    "evidence": "Hostería Laura, Misionero Mascardi 632. Marcador del establecimiento en Google Maps con el domicilio de la ficha municipal; confirmar entrada."
   },
   "217": {
     "name": "Lo de Adri",
@@ -3443,5 +3443,330 @@
     "sourceUrl": "https://www.google.com/maps/place/El+Oasis+280,+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1551943,-71.3475221,1070m/data=!3m1!1e3!4m5!3m4!1s0x96110e84641de9c9:0xa2072ec57c4147c7!8m2!3d-40.1531543!4d-71.3240546",
     "checkedOn": "2026-11-20",
     "evidence": "El Oasis 280. Referencia compartida del edificio; confirmar entrada."
+  },
+  "sma-125": {
+    "name": "Del Chacay",
+    "address": "Paseo Del Alba 58",
+    "point": [
+      -40.1358732,
+      -71.2833711
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+del+Chacay/@-40.1358732,-71.2833711,1121m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110bf90bc26ed3:0xffd9236b67b3f05b!5m2!4m1!1i2!8m2!3d-40.1358732!4d-71.2833711!16s%2Fg%2F12hm3vl5v",
+    "checkedOn": "2026-11-20",
+    "evidence": "Cabañas del Chacay, Paseo del Alba 58 (RN 40), mismo sitio web que el registro provincial (delchacay.com.ar); lugar enlazado por el registro. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-44": {
+    "name": "Huilko",
+    "address": "Chimehuin 170",
+    "point": [
+      -40.138443,
+      -71.2865764
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Huilko/@-40.138443,-71.2865764,1121m/data=!3m1!1e3!4m9!3m8!1s0x96110b983b46e27b:0xdb8dbfddff654d74!5m2!4m1!1i2!8m2!3d-40.138443!4d-71.2865764!16s%2Fg%2F11rkp3j4sh",
+    "checkedOn": "2026-11-20",
+    "evidence": "Huilko, Chimehuín 170, mismo domicilio y sitio web que la ficha municipal y el registro provincial (huilko.com). Establecimiento identificado; confirmar entrada."
+  },
+  "sma-119": {
+    "name": "La Lomada",
+    "address": "El Oasis 75",
+    "point": [
+      -40.1530999,
+      -71.3261467
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+La+Lomada/@-40.1530999,-71.3261467,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e8406d8c3fb:0xe80639b566635244!8m2!3d-40.1530999!4d-71.3261467!16s%2Fg%2F11c5_3lgy6",
+    "checkedOn": "2026-11-20",
+    "evidence": "Cabañas La Lomada sobre la calle El Oasis, sin altura en Google; a 64 m de Rucaleufú (El Oasis 220), coherente con El Oasis 75. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-143": {
+    "name": "Las Aljabas",
+    "address": "Pje. Michai 388",
+    "point": [
+      -40.1483795,
+      -71.3405781
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1a+Las+Aljabas/@-40.1483795,-71.3405781,1070m/data=!3m1!1e3!4m9!3m8!1s0x96110dd5dbe03d31:0xdb077fa8daec5063!5m2!4m1!1i2!8m2!3d-40.1483795!4d-71.3405781!16s%2Fg%2F11c1njm4fc",
+    "checkedOn": "2026-11-20",
+    "evidence": "Cabaña Las Aljabas en Pje. Michai, el mismo pasaje del registro provincial (Los Pañiles y Pasaje Michay 388). Establecimiento identificado; confirmar entrada."
+  },
+  "sma-170": {
+    "name": "Las Lengas",
+    "address": "Tte. Cnel. Pérez 1175",
+    "point": [
+      -40.161766,
+      -71.3502578
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hoster%C3%ADa+Las+Lengas/@-40.161766,-71.3502578,1121m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e71c65a66ab:0x40a3f47819dfc38a!5m2!4m1!1i2!8m2!3d-40.161766!4d-71.3502578!16s%2Fg%2F1trrfd9r",
+    "checkedOn": "2026-11-20",
+    "evidence": "Hostería Las Lengas, Tte. Coronel Pérez 1175; lugar enlazado por el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-134": {
+    "name": "Los Retoños",
+    "address": "Perito Moreno 1473",
+    "point": [
+      -40.1524184,
+      -71.3435069
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Los+Reto%C3%B1os/@-40.1524184,-71.3435069,1121m/data=!3m1!1e3!4m9!3m8!1s0x96110e78f9f19717:0xcf874ba6417124f4!5m2!4m1!1i2!8m2!3d-40.1524184!4d-71.3435069!16s%2Fg%2F11f15d64xt",
+    "checkedOn": "2026-11-20",
+    "evidence": "Los Retoños sin domicilio en Google; posición sobre Perito Moreno, después de Rotui (1378), coherente con Perito Moreno 1473. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-136": {
+    "name": "Luz de Luna",
+    "address": "Cnel. Díaz 1195",
+    "point": [
+      -40.1634358,
+      -71.3553831
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Luz+de+Luna/@-40.1634358,-71.3553831,1120m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110fcd8cc8409f:0xfdc70d2d343700b7!5m2!4m1!1i2!8m2!3d-40.1634358!4d-71.3553831!16s%2Fg%2F11rwwpx187",
+    "checkedOn": "2026-11-20",
+    "evidence": "Cabañas Luz de Luna, Cnel. Díaz 1195; lugar enlazado por el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-90": {
+    "name": "Matices de otoño",
+    "address": "Ruta Nac. 40 Ex. 234 Lote 7. Barrio La Cascada",
+    "point": [
+      -40.1383674,
+      -71.2921896
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Matices+de+Oto%C3%B1o/@-40.1383674,-71.2921896,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110c0143a9bea3:0x1fe092b4855af29b!8m2!3d-40.1383674!4d-71.2921896!16s%2Fg%2F11b8v9dkj_",
+    "checkedOn": "2026-11-20",
+    "evidence": "Matices de Otoño, Ruta 40 lote 7 manzana S (Barrio La Cascada), mismo lote y sitio web que el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-160": {
+    "name": "Melingo",
+    "address": "Las Lengas 139",
+    "point": [
+      -40.1488609,
+      -71.3433586
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Refugio+Melingo/@-40.1488609,-71.3433586,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e743605d0c7:0x7aca8600af6b9e41!8m2!3d-40.1488609!4d-71.3433586!16s%2Fg%2F11y3__5p0",
+    "checkedOn": "2026-11-20",
+    "evidence": "Refugio Melingo, Las Lengas 139, mismo domicilio que la ficha municipal y el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-106": {
+    "name": "Peumayen",
+    "address": "Perito Moreno 1797",
+    "point": [
+      -40.150959,
+      -71.3389512
+    ],
+    "precision": "interpolated",
+    "locationMatch": "address",
+    "sourceUrl": "https://www.google.com/maps/place/Apart+Peumay%C3%A9n+-+Bungalow+(6+Adults)/@-40.150959,-71.3389512,1121m/data=!3m2!1e3!4b1!4m10!3m9!1s0x96110e7f6cb0e005:0x653a8fb1071f237!5m2!4m1!1i2!8m2!3d-40.150959!4d-71.3389512!16s%2Fg%2F11z39ttmjh",
+    "checkedOn": "2026-11-20",
+    "evidence": "Perito Moreno 1797 según el registro provincial; el lugar que enlaza el registro es una unidad publicada por un tercero (Apart Peumayén) y coincide con la geocodificación de Perito Moreno 1797. La ficha municipal dice Perito Moreno 1850 (el domicilio de Antuen). Confirmar entrada."
+  },
+  "sma-150": {
+    "name": "Trabunche",
+    "address": "Gabriel Obeid 934",
+    "point": [
+      -40.1581875,
+      -71.3482091
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Consorcio+Trabunche/@-40.1581875,-71.3482091,1121m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e708a5323f7:0xf25bdda022888c92!5m2!4m1!1i2!8m2!3d-40.1581875!4d-71.3482091!16s%2Fg%2F1thkyg62",
+    "checkedOn": "2026-11-20",
+    "evidence": "Consorcio Trabunche, Gabriel Obeid 934, mismo sitio web que el registro provincial (trabunche.com.ar); lugar enlazado por el registro. Establecimiento identificado; confirmar entrada."
+  },
+  "sma-68": {
+    "name": "Yepún",
+    "address": "Yepún 50",
+    "point": [
+      -40.1394974,
+      -71.2922278
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Yep%C3%BAn/@-40.1394974,-71.2922278,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110c019e019487:0x4146eb79d17c67ee!8m2!3d-40.1394974!4d-71.2922278!16s%2Fg%2F11ddxrp1nm",
+    "checkedOn": "2026-11-20",
+    "evidence": "Cabañas Yepún sin domicilio en Google; mismo sitio web que el registro provincial (yepun.com.ar) y a 43 m de Antilhue, Yepún 89. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-casa-de-piedra": {
+    "name": "Casa de Piedra",
+    "address": "Las Pendientes U.F. 13, Cerro Chapelco",
+    "point": [
+      -40.190517,
+      -71.300829
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Casa+de+Piedra+casas+de+monta%C3%B1a/@-40.190517,-71.300829,1120m/data=!3m1!1e3!4m9!3m8!1s0x96110f250beac8c9:0x637587e6bfc00785!5m2!4m1!1i2!8m2!3d-40.190517!4d-71.300829!16s%2Fg%2F11bbrnvqb7",
+    "checkedOn": "2026-11-20",
+    "evidence": "Casa de Piedra casas de montaña, UF 13 Las Pendientes, mismo sitio web que el registro provincial (casadepiedrasma.com). Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-colonos-del-sur": {
+    "name": "Colonos del Sur",
+    "address": "Los Raulíes 148",
+    "point": [
+      -40.1242808,
+      -71.3187835
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hosteria+Colonos+del+Sur/@-40.1242808,-71.3187835,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110c471e48933b:0xb9fadac9cc289828!8m2!3d-40.1242808!4d-71.3187835!16s%2Fg%2F11b6dhvs3f",
+    "checkedOn": "2026-11-20",
+    "evidence": "Hostería Colonos del Sur, C. Los Raulíes 148, mismo domicilio que el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-del-tilo": {
+    "name": "Del Tilo",
+    "address": "Rivadavia 739",
+    "point": [
+      -40.1577117,
+      -71.3553206
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Apart+Hotel+del+Tilo/@-40.1577117,-71.3553206,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e73844f096d:0xd5adbd2441e8b5e0!8m2!3d-40.1577117!4d-71.3553206!16s%2Fg%2F1hc7ct059",
+    "checkedOn": "2026-11-20",
+    "evidence": "Apart Hotel del Tilo, Rivadavia 739, mismo domicilio que el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-hostal-del-lago": {
+    "name": "Hostal del Lago",
+    "address": "Cnel. Rohde 854",
+    "point": [
+      -40.1588636,
+      -71.3557622
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hostal+del+Lago/@-40.1588636,-71.3557622,1121m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e730875c5c9:0x75235e723ae1b317!8m2!3d-40.1588636!4d-71.3557622!16s%2Fg%2F1hc1fdhhc",
+    "checkedOn": "2026-11-20",
+    "evidence": "Hostal del Lago sin domicilio en Google; posición entre Cnel. Rohde 814 (Lo de Italo) y 975 (Hostal del Esquiador), coherente con Cnel. Rohde 854. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-huella-blanca": {
+    "name": "Huella Blanca",
+    "address": "Las Pendientes lote 103, Cerro Chapelco",
+    "point": [
+      -40.1958516,
+      -71.2988714
+    ],
+    "precision": "street",
+    "locationMatch": "address",
+    "sourceUrl": "https://www.google.com/maps/place/Huellas+Blancas/@-40.1958516,-71.2988714,1120m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110f30f061e36b:0xe54662117e120e5b!5m2!4m1!1i2!8m2!3d-40.1958516!4d-71.2988714!16s%2Fg%2F11b6drcsjk",
+    "checkedOn": "2026-11-20",
+    "evidence": "Referencia dentro de Las Pendientes: el registro provincial enlaza el lugar «Huellas Blancas» (huellasblancas.com), pero el sitio del alojamiento (huellablanca.com) no publica el lote 103. Confirmar la cabaña antes de tomarla como entrada."
+  },
+  "nqn-la-madriguera": {
+    "name": "La Madriguera",
+    "address": "Condominio Las Pendientes U.F. 128/129, Cerro Chapelco",
+    "point": [
+      -40.1992915,
+      -71.3022241
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/La+Madriguera+Lodge/@-40.1992915,-71.3022241,1120m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110f3ab9403a77:0xbe669e3087c86c85!5m2!4m1!1i2!8m2!3d-40.1992915!4d-71.3022241!16s%2Fg%2F11xfsllp4",
+    "checkedOn": "2026-11-20",
+    "evidence": "La Madriguera Lodge, Las Pendientes 128, coincide con la U.F. 128/129 del registro provincial; lugar enlazado por el registro. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-ladera-sur": {
+    "name": "Ladera Sur",
+    "address": "Las Pendientes lote 164, Cerro Chapelco",
+    "point": [
+      -40.200197,
+      -71.30239
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Ladera+Sur/@-40.200197,-71.30239,1120m/data=!3m1!1e3!4m9!3m8!1s0x96110f390013c3db:0x1b6344b645b13985!5m2!4m1!1i2!8m2!3d-40.200197!4d-71.30239!16s%2Fg%2F11b6dsrz98",
+    "checkedOn": "2026-11-20",
+    "evidence": "Ladera Sur, Barrio Las Pendientes lote 164, mismo sitio web que el registro provincial (laderasur.com.ar). Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-lago-villarino": {
+    "name": "Lago Villarino",
+    "address": "Ruta Nacional 40 (ex 234), Lago Villarino",
+    "point": [
+      -40.4481691,
+      -71.5419877
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Hoster%C3%ADa+Villarino/@-40.4481691,-71.5419877,1116m/data=!3m1!1e3!4m9!3m8!1s0x9610e04466e61eb9:0xa2cf4ac4a67cd1c3!5m2!4m1!1i2!8m2!3d-40.4481691!4d-71.5419877!16s%2Fg%2F11w_hxbt73",
+    "checkedOn": "2026-11-20",
+    "evidence": "Hostería Villarino, frente al camping del Lago Villarino sobre RN 40, mismo sitio web que el registro provincial (hosteriavillarino.com). Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-land-of-hope-and-dreams": {
+    "name": "Land of Hope and Dreams",
+    "address": "Las Pendientes unidad 3, Cerro Chapelco",
+    "point": [
+      -40.1926082,
+      -71.3022929
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Land+of+Hope+and+Dreams+Casa+de+Monta%C3%B1a/@-40.1926082,-71.3022929,1120m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110ff364d20983:0x1e0d45c0076fefe8!8m2!3d-40.1926082!4d-71.3022929!16s%2Fg%2F11w9g8vjc2",
+    "checkedOn": "2026-11-20",
+    "evidence": "Land of Hope and Dreams Casa de Montaña, Barrio Las Pendientes unidad 3, misma unidad y sitio web que el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-las-elcira": {
+    "name": "Las Elcira",
+    "address": "Las Pendientes, Cerro Chapelco",
+    "point": [
+      -40.1999788,
+      -71.3025246
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Las+Elcira/@-40.1999788,-71.3025246,1120m/data=!3m1!1e3!4m9!3m8!1s0x96110f38f4c3ac7b:0xe021c14f76ec8a04!5m2!4m1!1i2!8m2!3d-40.1999788!4d-71.3025246!16s%2Fg%2F1tm6b41h",
+    "checkedOn": "2026-11-20",
+    "evidence": "Cabañas Las Elcira, Las Pendientes, Cerro Chapelco; nombre único en Google y en el registro provincial. Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-miradores-del-lanin": {
+    "name": "Miradores del Lanín",
+    "address": "Las Pendientes lote pastoril 70, Cerro Chapelco",
+    "point": [
+      -40.1918625,
+      -71.3009172
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Miradores+del+Lan%C3%ADn/@-40.1918625,-71.3009172,1120m/data=!3m1!1e3!4m9!3m8!1s0x96110e692bc91d23:0x3a25af143f1c98f5!5m2!4m1!1i2!8m2!3d-40.1918625!4d-71.3009172!16s%2Fg%2F1tfm7vsf",
+    "checkedOn": "2026-11-20",
+    "evidence": "Miradores del Lanín, Las Pendientes Ski Village, mismo sitio web que el registro provincial (altochapelco.com.ar). Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-terra-alta": {
+    "name": "Terra Alta",
+    "address": "Las Pendientes lote 71, Cerro Chapelco",
+    "point": [
+      -40.1954624,
+      -71.2971926
+    ],
+    "precision": "exact",
+    "locationMatch": "establishment",
+    "sourceUrl": "https://www.google.com/maps/place/Terra+Alta/@-40.1954624,-71.2971926,1120m/data=!3m1!1e3!4m9!3m8!1s0x96110f30ef0a7521:0xc78923ad1e8038c5!5m2!4m1!1i2!8m2!3d-40.1954624!4d-71.2971926!16s%2Fg%2F11c3pwmgkq",
+    "checkedOn": "2026-11-20",
+    "evidence": "Terra Alta, Barrio Las Pendientes lote 71, mismo lote y sitio web que el registro provincial (terraalta.com.ar). Establecimiento identificado; confirmar entrada."
+  },
+  "nqn-rio-hermoso": {
+    "name": "Río Hermoso",
+    "address": "Ruta Nacional 40 Nº 2188",
+    "point": [
+      -40.3151049,
+      -71.3793383
+    ],
+    "precision": "interpolated",
+    "locationMatch": "address",
+    "sourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+R%C3%ADo+Hermoso/@-40.3151049,-71.3793383,1118m/data=!3m1!1e3!4m9!3m8!1s0x961103557f743939:0x4a2b938c188b6f7e!5m2!4m1!1i2!8m2!3d-40.3151049!4d-71.3793383!16s%2Fg%2F11c6cpyspm",
+    "checkedOn": "2026-11-20",
+    "evidence": "Marcador de «Cabañas Río Hermoso» en Paraje El Cruce Río Hermoso, RN 40 camino de los Siete Lagos; el registro provincial habilita «Río Hermoso» (viviendas amobladas) en RN 40 Nº 2188 y su enlace de mapa apunta a otro lugar. Confirmar que es el mismo alojamiento y la entrada."
   }
 }
