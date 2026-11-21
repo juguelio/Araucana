@@ -5,6 +5,8 @@ import { cargarFlotaEnVivo, VENTANA_SENAL_MINUTOS } from "@/lib/driver/en-vivo";
 import { cargarRecorridos, VENTANA_RECORRIDO_HORAS } from "@/lib/driver/recorrido";
 import { cargarDiaDeFlota, diasConActividad } from "@/lib/driver/dia";
 import { fechaLocal, rangoDelDia } from "@/lib/driver/jornada";
+import { prisma } from "@/lib/db/prisma";
+import { nombreDeUnidad } from "@/lib/vehicles/enlace-mapa";
 import { cargarServiciosDelDia } from "@/lib/driver/servicios-consulta";
 import { evaluarServiciosDelDia } from "@/lib/driver/servicios";
 import { ServiciosDelDia } from "./servicios-del-dia";
@@ -35,6 +37,21 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
   const fechaPedida = typeof query.fecha === "string" ? query.fecha : "";
   const fecha = rangoDelDia(fechaPedida) ? fechaPedida : hoy;
   const unidadSeleccionada = typeof query.unidad === "string" && query.unidad.trim() ? query.unidad.trim() : null;
+
+  /**
+   * La unidad pedida puede no tener posición (el chofer nunca abrió el panel). Se resuelve el nombre
+   * igual, para decirlo con la unidad en la mano en lugar de dejar la pantalla como si nada hubiera
+   * pasado cuando alguien llega desde el tablero de flota.
+   */
+  const unidadPedida = unidadSeleccionada
+    ? await prisma.vehicle
+        .findFirst({
+          where: { OR: [{ id: unidadSeleccionada }, { internalNumber: unidadSeleccionada }] },
+          select: { id: true, name: true, internalNumber: true }
+        })
+        .then((nave) => (nave ? { id: nave.id, nombre: nombreDeUnidad(nave) } : null))
+        .catch(() => null)
+    : null;
 
   const [flota, recorridos, dia, dias, servicios] =
     vista === "en-vivo"
@@ -99,6 +116,7 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
             recorridosIniciales={recorridos ?? []}
             servicios={resumenServicios?.evaluados ?? []}
             unidadInicial={unidadSeleccionada}
+            unidadPedida={unidadPedida}
           />
         </>
       ) : vista === "servicios" && resumenServicios ? (
