@@ -1,272 +1,435 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { Map as LeafletMap, Marker } from "leaflet";
-import type { EstadoDeNaveEnVivo, FlotaEnVivo, NaveEnVivo } from "@/lib/driver/en-vivo";
-import "leaflet/dist/leaflet.css";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FlotaEnVivo } from "@/lib/driver/en-vivo";
+import type { Recorrido } from "@/lib/driver/recorrido";
+import type { ServicioEvaluado } from "@/lib/driver/servicios";
+import {
+  asignarColores,
+  distanciaVisible,
+  horaSenal,
+  nombreUnidad,
+  unidadesActuales
+} from "@/lib/driver/mapa-vivo";
+import { claveUnidad, MapaUnidades } from "./mapa-unidades";
 
-/** Cada cuánto se vuelven a pedir las posiciones. Criterio de Jugue en #316: el panel lee cada 30 s
- *  (no cada 3 s, que es lo que reporta el chofer) — así la nave se ve moverse sin castigar la base ni el
- *  teléfono de quien mira. El envío del chofer mantiene su ritmo propio. */
+/** Criterio de Jugue en #316: el panel lee cada 30 s (el chofer reporta cada 3 s). */
 const REFRESCO_MS = 30_000;
+/** El historial se pide aparte: si falla, el mapa de posiciones no se cae. */
+const REFRESCO_RECORRIDOS_MS = 60_000;
 
-/** San Martín de los Andes: el encuadre inicial cuando todavía no hay ninguna nave reportando. */
-const CENTRO_SMA: [number, number] = [-40.1579, -71.3534];
-
-const ETIQUETA: Record<EstadoDeNaveEnVivo, string> = {
+const ESTADO = {
   "en-movimiento": "En movimiento",
   detenida: "Detenida",
   "sin-senal": "Sin señal"
-};
+} as const;
 
-const horaArgentina = new Intl.DateTimeFormat("es-AR", {
-  timeZone: "America/Argentina/Buenos_Aires",
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false
-});
+const ORDEN = { "en-movimiento": 0, detenida: 1, "sin-senal": 2 } as const;
 
 function hace(minutos: number) {
-  if (minutos <= 0) return "recién";
-  return minutos === 1 ? "hace 1 min" : `hace ${minutos} min`;
+  if (minutos < 1) return "recién";
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  if (resto === 0) return horas === 1 ? "hace 1 h" : `hace ${horas} h`;
+  return `hace ${horas} h ${resto} min`;
 }
 
-function nombreDeNave(nave: NaveEnVivo) {
-  return nave.internalNumber ? `Interno ${nave.internalNumber}` : nave.vehicleName;
+function haceSegundos(segundos: number) {
+  return segundos < 60 ? "hace instantes" : hace(Math.floor(segundos / 60));
 }
 
-function detalleDeNave(nave: NaveEnVivo) {
-  const partes = [ETIQUETA[nave.estado], nave.driverName ?? "sin chofer"];
-  if (nave.estado !== "sin-senal" && nave.speedKmh != null) partes.push(`${Math.round(nave.speedKmh)} km/h`);
-  partes.push(hace(nave.minutosDesdeLaSenal));
-  return partes.join(" · ");
+function horaCorta(fecha: Date | string | null) {
+  if (!fecha) return "";
+  const d = typeof fecha === "string" ? new Date(fecha) : fecha;
+  return d.toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Argentina/Buenos_Aires"
+  });
 }
 
-export function FlotaEnVivoMapa({ inicial }: { inicial: FlotaEnVivo }) {
+export function FlotaEnVivoMapa({
+  inicial,
+  recorridosIniciales,
+  servicios = [],
+  unidadInicial = null
+}: {
+  inicial: FlotaEnVivo;
+  recorridosIniciales: Recorrido[];
+  servicios?: ServicioEvaluado[];
+  unidadInicial?: string | null;
+}) {
   const [flota, setFlota] = useState(inicial);
-  const [error, setError] = useState("");
+  const [recorridos, setRecorridos] = useState(recorridosIniciales);
+  const [truncado, setTruncado] = useState(false);
+  const [mostrar, setMostrar] = useState(true);
+  const [seleccion, setSeleccion] = useState<string | null>(() => {
+    if (!unidadInicial) return null;
+    const encontrada = inicial.naves.find(
+      (n) => n.vehicleId === unidadInicial || n.internalNumber === unidadInicial || claveUnidad(n) === unidadInicial
+    );
+    return encontrada ? claveUnidad(encontrada) : null;
+  });
+  const [encuadre, setEncuadre] = useState<{ tipo: "todas" | "recorrido"; numero: number }>({
+    tipo: "todas",
+    numero: 0
+  });
+  const [errorPosiciones, setErrorPosiciones] = useState("");
+  const [errorHistorial, setErrorHistorial] = useState("");
   const [reloj, setReloj] = useState(() => Date.now());
-  const contenedor = useRef<HTMLDivElement>(null);
-  const mapa = useRef<LeafletMap | null>(null);
-  const leaflet = useRef<typeof import("leaflet") | null>(null);
-  const marcadores = useRef(new Map<string, Marker>());
-  const encuadreHecho = useRef(false);
 
-  const sincronizar = useCallback((datos: FlotaEnVivo) => {
-    const L = leaflet.current;
-    const map = mapa.current;
-    if (!L || !map) return;
+  useEffect(() => {
+    if (!unidadInicial) return;
+    const encontrada = flota.naves.find(
+      (n) => n.vehicleId === unidadInicial || n.internalNumber === unidadInicial || claveUnidad(n) === unidadInicial
+    );
+    if (encontrada) setSeleccion(claveUnidad(encontrada));
+  }, [unidadInicial, flota.naves]);
 
-    const vistos = new Set<string>();
-    for (const nave of datos.naves) {
-      vistos.add(nave.vehicleId);
-      const posicion: [number, number] = [nave.latitude, nave.longitude];
-      const icono = L.divIcon({
-        className: `flota-pin is-${nave.estado}`,
-        html: "<span></span>",
-        iconSize: [22, 22],
-        iconAnchor: [11, 11],
-        popupAnchor: [0, -12]
-      });
-      const globo = () => {
-        const el = document.createElement("div");
-        el.className = "flota-globo";
-        const titulo = document.createElement("strong");
-        titulo.textContent = nombreDeNave(nave);
-        const linea = document.createElement("span");
-        linea.textContent = detalleDeNave(nave);
-        const hora = document.createElement("small");
-        hora.textContent = `Última señal: ${horaArgentina.format(new Date(nave.recordedAt))}`;
-        el.append(titulo, linea, hora);
-        return el;
-      };
+  // La antigüedad se recalcula con el reloj local: si el servidor no responde, la pantalla no sigue
+  // diciendo «hace 1 min» para siempre.
+  const naves = useMemo(
+    () => unidadesActuales(flota.naves, reloj, flota.ventanaMinutos),
+    [flota.naves, flota.ventanaMinutos, reloj]
+  );
 
-      const existente = marcadores.current.get(nave.vehicleId);
-      if (existente) {
-        existente.setLatLng(posicion);
-        existente.setIcon(icono);
-        existente.setPopupContent(globo());
-        continue;
+  /** Metros por tramo, sumados sólo para la unidad que ese chofer tiene ahora. */
+  const metrosPorUnidad = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const tramo of recorridos) {
+      const actual = naves.find((nave) => claveUnidad(nave) === claveUnidad(tramo));
+      if (!actual) continue;
+      mapa.set(claveUnidad(tramo), (mapa.get(claveUnidad(tramo)) ?? 0) + tramo.metros);
+    }
+    return mapa;
+  }, [recorridos, naves]);
+
+  /** Servicio actual o próximo asignado a cada unidad hoy, para mostrarlo en la tarjeta lateral. */
+  const servicioPorVehiculo = useMemo(() => {
+    const mapa = new Map<string, ServicioEvaluado>();
+    const vigentes = servicios
+      .filter((s) => s.nivel !== "pasado")
+      .sort((a, b) => (a.minutosParaSalir ?? 9_999) - (b.minutosParaSalir ?? 9_999));
+    for (const srv of vigentes) {
+      for (const u of srv.unidades) {
+        if (!mapa.has(u.vehicleId)) mapa.set(u.vehicleId, srv);
       }
-
-      const marcador = L.marker(posicion, { icon: icono, title: nombreDeNave(nave) }).addTo(map);
-      marcador.bindPopup(globo);
-      marcadores.current.set(nave.vehicleId, marcador);
     }
+    return mapa;
+  }, [servicios]);
 
-    for (const [vehicleId, marcador] of marcadores.current) {
-      if (vistos.has(vehicleId)) continue;
-      marcador.remove();
-      marcadores.current.delete(vehicleId);
-    }
+  const filas = useMemo(() => {
+    const vivas = naves
+      .map((nave) => ({
+        clave: claveUnidad(nave),
+        nave,
+        nombre: nave.driverName ?? "Chofer sin nombre",
+        unidad: nombreUnidad(nave),
+        metros: metrosPorUnidad.get(claveUnidad(nave)) ?? null,
+        servicio: servicioPorVehiculo.get(nave.vehicleId) ?? null,
+        detalle:
+          nave.estado === "detenida"
+            ? `Parado ${haceSegundos(nave.stoppedDurationSeconds)}`
+            : nave.estado === "sin-senal"
+              ? `Sin reportar ${hace(nave.minutosDesdeLaSenal)}`
+              : nave.speedKmh != null
+                ? `Circulando ${Math.round(nave.speedKmh)} km/h`
+                : "Circulando"
+      }))
+      .sort(
+        (a, b) => ORDEN[a.nave.estado] - ORDEN[b.nave.estado] || a.nombre.localeCompare(b.nombre, "es")
+      );
+    return { vivas, sinDato: flota.sinUbicacion };
+  }, [naves, metrosPorUnidad, servicioPorVehiculo, flota.sinUbicacion]);
 
-    // El encuadre se hace una sola vez: si se repitiera en cada refresco, el mapa se movería solo
-    // mientras el operador lo está mirando. Incluye las naves sin señal: su última posición también
-    // tiene que entrar en el encuadre, si no «no desaparecen» sólo en la lista.
-    if (!encuadreHecho.current && datos.naves.length > 0) {
-      map.fitBounds(datos.naves.map((nave) => [nave.latitude, nave.longitude] as [number, number]), {
-        padding: [48, 48],
-        maxZoom: 14
-      });
-      encuadreHecho.current = true;
-    }
+  /** Un color por chofer, estable y sin repetir mientras alcance la paleta. */
+  const colores = useMemo(
+    () => asignarColores([...naves.map((nave) => nave.driverId), ...recorridos.map((tramo) => tramo.driverId)]),
+    [naves, recorridos]
+  );
+
+  const seleccionada = seleccion ? naves.find((nave) => claveUnidad(nave) === seleccion) ?? null : null;
+  const tramosSeleccionados = seleccion
+    ? recorridos.filter((tramo) => claveUnidad(tramo) === seleccion)
+    : [];
+  const servicioSeleccionado = seleccionada ? servicioPorVehiculo.get(seleccionada.vehicleId) ?? null : null;
+
+  const seleccionar = useCallback((clave: string) => {
+    setSeleccion((actual) => (actual === clave ? null : clave));
   }, []);
 
   useEffect(() => {
-    let cancelado = false;
-
-    async function crearMapa() {
-      const L = await import("leaflet");
-      if (cancelado || !contenedor.current || mapa.current) return;
-      const map = L.map(contenedor.current, { scrollWheelZoom: true, zoomControl: true }).setView(CENTRO_SMA, 12);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-        maxZoom: 19
-      }).addTo(map);
-      leaflet.current = L;
-      mapa.current = map;
-      window.setTimeout(() => map.invalidateSize(), 150);
-      sincronizar(flota);
-    }
-
-    void crearMapa();
-
-    return () => {
-      cancelado = true;
-      mapa.current?.remove();
-      mapa.current = null;
-      leaflet.current = null;
-      marcadores.current.clear();
-    };
-    // `flota` sólo se usa para el primer dibujo; los refrescos los maneja el efecto de abajo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sincronizar]);
-
-  useEffect(() => {
-    sincronizar(flota);
-  }, [flota, sincronizar]);
-
-  useEffect(() => {
-    let cancelado = false;
-
-    async function traer() {
-      try {
-        const respuesta = await fetch("/api/v1/admin/driver-locations", { cache: "no-store" });
-        if (!respuesta.ok) throw new Error("sin respuesta");
-        const datos = (await respuesta.json()) as { flota: FlotaEnVivo };
-        if (cancelado) return;
-        setFlota(datos.flota);
-        setReloj(Date.now());
-        setError("");
-      } catch {
-        if (!cancelado) setError("No pudimos actualizar las posiciones. Seguimos reintentando.");
-      }
-    }
-
-    const intervalo = window.setInterval(() => void traer(), REFRESCO_MS);
-    const alVolver = () => {
-      if (document.visibilityState === "visible") void traer();
-    };
-    document.addEventListener("visibilitychange", alVolver);
-
-    return () => {
-      cancelado = true;
-      window.clearInterval(intervalo);
-      document.removeEventListener("visibilitychange", alVolver);
-    };
-  }, []);
-
-  useEffect(() => {
-    const intervalo = window.setInterval(() => setReloj(Date.now()), 5000);
+    const intervalo = window.setInterval(() => setReloj(Date.now()), 5_000);
     return () => window.clearInterval(intervalo);
   }, []);
 
-  const segundosDesdeLaActualizacion = Math.max(
-    0,
-    Math.floor((reloj - new Date(flota.actualizadoEn).getTime()) / 1000)
-  );
-  const vivas = flota.naves.filter((nave) => nave.estado !== "sin-senal").length;
-  const sinSenal = flota.naves.length - vivas;
+  const traerPosiciones = useCallback(async (senal?: AbortSignal) => {
+    try {
+      const respuesta = await fetch("/api/v1/admin/driver-locations", { cache: "no-store", signal: senal });
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+      const datos = (await respuesta.json()) as { flota: FlotaEnVivo };
+      setFlota(datos.flota);
+      setReloj(Date.now());
+      setErrorPosiciones("");
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+      setErrorPosiciones("No pudimos actualizar las posiciones. Reintentamos cada 30 s.");
+    }
+  }, []);
 
-  function enfocar(nave: NaveEnVivo) {
-    const map = mapa.current;
-    if (!map) return;
-    map.panTo([nave.latitude, nave.longitude], { animate: true });
-    marcadores.current.get(nave.vehicleId)?.openPopup();
-  }
+  const traerRecorridos = useCallback(async (senal?: AbortSignal) => {
+    try {
+      const respuesta = await fetch("/api/v1/admin/driver-trails", { cache: "no-store", signal: senal });
+      if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+      const datos = (await respuesta.json()) as { recorridos: Recorrido[]; truncado?: boolean };
+      setRecorridos(datos.recorridos);
+      setTruncado(Boolean(datos.truncado));
+      setErrorHistorial("");
+    } catch (error) {
+      if ((error as Error).name === "AbortError") return;
+      // No se vacía la línea que ya estaba: un timeout no debe borrar el recorrido.
+      setErrorHistorial("No pudimos actualizar los recorridos. Seguimos mostrando los últimos que trajimos.");
+    }
+  }, []);
+
+  useEffect(() => {
+    const control = new AbortController();
+    const intervalo = window.setInterval(() => void traerPosiciones(control.signal), REFRESCO_MS);
+    const alVolver = () => {
+      if (document.visibilityState === "visible") void traerPosiciones(control.signal);
+    };
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      control.abort();
+      window.clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [traerPosiciones]);
+
+  useEffect(() => {
+    const control = new AbortController();
+    const intervalo = window.setInterval(() => void traerRecorridos(control.signal), REFRESCO_RECORRIDOS_MS);
+    return () => {
+      control.abort();
+      window.clearInterval(intervalo);
+    };
+  }, [traerRecorridos]);
+
+  const segundos = Math.max(0, Math.floor((reloj - Date.parse(flota.actualizadoEn)) / 1000));
+  const vivas = naves.filter((nave) => nave.estado !== "sin-senal").length;
 
   return (
     <section className="flota-en-vivo">
-      <div className="flota-en-vivo-estado" role="status">
-        <span>
-          <span className="flota-punto is-en-movimiento" aria-hidden="true" /> {vivas} reportando
-        </span>
-        <span>
-          <span className="flota-punto is-sin-senal" aria-hidden="true" /> {sinSenal} sin señal
-        </span>
-        <span className="flota-en-vivo-refresco">
-          Actualizado {segundosDesdeLaActualizacion < 60 ? `hace ${segundosDesdeLaActualizacion} s` : hace(Math.floor(segundosDesdeLaActualizacion / 60))}
-        </span>
+      <div className="flota-toolbar">
+        <div className="flota-en-vivo-estado" role="status" aria-live="polite">
+          <span className="flota-leyenda">
+            <span className="flota-punto is-en-movimiento" aria-hidden="true" /> {vivas} reportando
+          </span>
+          <span className="flota-leyenda">
+            <span className="flota-punto is-sin-senal" aria-hidden="true" /> {naves.length - vivas} sin señal
+          </span>
+          <span className="flota-leyenda">
+            <span className="flota-punto is-recorrido" aria-hidden="true" /> {recorridos.length} tramo
+            {recorridos.length === 1 ? "" : "s"} de recorrido
+          </span>
+          <span className="flota-en-vivo-refresco">
+            {segundos < 60 ? `Actualizado hace ${segundos} s` : `Actualizado ${hace(Math.floor(segundos / 60))}`}
+          </span>
+        </div>
+
+        <div className="flota-controles">
+          <button
+            type="button"
+            className="flota-toggle"
+            aria-pressed={mostrar}
+            onClick={() => setMostrar((valor) => !valor)}
+          >
+            {mostrar ? "Ocultar recorridos" : "Ver recorridos"}
+          </button>
+          <button
+            type="button"
+            className="flota-toggle"
+            onClick={() => setEncuadre((e) => ({ tipo: "todas", numero: e.numero + 1 }))}
+          >
+            Ver todas
+          </button>
+          <button
+            type="button"
+            className="flota-toggle"
+            disabled={!seleccion || tramosSeleccionados.length === 0}
+            onClick={() => setEncuadre((e) => ({ tipo: "recorrido", numero: e.numero + 1 }))}
+          >
+            Encuadrar recorrido
+          </button>
+          {seleccion ? (
+            <button type="button" className="flota-toggle" onClick={() => setSeleccion(null)}>
+              Quitar selección
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="flota-toggle"
+            onClick={() => {
+              void traerPosiciones();
+              void traerRecorridos();
+            }}
+          >
+            Actualizar ahora
+          </button>
+        </div>
       </div>
 
-      {error ? (
+      {errorPosiciones ? (
         <p className="flota-en-vivo-error" role="alert">
-          {error}
+          {errorPosiciones}
+        </p>
+      ) : null}
+      {errorHistorial ? (
+        <p className="flota-en-vivo-error" role="alert">
+          {errorHistorial}{" "}
+          <button type="button" className="flota-enlace" onClick={() => void traerRecorridos()}>
+            Reintentar
+          </button>
+        </p>
+      ) : null}
+      {truncado ? (
+        <p className="flota-aviso" role="status">
+          El historial superó el máximo que se lee de una vez: algún recorrido puede empezar más tarde de
+          lo que pasó en realidad.
         </p>
       ) : null}
 
       <div className="flota-en-vivo-grid">
-        <div ref={contenedor} className="flota-mapa" role="application" aria-label="Mapa de las naves en vivo" />
+        <div className="flota-mapa-col">
+          <MapaUnidades
+            naves={naves}
+            recorridos={recorridos}
+            mostrar={mostrar}
+            seleccion={seleccion}
+            onSeleccion={seleccionar}
+            encuadre={encuadre}
+            colores={colores}
+          />
+          <p className="flota-mapa-leyenda">
+            <span><i className="inicio" aria-hidden="true" /> círculo hueco: dónde arrancó el tramo</span>
+            <span><i className="sentido" aria-hidden="true" /> flecha: para dónde fue</span>
+            <span><i className="fin" aria-hidden="true" /> punto lleno: última posición del tramo</span>
+            <span>cada unidad tiene su color, igual que en la lista</span>
+          </p>
+        </div>
 
-        <aside className="flota-panel">
+        <aside className="flota-panel" aria-label="Unidades y choferes">
           <h2>
-            Naves <span>{flota.naves.length}</span>
+            Unidades <span>{filas.vivas.length}</span>
           </h2>
-          {flota.naves.length === 0 ? (
+          {filas.vivas.length === 0 ? (
             <p className="flota-panel-vacio">
-              Todavía no hay ninguna nave reportando. La posición llega cuando el chofer abre su panel
-              en el celular.
+              Ninguna unidad está reportando. La posición aparece cuando el chofer abre su panel en el
+              celular.
             </p>
           ) : (
             <ul>
-              {flota.naves.map((nave) => (
-                <li key={nave.vehicleId}>
-                  <button type="button" className="flota-fila" data-estado={nave.estado} onClick={() => enfocar(nave)}>
-                    <span className={`flota-punto is-${nave.estado}`} aria-hidden="true" />
-                    <span className="flota-fila-texto">
-                      <strong>{nombreDeNave(nave)}</strong>
-                      <small>{detalleDeNave(nave)}</small>
-                    </span>
-                    <span className="flota-fila-hora">{horaArgentina.format(new Date(nave.recordedAt))}</span>
-                  </button>
-                </li>
-              ))}
+              {filas.vivas.map((fila) => {
+                const activa = fila.clave === seleccion;
+                return (
+                  <li key={fila.clave}>
+                    <button
+                      type="button"
+                      className="flota-fila"
+                      data-estado={fila.nave.estado}
+                      aria-pressed={activa}
+                      onClick={() => seleccionar(fila.clave)}
+                      title={activa ? "Quitar selección" : "Ver esta unidad en el mapa"}
+                    >
+                      <span
+                        className="flota-fila-color"
+                        style={{ background: colores.get(fila.nave.driverId) ?? "#c9c4ba" }}
+                        aria-hidden="true"
+                      />
+                      <span className="flota-fila-texto">
+                        <span className="flota-fila-top">
+                          <strong>{fila.unidad}</strong>
+                          <span className="flota-fila-hora">{horaSenal(fila.nave.recordedAt)}</span>
+                        </span>
+                        <span className="flota-fila-chofer">{fila.nombre}</span>
+                        <small>
+                          {ESTADO[fila.nave.estado]} · {fila.detalle}
+                        </small>
+                        <small className="flota-fila-recorrido">
+                          {fila.metros != null && fila.metros > 0
+                            ? `Recorrido ≈ ${distanciaVisible(fila.metros)}`
+                            : "Sin recorrido todavía"}
+                        </small>
+                        {fila.servicio ? (
+                          <small className={`flota-fila-servicio is-${fila.servicio.nivel}`}>
+                            {fila.servicio.enCurso ? "Ahora" : horaCorta(fila.servicio.at)} · {fila.servicio.titulo}
+                            {fila.servicio.pasajeros > 0 ? ` (${fila.servicio.pasajeros} pas.)` : ""}
+                          </small>
+                        ) : (
+                          <small className="flota-fila-servicio is-libre">Sin servicio próximo hoy</small>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
 
-          {flota.sinUbicacion.length > 0 ? (
+          {filas.sinDato.length > 0 ? (
             <>
               <h2>
-                Sin ubicación <span>{flota.sinUbicacion.length}</span>
+                Sin ubicación <span>{filas.sinDato.length}</span>
               </h2>
-              <p className="flota-panel-vacio">
-                Choferes activos que todavía no mandaron una posición: puede que no hayan abierto la app o
-                que el navegador les haya negado el permiso.
-              </p>
               <ul>
-                {flota.sinUbicacion.map((chofer) => (
+                {filas.sinDato.map((chofer) => (
                   <li key={chofer.driverId}>
-                    <span className="flota-fila" data-estado="sin-dato">
+                    <div className="flota-fila" data-estado="sin-dato">
                       <span className="flota-punto is-sin-dato" aria-hidden="true" />
                       <span className="flota-fila-texto">
                         <strong>{chofer.driverName ?? "Chofer sin nombre"}</strong>
-                        <small>Sin ubicación</small>
+                        <small>No mandó posición nunca</small>
                       </span>
-                    </span>
+                      <span className="flota-fila-hora">—</span>
+                    </div>
                   </li>
                 ))}
               </ul>
             </>
+          ) : null}
+
+          {seleccion ? (
+            <div className="flota-detalle">
+              <h2>Seleccionado</h2>
+              <p>
+                {seleccionada
+                  ? `${nombreUnidad(seleccionada)} · ${seleccionada.driverName ?? "Chofer"}`
+                  : "Unidad sin posición actual"}
+              </p>
+              <p className="flota-detalle-dato">
+                {tramosSeleccionados.length
+                  ? `${tramosSeleccionados.length} tramo${tramosSeleccionados.length === 1 ? "" : "s"} · ≈ ${distanciaVisible(
+                      tramosSeleccionados.reduce((total, tramo) => total + tramo.metros, 0)
+                    )} en la ventana`
+                  : "Esa unidad no tiene recorrido en la ventana."}
+              </p>
+              {servicioSeleccionado ? (
+                <p className="flota-detalle-dato">
+                  Servicio: <Link href={servicioSeleccionado.href}>{servicioSeleccionado.titulo}</Link> (
+                  {servicioSeleccionado.enCurso ? "en curso" : horaCorta(servicioSeleccionado.at)})
+                </p>
+              ) : null}
+              {seleccionada ? (
+                <p className="flota-detalle-links">
+                  <Link href={`/admin/naves/${seleccionada.vehicleId}`}>Ficha de la nave</Link>
+                  {" · "}
+                  <Link href={`/admin/naves/${seleccionada.vehicleId}/recorridos`}>Historial de servicios</Link>
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </aside>
       </div>
