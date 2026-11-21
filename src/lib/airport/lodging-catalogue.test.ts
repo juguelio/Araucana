@@ -159,3 +159,23 @@ describe("catálogo complementario", () => {
   });
 
 });
+
+/**
+ * Toda palabra de tipo tiene que devolver la categoría completa, en singular y en plural. La lista
+ * de palabras ignoradas se escribe a mano y se olvidó de «hostales», «alquileres» y «temporarios»:
+ * quedaban como palabras de nombre, no puntuaban contra ninguna ficha y devolvían 0 — el cliente
+ * escribía «hostales» y no encontraba nada, con «hostal» funcionando.
+ */
+it.each([
+  ["hostal", "hostales", "Hosterias"],
+  ["alquiler", "alquileres", "Alquiler Turístico Temporario"],
+  ["temporario", "temporarios", "Alquiler Turístico Temporario"],
+  ["hotel", "hoteles", "Hotel"],
+  ["cabana", "cabanas", "Cabañas"]
+])("«%s» y «%s» devuelven la misma categoría (%s), sin importar el número", (singular, plural, type) => {
+  const uno = findMunicipalLodgings(singular);
+  const varios = findMunicipalLodgings(plural);
+  expect(varios.length).toBeGreaterThan(0);
+  expect(varios.every((place) => place.type === type)).toBe(true);
+  expect(varios.map((place) => place.id).sort()).toEqual(uno.map((place) => place.id).sort());
+});

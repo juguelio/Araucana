@@ -30,19 +30,6 @@ export function municipalLodgingSuggestion(lodging: CatalogueLodging): AirportPl
   };
 }
 
-const ignoredWords = new Set([
-  "hotel", "hoteles", "hote", "hostal", "hostel", "hostels", "hosteria", "hosterias",
-  "cabana", "cabanas", "apart", "aparts", "apartamento", "apartamentos", "departamento", "departamentos",
-  "aparthotel", "aparthoteles", "depto", "deptos", "dpto", "dptos", "bungalow", "bungalows",
-  "alojamiento", "alojamientos", "alquiler", "turistico", "temporario", "camping", "campings",
-  "residencial", "residenciales", "albergue", "albergues", "rural", "rurales", "areas",
-  "de", "del", "el", "la", "las", "los", "en", "y"
-]);
-
-export function lodgingNameWords(value: string) {
-  return normalizePlaceText(value).split(" ").filter((word) => word && !ignoredWords.has(word));
-}
-
 /**
  * Palabras de tipo → categoría del directorio. Buscar «cabañas» antes no devolvía nada:
  * `cabanas` está en `ignoredWords`, así que la consulta quedaba sin palabras de nombre y no
@@ -62,6 +49,23 @@ const typeWords: Record<string, string> = {
   temporario: "Alquiler Turístico Temporario", temporarios: "Alquiler Turístico Temporario",
   residencial: "Residenciales", residenciales: "Residenciales"
 };
+
+// Toda palabra de tipo se ignora como palabra de nombre: si no, «hostales» queda como nombre
+// buscable y la consulta no llega nunca al camino de categoría (el singular «hostal» sí, porque
+// estaba en la lista a mano). Se derivan, así no se puede volver a olvidar una.
+const ignoredWordsBase = new Set([
+  "hotel", "hoteles", "hote", "hostal", "hostel", "hostels", "hosteria", "hosterias",
+  "cabana", "cabanas", "apart", "aparts", "apartamento", "apartamentos", "departamento", "departamentos",
+  "aparthotel", "aparthoteles", "depto", "deptos", "dpto", "dptos", "bungalow", "bungalows",
+  "alojamiento", "alojamientos", "alquiler", "turistico", "temporario", "camping", "campings",
+  "residencial", "residenciales", "albergue", "albergues", "rural", "rurales", "areas",
+  "de", "del", "el", "la", "las", "los", "en", "y"
+]);
+const ignoredWords = new Set([...ignoredWordsBase, ...Object.keys(typeWords)]);
+
+export function lodgingNameWords(value: string) {
+  return normalizePlaceText(value).split(" ").filter((word) => word && !ignoredWords.has(word));
+}
 
 export function municipalLodgingType(query: string) {
   const types = new Set(normalizePlaceText(query).split(" ").map((word) => typeWords[word]).filter(Boolean));
