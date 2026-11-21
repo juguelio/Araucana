@@ -5,6 +5,7 @@ import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
 import { separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
+import { reservasFantasmaDelDia, reservasFantasmaPorVuelo } from "@/lib/airport/fantasma";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -142,6 +143,22 @@ export default async function AirportPage({ searchParams }: PageProps) {
     (n, v) => n + pasajerosOcupados(v.reservations.map((r) => r.reservation)),
     0
   );
+  // La lista, no sólo el conteo (#331): cuáles son, con su código y su pasajero, para poder
+  // reasignarlas sin abrirlas una por una. Consulta propia sobre los ids fantasma, porque
+  // INCLUDE_COMBIS_DEL_VUELO lo comparte la orden de servicio y sólo trae passengerCount y status.
+  const idsFantasma = fantasma.flatMap((v) => v.reservations.map((r) => r.reservationId));
+  const detalleFantasma = idsFantasma.length ? await prisma.reservation.findMany({
+    // Sin filtrar canceladas: el número del aviso las cuenta y la lista tiene que mostrar lo mismo.
+    where: { id: { in: idsFantasma } },
+    select: { id: true, code: true, shortCode: true, status: true, passengerCount: true,
+      passenger: { select: { firstName: true, lastName: true } } }
+  }) : [];
+  const filasFantasma = reservasFantasmaPorVuelo(reservasFantasmaDelDia(
+    fantasma.map((v) => ({ id: v.id, number: v.number, direction: v.direction, hora: hhmm(v.scheduledAt),
+      reservas: v.reservations.map((r) => r.reservationId) })),
+    detalleFantasma.map((r) => ({ id: r.id, code: r.code, shortCode: r.shortCode, status: r.status,
+      passengerCount: r.passengerCount, pasajero: `${r.passenger.firstName} ${r.passenger.lastName}`.trim() }))
+  ));
   const link = (extra: string, dia: string = fecha) =>
     `/admin/aeropuerto?date=${dia}${extra || (dia !== fecha && soloAlerta ? "&solo=alerta" : "")}`;
 
@@ -514,13 +531,36 @@ export default async function AirportPage({ searchParams }: PageProps) {
       ) : null}
 
       {reservasFantasma > 0 ? (
-        <p className="flights-aviso">
-          <strong>{reservasFantasma}</strong> {reservasFantasma === 1 ? "reserva" : "reservas"} ({pasajerosFantasma}{" "}
-          {pasajerosFantasma === 1 ? "pasajero" : "pasajeros"}) sobre {reservasFantasma === 1 ? "un vuelo" : "vuelos"} que
-          ninguna fuente confirma. No se {reservasFantasma === 1 ? "muestra" : "muestran"} en el tablero: reasigná{" "}
-          {reservasFantasma === 1 ? "esa reserva" : "esas reservas"} a un vuelo real desde{" "}
-          <a href="/admin/reservas">Reservas</a>.
-        </p>
+        <div className="flights-aviso">
+          <p>
+            <strong>{reservasFantasma}</strong> {reservasFantasma === 1 ? "reserva" : "reservas"} ({pasajerosFantasma}{" "}
+            {pasajerosFantasma === 1 ? "pasajero" : "pasajeros"}) sobre {reservasFantasma === 1 ? "un vuelo" : "vuelos"} que
+            ninguna fuente confirma. No se {reservasFantasma === 1 ? "muestra" : "muestran"} en el tablero: reasigná{" "}
+            {reservasFantasma === 1 ? "esa reserva" : "esas reservas"} a un vuelo real desde{" "}
+            <Link href="/admin/reservas">Reservas</Link>.
+          </p>
+          <ul className="flights-aviso-lista">
+            {filasFantasma.map((grupo) => (
+              <li key={`${grupo.vuelo}-${grupo.hora}-${grupo.filas[0]?.flightId}`}>
+                <p className="flights-aviso-vuelo">
+                  <strong>{grupo.vuelo}</strong> · {grupo.sentido === "ARRIVAL" ? "llegada" : "salida"}{" "}
+                  {grupo.hora} · sin verificar
+                  {grupo.filas.length === 1 ? "" : ` · ${grupo.filas.length} reservas`}
+                </p>
+                <ul>
+                  {grupo.filas.map((fila) => (
+                    <li key={fila.reservaId}>
+                      <Link href={`/admin/reservas/${fila.code}/editar`}>{fila.shortCode}</Link>
+                      {" · "}{fila.pasajero}
+                      {" · "}{fila.passengerCount === 1 ? "1 pasajero" : `${fila.passengerCount} pasajeros`}
+                      {" · "}<span className="muted">{fila.estado}</span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {conEvento.length > 0 ? (

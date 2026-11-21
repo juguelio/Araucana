@@ -2480,6 +2480,15 @@ a.wizard-option { text-decoration: none; }
 /* Aviso de reservas que quedaron sobre un vuelo que ninguna fuente confirma: no es un vuelo del
    tablero, es una reserva a reasignar. Se marca al costado para que no se pierda entre el texto. */
 .flights-aviso { margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.45; }
+.flights-aviso p { margin: 0; }
+/* El `a` global hereda color y no se subraya: en el aviso eso dejaba «Reservas» indistinguible de una
+   palabra más, sobre todo en el celular (reportado por el cliente el 21-nov). */
+.flights-aviso a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+/* La lista de reservas fantasma (#331): qué son, no cuántas. */
+.flights-aviso-lista { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.flights-aviso-vuelo { font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-soft); }
+.flights-aviso-lista ul { margin: 4px 0 0; padding: 0 0 0 14px; display: grid; gap: 4px; }
+.flights-aviso-lista ul li { line-height: 1.4; }
 .flights-pasados .flights-list { margin-top: 8px; }
 .flight-card[data-pasado="true"] { filter: grayscale(1); opacity: .62; }
 .flight-card[data-pasado="true"]:hover, .flight-card[data-pasado="true"]:focus-within { opacity: 1; filter: none; }
