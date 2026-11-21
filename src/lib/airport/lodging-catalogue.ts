@@ -44,10 +44,14 @@ function oneLetterAway(a: string, b: string) {
   return edits + Number(i < a.length || j < b.length) <= 1;
 }
 
+// Nombre comercial corroborado en la ficha del establecimiento; Turismo conserva el nombre abreviado.
+const commercialNames: Record<string, { municipalName: string; aliases: string[] }> = {
+  "183": { municipalName: "Turismo", aliases: ["Hotel Turismo Patagonia", "Turismo Patagonia"] }
+};
 const indexed = municipalLodgings.map((lodging) => ({
   lodging,
-  name: normalizePlaceText(lodging.name),
-  words: lodgingNameWords(lodging.name),
+  names: [lodging.name, ...(commercialNames[lodging.id]?.municipalName === lodging.name
+    ? commercialNames[lodging.id].aliases : [])].map((name) => ({ name: normalizePlaceText(name), words: lodgingNameWords(name) })),
   address: normalizePlaceText(lodging.address),
   zone: normalizePlaceText(lodging.zone)
 }));
@@ -63,15 +67,17 @@ export function findMunicipalLodgings(query: string, limit = 8) {
   const words = lodgingNameWords(normalizedName);
   return indexed.flatMap((item) => {
     if (!localContext && normalizedContext !== item.zone) return [];
-    let score = 0;
-    if (item.name === normalizedName) score = 1000;
-    else if (item.name.startsWith(normalizedName)) score = 900;
-    else if (words.length && words.every((word) => item.words.includes(word))) score = 800;
-    else if (words.length && words.every((word) => item.words.some((candidate) =>
-      candidate === word || (word.length >= 3 && candidate.startsWith(word))))) score = 700;
-    else if (words.length && words.every((word) => item.words.some((candidate) =>
-      candidate === word || oneLetterAway(word, candidate)))) score = 600;
-    else if (/\d/.test(normalizedName) && item.address === normalizedName) score = 500;
+    const nameScore = Math.max(...item.names.map((candidate) => {
+      if (candidate.name === normalizedName) return 1000;
+      if (candidate.name.startsWith(normalizedName)) return 900;
+      if (words.length && words.every((word) => candidate.words.includes(word))) return 800;
+      if (words.length && words.every((word) => candidate.words.some((part) =>
+        part === word || (word.length >= 3 && part.startsWith(word))))) return 700;
+      if (words.length && words.every((word) => candidate.words.some((part) =>
+        part === word || oneLetterAway(word, part)))) return 600;
+      return 0;
+    }));
+    const score = nameScore || (/\d/.test(normalizedName) && item.address === normalizedName ? 500 : 0);
     return score ? [{ ...item.lodging, score }] : [];
   }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "es") || a.id.localeCompare(b.id))
     .slice(0, limit);

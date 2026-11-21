@@ -1,0 +1,597 @@
+{
+  "checkedOn": "2026-11-20",
+  "source": "Captura suministrada por el usuario: Los 20 lugares que más mueven (aeropuerto + cerro), julio–octubre 2026.",
+  "scope": "Búsquedas contra API de producción de los 20 rótulos; selección en Chrome de oficina, dos domicilios y Las Pendientes. No valida cantidades de pasajeros ni entradas sobre el terreno.",
+  "resultsBeforeFix": [
+    {
+      "query": "Oficina / base propia",
+      "status": 200,
+      "matches": [],
+      "review": "Oficina de Araucana, confirmado por el usuario. Usar atajo de sucursal: Mariano Moreno 829. Marcador verificado en Chrome."
+    },
+    {
+      "query": "Patagonia Plaza",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Patagonia Plaza, Av. San Martín 502 · Centro · Hotel",
+          "lodgingId": "1",
+          "source": "municipal",
+          "point": [
+            -40.158,
+            -71.3546776
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Patagonia+Plaza/@-40.158,-71.3546776,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e747f57de91:0xd880697d6f1e82a1!5m2!4m1!1i2!8m2!3d-40.158!4d-71.3546776!16s%2Fg%2F1thy0_mj"
+        },
+        {
+          "isLodging": true,
+          "label": "Patagonia Plaza Hotel, 502, Avenida San Martín, Cantera, Centro, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.1578774,
+            -71.3547721
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Rincón de los Andes",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Rincón de los Andes, Juez Del Valle 611 · Centro · Apart Hoteles",
+          "lodgingId": "108",
+          "source": "municipal",
+          "point": [
+            -40.1574707,
+            -71.3603744
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Rinc%C3%B3n+de+los+Andes/@-40.1574707,-71.3603744,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e0b5bfba859:0xc0eca0ced5742396!5m2!4m1!1i2!8m2!3d-40.1574707!4d-71.3603744!16s%2Fg%2F1vpptq7_"
+        },
+        {
+          "isLodging": true,
+          "label": "Rincón de los Andes, Federico Graeff, Tiro Federal, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1575381,
+            -71.3606282
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Rincón Radales, Los Robles, San Martín de los Andes, Departamento Lácar, Neuquén, Argentina",
+          "point": [
+            -40.1164692,
+            -71.3098085
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Acceso Rincón Radales, Los Robles, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.119002,
+            -71.3072348
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Rincón Encantado, Avenida San Martín, Cantera, Centro, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1565196,
+            -71.3501113
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Le Village",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Le Village Cabañas, Gral. Roca 816 · Centro · Cabañas",
+          "lodgingId": "145",
+          "source": "municipal",
+          "point": [
+            -40.1556878,
+            -71.3511877
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Le+Village+Hotel/@-40.1556878,-71.3511877,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e743605d0c7:0x54e7e62ce20c6ebd!5m2!4m1!1i2!8m2!3d-40.1556878!4d-71.3511877!16s%2Fg%2F1tct9xq6"
+        },
+        {
+          "label": "Le Village Hotel, Gral. Roca 816 · Centro · Hotel",
+          "lodgingId": "24",
+          "source": "municipal",
+          "point": [
+            -40.1556878,
+            -71.3511877
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Le+Village+Hotel/@-40.1556878,-71.3511877,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e743605d0c7:0x54e7e62ce20c6ebd!5m2!4m1!1i2!8m2!3d-40.1556878!4d-71.3511877!16s%2Fg%2F1tct9xq6"
+        },
+        {
+          "label": "Le Village, 816, General Roca, Buenos Aires Chico, Centro, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.1557312,
+            -71.3513559
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Le Chatelet",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Le Chatelet, Villegas 650 · Centro · Hotel",
+          "lodgingId": "3",
+          "source": "municipal",
+          "point": [
+            -40.1585184,
+            -71.3524337
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Le+Chatelet+Hotel/@-40.1585184,-71.3524337,1069m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e716356580b:0xc003df33808f76c1!5m2!4m1!1i2!8m2!3d-40.1585184!4d-71.3524337!16s%2Fg%2F1td2_nkg"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Tunquelén",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Tunqueley, Belgrano 700 · Centro · Hotel",
+          "lodgingId": "182",
+          "source": "municipal",
+          "point": [
+            -40.1556236,
+            -71.3502854
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Hotel+Tunqueley/@-40.1556236,-71.3502854,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e76d98ee8a5:0x355e1b3e9c421294!5m2!4m1!1i2!8m2!3d-40.1556236!4d-71.3502854!16s%2Fg%2F1tfyfs69"
+        }
+      ],
+      "review": "El buscador devuelve Tunqueley, Belgrano 700, por semejanza del nombre. Confirmar que el reporte se refiere a ese hotel; no se agregó alias que dé por cierta esa identidad."
+    },
+    {
+      "query": "Villa Pirén",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Villa Pirén, Pirén 49 · Alrededores · Apart Hoteles",
+          "lodgingId": "96",
+          "source": "municipal",
+          "point": [
+            -40.1505384,
+            -71.3371035
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Villa+Pir%C3%A9n/@-40.1505384,-71.3371035,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e7f979c6fc9:0x99530f6f4c375876!5m2!4m1!1i2!8m2!3d-40.1505384!4d-71.3371035!16s%2Fg%2F11bzzzpn5f"
+        },
+        {
+          "isLodging": true,
+          "label": "Villa Pirén, Pirén, Pirén, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1505648,
+            -71.3371381
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Paihuén",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Paihuen, Ruta Nac. 40  Ex. 234 km 78 · Alrededores · Cabañas",
+          "lodgingId": "147",
+          "source": "municipal",
+          "point": [
+            -40.1754504,
+            -71.3950852
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Paihuen+Resort+de+Monta%C3%B1a/@-40.1754504,-71.3950852,1120m/data=!3m2!1e3!4b1!4m9!3m8!1s0x961111e625ced9d7:0x97d973c40c93150f!5m2!4m1!1i2!8m2!3d-40.1754504!4d-71.3950852!16s%2Fg%2F113hh5g37"
+        },
+        {
+          "label": "Paimún, Villa Paur, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.1435914,
+            -71.3059346
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "isLodging": true,
+          "label": "Paihuén Villa de Montaña, Camino de los Siete Lagos, Centro, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1756048,
+            -71.3943165
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Cabañas Las Pampas",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Las Pampas, Alte. Brown 341 · Centro · Cabañas",
+          "lodgingId": "144",
+          "source": "municipal",
+          "point": [
+            -40.1620153,
+            -71.3552193
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Caba%C3%B1as+Las+Pampas/@-40.1620153,-71.3552193,1120m/data=!3m2!1e3!4b1!4m6!3m5!1s0x96110e7278de3e73:0x92f0ebcda73239f1!8m2!3d-40.1620153!4d-71.3552193!16s%2Fg%2F1hdzpq6_s"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Intermonti",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Intermonti, Villegas 717 · Centro · Hotel",
+          "lodgingId": "23",
+          "source": "municipal",
+          "point": [
+            -40.1584593,
+            -71.3514619
+          ],
+          "approximate": true,
+          "precision": "interpolated",
+          "locationMatch": "address",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Gral.+Villegas+717,+Q8370+San+Mart%C3%ADn+de+los+Andes,+Neuqu%C3%A9n/@-40.1593928,-71.353808,1069m/data=!3m1!1e3!4m6!3m5!1s0x96110e716c5429b9:0xd86acf6afb72a454!8m2!3d-40.1584593!4d-71.3514619!16s%2Fg%2F11x86vw5tl"
+        }
+      ],
+      "review": "Ubicado por el domicilio Villegas 717; referencia aproximada, no entrada verificada."
+    },
+    {
+      "query": "Rukalhue",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Rukalhue, Juez Del Valle 682 · Centro · Albergues - Hostel",
+          "lodgingId": "51",
+          "source": "municipal",
+          "point": [
+            -40.1579829,
+            -71.359454
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Rukalhue+Hostel/@-40.1579829,-71.359454,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e0ca8e11a17:0x5e98781ec01cb45c!5m2!4m1!1i2!8m2!3d-40.1579829!4d-71.359454!16s%2Fg%2F1td21g2m"
+        },
+        {
+          "label": "Rukalhue Apart hotel, Juez Del Valle 682 · Centro · Apart Hoteles",
+          "lodgingId": "67",
+          "source": "municipal",
+          "point": [
+            -40.1579829,
+            -71.359454
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Rukalhue+Hostel/@-40.1579829,-71.359454,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e0ca8e11a17:0x5e98781ec01cb45c!5m2!4m1!1i2!8m2!3d-40.1579829!4d-71.359454!16s%2Fg%2F1td21g2m"
+        },
+        {
+          "isLodging": true,
+          "label": "Rukalhue, 682, Juez del Valle, Tiro Federal, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1579562,
+            -71.3594217
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Ruca Hue, San Martín de los Andes, Departamento Lácar, Neuquén, Argentina",
+          "point": [
+            -40.1162108,
+            -71.2449235
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Rucahue, Quela, Ruca Hue, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.1171667,
+            -71.244071
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Hotel Turismo Patagonia",
+      "status": 200,
+      "matches": [
+        {
+          "isLodging": true,
+          "label": "Patagonia Plaza Hotel, 502, Avenida San Martín, Cantera, Centro, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.1578774,
+            -71.3547721
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "isLodging": true,
+          "label": "Alhue Patagonia Hostel, 720, Rudecindo Roca, Buenos Aires Chico, Tiro Federal, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1541206,
+            -71.3536714
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Fallo detectado: el nombre comercial no recuperaba la ficha municipal Turismo (id 183). Se agregaron alias manteniendo la ficha y las coordenadas verificadas."
+    },
+    {
+      "query": "Viejo Esquiador",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Del Viejo Esquiador, Av. San Martín 1242 · Centro · Hotel",
+          "lodgingId": "185",
+          "source": "municipal",
+          "point": [
+            -40.1549549,
+            -71.3452011
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Hotel+Del+Viejo+Esquiador/@-40.1549549,-71.3452011,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e798d16baf1:0x9aee9250abd11992!5m2!4m1!1i2!8m2!3d-40.1549549!4d-71.3452011!16s%2Fg%2F1tj2d5wm"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Las Pendientes",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Las Pendientes, Acceso a Las Pendientes Ski Village, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1952655,
+            -71.3024423
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        },
+        {
+          "label": "Acceso a Las Pendientes Ski Village, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.1950941,
+            -71.3112863
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "Las Pendientes, Departamento Lácar, Neuquén, Argentina",
+          "point": [
+            -40.1965562,
+            -71.2990629
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ],
+      "review": "Encuentra y marca una referencia del complejo. Chrome informa zona con recargo de $1.500. Confirmar cabaña o punto de encuentro; no equivale a una entrada única. Fuente de contexto: https://laspendientesski.com/"
+    },
+    {
+      "query": "Rudecindo Roca 657",
+      "status": 200,
+      "matches": [
+        {
+          "label": "657, Rudecindo Roca, Buenos Aires Chico, Tiro Federal, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.15462515,
+            -71.35440047
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ],
+      "review": "Devuelve altura interpolada. Marcador y confirmación verificados en Chrome; requiere revisar entrada."
+    },
+    {
+      "query": "My Friends",
+      "status": 200,
+      "matches": [
+        {
+          "label": "My Friends, Villegas 1217 · Centro · Apart Hoteles",
+          "lodgingId": "103",
+          "source": "municipal",
+          "point": [
+            -40.1563038,
+            -71.3447093
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Apart+Hotel+My+Friends/@-40.1563038,-71.3447093,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e7a3ca62be7:0x82684cf4146f6d7a!5m2!4m1!1i2!8m2!3d-40.1563038!4d-71.3447093!16s%2Fg%2F1td59tjr"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Antiguos",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Antiguos, Cnel. Díaz 753 · Centro · Hotel",
+          "lodgingId": "13",
+          "source": "municipal",
+          "point": [
+            -40.1587773,
+            -71.3580813
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Hotel+Antiguos/@-40.1587773,-71.3580813,1069m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e73469b29ad:0x71cb5696fc5b51b0!5m2!4m1!1i2!8m2!3d-40.1587773!4d-71.3580813!16s%2Fg%2F1tffkzx0"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Belgrano 845",
+      "status": 200,
+      "matches": [
+        {
+          "label": "845, Manuel Belgrano, Sarmiento, Centro, San Martín de los Andes, Departamento Lácar, Neuquén, 8370, Argentina",
+          "point": [
+            -40.15693869,
+            -71.34931147
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        },
+        {
+          "label": "845, Manuel Belgrano, Sarmiento, Centro, San Martín de los Andes, Departamento Lácar, Neuquén, Q8370, Argentina",
+          "point": [
+            -40.1569685,
+            -71.3496374
+          ],
+          "source": "locationiq",
+          "approximate": false,
+          "precision": "exact"
+        }
+      ],
+      "review": "Devuelve dos resultados: uno interpolado y otro exacto del proveedor (aprox. 28 m de diferencia). El segundo muestra marcador en Chrome; confirmar entrada."
+    },
+    {
+      "query": "Aspen",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Aspen Hostería, Tte. Cnel. Pérez 1127 · Centro · Hosterias",
+          "lodgingId": "154",
+          "source": "municipal",
+          "point": [
+            -40.1609247,
+            -71.3505646
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Complejo+Aspen/@-40.1609247,-71.3505646,1069m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e71c65a66ab:0x4f190b970386f46!5m2!4m1!1i2!8m2!3d-40.1609247!4d-71.3505646!16s%2Fg%2F1hc4v0fyz"
+        },
+        {
+          "label": "Aspen hotel, Tte. Cnel. Pérez 1127 · Centro · Hotel",
+          "lodgingId": "178",
+          "source": "municipal",
+          "point": [
+            -40.1609247,
+            -71.3505646
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Complejo+Aspen/@-40.1609247,-71.3505646,1121m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110e71c65a66ab:0x4f190b970386f46!5m2!4m1!1i2!8m2!3d-40.1609247!4d-71.3505646!16s%2Fg%2F1hc4v0fyz"
+        },
+        {
+          "label": "Ascenso Volcán Colorado, Departamento Lácar, Neuquén, Argentina",
+          "point": [
+            -40.1020773,
+            -71.4096755
+          ],
+          "source": "locationiq",
+          "approximate": true,
+          "precision": "interpolated"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    },
+    {
+      "query": "Latitud 40",
+      "status": 200,
+      "matches": [
+        {
+          "label": "Latitud 40, Cap. Drury 841 · Centro · Hosterias",
+          "lodgingId": "159",
+          "source": "municipal",
+          "point": [
+            -40.1575669,
+            -71.3509093
+          ],
+          "approximate": true,
+          "precision": "exact",
+          "locationMatch": "establishment",
+          "coordinateSourceUrl": "https://www.google.com/maps/place/Latitud+Cuarenta/@-40.1575669,-71.3509093,1070m/data=!3m2!1e3!4b1!4m9!3m8!1s0x96110f72ba457bd9:0x3560bec06926e93c!5m2!4m1!1i2!8m2!3d-40.1575669!4d-71.3509093!16s%2Fg%2F11lm63chtw"
+        }
+      ],
+      "review": "Coincidencia municipal con referencia de establecimiento disponible en producción."
+    }
+  ]
+}
