@@ -55,12 +55,15 @@ export function FlotaEnVivoMapa({
   inicial,
   recorridosIniciales,
   servicios = [],
-  unidadInicial = null
+  unidadInicial = null,
+  unidadPedida = null
 }: {
   inicial: FlotaEnVivo;
   recorridosIniciales: Recorrido[];
   servicios?: ServicioEvaluado[];
   unidadInicial?: string | null;
+  /** La unidad que se pidió desde el tablero de flota, con su nombre, aunque no tenga posición. */
+  unidadPedida?: { id: string; nombre: string } | null;
 }) {
   const [flota, setFlota] = useState(inicial);
   const [recorridos, setRecorridos] = useState(recorridosIniciales);
@@ -299,6 +302,14 @@ export function FlotaEnVivoMapa({
         <p className="flota-aviso" role="status">
           El historial superó el máximo que se lee de una vez: algún recorrido puede empezar más tarde de
           lo que pasó en realidad.
+        </p>
+      ) : null}
+
+      {unidadPedida && !naves.some((nave) => nave.vehicleId === unidadPedida.id) ? (
+        <p className="flota-aviso" role="status">
+          <strong>{unidadPedida.nombre}</strong> no aparece en el mapa porque no mandó posición en la ventana: el
+          chofer tiene que abrir su panel y aceptar la ubicación. Abajo está la flota completa.{" "}
+          <Link href={`/admin/naves/${unidadPedida.id}`}>Ver su ficha</Link>
         </p>
       ) : null}
 
