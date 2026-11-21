@@ -2484,6 +2484,7 @@ a.wizard-option { text-decoration: none; }
 /* El `a` global hereda color y no se subraya: en el aviso eso dejaba «Reservas» indistinguible de una
    palabra más, sobre todo en el celular (reportado por el cliente el 21-nov). */
 .flights-aviso a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.flights-aviso-chequeo { margin-top: 6px; font-size: 12px; color: var(--ink-muted); }
 /* La lista de reservas fantasma (#331): qué son, no cuántas. */
 .flights-aviso-lista { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .flights-aviso-vuelo { font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-soft); }

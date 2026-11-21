@@ -5,7 +5,7 @@ import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
 import { separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
-import { reservasFantasmaDelDia, reservasFantasmaPorVuelo } from "@/lib/airport/fantasma";
+import { reservasFantasmaDelDia, reservasFantasmaPorVuelo, ultimaVerificacionDelDia } from "@/lib/airport/fantasma";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import { localInput } from "@/lib/special-trips/data";
@@ -153,6 +153,9 @@ export default async function AirportPage({ searchParams }: PageProps) {
     select: { id: true, code: true, shortCode: true, status: true, passengerCount: true,
       passenger: { select: { firstName: true, lastName: true } } }
   }) : [];
+  // La hora del último chequeo: el conteo cambia en minutos (AR1657 pasó de proyección de las 15:15 a
+  // vuelo confirmado de las 21:05 en veinte minutos), así que el aviso tiene que decir de cuándo es.
+  const ultimaVerificacion = ultimaVerificacionDelDia(vuelos);
   const filasFantasma = reservasFantasmaPorVuelo(reservasFantasmaDelDia(
     fantasma.map((v) => ({ id: v.id, number: v.number, direction: v.direction, hora: hhmm(v.scheduledAt),
       reservas: v.reservations.map((r) => r.reservationId) })),
@@ -538,6 +541,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
             ninguna fuente confirma. No se {reservasFantasma === 1 ? "muestra" : "muestran"} en el tablero: reasigná{" "}
             {reservasFantasma === 1 ? "esa reserva" : "esas reservas"} a un vuelo real desde{" "}
             <Link href="/admin/reservas">Reservas</Link>.
+          </p>
+          <p className="flights-aviso-chequeo">
+            {ultimaVerificacion
+              ? `Última verificación de las fuentes: ${hhmm(ultimaVerificacion)}`
+              : "Ninguna fuente verificó los vuelos de este día"}
           </p>
           <ul className="flights-aviso-lista">
             {filasFantasma.map((grupo) => (

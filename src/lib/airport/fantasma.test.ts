@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { estadoLegible, reservasFantasmaDelDia, reservasFantasmaPorVuelo } from "./fantasma";
+import { estadoLegible, reservasFantasmaDelDia, reservasFantasmaPorVuelo, ultimaVerificacionDelDia } from "./fantasma";
 import { esProyeccion, vuelosParaElTablero } from "./flight-board";
 
 const ar1657 = { id: "f-ar1657", number: "AR1657", direction: "DEPARTURE", hora: "21:15", reservas: ["r1", "r2"] };
@@ -60,4 +60,13 @@ it("el fantasma se decide por source ESTIMADO sin verificar, no por el status de
   expect(vuelosParaElTablero([verificado, proyecto])).toMatchObject({ fantasma: [proyecto] });
   // Día sin ningún vuelo confirmado (los futuros): las proyecciones son la grilla y no hay fantasma.
   expect(vuelosParaElTablero([proyecto]).fantasma).toEqual([]);
+});
+
+it("dice cuándo se chequeó por última vez, porque el conteo envejece en minutos", () => {
+  const once = new Date("2026-11-21T11:18:00Z");
+  const antes = new Date("2026-11-21T10:46:00Z");
+  expect(ultimaVerificacionDelDia([{ lastCheckedAt: antes }, { lastCheckedAt: once }])).toEqual(once);
+  expect(ultimaVerificacionDelDia([{ lastCheckedAt: null }, { lastCheckedAt: once }])).toEqual(once);
+  expect(ultimaVerificacionDelDia([{ lastCheckedAt: null }])).toBeNull();
+  expect(ultimaVerificacionDelDia([])).toBeNull();
 });

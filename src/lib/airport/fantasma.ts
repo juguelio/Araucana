@@ -98,3 +98,18 @@ export function reservasFantasmaPorVuelo(filas: readonly FilaReservaFantasma[]) 
   }
   return [...grupos.values()];
 }
+
+/**
+ * Cuándo verificó una fuente por última vez alguno de los vuelos del día (`null` si ninguna lo hizo).
+ *
+ * El número de reservas sin confirmar envejece en minutos: medido a las 11:05, AR1657 era una
+ * proyección de las 15:15 con cuatro reservas; veinte minutos después era un vuelo confirmado de las
+ * 21:05 con seis. Sin la hora del chequeo, el operador no sabe si el aviso que está leyendo es de
+ * ahora o de ayer.
+ */
+export function ultimaVerificacionDelDia(vuelos: readonly { lastCheckedAt: Date | null }[]): Date | null {
+  return vuelos.reduce<Date | null>((ultima, vuelo) => {
+    if (!vuelo.lastCheckedAt) return ultima;
+    return !ultima || vuelo.lastCheckedAt.getTime() > ultima.getTime() ? vuelo.lastCheckedAt : ultima;
+  }, null);
+}
