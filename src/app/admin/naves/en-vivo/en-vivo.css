@@ -596,6 +596,11 @@ button.flota-fila:hover, button.flota-fila:focus-visible { background: #f1efe7; 
 .srv-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 2px; align-items: center; }
 .srv-area { font-size: 10px; font-weight: 900; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-muted); }
 .srv-nivel { padding: 1px 6px; border-radius: 5px; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #fff; background: var(--ink-muted); }
+/* La misma unidad en dos salidas a la vez: se ve en la fila y lleva a la otra salida. */
+.srv-choque { padding: 1px 6px; border-radius: 5px; background: #f7e2c8; color: #7a3d0a; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .02em; text-decoration: none; }
+.srv-choque:hover, .srv-choque:focus-visible { background: #f0cfa6; }
+.srv-choque-hora { color: #8a4b12; font-size: 11px; font-weight: 800; text-decoration: none; }
+.srv-choque-hora:hover, .srv-choque-hora:focus-visible { text-decoration: underline; }
 .es-riesgo .srv-nivel { background: #b03a24; }
 .es-curso .srv-nivel { background: #1d5c8a; }
 .es-atencion .srv-nivel { background: #b98a1d; }

@@ -55,6 +55,18 @@ export type EstadoDeUnidadEnServicio = {
   speedKmh: number | null;
 };
 
+/** Otra salida del día que se lleva la misma unidad en horario superpuesto. */
+export type ChoqueDeUnidad = {
+  vehicleId: string;
+  /** «Araucana 24»: la unidad que se repite. */
+  unidad: string;
+  /** Id del otro servicio, para saltar a él. */
+  servicioId: string;
+  /** «13:00 · San Martín de los Andes → Aeropuerto Chapelco (CPC)». */
+  etiqueta: string;
+  href: string;
+};
+
 export type ServicioEvaluado = ServicioDelDia & {
   nivel: NivelDeServicio;
   /** Texto corto con el motivo, listo para la fila. */
@@ -65,6 +77,8 @@ export type ServicioEvaluado = ServicioDelDia & {
   enCurso: boolean;
   /** Estado de cada unidad asignada, para pintar el punto de color y cruzar con el mapa. */
   estados: EstadoDeUnidadEnServicio[];
+  /** Otras salidas que usan la misma unidad en horario superpuesto (una nave no puede estar en dos). */
+  choques: ChoqueDeUnidad[];
 };
 
 export type ResumenDeServicios = {
@@ -167,7 +181,8 @@ export function evaluarServicio(
     };
   });
 
-  const base = { ...servicio, minutosParaSalir, enCurso, estados };
+  // Los choques entre salidas se calculan con el día entero: un servicio solo no puede saberlos.
+  const base = { ...servicio, minutosParaSalir, enCurso, estados, choques: [] as ChoqueDeUnidad[] };
 
   if (yaTermino) return { ...base, nivel: "pasado", motivo: "servicio finalizado" };
 
@@ -233,14 +248,119 @@ export function evaluarServicio(
   return { ...base, nivel: cerca ? "atencion" : "futuro", motivo: "sin novedad" };
 }
 
+
+const horaCorta = new Intl.DateTimeFormat("es-AR", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false
+});
+
+/** Ventana en la que la unidad está tomada: de la salida al cierre (o 90 min si el servicio no dice cuándo termina). */
+function ventanaDe(servicio: ServicioDelDia) {
+  if (!servicio.at) return null;
+  const inicio = servicio.at.getTime();
+  const fin = servicio.endsAt ? servicio.endsAt.getTime() : inicio + DURACION_EN_CURSO_POR_DEFECTO_MIN * 60_000;
+  return { inicio, fin: Math.max(fin, inicio + 1) };
+}
+
+function etiquetaDe(servicio: ServicioDelDia) {
+  const hora = servicio.at ? horaCorta.format(servicio.at) : "sin hora";
+  return `${hora} · ${servicio.titulo}`;
+}
+
+/** «Araucana 24» o, si la salida no trae el interno, el nombre del vehículo. */
+function nombreDeLaUnidad(unidad: UnidadDeServicio) {
+  return unidad.internalNumber ? `Interno ${unidad.internalNumber}` : unidad.vehicleName;
+}
+
+/**
+ * Una misma unidad no puede cubrir dos salidas a la vez. Esto cruza el día consigo mismo: para cada
+ * unidad, busca las salidas cuya ventana se superpone. En el tablero de servicios se veía «Araucana 24»
+ * en cuatro salidas del día, dos de ellas a la misma hora, y nada lo decía.
+ *
+ * Sólo se miran las salidas que todavía no terminaron: un choque de la mañana ya pasó y no pide nada.
+ */
+export function detectarChoquesDeUnidades(
+  servicios: ServicioDelDia[],
+  ahora: Date = new Date()
+): Map<string, ChoqueDeUnidad[]> {
+  const vigentes = servicios
+    .map((servicio) => ({ servicio, ventana: ventanaDe(servicio) }))
+    .filter((item): item is { servicio: ServicioDelDia; ventana: { inicio: number; fin: number } } =>
+      item.ventana != null && item.ventana.fin > ahora.getTime()
+    );
+
+  const porUnidad = new Map<string, Array<{ servicio: ServicioDelDia; ventana: { inicio: number; fin: number }; unidad: UnidadDeServicio }>>();
+  for (const { servicio, ventana } of vigentes) {
+    for (const unidad of servicio.unidades) {
+      const lista = porUnidad.get(unidad.vehicleId) ?? [];
+      lista.push({ servicio, ventana, unidad });
+      porUnidad.set(unidad.vehicleId, lista);
+    }
+  }
+
+  const choques = new Map<string, ChoqueDeUnidad[]>();
+  const sumar = (servicioId: string, choque: ChoqueDeUnidad) => {
+    const lista = choques.get(servicioId) ?? [];
+    if (!lista.some((item) => item.servicioId === choque.servicioId && item.vehicleId === choque.vehicleId)) lista.push(choque);
+    choques.set(servicioId, lista);
+  };
+
+  for (const [vehicleId, asignaciones] of porUnidad) {
+    if (asignaciones.length < 2) continue;
+    for (let i = 0; i < asignaciones.length; i += 1) {
+      for (let j = i + 1; j < asignaciones.length; j += 1) {
+        const a = asignaciones[i];
+        const b = asignaciones[j];
+        if (a.ventana.inicio >= b.ventana.fin || b.ventana.inicio >= a.ventana.fin) continue;
+        sumar(a.servicio.id, {
+          vehicleId,
+          unidad: nombreDeLaUnidad(a.unidad),
+          servicioId: b.servicio.id,
+          etiqueta: etiquetaDe(b.servicio),
+          href: b.servicio.href
+        });
+        sumar(b.servicio.id, {
+          vehicleId,
+          unidad: nombreDeLaUnidad(b.unidad),
+          servicioId: a.servicio.id,
+          etiqueta: etiquetaDe(a.servicio),
+          href: a.servicio.href
+        });
+      }
+    }
+  }
+
+  return choques;
+}
+
+/** El motivo, en una línea: «misma nave en 2 servicios · también 13:00». */
+function motivoDeChoque(choques: ChoqueDeUnidad[]) {
+  const horas = [...new Set(choques.map((choque) => choque.etiqueta.split(" · ")[0]))];
+  const cuantos = choques.length + 1;
+  return `misma nave en ${cuantos} servicios · también ${horas.join(" y ")}`;
+}
+
 /** Evalúa todo el día y ordena por urgencia: primero lo que hay que resolver y arranca antes. */
 export function evaluarServiciosDelDia(
   servicios: ServicioDelDia[],
   flota: FlotaEnVivo | null,
   opciones: { ahora?: Date; avisoPrevioMinutos?: number } = {}
 ): ResumenDeServicios {
+  const ahora = opciones.ahora ?? new Date();
+  const choquesPorServicio = detectarChoquesDeUnidades(servicios, ahora);
+
   const evaluados = servicios
-    .map((servicio) => evaluarServicio(servicio, flota, opciones))
+    .map((servicio) => {
+      const evaluado = evaluarServicio(servicio, flota, opciones);
+      const choques = choquesPorServicio.get(servicio.id) ?? [];
+      if (choques.length === 0) return { ...evaluado, choques };
+      // Una nave en dos salidas a la vez no es «listo» ni «en curso»: no puede cubrir las dos.
+      const conChoque: NivelDeServicio =
+        evaluado.nivel === "pasado" || evaluado.nivel === "sin-unidad" ? evaluado.nivel : "en-riesgo";
+      return { ...evaluado, nivel: conChoque, motivo: motivoDeChoque(choques), choques };
+    })
     .sort((a, b) => {
       const porNivel = ORDEN[a.nivel] - ORDEN[b.nivel];
       if (porNivel !== 0) return porNivel;
