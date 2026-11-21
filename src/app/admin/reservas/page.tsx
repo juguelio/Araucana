@@ -217,6 +217,8 @@ function CancelarForm({ reservation, listQuery }: { reservation: AdminReservatio
  */
 function EstadoYPagoModal({ reservation, estado, listQuery }: { reservation: AdminReservationRowDto; estado: EstadoDeFila; listQuery: string }) {
   const detailPath = `/admin/reservas/${reservation.code}`;
+  const muestraPagoAprobado = estado.pagada && !estado.cancelada && estado.canViewReceipt;
+  const tieneComprobanteAprobado = muestraPagoAprobado && reservation.hasReceipt;
   return (
     <RowModal
       triggerLabel={`${estado.etiqueta}. Ver estado y pago`}
@@ -224,8 +226,13 @@ function EstadoYPagoModal({ reservation, estado, listQuery }: { reservation: Adm
       eyebrow="Estado y pago"
       title={estado.disabilityFare ? `${estado.etiqueta}` : `${estado.etiqueta} · ${formatTotal(reservation)}`}
       subtitle={`${reservation.passenger} · ${formatShortCode(reservation.shortCode)} · cargada por ${reservation.creatorLabel}`}
-      modalClassName={estado.validaPagoManual ? "reservas-modal-comprobante" : undefined}
+      modalClassName={estado.validaPagoManual || tieneComprobanteAprobado ? "reservas-modal-comprobante" : undefined}
     >
+      {tieneComprobanteAprobado ? (
+        <ComprobanteViewer href={`${detailPath}/comprobante`} fileName={reservation.receiptFileName} subido={fechaDeSubida(reservation.receiptUploadedAt)} />
+      ) : muestraPagoAprobado ? (
+        <p className="muted">Este pago no tiene un comprobante adjunto.</p>
+      ) : null}
       {estado.validaPagoManual ? <ValidarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
       {estado.revisaDocumentacion ? <RevisarDocumentacionForm reservation={reservation} listQuery={listQuery} /> : null}
       {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}

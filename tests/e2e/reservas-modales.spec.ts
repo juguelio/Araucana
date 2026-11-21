@@ -14,7 +14,7 @@ const db = new PrismaClient({ datasourceUrl: process.env.E2E_DATABASE_URL });
 const suffix = randomUUID();
 const email = `modales-${suffix}@example.com`;
 const password = `Test-${suffix}`;
-const codes = { pago: "", estado: "", comprobante: "", borrar: "", editar: "" };
+const codes = { pago: "", estado: "", comprobante: "", borrar: "", editar: "", pagada: "" };
 
 test.beforeAll(async () => {
   await db.user.create({ data: { email, name: "Admin modales", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 10) } });
@@ -24,12 +24,16 @@ test.beforeAll(async () => {
   const schedule = await db.schedule.create({ data: { routeId: route.id, vehicleId: vehicle.id, departureAt: new Date(`${day}T12:00:00-03:00`), arrivalAt: new Date(`${day}T13:00:00-03:00`), status: "OPEN" } });
   for (const key of Object.keys(codes) as Array<keyof typeof codes>) {
     const code = `ARC-2611-${randomUUID().replaceAll("-", "").toUpperCase()}`;
+    const pagada = key === "pagada";
     codes[key] = code;
     await db.reservation.create({ data: {
       code, shortCode: createReservationShortCode(), route: { connect: { id: route.id } }, schedule: { connect: { id: schedule.id } },
-      passengerCount: 1, status: "PENDING_PAYMENT", totalCents: 1500000, currency: "ARS",
+      passengerCount: 1, status: pagada ? "CONFIRMED" : "PENDING_PAYMENT", totalCents: 1500000, currency: "ARS",
       passenger: { create: { firstName: "Modal", lastName: key, email: "modal@example.com", phone: "+5492944000000", documentType: "DNI", documentId: "30111222" } },
-      payment: { create: { provider: "MANUAL", status: "PENDING", amountCents: 1500000, currency: "ARS" } }
+      payment: { create: {
+        provider: "MANUAL", status: pagada ? "APPROVED" : "PENDING", amountCents: 1500000, currency: "ARS",
+        ...(pagada ? { receiptBlobPathname: "local/pago.png", receiptFileName: "pago.png", receiptUploadedAt: new Date() } : {})
+      } }
     } });
   }
 });
@@ -66,6 +70,20 @@ test("«Registrar pago» abre el modal y registra el pago", async ({ page }) => 
   const saved = await db.reservation.findUniqueOrThrow({ where: { code: codes.pago }, include: { payment: true } });
   expect(saved.payment?.status).toBe("APPROVED");
   expect(saved.payment?.method).toBe("Efectivo");
+});
+
+test("«Pagada» muestra el comprobante junto al formulario de cancelación", async ({ page }) => {
+  const receiptPath = `/admin/reservas/${codes.pagada}/comprobante`;
+  await page.route(receiptPath, (route) => route.fulfill({ path: "public/logo.png", contentType: "image/png" }));
+  await page.goto(`/admin/reservas?code=${codes.pagada}`);
+  await page.getByRole("button", { name: "Pagada. Ver estado y pago" }).click();
+
+  const modal = page.getByRole("dialog", { name: /^Pagada/ });
+  const receipt = modal.getByRole("img", { name: "Comprobante pago.png" });
+  await expect(receipt).toHaveAttribute("src", receiptPath);
+  await expect(receipt).toBeVisible();
+  await expect(modal.getByLabel("Motivo de la cancelación")).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Cancelar reserva" })).toBeVisible();
 });
 
 test("la etiqueta «Pago pendiente» abre el modal de estado: registrar pago, cancelar con motivo y restituir", async ({ page }) => {
