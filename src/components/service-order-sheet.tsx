@@ -59,9 +59,12 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
   const currency = blocks.find((bloque) => bloque.passengers.length)?.passengers[0]?.currency ?? "ARS";
   const conAcciones = variante === "panel";
   const fecha = fechaDeLaOrden(date);
+  const [primera, segunda] = blocks;
+  const mismaHoja = blocks.length === 2 && Boolean(primera?.vehicle) &&
+    primera.vehicle?.vehicleId === segunda?.vehicle?.vehicleId && primera.direction !== segunda.direction;
 
   return (
-    <article className="orden">
+    <article className="orden" data-impresion-in-out={mismaHoja ? true : undefined}>
       <CabeceraOrden fecha={fecha} alcance={blocks.length === 1 ? "Una orden" : `${blocks.length} órdenes`}
         soloPantalla={blocks.length > 0} />
 

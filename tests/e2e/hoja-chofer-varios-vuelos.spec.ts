@@ -205,6 +205,10 @@ test("«Por chofer» muestra el día de cada trafic, le suma el IN y abre su hoj
     .toHaveText(["Pasajeros IN 0", "Pasajeros OUT 8"]);
   await expect(hoja.locator("section.orden-bloque").nth(1).locator(".orden-pasajeros > span"))
     .toHaveText(["Pasajeros IN 3", "Pasajeros OUT 0"]);
+  await hoja.emulateMedia({ media: "print" });
+  await expect(hoja.locator(".orden-bloque > .orden-cabecera:visible")).toHaveCount(1);
+  const pdf = await hoja.pdf({ preferCSSPageSize: true });
+  expect((pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(1);
   await hoja.close();
 });
 

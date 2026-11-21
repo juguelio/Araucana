@@ -238,6 +238,20 @@
     break-after: avoid;
   }
 
+  /* La pareja IN/OUT de una combi comparte cabecera y hoja si hay espacio para ambas tablas. */
+  html:not([data-imprimir-una]) .orden[data-impresion-in-out] .orden-bloque {
+    break-inside: avoid;
+  }
+
+  html:not([data-imprimir-una]) .orden[data-impresion-in-out] .orden-bloque + .orden-bloque {
+    break-before: auto;
+    padding-top: 3mm;
+  }
+
+  html:not([data-imprimir-una]) .orden[data-impresion-in-out] .orden-bloque + .orden-bloque > .orden-cabecera {
+    display: none;
+  }
+
   .orden-bloque-cabeza,
   .orden-bloque-titulo {
     break-after: avoid;
