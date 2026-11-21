@@ -35,8 +35,8 @@ it("no mezcla localidades explícitas ni inventa coordenadas", () => {
   expect(findMunicipalLodgings("zzzzzzzzzz")).toEqual([]);
   expect(findMunicipalLodgings("es")).toEqual([]);
   expect(suggestMunicipalLodgings("esquiador")).toEqual([
-    expect.objectContaining({ point: null, precision: "none", source: "municipal" }),
-    expect.objectContaining({ point: null, precision: "none", source: "municipal" })
+    expect.objectContaining({ point: expect.any(Array), precision: "exact", source: "municipal", approximate: true }),
+    expect.objectContaining({ point: expect.any(Array), precision: "exact", source: "municipal", approximate: true })
   ]);
 });
 
@@ -66,7 +66,8 @@ it("no duplica el catálogo devuelto por la API y conserva el punto del proveedo
   const results = withMunicipalLodgings("esquiador", [...suggestMunicipalLodgings("esquiador"), resolved]);
   expect(results).toHaveLength(3);
   expect(results).toContainEqual(resolved);
-  expect(results[0]).toEqual(resolved);
+  expect(results[0].source).toBe("municipal");
+  expect("point" in results[0] && results[0].point).not.toBeNull();
 });
 
 it("descarta una búsqueda cancelada", async () => {

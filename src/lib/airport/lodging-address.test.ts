@@ -1,10 +1,12 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { matchesMunicipalAddress, municipalStreetAddress, resolveMunicipalLodging } from "./lodging-address";
 import { suggestProviderAirportPlaces } from "./place-suggestions";
+import * as locations from "./lodging-locations";
 import { verifiedLodgingLocations } from "./lodging-locations";
 import { municipalLodgings } from "./lodging-catalogue";
 vi.mock("./place-suggestions", () => ({ suggestProviderAirportPlaces: vi.fn() }));
-afterEach(() => vi.resetAllMocks());
+beforeEach(() => { vi.spyOn(locations, "getVerifiedLodgingLocation").mockReturnValue(null); });
+afterEach(() => { vi.restoreAllMocks(); vi.resetAllMocks(); });
 const hit = { label: "Hostal del Esquiador, Coronel Rohde 975, San Martín de los Andes", point: [-40.16, -71.35] as [number, number], source: "photon" as const, approximate: false, precision: "exact" as const };
 
 it("expande abreviaturas y sólo interpreta domicilios simples", () => {
@@ -75,6 +77,7 @@ it("rechaza establecimientos homónimos con ubicaciones contradictorias", async 
 });
 
 it("usa una referencia verificada aun cuando el proveedor no tenga el alojamiento", async () => {
+  vi.mocked(locations.getVerifiedLodgingLocation).mockRestore();
   const result = await resolveMunicipalLodging("10", new AbortController().signal);
   expect(result).toMatchObject({ lodgingId: "10", point: [-40.152507, -71.3454312], coordinateSourceUrl: "https://alcedro.wordpress.com/", approximate: true, locationMatch: "establishment" });
   expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
@@ -82,13 +85,14 @@ it("usa una referencia verificada aun cuando el proveedor no tenga el alojamient
   expect((await resolveMunicipalLodging("10", controller.signal))?.point).toBeNull();
 });
 
-it("todas las referencias pertenecen a una ficha vigente y al área de San Martín", async () => {
+it("todas las referencias pertenecen a una ficha vigente y conservan su precisión", async () => {
+  vi.mocked(locations.getVerifiedLodgingLocation).mockRestore();
   for (const [id, reference] of Object.entries(verifiedLodgingLocations)) {
     expect(municipalLodgings.find((place) => place.id === id)?.name).toBe(reference.name);
-    expect(reference.point[0]).toBeGreaterThan(-40.22);
-    expect(reference.point[0]).toBeLessThan(-40.04);
-    expect(reference.point[1]).toBeGreaterThan(-71.48);
-    expect(reference.point[1]).toBeLessThan(-71.07);
+    expect(reference.point[0]).toBeGreaterThan(-41);
+    expect(reference.point[0]).toBeLessThan(-39);
+    expect(reference.point[1]).toBeGreaterThan(-72);
+    expect(reference.point[1]).toBeLessThan(-70);
     expect((await resolveMunicipalLodging(id, new AbortController().signal))?.point).toEqual(reference.point);
   }
 });

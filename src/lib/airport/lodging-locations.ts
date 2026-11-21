@@ -1,21 +1,28 @@
+import locations from "./data/sma-lodging-locations.json";
 import type { PickupPoint } from "./pickup-zone";
+import { normalizePlaceText } from "./place-search-area";
 
-/** Referencias publicadas por cada alojamiento, revisadas el 2026-11-20.
- * No extraer coordenadas del centro de un iframe: pueden diferir del marcador.
- * Mantener separadas del catálogo municipal para no perderlas al actualizarlo.
- * Son puntos del establecimiento; el pasajero sigue confirmando la entrada.
- */
-export const verifiedLodgingLocations: Record<string, { name: string; point: PickupPoint; sourceUrl: string; evidence: string }> = {
-  "10": {
-    name: "Alcedro",
-    point: [-40.152507, -71.3454312],
-    sourceUrl: "https://alcedro.wordpress.com/",
-    evidence: "Marcador coordinates del mapa del sitio del alojamiento, Perito Moreno 1318."
-  },
-  "173": {
-    name: "Plaza Mayor",
-    point: [-40.161469, -71.350072],
-    sourceUrl: "https://hosteriaplazamayor.com.ar/",
-    evidence: "GeoCoordinates del sitio oficial. Publica Pérez 1199; el directorio municipal indica 1189. Punto del establecimiento, no altura interpolada."
-  }
+export type LodgingLocation = {
+  name: string;
+  address: string;
+  point: PickupPoint;
+  precision: "exact" | "interpolated" | "street";
+  locationMatch: "establishment" | "address";
+  sourceUrl: string;
+  checkedOn: string;
+  evidence: string;
 };
+
+/** Referencias revisadas, separadas del catálogo que se actualiza desde Turismo.
+ * Son marcadores del lugar/domicilio, nunca el centro del visor del mapa.
+ * No certifican la entrada ni amplían la zona de cobertura del traslado.
+ */
+export const verifiedLodgingLocations = locations as unknown as Record<string, LodgingLocation>;
+
+export function getVerifiedLodgingLocation(lodging: { id: string; name: string; address: string }) {
+  const reference = verifiedLodgingLocations[lodging.id];
+  // Un ID reutilizado o un domicilio cambiado requieren una nueva revisión.
+  if (!reference || normalizePlaceText(reference.name) !== normalizePlaceText(lodging.name)
+    || normalizePlaceText(reference.address) !== normalizePlaceText(lodging.address)) return null;
+  return reference;
+}
