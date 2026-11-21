@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { matchesMunicipalAddress, municipalStreetAddress, resolveMunicipalLodging } from "./lodging-address";
+import { matchesMunicipalAddress, municipalStreetAddress, resolveMunicipalLodging, sameMunicipalStreet } from "./lodging-address";
 import { suggestProviderAirportPlaces } from "./place-suggestions";
 import * as locations from "./lodging-locations";
 import { verifiedLodgingLocations } from "./lodging-locations";
@@ -27,14 +27,38 @@ it("conserva la identidad municipal y atribuye el punto sin confirmar la entrada
   expect(result?.label).toContain("Hostal del Esquiador, Cnel. Rohde 975");
   expect(suggestProviderAirportPlaces).toHaveBeenCalledWith("coronel rohde 975, San Martín de los Andes", expect.any(AbortSignal));
 });
+/**
+ * Qué se sacrificó y por qué (20-nov): antes esta tabla incluía `precision: "interpolated"` como
+ * motivo de rechazo. Eso dejaba sin pin a casi todo el directorio, porque en San Martín de los Andes
+ * la altura la interpola LocationIQ y sólo se aceptaba la de GeoRef. La garantía que importa no es la
+ * etiqueta del proveedor sino que calle y altura coincidan con el domicilio publicado y que el punto
+ * caiga dentro de la cobertura de la ciudad: eso lo siguen exigiendo `matchesMunicipalAddress` y
+ * `airportSearchBounds`. Lo que queda prohibido: otro nombre, un punto fuera del área y una calle sin
+ * altura. El empate entre fuentes se prueba en «rechaza coordenadas contradictorias».
+ */
 it.each([
   [{ ...hit, label: "Hotel del Viejo Esquiador, Avenida San Martín 1242, San Martín de los Andes" }],
   [{ ...hit, point: [-41, -71] }],
   [{ ...hit, precision: "street" }],
-  [{ ...hit, precision: "interpolated" }]
-])("no asigna puntos incorrectos, vagos o contradictorios (%#)", async (candidate) => {
+  [{ ...hit, label: "Hostal del Esquiador, Coronel Rohde 974, San Martín de los Andes" }]
+])("no asigna puntos de otra dirección, fuera del área o sin altura (%#)", async (candidate) => {
   vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([candidate] as typeof hit[]);
   expect((await resolveMunicipalLodging("165", new AbortController().signal))?.point).toBeNull();
+});
+it("ubica con la altura interpolada por LocationIQ cuando la dirección coincide", async () => {
+  const locationIq = { ...hit, source: "locationiq" as const, precision: "interpolated" as const,
+    label: "1162, Coronel Rohde, Tiro Federal, San Martín de los Andes" };
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([]).mockResolvedValue([locationIq] as unknown as typeof hit[]);
+  expect(await resolveMunicipalLodging("57", new AbortController().signal)).toMatchObject({
+    point: locationIq.point, precision: "interpolated", coordinateSource: "locationiq", locationMatch: "address"
+  });
+});
+it("prefiere la puerta del establecimiento antes que el eje de la calle", async () => {
+  const calle = { ...hit, source: "locationiq" as const, precision: "interpolated" as const,
+    label: "975, Coronel Rohde, San Martín de los Andes", point: [-40.1604, -71.3552] as [number, number] };
+  const puerta = { ...hit, label: "Hostal del Esquiador, Coronel Rohde 975, San Martín de los Andes", point: [-40.1620, -71.3560] as [number, number] };
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([calle, puerta] as unknown as typeof hit[]);
+  expect((await resolveMunicipalLodging("165", new AbortController().signal))?.point).toEqual(puerta.point);
 });
 it("rechaza coordenadas contradictorias para el mismo domicilio", async () => {
   vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([hit, { ...hit, point: [-40.15, -71.34] }]);
@@ -44,10 +68,48 @@ it("mantiene la ficha si el proveedor falla", async () => {
   vi.mocked(suggestProviderAirportPlaces).mockRejectedValue(new Error("Offline"));
   expect(await resolveMunicipalLodging("165", new AbortController().signal)).toMatchObject({ lodgingId: "165", point: null, precision: "none" });
 });
-it("no geocodifica alojamientos rurales como si estuvieran en el centro", async () => {
-  const rural = municipalLodgings.find((place) => place.type === "Alojamiento en Áreas Rurales")!;
-  expect((await resolveMunicipalLodging(rural.id, new AbortController().signal))?.point).toBeNull();
-  expect(suggestProviderAirportPlaces).not.toHaveBeenCalled();
+/**
+ * Antes esta prueba exigía que un alojamiento rural **nunca** se geocodificara: la lista `urbanZones`
+ * lo impedía antes de intentarlo, y dejaba afuera 97 de 269 fichas (Alrededores, Lago Lácar, 7 Lagos,
+ * Lolog, Huechulafquen). Se cambió el criterio: se intenta ubicar **su propio domicilio**, con el
+ * mismo control de calle y altura, y lo que sigue prohibido es mandarlo al centro por parecido de
+ * nombre. Villa Pirén (Alrededores, Pirén 49) es el caso que reclamó el cliente.
+ */
+it("ubica un alojamiento de Alrededores en su domicilio y no en el centro", async () => {
+  const suyo = { ...hit, source: "locationiq" as const, precision: "interpolated" as const,
+    label: "Piren 49, San Martín de los Andes", point: [-40.1570, -71.3620] as [number, number] };
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([]).mockResolvedValue([suyo] as unknown as typeof hit[]);
+  expect((await resolveMunicipalLodging("96", new AbortController().signal))?.point).toEqual(suyo.point);
+
+  const enElCentro = { ...hit, label: "Villa Pirén, Avenida San Martín 500, San Martín de los Andes" };
+  vi.mocked(suggestProviderAirportPlaces).mockReset().mockResolvedValue([enElCentro] as unknown as typeof hit[]);
+  expect((await resolveMunicipalLodging("96", new AbortController().signal))?.point).toBeNull();
+});
+/**
+ * Las siete fichas que el cliente nombró o que quedaron sin pin en la medición de producción
+ * (20-nov). Para cada una se usa la respuesta real del proveedor: `interpolated` de LocationIQ con
+ * calle y altura exactas. Todas tienen que salir con punto.
+ */
+it.each([
+  ["57", "1162, Coronel Rohde, Tiro Federal, San Martín de los Andes"],
+  ["52", "Cacique Curruhuinca 730, San Martín de los Andes"],
+  ["139", "1850, Los Cipreses, Cantera, San Martín de los Andes"],
+  ["154", "1127, Teniente Coronel Pérez, Centro, San Martín de los Andes"],
+  ["375", "46, Luis Goñi, Parque La Cascada, San Martín de los Andes"],
+  ["45", "Atahualpa Yupanqui 289, Alrededores, San Martín de los Andes"],
+  ["96", "Piren 49, San Martín de los Andes"]
+])("ubica la ficha %s del directorio con la respuesta real del proveedor", async (id, label) => {
+  const respuesta = { ...hit, source: "locationiq" as const, precision: "interpolated" as const, label };
+  vi.mocked(suggestProviderAirportPlaces).mockResolvedValue([]).mockResolvedValue([respuesta] as unknown as typeof hit[]);
+  expect((await resolveMunicipalLodging(id, new AbortController().signal))?.point).toEqual(hit.point);
+});
+it("compara la calle tolerando abreviaturas y el nombre de pila que agrega el geocoder", () => {
+  expect(sameMunicipalStreet("almirante brown", "almirante brown")).toBe(true);
+  expect(sameMunicipalStreet("belgrano", "manuel belgrano")).toBe(true);
+  expect(sameMunicipalStreet("goñi", "luis goñi")).toBe(true);
+  expect(sameMunicipalStreet("san martin", "avenida san martin")).toBe(true);
+  expect(sameMunicipalStreet("rohde", "coronel rohde")).toBe(true);
+  expect(sameMunicipalStreet("perito moreno", "coronel rohde")).toBe(false);
 });
 it("no acepta identificadores desconocidos ni una búsqueda cancelada", async () => {
   expect(await resolveMunicipalLodging("99999999", new AbortController().signal)).toBeNull();

@@ -2,8 +2,12 @@ import { catalogueLodgings, municipalLodgingSuggestion } from "./lodging-catalog
 import { airportSearchBounds, airportSearchLocality, normalizePlaceText, splitStreetAddress } from "./place-search-area";
 import { suggestProviderAirportPlaces, type AirportPlaceSuggestion } from "./place-suggestions";
 
-const urbanZones = new Set(["Centro", "Ejido urbano", "Barrio La Cascada"]);
-const abbreviations: Record<string, string> = { av: "avenida", cnel: "coronel", tte: "teniente", gral: "general", pje: "pasaje", cap: "capitan" };
+const abbreviations: Record<string, string> = {
+  av: "avenida", alte: "almirante", almirante: "almirante", bv: "bulevar", bulevar: "bulevar",
+  cnel: "coronel", coronel: "coronel", tte: "teniente", teniente: "teniente", gral: "general", general: "general",
+  pje: "pasaje", pasaje: "pasaje", cap: "capitan", capitan: "capitan", dr: "doctor", doctor: "doctor",
+  gdor: "gobernador", gobernador: "gobernador"
+};
 const streetKey = (value: string) => normalizePlaceText(value).split(" ").map((word) => abbreviations[word] ?? word).join(" ");
 
 export function municipalStreetAddress(address: string) {
@@ -14,13 +18,30 @@ export function municipalStreetAddress(address: string) {
   return { street: streetKey(parsed.street), number: parsed.number };
 }
 
+const streetTokens = (value: string) => value.split(" ").filter(Boolean);
+
+/**
+ * El catálogo abrevia y el geocoder desarrolla (o al revés), y encima el geocoder suele agregar el
+ * nombre de pila: «Belgrano» → «Manuel Belgrano», «Goñi» → «Luis Goñi», «Alte. Brown» → «Almirante
+ * Brown». Se comparan tokens con sufijo, no igualdad exacta, para que esas direcciones no queden sin
+ * pin; el número sigue exigiéndose exacto.
+ */
+export function sameMunicipalStreet(a: string, b: string) {
+  const first = streetTokens(normalizePlaceText(a));
+  const second = streetTokens(normalizePlaceText(b));
+  if (first.join(" ") === second.join(" ")) return true;
+  if (!first.length || !second.length) return false;
+  const [short, long] = first.length <= second.length ? [first, second] : [second, first];
+  return long.slice(long.length - short.length).every((word, index) => word === short[index]);
+}
+
 export function matchesMunicipalAddress(label: string, address: NonNullable<ReturnType<typeof municipalStreetAddress>>) {
   if (!normalizePlaceText(label).includes(normalizePlaceText(airportSearchLocality))) return false;
   const parts = label.split(",").map((part) => part.trim());
   return parts.slice(0, 3).some((part, index) => {
     const parsed = municipalStreetAddress(part);
-    return parsed ? parsed.street === address.street && parsed.number === address.number
-      : normalizePlaceText(part) === address.number && streetKey(parts[index + 1] ?? "") === address.street;
+    return parsed ? sameMunicipalStreet(parsed.street, address.street) && parsed.number === address.number
+      : normalizePlaceText(part) === address.number && sameMunicipalStreet(streetKey(parts[index + 1] ?? ""), address.street);
   });
 }
 
@@ -32,12 +53,19 @@ export async function resolveMunicipalLodging(id: string, requestSignal: AbortSi
   if (requestSignal.aborted) return { ...fallback, point: null, precision: "none" };
   if (fallback.point) return fallback;
   const address = municipalStreetAddress(lodging.address);
-  if (!urbanZones.has(lodging.zone) || !address || requestSignal.aborted) return fallback;
+  // Antes acá había una lista de zonas («Centro», «Ejido urbano», «Barrio La Cascada») que dejaba
+  // afuera 97 de 269 fichas —Alrededores, Lago Lácar, 7 Lagos, Lolog, Huechulafquen— antes de
+  // intentar ubicarlas, aunque el geocoder las tenga. El límite geográfico real es
+  // `airportSearchBounds`, que se aplica sobre el punto más abajo.
+  if (!address || requestSignal.aborted) return fallback;
   const signal = AbortSignal.any([requestSignal, AbortSignal.timeout(8000)]);
   try {
     const { south, north, west, east } = airportSearchBounds;
+    // La verificación que protege es `matchesMunicipalAddress` (calle y altura exactas) más el
+    // bounding box; el proveedor que interpola la altura no agrega ni quita seguridad. En esta
+    // ciudad la altura la interpola LocationIQ, y exigir GeoRef dejaba sin pin a la mayoría.
     const atAddress = (results: AirportPlaceSuggestion[]) => results.filter((result) => result.point && result.source !== "municipal"
-      && (result.precision === "exact" || (result.precision === "interpolated" && result.source === "georef"))
+      && (result.precision === "exact" || result.precision === "interpolated")
       && result.point[0] >= south && result.point[0] <= north && result.point[1] >= west && result.point[1] <= east
       && matchesMunicipalAddress(result.label, address));
     const named = await suggestProviderAirportPlaces(lodging.name, signal).catch(() => []);
@@ -58,10 +86,18 @@ export async function resolveMunicipalLodging(id: string, requestSignal: AbortSi
       candidates = atAddress(await suggestProviderAirportPlaces(`${address.street} ${address.number}, ${airportSearchLocality}`, signal));
     }
     if (signal.aborted) return fallback;
-    const match = candidates[0];
+    const precisionRank = (result: AirportPlaceSuggestion) => result.precision === "exact" ? 2 : result.precision === "interpolated" ? 1 : 0;
+    const matchesAddress = (result: AirportPlaceSuggestion) => matchesMunicipalAddress(result.label, address);
+    // Se elige el candidato que coincide con el domicilio del directorio y, entre esos, el más
+    // preciso: la puerta del establecimiento (exact) antes que el eje de la calle (interpolated).
+    const ranked = [...candidates].sort((a, b) => Number(matchesAddress(b)) - Number(matchesAddress(a)) || precisionRank(b) - precisionRank(a));
+    const match = ranked[0];
     if (!match?.point || match.source === "municipal") return fallback;
-    // Fuentes que discrepan más de ~20 m requieren ubicar el punto manualmente.
-    if (candidates.some((other) => Math.hypot(other.point![0] - match.point![0], other.point![1] - match.point![1]) > 0.0002)) return fallback;
+    // El guard de ~20 m queda, pero sólo entre candidatos igual de válidos: mismo domicilio y misma
+    // precisión. Dos fuentes que ubican así el mismo lugar y no coinciden son un empate, y ahí es
+    // preferible que el operador marque el punto antes que mandar un chofer a la dirección equivocada.
+    const peers = ranked.filter((other) => matchesAddress(other) === matchesAddress(match) && precisionRank(other) === precisionRank(match));
+    if (peers.some((other) => Math.hypot(other.point![0] - match.point![0], other.point![1] - match.point![1]) > 0.0002)) return fallback;
     return { ...fallback, point: match.point, precision: match.precision, approximate: true, coordinateSource: match.source, locationMatch };
   } catch {
     return fallback;

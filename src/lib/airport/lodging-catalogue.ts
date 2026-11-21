@@ -43,6 +43,31 @@ export function lodgingNameWords(value: string) {
   return normalizePlaceText(value).split(" ").filter((word) => word && !ignoredWords.has(word));
 }
 
+/**
+ * Palabras de tipo → categoría del directorio. Buscar «cabañas» antes no devolvía nada:
+ * `cabanas` está en `ignoredWords`, así que la consulta quedaba sin palabras de nombre y no
+ * había score. El cliente lo pidió así: «no me trae casi ningún alojamiento» y «hoteles en
+ * general tiene que estar más fino».
+ */
+const typeWords: Record<string, string> = {
+  cabana: "Cabañas", cabanas: "Cabañas",
+  apart: "Apart Hoteles", aparts: "Apart Hoteles", apartamento: "Apart Hoteles", apartamentos: "Apart Hoteles",
+  aparthotel: "Apart Hoteles", aparthoteles: "Apart Hoteles",
+  hostel: "Albergues - Hostel", hostels: "Albergues - Hostel",
+  albergue: "Albergues - Hostel", albergues: "Albergues - Hostel",
+  hostal: "Hosterias", hostales: "Hosterias", hosteria: "Hosterias", hosterias: "Hosterias",
+  hotel: "Hotel", hoteles: "Hotel",
+  camping: "Campings", campings: "Campings",
+  alquiler: "Alquiler Turístico Temporario", alquileres: "Alquiler Turístico Temporario",
+  temporario: "Alquiler Turístico Temporario", temporarios: "Alquiler Turístico Temporario",
+  residencial: "Residenciales", residenciales: "Residenciales"
+};
+
+export function municipalLodgingType(query: string) {
+  const types = new Set(normalizePlaceText(query).split(" ").map((word) => typeWords[word]).filter(Boolean));
+  return types.size === 1 ? [...types][0] : null;
+}
+
 /** Una sola letra omitida, agregada o cambiada; nunca corrige números de domicilio. */
 function oneLetterAway(a: string, b: string) {
   if (a.length < 5 || b.length < 5 || /\d/.test(a + b) || Math.abs(a.length - b.length) > 1) return false;
@@ -79,8 +104,16 @@ export function findMunicipalLodgings(query: string, limit = 8) {
   const localContext = !context || normalizedContext.includes(locality);
   const normalizedName = normalizePlaceText(name).replace(new RegExp(` ${locality}$`), "");
   const words = lodgingNameWords(normalizedName);
+  // «cabañas» o «hosterías» solos devuelven la categoría completa del directorio; combinados con
+  // un nombre («cabañas ñire») exigen las dos cosas. Sin nombre y sin tipo no hay resultado.
+  const type = municipalLodgingType(normalizedName);
+  const typeOnly = Boolean(type) && words.length === 0;
   return indexed.flatMap((item) => {
     if (!localContext && normalizedContext !== item.zone) return [];
+    // El tipo filtra sólo cuando la consulta es puramente un tipo («cabañas»). Si además hay un
+    // nombre («hotel del esquiador», «cabañas ñire»), el nombre manda y el tipo suma: si no, buscar
+    // por el nombre de una hostería escrita «hotel …» la dejaría afuera.
+    if (type && typeOnly && item.lodging.type !== type) return [];
     const nameScore = Math.max(...item.names.map((candidate) => {
       if (candidate.name === normalizedName) return 1000;
       if (candidate.name.startsWith(normalizedName)) return 900;
@@ -91,10 +124,11 @@ export function findMunicipalLodgings(query: string, limit = 8) {
         part === word || oneLetterAway(word, part)))) return 600;
       return 0;
     }));
-    const score = nameScore || (/\d/.test(normalizedName) && item.address === normalizedName ? 500 : 0);
+    let score = nameScore || (/\d/.test(normalizedName) && item.address === normalizedName ? 500 : 0);
+    if (type) score = typeOnly ? (score || 300) : (score ? score + 50 : 0);
     return score ? [{ ...item.lodging, score }] : [];
   }).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "es") || a.id.localeCompare(b.id))
-    .slice(0, limit);
+    .slice(0, typeOnly ? Number.POSITIVE_INFINITY : limit);
 }
 
 export function suggestMunicipalLodgings(query: string): AirportPlaceSuggestion[] {
