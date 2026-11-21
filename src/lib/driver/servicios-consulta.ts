@@ -115,6 +115,15 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
   const servicios: ServicioDelDia[] = [];
 
   for (const schedule of schedules) {
+    /**
+     * Las salidas de la programación diaria (la temporada cargada) nacen sin pasajeros y con una nave
+     * puesta por defecto. El propio tablero las llama «salidas programadas sin pasajeros: no son un
+     * servicio hasta que tengan reservas», pero acá se listaban como servicios con unidad: la misma
+     * «Araucana 24» aparecía en trece salidas del día. Si no hay pasajeros, no es un servicio.
+     */
+    const pasajeros = schedule.reservations.reduce((total, reserva) => total + reserva.passengerCount, 0);
+    if (pasajeros === 0) continue;
+
     const unidades = [
       schedule.vehicle
         ? {
@@ -142,7 +151,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       titulo: `${schedule.route.from} → ${schedule.route.to}`,
       detalle: null,
       unidades,
-      pasajeros: schedule.reservations.reduce((total, reserva) => total + reserva.passengerCount, 0),
+      pasajeros,
       href: `/admin/rutas/${schedule.routeId ?? ""}`
     });
   }
