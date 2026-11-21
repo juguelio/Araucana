@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { MAX_SPORTS_LUGGAGE } from "@/lib/airport/extras";
 import { chargesZoneExtra, isInsideAirportPickupZone, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
+import { parseReservationPrice, reservationPriceCents, reservationPriceError } from "@/lib/booking/admin-price";
 import { MAX_PASSENGERS, errorDeMenores, totalAlEditar, type ReservationPriceBasis } from "@/lib/booking/reservation-edit";
 import type { PassengerDto } from "@/lib/booking/types";
 import { AdminFormAlert, FieldError } from "../../form-ui";
-import { errorState, initialAdminFormState, type AdminFormState } from "../../form-state";
+import { initialAdminFormState, type AdminFormState } from "../../form-state";
 import { PassengerFields, type PassengerDraft } from "./passenger-form";
 import { canSavePickup, pickupFormFields } from "./pickup-address";
 import { PickupAddressFields, type PickupAddressDraft } from "./pickup-address-form";
@@ -53,7 +54,9 @@ type ReservationEditFormProps = {
 };
 
 export function ReservationEditForm({ action, code, passenger, transfer, financial, referredBy: initialReferredBy, counts, service }: ReservationEditFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [move, setMove] = useState<ServiceMoveDraft>(null);
+  const [serviceIncomplete, setServiceIncomplete] = useState(false);
   const [draft, setDraft] = useState<PassengerDraft>({ ...passenger, nationality: passenger.nationality ?? "" });
   const [pickup, setPickup] = useState<PickupAddressDraft>({
     address: transfer?.address ?? "", point: transfer?.point ?? null, confirmed: false
@@ -70,6 +73,12 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const [dropoff, setDropoff] = useState(counts?.dropoffStop ?? "");
   const [pickupName, setPickupName] = useState(transfer?.name ?? "");
   const [acknowledged, setAcknowledged] = useState(false);
+  const [correctedFields, setCorrectedFields] = useState<Record<string, true>>({});
+
+  function clearFieldErrors(...fields: string[]) {
+    if (!fields.some((field) => state.fieldErrors[field] && !correctedFields[field])) return;
+    setCorrectedFields((current) => ({ ...current, ...Object.fromEntries(fields.map((field) => [field, true])) }));
+  }
   const priceChanged = Boolean(financial && total.trim() !== financial.total);
   const methodChanged = financial?.operation === "correctPayment" && method.trim() !== financial.method;
   const referenceChanged = financial?.operation === "correctPayment" && reference.trim() !== financial.reference;
@@ -91,7 +100,8 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const countInRange = Number.isInteger(parsedCount) && parsedCount >= 1 && parsedCount <= MAX_PASSENGERS;
   const parsedHalf = Number(halfFare);
   const parsedFree = Number(freeFare);
-  const minorsInRange = Number.isInteger(parsedHalf) && Number.isInteger(parsedFree) && parsedHalf >= 0 && parsedFree >= 0;
+  const validMinorCount = (value: number) => Number.isInteger(value) && value >= 0 && value <= MAX_PASSENGERS;
+  const minorsInRange = validMinorCount(parsedHalf) && validMinorCount(parsedFree);
   const parsedLuggage = Number(sportsLuggage);
   const luggageValid = Number.isInteger(parsedLuggage) && parsedLuggage >= 0 && parsedLuggage <= MAX_SPORTS_LUGGAGE;
   const countTouched = Boolean(counts && parsedCount !== counts.price.passengerCount);
@@ -146,17 +156,13 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || pickupNameChanged || referredByChanged
     || countChanged || minorsChanged || luggageChanged || dropoffChanged || moved || priceChanged || methodChanged || referenceChanged;
   const savePickup = canSavePickup(addressChanged, pickup, { airport: Boolean(transfer?.airport), outside });
-  const canSave = hasChanges && countsValid && (!needsAcknowledgement || acknowledged) && savePickup;
+  const priceInputError = priceChanged && !reservationPriceCents.safeParse(parseReservationPrice(total)).success
+    ? reservationPriceError : undefined;
+  const canSave = hasChanges && countsValid && !serviceIncomplete && !priceInputError && (!needsAcknowledgement || acknowledged) && savePickup;
 
   const [state, formAction, pending] = useActionState(async (previous: AdminFormState, _formData: FormData) => {
-    if (!canSave) {
-      if (counts && (countTouched || minorsTouched) && !countValid) {
-        return errorState(minorsError ?? `La cantidad de pasajeros tiene que estar entre 1 y ${MAX_PASSENGERS}.`);
-      }
-      if (counts?.airport && luggageTouched && !luggageValid) return errorState(`El equipaje deportivo tiene que estar entre 0 y ${MAX_SPORTS_LUGGAGE} bultos.`);
-      if (needsAcknowledgement && !acknowledged) return errorState("Confirmá la diferencia del total antes de guardar.");
-      return errorState(addressChanged ? "Confirmá el nuevo punto en el mapa." : "No hay cambios para guardar.");
-    }
+    if (!canSave) return previous;
+    setCorrectedFields({});
     const changes = new FormData();
     changes.set("code", code);
     for (const field of changedPassenger) changes.set(field, draft[field]);
@@ -192,18 +198,51 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     return action(previous, changes);
   }, initialAdminFormState);
 
+  useEffect(() => {
+    if (Object.keys(state.fieldErrors).length) {
+      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]:not(:disabled)')?.focus();
+    }
+  }, [state]);
+
+  const errors = Object.fromEntries(Object.entries(state.fieldErrors).filter(([field]) => !correctedFields[field]));
+  const countError = countTouched && !countInRange
+    ? `Ingresá una cantidad entera entre 1 y ${MAX_PASSENGERS} pasajeros.` : counts?.disability && minorsError ? minorsError : errors.passengerCount;
+  const minorRangeError = `Ingresá una cantidad entera de 0 a ${MAX_PASSENGERS}.`;
+  const halfError = minorsTouched && !validMinorCount(parsedHalf) ? minorRangeError : errors.halfFareCount;
+  const freeError = minorsTouched && !validMinorCount(parsedFree) ? minorRangeError : errors.freeFareCount;
+  const luggageError = luggageTouched && !luggageValid
+    ? `Ingresá una cantidad entera entre 0 y ${MAX_SPORTS_LUGGAGE} bultos.` : errors.sportsLuggageCount;
+  const combinedMinorsError = minorsError ?? errors.minors;
+  const priceError = priceInputError ?? errors.customPrice;
+  const totalError = needsAcknowledgement && !acknowledged
+    ? "Confirmá la diferencia del total antes de guardar." : errors.totalChange;
+
   return (
-    <form className="admin-form-grid reservation-edit-form" action={formAction} noValidate>
+    <form ref={formRef} className="admin-form-grid reservation-edit-form" action={formAction} noValidate
+      onChange={(event) => {
+        const target = event.target;
+        if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement || target instanceof HTMLTextAreaElement) {
+          clearFieldErrors(target.name);
+          if (["passengerCount", "halfFareCount", "freeFareCount"].includes(target.name)) {
+            clearFieldErrors("passengerCount", "halfFareCount", "freeFareCount", "minors", "totalChange");
+          }
+        }
+      }}>
       <h3 className="reservation-edit-wide">Pasajero</h3>
-      <PassengerFields passenger={draft} errors={state.fieldErrors} disabled={pending} optionalDocument={Boolean(transfer?.airport)}
+      <PassengerFields passenger={draft} errors={errors} disabled={pending} optionalDocument={Boolean(transfer?.airport)}
         onChange={(field, value) => setDraft((current) => ({ ...current, [field]: value }))} />
       {service ? (
         <>
           <h3 className="reservation-edit-wide">
             {service.mode === "SEATED" ? "Salida" : service.mode === "AIRPORT" ? "Vuelo" : "Fecha y franja"}
           </h3>
-          <ServiceMoveFields service={service} disabled={pending} error={state.fieldErrors.move}
-            onChange={(draft) => { setMove(draft); setAcknowledged(false); }} />
+          <ServiceMoveFields service={service} disabled={pending} error={errors.move} dateError={errors.serviceDate} slotError={errors.ascentSlot}
+            onChange={(draft, incomplete = false) => {
+              setMove(draft);
+              setServiceIncomplete(incomplete);
+              setAcknowledged(false);
+              clearFieldErrors("move", "serviceDate", "ascentSlot", "totalChange");
+            }} />
         </>
       ) : null}
       {counts ? (
@@ -213,15 +252,15 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
             Lugares que ocupa la reserva
             <input name="passengerCount" type="number" inputMode="numeric" min={1} max={MAX_PASSENGERS} step={1}
               value={passengerCount} disabled={pending || countsLocked}
-              aria-invalid={(countTouched && !countValid) || Boolean(state.fieldErrors.passengerCount)}
-              aria-describedby={state.fieldErrors.passengerCount ? "reservation-count-error" : undefined}
+              aria-invalid={Boolean(countError)}
+              aria-describedby={countError ? "reservation-count-error" : undefined}
               onChange={(event) => { setPassengerCount(event.target.value); setAcknowledged(false); }} />
             <small>
               {countsLocked
                 ? "Hay un comprobante por revisar: resolvé el pago para cambiar pasajeros, menores, bajada o equipaje."
                 : `Es la cantidad que sale en la orden de servicio y la que ocupa lugares en el ${counts.airport ? "vuelo" : "servicio"}. No puede superar los lugares libres.`}
             </small>
-            <FieldError id="reservation-count-error" message={state.fieldErrors.passengerCount} />
+            <FieldError id="reservation-count-error" message={countError} />
           </label>
           {counts.disability ? (
             <p className="muted">Tarifa sin cargo por discapacidad: es para un solo pasajero, sin menores.</p>
@@ -231,28 +270,31 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
                 Media tarifa (4 a 8 años)
                 <input name="halfFareCount" type="number" inputMode="numeric" min={0} max={MAX_PASSENGERS} step={1}
                   value={halfFare} disabled={pending || countsLocked}
-                  aria-invalid={Boolean(minorsError) || Boolean(state.fieldErrors.halfFareCount)}
-                  aria-describedby={minorsError || state.fieldErrors.halfFareCount ? "reservation-minors-error" : undefined}
+                  aria-invalid={Boolean(halfError || combinedMinorsError)}
+                  aria-describedby={[halfError && "reservation-half-error", combinedMinorsError && "reservation-minors-error"].filter(Boolean).join(" ") || undefined}
                   onChange={(event) => { setHalfFare(event.target.value); setAcknowledged(false); }} />
+                <FieldError id="reservation-half-error" message={halfError} />
               </label>
               <label>
                 Sin cargo (menores de 4)
                 <input name="freeFareCount" type="number" inputMode="numeric" min={0} max={MAX_PASSENGERS} step={1}
                   value={freeFare} disabled={pending || countsLocked}
-                  aria-invalid={Boolean(minorsError)}
+                  aria-invalid={Boolean(freeError || combinedMinorsError)}
+                  aria-describedby={[freeError && "reservation-free-error", combinedMinorsError && "reservation-minors-error"].filter(Boolean).join(" ") || undefined}
                   onChange={(event) => { setFreeFare(event.target.value); setAcknowledged(false); }} />
+                <FieldError id="reservation-free-error" message={freeError} />
               </label>
               <p className="reservation-edit-wide muted">
                 Los menores van dentro de los lugares de la reserva y tiene que quedar al menos un pasajero de tarifa entera.
               </p>
-              <FieldError id="reservation-minors-error" message={minorsError ?? state.fieldErrors.halfFareCount} />
+              <FieldError id="reservation-minors-error" message={combinedMinorsError} />
             </>
           )}
           {counts.stops.length > 0 && !otraRuta ? (
             <label className="span-2">
               Baja en
               <select name="dropoffStop" value={dropoff} disabled={pending || countsLocked}
-                aria-invalid={Boolean(state.fieldErrors.dropoffStop)}
+                aria-invalid={Boolean(errors.dropoffStop)} aria-describedby={errors.dropoffStop ? "reservation-dropoff-error" : undefined}
                 onChange={(event) => { setDropoff(event.target.value); setAcknowledged(false); }}>
                 <option value="">{counts.destination} (destino final) · {money(counts.routePriceCents)}</option>
                 {counts.stops.map((stop) => (
@@ -260,7 +302,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
                 ))}
               </select>
               <small>La tarifa por persona es la de la parada donde baja.</small>
-              <FieldError id="reservation-dropoff-error" message={state.fieldErrors.dropoffStop} />
+              <FieldError id="reservation-dropoff-error" message={errors.dropoffStop} />
             </label>
           ) : null}
           {counts.airport ? (
@@ -268,15 +310,15 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
               Equipaje deportivo (bultos)
               <input name="sportsLuggageCount" type="number" inputMode="numeric" min={0} max={MAX_SPORTS_LUGGAGE} step={1}
                 value={sportsLuggage} disabled={pending || countsLocked}
-                aria-invalid={!luggageValid || Boolean(state.fieldErrors.sportsLuggageCount)}
-                aria-describedby={state.fieldErrors.sportsLuggageCount ? "reservation-luggage-error" : undefined}
+                aria-invalid={Boolean(luggageError)}
+                aria-describedby={luggageError ? "reservation-luggage-error" : undefined}
                 onChange={(event) => { setSportsLuggage(event.target.value); setAcknowledged(false); }} />
               <small>
                 {counts.price.sportsLuggageUnitCents > 0
                   ? `${money(counts.price.sportsLuggageUnitCents)} por bulto: el total se recalcula con ese precio.`
                   : "Esta reserva se vendió sin precio por bulto: el total no cambia."}
               </small>
-              <FieldError id="reservation-luggage-error" message={state.fieldErrors.sportsLuggageCount} />
+              <FieldError id="reservation-luggage-error" message={luggageError} />
             </label>
           ) : null}
           {counts.airport && zoneChanged ? (
@@ -297,14 +339,20 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
             Nombre del lugar (hotel, cabaña…)
             <input name="pickupName" maxLength={120} value={pickupName} disabled={pending}
               placeholder="Opcional: sale en la orden del chofer junto al domicilio"
+              aria-invalid={Boolean(errors.pickupName)} aria-describedby={errors.pickupName ? "reservation-pickup-name-error" : undefined}
               onChange={(event) => setPickupName(event.target.value)} />
+            <FieldError id="reservation-pickup-name-error" message={errors.pickupName} />
           </label>
           <PickupAddressFields pickup={pickup} coverage={transfer.coverage} airport={transfer.airport}
-            changed={addressChanged} outside={outside} disabled={pending} onChange={setPickup} />
+            changed={addressChanged} outside={outside} disabled={pending} addressError={errors.address} pointError={errors.pickupPoint}
+            onChange={(next) => { setPickup(next); clearFieldErrors("address", "pickupPoint", "totalChange"); }}
+            onLodgingName={(name) => { setPickupName(name); clearFieldErrors("pickupName"); }} />
           <label className="reservation-edit-wide">
             Notas del traslado
             <textarea name="notes" maxLength={300} value={notes} disabled={pending}
+              aria-invalid={Boolean(errors.notes)} aria-describedby={errors.notes ? "reservation-notes-error" : undefined}
               onChange={(event) => setNotes(event.target.value)} />
+            <FieldError id="reservation-notes-error" message={errors.notes} />
           </label>
         </>
       ) : null}
@@ -312,8 +360,10 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
       <label className="span-2">
         Derivado por (opcional)
         <input name="referredBy" maxLength={120} value={referredBy} disabled={pending} placeholder="Ej. una agencia de viajes"
+          aria-invalid={Boolean(errors.referredBy)} aria-describedby={errors.referredBy ? "reservation-origin-error" : undefined}
           onChange={(event) => setReferredBy(event.target.value)} />
         <small>Quién vendió la reserva. En las reservas de aeropuerto sale en la columna «Derivado por» de la orden de servicio.</small>
+        <FieldError id="reservation-origin-error" message={errors.referredBy} />
       </label>
       {proposal && !priceChanged && movesTotal ? (
         <div className="reservation-edit-wide">
@@ -332,34 +382,45 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
           )}
           {needsAcknowledgement ? (
             <label className="checkbox-row">
-              <input type="checkbox" checked={acknowledged} disabled={pending}
+              <input type="checkbox" name="totalChange" checked={acknowledged} disabled={pending}
+                aria-invalid={Boolean(totalError)} aria-describedby={totalError ? "reservation-total-change-error" : undefined}
                 onChange={(event) => setAcknowledged(event.target.checked)} />
               Confirmo la diferencia del total y la actualización del pago
             </label>
           ) : null}
+          <FieldError id="reservation-total-change-error" message={totalError} />
         </div>
-      ) : null}
+      ) : <FieldError id="reservation-total-change-error" message={errors.totalChange} />}
       {financial ? (
         <>
           <h3 className="reservation-edit-wide">{financial.operation === "correctPayment" ? "Pago registrado" : "Precio"}</h3>
           <label className="span-2">
             Precio total ({financial.currency})
             <input name="customPrice" inputMode="decimal" value={total} disabled={pending}
-              aria-invalid={Boolean(state.fieldErrors.customPrice)}
-              aria-describedby={state.fieldErrors.customPrice ? "reservation-price-error" : undefined}
+              aria-invalid={Boolean(priceError)}
+              aria-describedby={priceError ? "reservation-price-error" : undefined}
               onChange={(event) => setTotal(event.target.value)} />
-            <FieldError id="reservation-price-error" message={state.fieldErrors.customPrice} />
+            <FieldError id="reservation-price-error" message={priceError} />
           </label>
           {financial.operation === "correctPayment" ? (
             <>
-              <label>Forma de pago<input name="method" maxLength={60} value={method} disabled={pending}
-                onChange={(event) => setMethod(event.target.value)} /></label>
-              <label>Referencia (opcional)<input name="reference" maxLength={120} value={reference} disabled={pending}
-                onChange={(event) => setReference(event.target.value)} /></label>
+              <label>Forma de pago
+                <input name="method" maxLength={60} value={method} disabled={pending}
+                  aria-invalid={Boolean(errors.method)} aria-describedby={errors.method ? "reservation-method-error" : undefined}
+                  onChange={(event) => setMethod(event.target.value)} />
+                <FieldError id="reservation-method-error" message={errors.method} />
+              </label>
+              <label>Referencia (opcional)
+                <input name="reference" maxLength={120} value={reference} disabled={pending}
+                  aria-invalid={Boolean(errors.reference)} aria-describedby={errors.reference ? "reservation-reference-error" : undefined}
+                  onChange={(event) => setReference(event.target.value)} />
+                <FieldError id="reservation-reference-error" message={errors.reference} />
+              </label>
             </>
           ) : null}
         </>
       ) : null}
+      {!hasChanges && countsValid && savePickup && !serviceIncomplete && !pending ? <p className="muted reservation-edit-wide" role="status">No hay cambios para guardar.</p> : null}
       <div className="form-actions reservation-edit-wide">
         <button type="submit" className="button" disabled={pending || !canSave}>
           {pending ? "Guardando…" : "Guardar cambios"}

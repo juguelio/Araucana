@@ -65,7 +65,7 @@ describe("editar el domicilio del traslado desde el panel (#268)", () => {
       address: "Coronel Rohde 975", latitude: "-40.1565", longitude: "-71.3497"
     }));
 
-    expect(state).toMatchObject({ status: "error", message: "Confirmá el punto de traslado en el mapa." });
+    expect(state).toMatchObject({ status: "error", message: "", fieldErrors: { pickupPoint: "Confirmá el punto de traslado en el mapa." } });
     expect(m.manage).not.toHaveBeenCalled();
   });
 
@@ -74,8 +74,7 @@ describe("editar el domicilio del traslado desde el panel (#268)", () => {
       address: "Coronel Rohde 975", latitude: "-40.1565", confirmed: "on"
     }));
 
-    expect(state).toMatchObject({ status: "error", fieldErrors: {} });
-    expect(state.message).toMatch(/incompleto/);
+    expect(state).toMatchObject({ status: "error", message: "", fieldErrors: { pickupPoint: expect.stringMatching(/incompleto/) } });
     expect(m.manage).not.toHaveBeenCalled();
   });
 });

@@ -28,17 +28,19 @@ type Props = {
   service: ServiceMove;
   disabled: boolean;
   error?: string;
-  onChange: (draft: ServiceMoveDraft) => void;
+  dateError?: string;
+  slotError?: string;
+  onChange: (draft: ServiceMoveDraft, incomplete?: boolean) => void;
 };
 
 /**
  * «Servicio» en Editar reserva: pasar la reserva a otra salida, otro vuelo u otra fecha/franja.
  * Lo que se ofrece es orientativo: al guardar, el servidor mide el cupo y el horario de nuevo.
  */
-export function ServiceMoveFields({ service, disabled, error, onChange }: Props) {
-  if (service.mode === "SEATED") return <SalidaFields service={service} disabled={disabled} error={error} onChange={onChange} />;
-  if (service.mode === "AIRPORT") return <VueloFields service={service} disabled={disabled} error={error} onChange={onChange} />;
-  return <ChapelcoFields service={service} disabled={disabled} error={error} onChange={onChange} />;
+export function ServiceMoveFields({ service, ...fields }: Props) {
+  if (service.mode === "SEATED") return <SalidaFields service={service} {...fields} />;
+  if (service.mode === "AIRPORT") return <VueloFields service={service} {...fields} />;
+  return <ChapelcoFields service={service} {...fields} />;
 }
 
 function SalidaFields({ service, disabled, error, onChange }: Props & { service: Extract<ServiceMove, { mode: "SEATED" }> }) {
@@ -82,7 +84,7 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
     setLoadError("");
     fetch(`/api/v1/airport/flights?slug=${encodeURIComponent(service.routeSlug)}&date=${date}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error("No pudimos traer los vuelos de ese día.");
+        if (!response.ok) throw new Error("No pudimos cargar los vuelos. Volvé a elegir el día para reintentar.");
         return (await response.json()) as { flights: VueloDelDia[] };
       })
       .then((data) => { if (vigente) setFlights(data.flights); })
@@ -91,10 +93,16 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
     return () => { vigente = false; };
   }, [date, service.routeSlug]);
 
-  const elegir = (id: string) => {
+  const dateError = !date ? "Elegí el día del vuelo." : loadError;
+  const flightError = error || (!loading && !dateError && date !== service.currentDate && !flightId
+    ? flights.some((flight) => flight.bookable) ? "Elegí un vuelo para cambiar la reserva a ese día."
+      : "No hay vuelos disponibles para ese día. Elegí otra fecha."
+    : undefined);
+  const elegir = (id: string, nextDate = date) => {
     setFlightId(id);
     const vuelo = flights.find((item) => item.id === id);
-    onChange(!vuelo || id === service.currentFlightId ? null : { mode: "AIRPORT", flightId: id, direction: vuelo.direction });
+    onChange(!vuelo || id === service.currentFlightId ? null : { mode: "AIRPORT", flightId: id, direction: vuelo.direction },
+      !nextDate || (nextDate !== service.currentDate && !vuelo));
   };
 
   return (
@@ -102,12 +110,22 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
       <p className="reservation-edit-wide muted">Vuelo actual: <strong>{service.currentLabel}</strong></p>
       <label>
         Día del vuelo
-        <input type="date" value={date} disabled={disabled} onChange={(event) => { setDate(event.target.value); elegir(""); }} />
+        <input type="date" value={date} disabled={disabled}
+          aria-invalid={Boolean(dateError)} aria-describedby={dateError ? "reservation-flight-date-error" : undefined}
+          onChange={(event) => {
+            const nextDate = event.target.value;
+            setDate(nextDate);
+            setFlights([]);
+            setLoadError("");
+            setLoading(Boolean(nextDate));
+            elegir("", nextDate);
+          }} />
+        <FieldError id="reservation-flight-date-error" message={dateError} />
       </label>
       <label>
         Vuelo
         <select name="moveFlightId" value={flights.some((item) => item.id === flightId) ? flightId : ""} disabled={disabled || loading}
-          aria-invalid={Boolean(error)} aria-describedby={error ? "reservation-move-error" : undefined}
+          aria-invalid={Boolean(flightError)} aria-describedby={flightError ? "reservation-move-error" : undefined}
           onChange={(event) => elegir(event.target.value)}>
           <option value="">{loading ? "Buscando vuelos…" : flights.length ? "Elegí un vuelo" : "No hay vuelos ese día"}</option>
           {flights.map((vuelo) => {
@@ -120,7 +138,7 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
             );
           })}
         </select>
-        <FieldError id="reservation-move-error" message={error || loadError} />
+        <FieldError id="reservation-move-error" message={flightError} />
       </label>
       <p className="reservation-edit-wide muted">
         Si el vuelo nuevo es del otro sentido, la reserva pasa a la tarifa de ese sentido. La nave y el lugar en la recorrida se vuelven a armar en la orden de servicio.
@@ -129,29 +147,33 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
   );
 }
 
-function ChapelcoFields({ service, disabled, error, onChange }: Props & { service: Extract<ServiceMove, { mode: "CHAPELCO" }> }) {
+function ChapelcoFields({ service, disabled, error, dateError, slotError, onChange }: Props & { service: Extract<ServiceMove, { mode: "CHAPELCO" }> }) {
   const [serviceDate, setServiceDate] = useState(service.serviceDate);
   const [ascentSlot, setAscentSlot] = useState(service.ascentSlot);
   const avisar = (fecha: string, franja: string) =>
-    onChange(fecha === service.serviceDate && franja === service.ascentSlot ? null : { mode: "CHAPELCO", serviceDate: fecha, ascentSlot: franja });
+    onChange(!fecha || (fecha === service.serviceDate && franja === service.ascentSlot) ? null : { mode: "CHAPELCO", serviceDate: fecha, ascentSlot: franja }, !fecha);
+  const fechaError = !serviceDate ? "Elegí la fecha del servicio." : dateError;
+  const franjaError = slotError ?? error;
   const slots = service.slots.includes(service.ascentSlot) ? service.slots : [service.ascentSlot, ...service.slots];
   return (
     <>
       <label>
         Fecha del servicio
         <input type="date" name="moveServiceDate" value={serviceDate} disabled={disabled}
-          aria-invalid={Boolean(error)} aria-describedby={error ? "reservation-move-error" : undefined}
+          aria-invalid={Boolean(fechaError)} aria-describedby={fechaError ? "reservation-service-date-error" : undefined}
           onChange={(event) => { setServiceDate(event.target.value); avisar(event.target.value, ascentSlot); }} />
+        <FieldError id="reservation-service-date-error" message={fechaError} />
       </label>
       <label>
         Franja de subida
         <select name="moveAscentSlot" value={ascentSlot} disabled={disabled}
+          aria-invalid={Boolean(franjaError)} aria-describedby={franjaError ? "reservation-move-error" : undefined}
           onChange={(event) => { setAscentSlot(event.target.value); avisar(serviceDate, event.target.value); }}>
           {slots.map((slot) => <option key={slot} value={slot}>{slot}</option>)}
         </select>
+        <FieldError id="reservation-move-error" message={franjaError} />
       </label>
       <p className="reservation-edit-wide muted">Al cambiar de día o de franja, la reserva sale de la vuelta asignada y queda para asignar en el tablero de Chapelco.</p>
-      <FieldError id="reservation-move-error" message={error} />
     </>
   );
 }
