@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FlotaEnVivo } from "./en-vivo";
+import { cierreDelTraslado } from "./servicios-consulta";
 import { AVISO_PREVIO_MINUTOS, detectarChoquesDeUnidades, evaluarServicio, evaluarServiciosDelDia, serviciosQuePidenAtencion, type ServicioDelDia } from "./servicios";
 
 const AHORA = new Date("2026-11-20T11:00:00.000Z"); // 08:00 en Argentina
@@ -230,5 +231,25 @@ describe("evaluarServiciosDelDia con choques", () => {
     expect(primero.motivo).toContain("misma nave en 2 servicios");
     expect(primero.choques).toHaveLength(1);
     expect(resumen.enRiesgo).toBe(2);
+  });
+});
+
+describe("cierreDelTraslado", () => {
+  it("una partida cierra a los 90 minutos del pickup, no cuando despega el avión", () => {
+    const pickup = new Date("2026-11-21T21:35:00.000Z");   // 18:35 en Argentina
+    const despegue = new Date("2026-11-21T23:30:00.000Z"); // 20:30
+    expect(cierreDelTraslado(pickup, "DEPARTURE", despegue).toISOString()).toBe("2026-11-21T23:05:00.000Z");
+  });
+
+  it("si el avión sale antes de los 90 minutos, la unidad queda libre al despegue", () => {
+    const pickup = new Date("2026-11-21T21:35:00.000Z");
+    const despegue = new Date("2026-11-21T22:20:00.000Z");
+    expect(cierreDelTraslado(pickup, "DEPARTURE", despegue).toISOString()).toBe("2026-11-21T22:20:00.000Z");
+  });
+
+  it("un arribo se extiende 90 minutos por el reparto en los hoteles", () => {
+    const pickup = new Date("2026-11-21T21:35:00.000Z");
+    const despegue = new Date("2026-11-21T21:00:00.000Z");
+    expect(cierreDelTraslado(pickup, "ARRIVAL", despegue).toISOString()).toBe("2026-11-21T23:05:00.000Z");
   });
 });
