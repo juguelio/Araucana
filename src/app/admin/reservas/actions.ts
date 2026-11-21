@@ -342,7 +342,10 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
       case "STOP_NOT_AVAILABLE": field = "dropoffStop"; break;
       case "CAPACITY_FULL": field = move ? "move" : "passengerCount"; break;
       case "INVALID_PASSENGER_COUNT":
-        field = passengerCount !== undefined ? "passengerCount" : "minors";
+        if (passengerCount !== undefined) field = "passengerCount";
+        else if (halfFareCount !== undefined && freeFareCount === undefined) field = "halfFareCount";
+        else if (freeFareCount !== undefined && halfFareCount === undefined) field = "freeFareCount";
+        else field = "minors";
         break;
       case "PAYMENT_LOCKED":
         field = priceChanged ? "customPrice" : paymentChanged ? (formData.has("method") ? "method" : "reference") : "totalChange";
