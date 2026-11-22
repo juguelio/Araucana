@@ -222,7 +222,11 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
   const officialQuery = localNunez ? `Doctor Ernesto Luis Núñez ${address.number}` : name;
   const official = await lookupStreetAddresses(officialQuery, context.split(",")[0], signal).catch(() => []);
   const suggestions: AirportPlaceSuggestion[] = [];
-  for (const match of official) {
+  const requestedStreet = streetKey(localNunez ? "Doctor Ernesto Luis Núñez" : address.street);
+  const sameStreet = official.filter((match) => streetKey(match.calle.nombre) === requestedStreet);
+  const knownStreet = localStreetReference(address.street, address.number, locality);
+  const relevant = sameStreet.length || knownStreet ? sameStreet : official;
+  for (const match of relevant) {
     if (String(match.altura.valor) !== address.number || signal.aborted) continue;
     const officialStreet = match.calle.nombre.toLocaleLowerCase("es").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
     const { nombre: city } = match.localidad_censal;
@@ -274,8 +278,7 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     suggestions.push({ label, point: null, source: "georef", approximate: true, precision: "none" });
   }
   if (!suggestions.length && !signal.aborted) {
-    const local = localStreetReference(address.street, address.number, locality);
-    if (local) return [local];
+    if (knownStreet) return [knownStreet];
     if (!Array.isArray(named)) throw named;
   }
   return suggestions;
