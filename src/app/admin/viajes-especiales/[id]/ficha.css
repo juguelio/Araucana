@@ -51,3 +51,10 @@
 .viaje-unir form { display: grid; gap: 4px; justify-items: start; margin-top: 10px; }
 .viaje-unir-no { color: var(--ink-muted); }
 .viaje-aviso-naves { margin: 8px 0 12px; padding: 8px 10px; border-left: 3px solid var(--accent); border-radius: 6px; background: rgba(162, 40, 27, .05); font-size: 14px; }
+.viaje-puntos {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  padding-left: 20px;
+  color: var(--ink-soft);
+}
