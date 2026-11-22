@@ -28,6 +28,7 @@ export type ReservationPriceBasis = {
   freeFareCount: number;
   /** Adicionales del aeropuerto guardados hoy (0 en las reservas que no son del aeropuerto). */
   zoneExtraCents: number;
+  paihuenUnitCents?: number;
   sportsLuggageCount: number;
   sportsLuggageUnitCents: number;
 };
@@ -36,6 +37,7 @@ export type ReservationPriceBasis = {
 export function totalDerivadoCents(basis: ReservationPriceBasis) {
   const tarifas = fareCounts(basis.passengerCount, basis.halfFareCount, basis.freeFareCount);
   return reservationTotalCents(basis.priceCents, tarifas)
+    + (basis.paihuenUnitCents ?? 0) * basis.passengerCount
     + basis.zoneExtraCents
     + basis.sportsLuggageCount * basis.sportsLuggageUnitCents;
 }
@@ -66,6 +68,7 @@ export function totalAlEditar(input: {
   freeFareCount?: number;
   /** Recargo por zona después de mover el punto del traslado. */
   zoneExtraCents?: number;
+  paihuenUnitCents?: number;
   /** Tarifa por persona después de cambiar la bajada (parada intermedia o destino final). */
   priceCents?: number;
 }): TotalAlEditar {
@@ -79,6 +82,7 @@ export function totalAlEditar(input: {
     passengerCount: input.passengerCount ?? basis.passengerCount,
     halfFareCount: input.halfFareCount ?? basis.halfFareCount,
     freeFareCount: input.freeFareCount ?? basis.freeFareCount,
+    paihuenUnitCents: input.paihuenUnitCents ?? basis.paihuenUnitCents,
     zoneExtraCents: input.zoneExtraCents ?? basis.zoneExtraCents,
     sportsLuggageCount: input.sportsLuggageCount ?? basis.sportsLuggageCount
   });

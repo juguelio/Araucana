@@ -4,6 +4,8 @@ import type { PickupPoint } from "./pickup-zone";
 /** Entrada del establecimiento 147 del catálogo municipal. */
 export const PAIHUEN_POINT: PickupPoint = [-40.1754504, -71.3950852];
 
+export const PAIHUEN_UNIT_CENTS = 1_300_000;
+
 export function isPaihuen(name?: string | null, address?: string | null, point?: PickupPoint | null) {
   if (point && Math.abs(point[0] - PAIHUEN_POINT[0]) < 0.00001 && Math.abs(point[1] - PAIHUEN_POINT[1]) < 0.00001) return true;
   return [name, address].some(value => {

@@ -13,7 +13,7 @@ import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { MapPointAddress } from "@/components/map-point-address";
-import { isPaihuen, paihuenPickupTime } from "@/lib/airport/paihuen";
+import { isPaihuen, paihuenPickupTime, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { nombreDelLugarSugerido, pickupNameParaElChofer } from "./pickup-name";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
@@ -265,7 +265,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     { zoneExtra: chargesZoneExtra(pickupPoint, coverage), sportsLuggageCount: ofreceEquipaje ? sportsLuggageCount : 0 },
     extras
   );
-  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents;
+  const paihuenCents = esPaihuen && moneda === "ARS" ? passengerCount * PAIHUEN_UNIT_CENTS : 0;
+  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents + paihuenCents;
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   const outsideCoverage = Boolean(coverage.enabled && pickupPoint && !isInsideAirportPickupZone(pickupPoint, coverage));
@@ -855,6 +856,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           {freeFareCount > 0 ? <span>Menores de 4 sin cargo: <strong>{freeFareCount}</strong></span> : null}
           {overrideTotalCents == null ? <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span> : <span>Precio total ajustado por administración</span>}
           {adicionales.sportsLuggageCount > 0 ? <span>Equipaje deportivo: <strong>{adicionales.sportsLuggageCount}{overrideTotalCents == null ? ` · ${formatPrice(adicionales.sportsLuggageTotalCents, moneda)}` : ""}</strong></span> : null}
+          {paihuenCents > 0 && overrideTotalCents == null ? <span>Adicional Paihuén ({passengerCount} × $13.000): <strong>{formatPrice(paihuenCents, moneda)}</strong></span> : null}
           {adicionales.zoneExtraCents > 0 && overrideTotalCents == null ? <span>Recargo por zona: <strong>{formatPrice(adicionales.zoneExtraCents, moneda)}</strong></span> : null}
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>

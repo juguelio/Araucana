@@ -201,6 +201,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               {airport?.sportsLuggageCount ? (
                 <div><dt>Equipaje deportivo</dt><dd>{airport.sportsLuggageCount} {airport.sportsLuggageCount === 1 ? "bulto" : "bultos"} · {formatPrice(airport.sportsLuggageCount * (airport.sportsLuggageUnitCents ?? 0), reservation.currency)}</dd></div>
               ) : null}
+              {airport?.paihuenUnitCents ? <div><dt>Adicional Paihuén</dt><dd>{formatPrice(airport.paihuenUnitCents * reservation.passengerCount, reservation.currency)}</dd></div> : null}
               {airport?.zoneExtraCents ? (
                 <div><dt>Recargo por zona</dt><dd>{formatPrice(airport.zoneExtraCents, reservation.currency)}</dd></div>
               ) : null}

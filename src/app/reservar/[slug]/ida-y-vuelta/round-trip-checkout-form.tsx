@@ -442,8 +442,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const moneda = fares.ARRIVAL?.currency ?? route.currency;
   const monedaVuelta = fares.DEPARTURE?.currency ?? route.currency;
   const quote = roundTripQuote({
-    arrival: { priceCents: precioLlegada, currency: moneda, point: pickupLlegada.point },
-    departure: { priceCents: precioVuelta, currency: monedaVuelta, point: pickupVuelta.point },
+    arrival: { priceCents: precioLlegada, currency: moneda, point: pickupLlegada.point, label: pickupLlegada.label },
+    departure: { priceCents: precioVuelta, currency: monedaVuelta, point: pickupVuelta.point, label: pickupVuelta.label },
     passengerCount, halfFareCount, freeFareCount, sportsLuggageCount, coverage, extras
   });
   const totalTexto = quote.totals.map((total) => formatPrice(total.amountCents, total.currency)).join(" + ");
@@ -912,6 +912,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
             <strong>{formatPrice(precioLlegada, moneda)} la llegada · {formatPrice(precioVuelta, monedaVuelta)} la salida, por persona</strong>
           </div>
         </div>
+        {resumenTramos.filter(({ value }) => value.quote.paihuenCents > 0).map(({ label, value }) => (
+          <p className="muted" key={label}>{label} · Adicional Paihuén ({passengerCount} × $13.000): {formatPrice(value.quote.paihuenCents, value.quote.currency)}</p>
+        ))}
         {resumenTramos.filter(({ value }) => value.quote.extras.zoneExtraCents > 0).map(({ label, value }) => (
           <p className="muted" key={label}>{label}: incluye recargo de zona {formatPrice(value.quote.extras.zoneExtraCents, value.quote.currency)}</p>
         ))}

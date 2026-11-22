@@ -69,6 +69,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
     passengerCount: reservation.passengerCount,
     halfFareCount: reservation.halfFareCount ?? 0,
     freeFareCount: reservation.freeFareCount ?? 0,
+    paihuenUnitCents: airport?.paihuenUnitCents ?? 0,
     zoneExtraCents: airport?.zoneExtraCents ?? 0,
     sportsLuggageCount: airport?.sportsLuggageCount ?? 0,
     sportsLuggageUnitCents: airport?.sportsLuggageUnitCents ?? 0

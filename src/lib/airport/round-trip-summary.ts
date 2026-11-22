@@ -1,3 +1,4 @@
+import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { airportExtrasBreakdown, type AirportExtras } from "./extras";
 import { chargesZoneExtra, type AirportCoverage, type PickupPoint } from "./pickup-zone";
@@ -22,8 +23,8 @@ export function orderedRoundTrip<T>(arrival: T, departure: T, firstLeg: Directio
 
 /** Cotización por tramo: incluye zona y equipaje; nunca suma monedas distintas. */
 export function roundTripQuote(input: {
-  arrival: { priceCents: number; currency: string; point: PickupPoint | null };
-  departure: { priceCents: number; currency: string; point: PickupPoint | null };
+  arrival: { priceCents: number; currency: string; point: PickupPoint | null; label?: string };
+  departure: { priceCents: number; currency: string; point: PickupPoint | null; label?: string };
   passengerCount: number;
   halfFareCount: number;
   freeFareCount: number;
@@ -33,7 +34,8 @@ export function roundTripQuote(input: {
 }) {
   const quote = (fare: typeof input.arrival) => {
     const extras = airportExtrasBreakdown({ zoneExtra: chargesZoneExtra(fare.point, input.coverage), sportsLuggageCount: input.sportsLuggageCount }, input.extras);
-    return { currency: fare.currency, extras, totalCents: reservationTotalCents(fare.priceCents, fareCounts(input.passengerCount, input.halfFareCount, input.freeFareCount)) + extras.totalCents };
+    const paihuenCents = fare.currency === "ARS" && isPaihuen(null, fare.label, fare.point) ? PAIHUEN_UNIT_CENTS * input.passengerCount : 0;
+    return { currency: fare.currency, extras, paihuenCents, totalCents: reservationTotalCents(fare.priceCents, fareCounts(input.passengerCount, input.halfFareCount, input.freeFareCount)) + extras.totalCents + paihuenCents };
   };
   const arrival = quote(input.arrival);
   const departure = quote(input.departure);

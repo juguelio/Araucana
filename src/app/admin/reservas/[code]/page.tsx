@@ -305,7 +305,8 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             {reservation.halfFareCount ? <div><span>Menores con media tarifa</span><strong>{reservation.halfFareCount}</strong></div> : null}
             {reservation.freeFareCount ? <div><span>Menores de 4 sin cargo</span><strong>{reservation.freeFareCount}</strong></div> : null}
             {airport?.sportsLuggageCount ? <div><span>Equipaje deportivo</span><strong>{airport.sportsLuggageCount} {airport.sportsLuggageCount === 1 ? "bulto" : "bultos"} · {money(airport.sportsLuggageCount * (airport.sportsLuggageUnitCents ?? 0))}</strong></div> : null}
-            {airport?.zoneExtraCents ? <div><span>Recargo por zona</span><strong>{money(airport.zoneExtraCents)}</strong></div> : null}
+            {airport?.paihuenUnitCents ? <div><span>Adicional Paihuén</span><strong>{money(airport.paihuenUnitCents * reservation.passengerCount)}</strong></div> : null}
+              {airport?.zoneExtraCents ? <div><span>Recargo por zona</span><strong>{money(airport.zoneExtraCents)}</strong></div> : null}
             {isChapelco && reservation.chapelcoDetails ? (
               <div>
                 <span>Búsqueda</span>

@@ -383,6 +383,7 @@ model AirportReservationDetails {
   sportsLuggageUnitCents Int @default(0)
   /// Recargo por zona (segundo límite del mapa) cobrado al reservar.
   zoneExtraCents         Int @default(0)
+  paihuenUnitCents       Int @default(0)
   /// Nave en la que va el pasajero cuando el vuelo tiene más de una (orden de servicio por nave).
   /// `null` = la reparte la orden según la capacidad. Se ignora si la asignación es de otro vuelo.
   assignmentId  String?
