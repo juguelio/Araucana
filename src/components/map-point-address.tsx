@@ -31,5 +31,5 @@ export function MapPointAddress({ point, onResult }: {
   }, [point]);
   return <p className="muted" role="status">{result?.point !== point ? "Buscando la dirección del punto…"
     : result.found ? "Dirección cercana al punto marcado. Verificá que corresponda a la entrada."
-    : "No encontramos una dirección cercana. Se conserva el punto marcado."}</p>;
+    : "No encontramos una dirección cercana. Se conservan el punto marcado y la dirección escrita."}</p>;
 }
