@@ -1,3 +1,4 @@
+import { isPaihuenReservation, paihuenPickupTime } from "@/lib/airport/paihuen";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
@@ -76,7 +77,10 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const passengerName = `${reservation.passenger.firstName} ${reservation.passenger.lastName}`;
   const isChapelco = reservation.bookingMode === "CHAPELCO";
   const airport = reservation.bookingMode === "AIRPORT" ? reservation.airportDetails : null;
-  const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
+  const retiroPaihuen = airport?.direction === "DEPARTURE" && isPaihuenReservation(airport);
+  const pickupStart = airport?.flight && reservation.status !== "CANCELLED"
+    ? paihuenPickupTime(airportPickupStart({ ...airport.flight, direction: airport.direction }), retiroPaihuen)
+    : null;
 
   const payment = reservation.payment;
   const disability = payment?.provider === DISABILITY_DOCUMENT_PROVIDER || reservation.status === "DOCUMENTATION_PENDING";
@@ -301,7 +305,8 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
             {reservation.halfFareCount ? <div><span>Menores con media tarifa</span><strong>{reservation.halfFareCount}</strong></div> : null}
             {reservation.freeFareCount ? <div><span>Menores de 4 sin cargo</span><strong>{reservation.freeFareCount}</strong></div> : null}
             {airport?.sportsLuggageCount ? <div><span>Equipaje deportivo</span><strong>{airport.sportsLuggageCount} {airport.sportsLuggageCount === 1 ? "bulto" : "bultos"} · {money(airport.sportsLuggageCount * (airport.sportsLuggageUnitCents ?? 0))}</strong></div> : null}
-            {airport?.zoneExtraCents ? <div><span>Recargo por zona</span><strong>{money(airport.zoneExtraCents)}</strong></div> : null}
+            {airport?.paihuenUnitCents ? <div><span>Adicional Paihuén</span><strong>{money(airport.paihuenUnitCents * reservation.passengerCount)}</strong></div> : null}
+              {airport?.zoneExtraCents ? <div><span>Recargo por zona</span><strong>{money(airport.zoneExtraCents)}</strong></div> : null}
             {isChapelco && reservation.chapelcoDetails ? (
               <div>
                 <span>Búsqueda</span>

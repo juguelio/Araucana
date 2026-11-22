@@ -1,5 +1,6 @@
 "use client";
 
+import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { SegmentStopFields } from "@/components/segment-stop-fields";
 import { segmentPrice } from "@/lib/booking/segment-fares";
 
@@ -132,6 +133,9 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const zoneNext = counts?.airport && transfer && addressChanged && pickup.point
     ? (chargesZoneExtra(pickup.point, transfer.coverage) ? (zoneNow || counts.zoneExtraConfigCents) : 0)
     : zoneNow;
+  const unidadActual = counts?.price.paihuenUnitCents ?? 0;
+  const unidadFinal = counts?.airport && counts.currency === "ARS" && (addressChanged || pickupNameChanged)
+    ? (isPaihuen(pickupName, pickup.address, pickup.point) ? PAIHUEN_UNIT_CENTS : 0) : unidadActual;
   const zoneChanged = zoneNext !== zoneNow;
   const stopPrice = counts && segmentPrice(counts.route, boarding, dropoffFinal);
   // Tarifa por persona después del cambio de servicio: la de la ruta nueva o la del otro sentido.
@@ -147,12 +151,13 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
     halfFareCount: countValid ? parsedHalf : counts.price.halfFareCount,
     freeFareCount: countValid ? parsedFree : counts.price.freeFareCount,
     sportsLuggageCount: counts.airport && luggageValid ? parsedLuggage : counts.price.sportsLuggageCount,
+    paihuenUnitCents: unidadFinal,
     zoneExtraCents: zoneNext,
     priceCents: movedPrice ?? stopPrice
   }) : null;
   const totalChanged = Boolean(proposal?.seRecalcula && proposal.totalCents !== counts?.totalCents);
   const moved = move !== null;
-  const movesTotal = countChanged || minorsChanged || luggageChanged || boardingChanged || dropoffChanged || zoneChanged || moved;
+  const movesTotal = countChanged || minorsChanged || luggageChanged || boardingChanged || dropoffChanged || zoneChanged || unidadFinal !== unidadActual || moved;
   // Un precio escrito a mano manda sobre la cuenta automática: ahí no hay diferencia que confirmar.
   const needsAcknowledgement = Boolean(counts?.paymentApproved && totalChanged && !priceChanged);
   const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || pickupNameChanged || referredByChanged

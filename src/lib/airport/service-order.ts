@@ -1,3 +1,4 @@
+import { isPaihuen, paihuenPickupTime, PAIHUEN_POINT } from "./paihuen";
 /**
  * Orden de servicio del aeropuerto: la hoja que se le entrega al chofer.
  *
@@ -312,6 +313,10 @@ function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
 }
 
 const lugaresDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.seats, 0);
+export function retiroPaihuen(p: ServiceOrderPassenger) {
+  return isPaihuen(p.lodging, p.lodgingDetail, p.pickup ? [p.pickup.latitude, p.pickup.longitude] : null);
+}
+
 const totalDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.amountCents, 0);
 
 /**
@@ -327,7 +332,17 @@ export function ordenDeLaRecorrida(
   pasajeros: ServiceOrderPassenger[],
   direction: ServiceOrderDirection = "ARRIVAL",
   oficina: PickupCoords | null = null
-) {
+): ServiceOrderPassenger[] {
+  const paihuen = pasajeros.filter(retiroPaihuen);
+  const resto = paihuen.length ? pasajeros.filter(p => !retiroPaihuen(p)) : pasajeros;
+  if (direction === "DEPARTURE" && paihuen.length) {
+    const origen = paihuen[0].pickup ?? { latitude: PAIHUEN_POINT[0], longitude: PAIHUEN_POINT[1] };
+    return [...paihuen, ...ordenarResto(resto, direction, origen)];
+  }
+  return [...ordenarResto(resto, direction, oficina), ...paihuen];
+}
+
+function ordenarResto(pasajeros: ServiceOrderPassenger[], direction: ServiceOrderDirection, oficina: PickupCoords | null) {
   const fijados = pasajeros
     .map((pasajero, indice) => ({ pasajero, indice }))
     .filter(({ pasajero }) => pasajero.routePosition !== null)
@@ -497,6 +512,7 @@ export function buildServiceOrderBlocks(
       ...grupo,
       key: `${flightKey}:${vehicle?.assignmentId ?? SIN_NAVE}`,
       vehicle,
+      operationAt: paihuenPickupTime(grupo.operationAt, grupo.direction === "DEPARTURE" && passengers.some(retiroPaihuen)),
       passengers,
       totalCents: totalDe(passengers),
       manualOrder: passengers.some((pasajero) => pasajero.routePosition !== null)

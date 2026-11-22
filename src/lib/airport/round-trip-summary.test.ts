@@ -48,3 +48,12 @@ describe("orden del viaje", () => {
     ]);
   });
 });
+
+it("cotiza $13.000 por cada pasajero y por cada tramo con Paihuén", () => {
+  const llegada = { ...input.arrival, label: "Paihuen Resort de Montaña" };
+  const salida = { ...input.departure, label: "Paihuén, Ruta Nacional 40" };
+  const ambos = roundTripQuote({ ...input, arrival: llegada, departure: salida });
+  expect(ambos.arrival.paihuenCents + ambos.departure.paihuenCents).toBe(7_800_000);
+  const soloLlegada = roundTripQuote({ ...input, arrival: llegada });
+  expect(soloLlegada.departure.paihuenCents).toBe(0);
+});

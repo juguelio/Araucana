@@ -1,3 +1,4 @@
+import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { MAX_SPORTS_LUGGAGE } from "@/lib/airport/extras";
 import { z } from "zod";
@@ -531,7 +532,7 @@ export async function manageReservation(code: string, command: ReservationOperat
           // Ruta con paradas: la bajada tiene que ser una de las paradas con tarifa de la ruta, y
           // cambia la tarifa por persona igual que en el alta.
           const selectRuta = { priceCents: true, from: true, to: true, stops: true, bookingMode: true, currency: true } as const;
-          const rutaDeLaReserva = reservation.routeId && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || pickup?.point || movida)
+          const rutaDeLaReserva = reservation.routeId && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || pickup || pickupName !== undefined || movida)
             ? await tx.travelRoute.findUnique({ where: { id: reservation.routeId }, select: selectRuta })
             : null;
           // Si el cambio de servicio pasó la reserva a otra ruta (otra salida, otro sentido del
@@ -571,6 +572,17 @@ export async function manageReservation(code: string, command: ReservationOperat
             if (!cobraZona) zonaFinal = 0;
             else if (zonaAhora === 0) zonaFinal = (await getAirportExtras(tx)).zoneExtraCents ?? 0;
           }
+          const detalle = reservation.airportDetails;
+          const unidadActual = detalle?.paihuenUnitCents ?? 0;
+          let unidadFinal = unidadActual;
+          if (detalle && reservation.currency === "ARS" && (pickup || pickupName !== undefined)) {
+            const punto = pickup ? pickup.point : detalle.pickupLatitude != null && detalle.pickupLongitude != null
+              ? [detalle.pickupLatitude, detalle.pickupLongitude] as [number, number] : null;
+            const nombre = pickupName ?? (pickup && !pickup.point ? null : detalle.pickupName);
+            unidadFinal = isPaihuen(nombre, pickup ? pickup.address : detalle.pickupAddress, punto) ? PAIHUEN_UNIT_CENTS : 0;
+          }
+          const cambiaPaihuen = unidadFinal !== unidadActual;
+          if (cambiaPaihuen) await tx.airportReservationDetails.update({ where: { reservationId: id }, data: { paihuenUnitCents: unidadFinal } });
           const cambiaZona = zonaFinal !== zonaAhora;
           if (cambiaZona) {
             await tx.airportReservationDetails.update({ where: { reservationId: id }, data: { zoneExtraCents: zonaFinal } });
@@ -582,13 +594,14 @@ export async function manageReservation(code: string, command: ReservationOperat
           const precioEscrito = financial !== undefined && (
             financial.operation === "price" || (financial.operation === "correctPayment" && financial.totalCents !== undefined)
           );
-          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || cambiaZona || movida) && rutaDeLaReserva && rutaFinal) {
+          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || cambiaZona || cambiaPaihuen || movida) && rutaDeLaReserva && rutaFinal) {
             const total = totalAlEditar({
               basis: {
                 priceCents: tarifaPorPersona(rutaDeLaReserva, reservation.dropoffStop, reservation.boardingStop),
                 passengerCount: reservation.passengerCount,
                 halfFareCount: mediasAhora,
                 freeFareCount: sinCargoAhora,
+                paihuenUnitCents: unidadActual,
                 zoneExtraCents: zonaAhora,
                 sportsLuggageCount: reservation.airportDetails?.sportsLuggageCount ?? 0,
                 sportsLuggageUnitCents: reservation.airportDetails?.sportsLuggageUnitCents ?? 0
@@ -598,6 +611,7 @@ export async function manageReservation(code: string, command: ReservationOperat
               sportsLuggageCount,
               halfFareCount: mediasFinal,
               freeFareCount: sinCargoFinal,
+              paihuenUnitCents: unidadFinal,
               zoneExtraCents: zonaFinal,
               priceCents: tarifaPorPersona(rutaFinal, bajadaFinal, subidaFinal)
             });

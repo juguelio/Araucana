@@ -1,3 +1,4 @@
+import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { flightEvidenceWarning, reliableEstimate } from "./data-quality";
 import { roundTripOrderValid } from "./round-trip-summary";
 import { randomUUID } from "node:crypto";
@@ -450,6 +451,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
     throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
   }
 
+  const paihuenUnitCents = rutaDelSentido.currency === "ARS" && isPaihuen(tramo.pickupName, tramo.pickupAddress, tramo.pickupPoint) ? PAIHUEN_UNIT_CENTS : 0;
   const fares = fareCounts(passengerCount, halfFareCount, freeFareCount);
   const reservation = await tx.reservation.create({
     data: {
@@ -463,7 +465,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
       passengerCount,
       bookingMode: "AIRPORT",
       status: "PENDING_PAYMENT",
-      totalCents: params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents,
+      totalCents: params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents + paihuenUnitCents * passengerCount,
       halfFareCount: fares.half,
       freeFareCount: fares.free,
       currency: rutaDelSentido.currency,
@@ -482,6 +484,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
           pickupNotes: tramo.pickupNotes ?? null,
           sportsLuggageCount: adicionales.sportsLuggageCount,
           sportsLuggageUnitCents: adicionales.sportsLuggageUnitCents,
+          paihuenUnitCents,
           zoneExtraCents: adicionales.zoneExtraCents
         }
       }

@@ -13,6 +13,7 @@ import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, t
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { MapPointAddress } from "@/components/map-point-address";
+import { isPaihuen, paihuenPickupTime } from "@/lib/airport/paihuen";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./trip-search-bar";
 import {
@@ -441,8 +442,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   const moneda = fares.ARRIVAL?.currency ?? route.currency;
   const monedaVuelta = fares.DEPARTURE?.currency ?? route.currency;
   const quote = roundTripQuote({
-    arrival: { priceCents: precioLlegada, currency: moneda, point: pickupLlegada.point },
-    departure: { priceCents: precioVuelta, currency: monedaVuelta, point: pickupVuelta.point },
+    arrival: { priceCents: precioLlegada, currency: moneda, point: pickupLlegada.point, label: pickupLlegada.label },
+    departure: { priceCents: precioVuelta, currency: monedaVuelta, point: pickupVuelta.point, label: pickupVuelta.label },
     passengerCount, halfFareCount, freeFareCount, sportsLuggageCount, coverage, extras
   });
   const totalTexto = quote.totals.map((total) => formatPrice(total.amountCents, total.currency)).join(" + ");
@@ -743,11 +744,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               <p className="trip-search-hint"><strong>{fraseOrden}.</strong></p>
               {/* Con el vuelo de salida elegido, a qué hora pasa la camioneta (#206): 2 h 30 antes. */}
               {(() => {
-                const inicio = vuelta ? inicioDeRecorrida(vuelta) : null;
+                const retiroPaihuen = isPaihuen(null, pickupVuelta.label, pickupVuelta.point);
+                const inicio = paihuenPickupTime(vuelta ? inicioDeRecorrida(vuelta) : null, retiroPaihuen);
                 return inicio ? (
                   <p className="trip-search-hint trip-search-pickup-time">
                     <strong>Lo pasamos a buscar el {airportPickupDateTime.format(inicio)} h</strong>{" "}
-                    — la camioneta sale 2 h 30 antes del vuelo de salida.
+                    {retiroPaihuen ? "Paihuén es la primera parada, 15 minutos antes del inicio habitual." : "— la camioneta sale 2 h 30 antes del vuelo de salida."}
                   </p>
                 ) : null;
               })()}
@@ -910,6 +912,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
             <strong>{formatPrice(precioLlegada, moneda)} la llegada · {formatPrice(precioVuelta, monedaVuelta)} la salida, por persona</strong>
           </div>
         </div>
+        {resumenTramos.filter(({ value }) => value.quote.paihuenCents > 0).map(({ label, value }) => (
+          <p className="muted" key={label}>{label} · Adicional Paihuén ({passengerCount} × $13.000): {formatPrice(value.quote.paihuenCents, value.quote.currency)}</p>
+        ))}
         {resumenTramos.filter(({ value }) => value.quote.extras.zoneExtraCents > 0).map(({ label, value }) => (
           <p className="muted" key={label}>{label}: incluye recargo de zona {formatPrice(value.quote.extras.zoneExtraCents, value.quote.currency)}</p>
         ))}
