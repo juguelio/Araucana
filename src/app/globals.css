@@ -677,6 +677,16 @@ svg {
   cursor: not-allowed;
 }
 
+/* Un guardado bloqueado que se ve igual que uno disponible es media explicación: el cliente lee «no me
+   deja apretar guardar» (#343). Además del motivo al pie del formulario, el botón tiene que verse apagado. */
+.button:disabled,
+.button[aria-disabled="true"],
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  filter: grayscale(.25);
+}
+
 .route-summary {
   min-width: 220px;
   display: grid;

@@ -18,11 +18,34 @@ type PickupSaveOptions = {
   outside: boolean;
 };
 
+/**
+ * Por qué no se puede guardar el domicilio, o `ok` si se puede. Existe para que el botón de guardar
+ * pueda decir el motivo (#343): el aviso vive arriba del mapa y el operador mira el pie del
+ * formulario, así que un guardado bloqueado se leía como «el botón no anda» y «no veo el rojo».
+ */
+export type PickupBlock = "ok" | "sin-punto" | "sin-direccion" | "sin-confirmar" | "fuera-de-zona";
+
+/** El texto que se muestra junto al botón de guardar para cada motivo. */
+export const PICKUP_BLOCK_MESSAGES: Record<Exclude<PickupBlock, "ok">, string> = {
+  "sin-punto": "Marcá el punto en el mapa: este traslado se guarda con coordenadas.",
+  "sin-direccion": "Escribí una dirección o marcá el punto en el mapa.",
+  "sin-confirmar": "Falta tildar «Confirmo que el mapa marca el lugar correcto», arriba del domicilio.",
+  "fuera-de-zona": "El punto está fuera de la zona de cobertura: movelo dentro del mapa o elegí otro domicilio."
+};
+
+export function pickupBlockReason(changed: boolean, draft: PickupAddressDraft, { airport, outside }: PickupSaveOptions): PickupBlock {
+  if (!changed) return "ok";
+  if (!draft.point) {
+    if (!airport) return "sin-punto";
+    return draft.address.trim().length > 0 ? "ok" : "sin-direccion";
+  }
+  if (outside) return "fuera-de-zona";
+  return draft.confirmed ? "ok" : "sin-confirmar";
+}
+
 /** ¿El domicilio se puede guardar tal como está? Sin punto, sólo en el aeropuerto y con texto. */
-export function canSavePickup(changed: boolean, draft: PickupAddressDraft, { airport, outside }: PickupSaveOptions) {
-  if (!changed) return true;
-  if (!draft.point) return airport && draft.address.trim().length > 0;
-  return draft.confirmed && !outside;
+export function canSavePickup(changed: boolean, draft: PickupAddressDraft, options: PickupSaveOptions) {
+  return pickupBlockReason(changed, draft, options) === "ok";
 }
 
 export type PickupFormFields = { address: string; latitude?: string; longitude?: string; confirmed?: "on" };
