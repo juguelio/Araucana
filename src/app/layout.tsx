@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Poppins } from "next/font/google";
-import { BrandMark } from "@/components/brand-mark";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { MobileNav } from "@/components/mobile-nav";
 import { WeatherChip } from "@/components/weather-chip";
 import { WebVitals } from "@/components/web-vitals";
 import { currentPath, getI18n } from "@/i18n/server";
 import { LOCALE_TAGS, localizePath, type Locale } from "@/i18n/config";
+import { getAppUserFromToken } from "@/lib/auth/service";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -33,8 +33,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const { locale, dict } = await getI18n();
+  const [{ locale, dict }, user] = await Promise.all([getI18n(), getAppUserFromToken()]);
   const nav = dict.nav;
+  const accountName = user?.name?.trim() || user?.email;
   const links = [
     { label: nav.home, href: "/" },
     { label: nav.transfers, href: "/rutas" },
@@ -64,10 +65,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </div>
             <div className="nav-actions">
               <LanguageSwitcher label={dict.lang.label} switchTo={dict.lang.switchTo} />
-              <a className="text-link" href="/login">{nav.login}</a>
-              <Link className="cream-button" href={localizePath("/rutas", locale)} prefetch={true}>
-                {nav.book}
-              </Link>
+              {user ? (
+                <Link className="nav-account" href="/perfil" aria-label={`${nav.profile}: ${accountName}`}>
+                  {accountName}
+                </Link>
+              ) : (
+                <a className="nav-account" href="/login">{nav.login}</a>
+              )}
               <MobileNav items={links.map((link) => ({ label: link.label, href: localizePath(link.href, locale) }))} labels={{ open: nav.menuOpen, close: nav.menuClose, menu: nav.menuLabel, whatsapp: "WhatsApp", language: dict.lang.label, switchTo: dict.lang.switchTo }} />
             </div>
           </nav>

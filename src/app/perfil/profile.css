@@ -1,0 +1,31 @@
+.profile-page {
+  max-width: 920px;
+}
+
+.profile-forms {
+  align-items: start;
+  margin-top: 28px;
+}
+
+.profile-forms .form-panel {
+  width: 100%;
+  min-width: 0;
+}
+
+.profile-forms .form-panel h2,
+.profile-forms .form-panel p {
+  margin: 0;
+}
+
+.profile-forms input[readonly] {
+  color: var(--ink-soft);
+  background: transparent;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
