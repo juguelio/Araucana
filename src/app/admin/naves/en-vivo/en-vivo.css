@@ -705,3 +705,24 @@ button.flota-fila:hover, button.flota-fila:focus-visible { background: #f1efe7; 
   .aviso-servicios { grid-template-columns: minmax(0, 1fr) auto; }
   .aviso-servicios-lista { grid-column: 1 / -1; }
 }
+
+/* Resultado de asignar nave/chofer desde el aviso o la lista: vuelve por redirect con ?ok= o ?error=. */
+.en-vivo-aviso {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.en-vivo-aviso.es-ok {
+  background: #e8f5ec;
+  border: 1px solid #b7dfc4;
+  color: #17603a;
+}
+
+.en-vivo-aviso.es-error {
+  background: #fdeceb;
+  border: 1px solid #f3c2bd;
+  color: #8a1c15;
+}

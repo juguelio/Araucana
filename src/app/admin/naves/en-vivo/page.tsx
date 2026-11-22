@@ -10,6 +10,7 @@ import { nombreDeUnidad } from "@/lib/vehicles/enlace-mapa";
 import { cargarServiciosDelDia } from "@/lib/driver/servicios-consulta";
 import { evaluarServiciosDelDia } from "@/lib/driver/servicios";
 import { ServiciosDelDia } from "./servicios-del-dia";
+import { opcionesParaAsignar } from "./asignar-unidad";
 import { AvisoDeServicios } from "./aviso-servicios";
 import { AutoRefresco } from "./auto-refresco";
 import { FlotaEnVivoMapa } from "./flota-en-vivo-mapa";
@@ -20,7 +21,9 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { robots: { index: false, follow: false } };
 
-type Props = { searchParams?: Promise<{ vista?: string; fecha?: string; unidad?: string }> };
+type Props = {
+  searchParams?: Promise<{ vista?: string; fecha?: string; unidad?: string; ok?: string; error?: string }>;
+};
 
 /**
  * Naves en vivo (issues #316, #321 y el adicional de seguimiento).
@@ -37,6 +40,8 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
   const fechaPedida = typeof query.fecha === "string" ? query.fecha : "";
   const fecha = rangoDelDia(fechaPedida) ? fechaPedida : hoy;
   const unidadSeleccionada = typeof query.unidad === "string" && query.unidad.trim() ? query.unidad.trim() : null;
+  /** Resultado de asignar nave desde el aviso o desde la lista (server action → redirect). */
+  const aviso = query.ok ? { tono: "ok" as const, texto: query.ok } : query.error ? { tono: "error" as const, texto: query.error } : null;
 
   /**
    * La unidad pedida puede no tener posición (el chofer nunca abrió el panel). Se resuelve el nombre
@@ -62,16 +67,25 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
 
   const resumenServicios = servicios ? evaluarServiciosDelDia(servicios, flota) : null;
 
+  // Naves y choferes para el modal «Asignar nave»: sólo se leen cuando hay algo para asignar.
+  const necesitaAsignar = Boolean(resumenServicios && resumenServicios.enRiesgo > 0);
+  const opciones = necesitaAsignar ? await opcionesParaAsignar() : { naves: [], choferes: [] };
+
   return (
     <AdminShell
       role={sessionUser.role}
       title="Naves en vivo"
       action={
         <Link className="ghost-button" href="/admin/naves">
-          Volver a naves
+          Tablero de flota
         </Link>
       }
     >
+      {aviso ? (
+        <p className={`en-vivo-aviso ${aviso.tono === "ok" ? "es-ok" : "es-error"}`} role="status">
+          {aviso.texto}
+        </p>
+      ) : null}
       <div className="flota-barra-superior">
         <nav className="flota-tabs" aria-label="Vista">
           <Link href="/admin/naves/en-vivo" aria-current={vista === "en-vivo" ? "page" : undefined}>
@@ -110,7 +124,7 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
       {vista === "en-vivo" && flota ? (
         <>
           <AutoRefresco cadaMs={60_000} />
-          <AvisoDeServicios resumen={resumenServicios ?? evaluarServiciosDelDia([], flota)} fecha={fecha} />
+          <AvisoDeServicios resumen={resumenServicios ?? evaluarServiciosDelDia([], flota)} fecha={fecha} naves={opciones.naves} choferes={opciones.choferes} />
           <FlotaEnVivoMapa
             inicial={flota}
             recorridosIniciales={recorridos ?? []}
@@ -122,7 +136,7 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
       ) : vista === "servicios" && resumenServicios ? (
         <>
           <AutoRefresco cadaMs={60_000} />
-          <ServiciosDelDia resumen={resumenServicios} fecha={fecha} hoy={hoy} />
+          <ServiciosDelDia resumen={resumenServicios} fecha={fecha} hoy={hoy} naves={opciones.naves} choferes={opciones.choferes} />
         </>
       ) : dia ? (
         <ResumenDelDia dia={dia} dias={dias} hoy={hoy} />

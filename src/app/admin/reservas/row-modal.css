@@ -1,7 +1,7 @@
 /* Base del modal de `RowModal`: fondo, caja, encabezado y botón de cerrar. Vive junto al componente
    (y no en globals.css) para que ningún rediseño de otra pantalla se lo lleve: lo usan Reservas,
    Aeropuerto («Coordinar recorrida», «Juntar arribos», combis, hoja del chofer) y otros. */
-.fleet-docs-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px;
+.fleet-docs-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 18px;
   background: rgba(15, 40, 34, .62); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
 .fleet-docs-modal { position: relative; width: min(460px, 100%); max-height: min(78vh, 640px); overflow: auto;
   padding: 22px 24px 20px; border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
@@ -12,3 +12,30 @@
 .fleet-docs-close { flex: none; width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 50%;
   background: transparent; color: var(--primary); font-size: 22px; line-height: 1; }
 .fleet-docs-close:hover { border-color: var(--primary); background: var(--surface-2); }
+
+/* Formularios que viven adentro de un `RowModal`. Estaban en reservas.css y por eso «Asignar nave» de
+   Naves en vivo salía con los labels al costado: el modal se usa fuera de Reservas y los estilos tienen
+   que viajar con el componente. */
+.reservas-modal-body { display: grid; gap: 14px; margin-top: 16px; }
+.reservas-modal-form { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.reservas-modal-form p { margin: 0; }
+.reservas-modal-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.reservas-modal-form input:not([type="file"]),
+.reservas-modal-form select,
+.reservas-modal-form textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 500;
+}
+.reservas-modal-form textarea { resize: vertical; }
+.reservas-modal-form input:focus-visible,
+.reservas-modal-form select:focus-visible,
+.reservas-modal-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.reservas-modal-form .button,
+.reservas-modal-form .danger-button { justify-self: start; }

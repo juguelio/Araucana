@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { NaveEnVivo } from "@/lib/driver/en-vivo";
 import { fechaLocal, minutosAHoras } from "@/lib/driver/jornada";
 import { AVISO_PREVIO_MINUTOS, type ResumenDeServicios } from "@/lib/driver/servicios";
+import { seAsignaDesdeNavesEnVivo } from "@/lib/driver/servicio-id";
+import { AsignarUnidad, type ChoferParaAsignar, type NaveParaAsignar } from "./asignar-unidad";
 
 /**
  * Servicios del día cruzados con la unidad asignada.
@@ -49,11 +51,15 @@ function Punto({ estado }: { estado: NaveEnVivo["estado"] | "sin-posicion" }) {
 export function ServiciosDelDia({
   resumen,
   fecha,
-  hoy
+  hoy,
+  naves = [],
+  choferes = []
 }: {
   resumen: ResumenDeServicios;
   fecha: string;
   hoy?: string;
+  naves?: NaveParaAsignar[];
+  choferes?: ChoferParaAsignar[];
 }) {
   const hoyKey = hoy ?? fechaLocal(new Date());
   const mananaKey = fechaLocal(new Date(Date.parse(`${hoyKey}T12:00:00Z`) + 86_400_000));
@@ -169,7 +175,18 @@ export function ServiciosDelDia({
 
               <div className="srv-unidades">
                 {servicio.unidades.length === 0 ? (
-                  <Link className="srv-asignar" href={servicio.href}>Asignar nave</Link>
+                  seAsignaDesdeNavesEnVivo(servicio.area) ? (
+                    <AsignarUnidad
+                      servicioId={servicio.id}
+                      titulo={servicio.titulo}
+                      subtitulo={`${hora(servicio.at)} · ${NIVEL[servicio.nivel].etiqueta} · ${servicio.motivo}`}
+                      fecha={fecha}
+                      naves={naves}
+                      choferes={choferes}
+                    />
+                  ) : (
+                    <Link className="srv-asignar" href={servicio.href}>Abrir tablero</Link>
+                  )
                 ) : (
                   servicio.unidades.map((unidad) => {
                     const estado = servicio.estados.find((item) => item.vehicleId === unidad.vehicleId);
