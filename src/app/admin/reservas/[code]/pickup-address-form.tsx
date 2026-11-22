@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MapPointAddress } from "@/components/map-point-address";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
@@ -30,6 +31,7 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
   const [precision, setPrecision] = useState<PickupPrecision | null>(null);
   const [reference, setReference] = useState<{ point: PickupPoint; approximate: boolean } | null>(null);
   const [useGoogle, setUseGoogle] = useState(googlePickupConfigured);
+  const [manual, setManual] = useState<{ point: PickupPoint; pending: boolean } | null>(null);
   const maxLength = airport ? 160 : 180;
   const { address, point, confirmed } = pickup;
   const showConfirmation = changed && point && !outside;
@@ -43,10 +45,13 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
   function markPoint(nextPoint: PickupPoint) {
     setApproximate(false);
     setReference(null);
-    onChange({ ...pickup, point: nextPoint, confirmed: false });
+    setManual({ point: nextPoint, pending: true });
+    setPrecision("exact");
+    onChange({ ...pickup, address: "", point: nextPoint, confirmed: false });
   }
 
   function selectPlace(place: AirportSelectedPlace) {
+    setManual(null);
     if (place.lodgingName) onLodgingName(place.lodgingName.slice(0, 120));
     const google = place.source === "google";
     // Google siempre resuelve el punto; las sugerencias sin coordenadas (calle del
@@ -66,6 +71,7 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
    * texto, sin inventar coordenadas. Sólo el aeropuerto lo admite así.
    */
   function useTypedText(text: string) {
+    setManual(null);
     setReference(null);
     setApproximate(false);
     setPrecision("none");
@@ -84,6 +90,10 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
         <AirportDraggableMap point={point} approximate={approximate} precision={precision} disabled={disabled} onSelect={markPoint}
           onMove={(nextPoint) => { markPoint(nextPoint); return true; }} />
       )}
+      {manual && manual.point === point ? <MapPointAddress point={point} onResult={(address) => {
+        setManual({ point, pending: false });
+        onChange({ ...pickup, address: address.slice(0, maxLength) });
+      }} /> : null}
       {!showConfirmation && mapError ? <div className="reservation-edit-wide">
         <FieldError id="reservation-pickup-point-error" message={mapError} />
       </div> : null}
@@ -94,13 +104,13 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
         {airport ? "Dirección o referencia (opcional)" : "Dirección"}
         <input name="address" autoComplete="street-address" maxLength={maxLength} value={address} disabled={disabled}
           aria-invalid={Boolean(textError)} aria-describedby={textError ? "reservation-pickup-address-error" : undefined}
-          onChange={(event) => onChange({ ...pickup, address: event.target.value, confirmed: false })} />
+          onChange={(event) => { setManual(null); onChange({ ...pickup, address: event.target.value, confirmed: false }); }} />
         <FieldError id="reservation-pickup-address-error" message={textError} />
       </label>
       {showConfirmation ? (
         <div className="reservation-edit-wide">
           <label className="reservation-edit-confirm">
-            <input type="checkbox" name="confirmed" checked={confirmed} disabled={disabled}
+            <input type="checkbox" name="confirmed" checked={confirmed} disabled={disabled || manual?.pending}
               aria-invalid={Boolean(mapError)} aria-describedby={mapError ? "reservation-pickup-point-error" : undefined}
               onChange={(event) => onChange({ ...pickup, confirmed: event.target.checked })} />
             Confirmo que el mapa marca el lugar correcto
