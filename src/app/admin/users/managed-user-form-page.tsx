@@ -5,7 +5,7 @@ import { getCurrentAdminOrRedirect, getCurrentDriverManagerOrRedirect } from "@/
 import { toPublicRole } from "@/lib/auth/roles";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { prisma } from "@/lib/db/prisma";
-import { dayKey } from "@/lib/admin/driver-documents";
+import { EXPIRY_LABELS, dayKey, expiryDaysLabel, expiryStatus, formatExpiryDay, todayInArgentina } from "@/lib/admin/driver-documents";
 import { createManagedUserAction, updateManagedUserAction } from "./actions";
 import { ManagedUserForm } from "./user-form";
 import "./users.css";
@@ -64,6 +64,12 @@ export async function EditManagedUserPage({ id, driversOnly = false }: { id: str
         {user.role === "DRIVER" && !user.driverProfile ? (
           <p className="form-alert error">Falta la documentación de este chofer: completá DNI, licencia y antecedentes para guardar.</p>
         ) : null}
+        {user.role === "DRIVER" && user.driverProfile ? (
+          <DriverExpirySummary
+            licencia={user.driverProfile.licenseExpiresAt}
+            antecedentes={user.driverProfile.criminalRecordExpiresAt}
+          />
+        ) : null}
         <ManagedUserForm
           action={updateManagedUserAction}
           user={{ id: user.id, email: user.email, name: user.name, isActive: user.isActive, monthlySalaryCents: user.monthlySalaryCents, role: toPublicRole(user.role) }}
@@ -82,5 +88,34 @@ export async function EditManagedUserPage({ id, driversOnly = false }: { id: str
         />
       </section>
     </AdminShell>
+  );
+}
+
+/**
+ * Estado de los vencimientos en la ficha del chofer (#368): al entrar se ve si la licencia o los
+ * antecedentes están vencidos o por vencer, sin abrir el listado ni restar fechas a mano.
+ */
+function DriverExpirySummary({ licencia, antecedentes }: { licencia: Date; antecedentes: Date }) {
+  const hoy = todayInArgentina();
+  const documentos = [
+    { etiqueta: "Licencia de conducir", vence: licencia },
+    { etiqueta: "Certificado de antecedentes", vence: antecedentes }
+  ];
+  return (
+    <div className="driver-expiry">
+      <p className="muted">Vencimientos de la documentación:</p>
+      <ul>
+        {documentos.map((documento) => {
+          const estado = expiryStatus(documento.vence, hoy);
+          return (
+            <li key={documento.etiqueta}>
+              <span className="driver-expiry-doc">{documento.etiqueta}</span>
+              <span className="muted">{formatExpiryDay(documento.vence)} · {expiryDaysLabel(documento.vence, hoy)}</span>
+              <span className={`status-pill ${estado === "VALID" ? "active" : "inactive"}`} data-vencimiento={estado}>{EXPIRY_LABELS[estado]}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
