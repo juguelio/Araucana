@@ -1,6 +1,7 @@
 "use server";
 
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
+import { passengerPhoneWithCountry } from "@/lib/booking/passenger-contact";
 import { reservationNotice } from "./notices";
 import { del } from "@vercel/blob";
 import { ApiError } from "@/lib/api/responses";
@@ -51,22 +52,14 @@ function value(formData: FormData, key: string) {
 /**
  * El teléfono llega como en el checkout del aeropuerto (19-nov: «que el formulario del pasajero sea
  * igual»): el código de país del desplegable con banderas y el número por separado. Se juntan acá,
- * igual que `buildPassengerPayload`; si ya escribieron el número completo (+… o 00…), se respeta.
+ * igual que `buildPassengerPayload`; si ya escribieron el número completo, se respeta.
  */
-function telefonoDelFormulario(formData: FormData) {
-  const numero = value(formData, "phone");
-  const codigo = value(formData, "phoneCountryCode");
-  if (!numero || !codigo || numero.startsWith("+") || numero.startsWith("00")) return numero;
-  return `${codigo}${numero}`;
-}
-
-/** Los datos del titular de «Nueva reserva» (los mismos campos que el formulario del aeropuerto). */
 function pasajeroDelFormulario(formData: FormData) {
   return {
     firstName: value(formData, "firstName"),
     lastName: value(formData, "lastName"),
     email: value(formData, "email"),
-    phone: telefonoDelFormulario(formData),
+    phone: passengerPhoneWithCountry(value(formData, "phone"), value(formData, "phoneCountryCode")),
     documentType: value(formData, "documentType"),
     documentId: value(formData, "documentId"),
     nationality: value(formData, "nationality") || null

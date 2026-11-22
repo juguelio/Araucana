@@ -1,7 +1,20 @@
 export const phoneFormatError = "Ingresá un teléfono válido con código de área y país.";
 
-export function normalizePassengerPhone(value: string): string | null {
+export function internationalPhoneInput(value: string): string | null {
   const phone = value.trim();
+  if (phone.startsWith("+") || phone.startsWith("00")) return phone;
+  // Algunos contactos copiados de EE. UU. y Canadá traen el 1 inicial, sin el signo +.
+  if (/^[0-9() .-]+$/.test(phone) && /^1\d{10}$/.test(phone.replace(/\D/g, ""))) return `+${phone.replace(/\D/g, "")}`;
+  return null;
+}
+
+export function passengerPhoneWithCountry(value: string, countryCode: string) {
+  const phone = value.trim();
+  return phone ? internationalPhoneInput(phone) ?? `${countryCode}${phone}` : "";
+}
+
+export function normalizePassengerPhone(value: string): string | null {
+  const phone = internationalPhoneInput(value) ?? value.trim();
   if (!/^\+?[0-9() .-]+$/.test(phone)) return null;
   const digits = phone.replace(/\D/g, "");
   const international = phone.startsWith("+") ? digits

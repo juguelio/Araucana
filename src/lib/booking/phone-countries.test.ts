@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { phoneCountries, phoneCountryLabel } from "./phone-countries";
+import { filterPhoneCountries, phoneCountries, phoneCountryLabel } from "./phone-countries";
 
 describe("phoneCountries", () => {
   it("tiene todos los países, no solo los de la región (un celular +44 no se podía cargar)", () => {
@@ -19,5 +19,9 @@ describe("phoneCountries", () => {
     expect(phoneCountries.slice(0, 3).map((c) => c.value)).toEqual(["+54", "+56", "+55"]);
     const uk = phoneCountries.find((c) => c.value === "+44")!;
     expect(phoneCountryLabel(uk)).toBe("🇬🇧 Reino Unido +44");
+  });
+
+  it.each(["+1", "1", "Estados Unidos", "EE.UU.", "canada"])("encuentra el prefijo +1 al buscar %s", (query) => {
+    expect(filterPhoneCountries(query)).toEqual([expect.objectContaining({ value: "+1" })]);
   });
 });

@@ -91,3 +91,25 @@ export const phoneCountries: PhoneCountry[] = buildPhoneCountries();
 export function phoneCountryLabel(c: PhoneCountry) {
   return `${c.flag} ${c.name} ${c.value}`;
 }
+
+function searchText(value: string) {
+  return value.normalize("NFD").replace(/\p{M}|\./gu, "").toLowerCase().trim();
+}
+
+export function filterPhoneCountries(query: string) {
+  const text = searchText(query);
+  if (!text) return phoneCountries;
+  if (/^(?:\+|00)?\d+$/.test(text)) {
+    const prefix = text.replace(/^(?:\+|00)/, "");
+    return phoneCountries.filter((country) => country.value.slice(1).startsWith(prefix));
+  }
+  return phoneCountries.filter((country) => {
+    const aliases = country.value === "+1" ? " Estados Unidos USA US" : "";
+    return searchText(country.name + aliases).includes(text);
+  });
+}
+
+export function dialCodeForInternationalPhone(phone: string) {
+  return phoneCountries.reduce((match, country) =>
+    country.value.length > match.length && phone.startsWith(country.value) ? country.value : match, "");
+}
