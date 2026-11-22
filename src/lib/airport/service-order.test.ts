@@ -567,3 +567,13 @@ describe("orden de servicio del aeropuerto", () => {
     });
   });
 });
+
+it("inicia en Paihuén 15 minutos antes del horario coordinado, incluso con otra parada fijada", () => {
+  const flight = vuelo({ pickupStartOverrideAt: new Date("2026-11-12T15:00:00Z") });
+  const [block] = buildServiceOrderBlocks([
+    reserva({ flight, code: "oficina", routePosition: 0 }),
+    reserva({ flight, code: "hotel", pickupName: null, pickupAddress: "Paihuen, Ruta Nac. 40 Ex. 234 km 78" })
+  ]);
+  expect(block.passengers.map(p => p.code)).toEqual(["hotel", "oficina"]);
+  expect(block.operationAt.toISOString()).toBe("2026-11-12T14:45:00.000Z");
+});

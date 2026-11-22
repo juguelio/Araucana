@@ -13,6 +13,7 @@ import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, t
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { MapPointAddress } from "@/components/map-point-address";
+import { isPaihuen, paihuenPickupTime } from "@/lib/airport/paihuen";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./trip-search-bar";
 import {
@@ -743,11 +744,12 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
               <p className="trip-search-hint"><strong>{fraseOrden}.</strong></p>
               {/* Con el vuelo de salida elegido, a qué hora pasa la camioneta (#206): 2 h 30 antes. */}
               {(() => {
-                const inicio = vuelta ? inicioDeRecorrida(vuelta) : null;
+                const retiroPaihuen = isPaihuen(null, pickupVuelta.label, pickupVuelta.point);
+                const inicio = paihuenPickupTime(vuelta ? inicioDeRecorrida(vuelta) : null, retiroPaihuen);
                 return inicio ? (
                   <p className="trip-search-hint trip-search-pickup-time">
                     <strong>Lo pasamos a buscar el {airportPickupDateTime.format(inicio)} h</strong>{" "}
-                    — la camioneta sale 2 h 30 antes del vuelo de salida.
+                    {retiroPaihuen ? "Paihuén es la primera parada, 15 minutos antes del inicio habitual." : "— la camioneta sale 2 h 30 antes del vuelo de salida."}
                   </p>
                 ) : null;
               })()}

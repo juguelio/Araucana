@@ -13,6 +13,7 @@ import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { MapPointAddress } from "@/components/map-point-address";
+import { isPaihuen, paihuenPickupTime } from "@/lib/airport/paihuen";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { nombreDelLugarSugerido, pickupNameParaElChofer } from "./pickup-name";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
@@ -246,9 +247,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
-  const pickupStart = esPrivado && privadoListo
+  const normalPickupStart = esPrivado && privadoListo
     ? airportPickupStart({ direction: sentidoDelVuelo, scheduledAt: new Date(`${date}T${privadoHora}:00-03:00`) })
     : selected?.pickupStartAt ? new Date(selected.pickupStartAt) : null;
+  const esPaihuen = isPaihuen(pickupName, pickupAddress, pickupPoint);
+  const pickupStart = paihuenPickupTime(normalPickupStart, esPaihuen && sentidoDelVuelo === "DEPARTURE");
   const pickupStartLabel = !esPrivado && selected?.pickupStartCoordinated ? "Inicio de recorrida" : "Inicio estimado de recorrida";
   // La tarifa es la de la ruta canónica de ese sentido: la misma que graba la reserva.
   const tarifa = fares[sentidoDelVuelo] ?? null;
@@ -754,7 +757,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               {pickupStart && Number.isFinite(pickupStart.getTime()) ? (
                 <div className="plain-card ticket-summary">
                   <strong>{pickupStartLabel}: {airportPickupDateTime.format(pickupStart)}</strong>
-                  <p className="muted">{AIRPORT_PICKUP_COPY}</p>
+                  <p className="muted">{esPaihuen ? "Te buscamos en Paihuén, la primera parada del recorrido." : AIRPORT_PICKUP_COPY}</p>
                 </div>
               ) : null}
               <PassengerFields

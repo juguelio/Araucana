@@ -1,3 +1,4 @@
+import { isPaihuenReservation, paihuenPickupTime } from "@/lib/airport/paihuen";
 import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
 import { AIRPORT_PICKUP_COPY, airportPickupStart } from "@/lib/airport/pickup-start";
 import { formatDateTime, formatPrice, paymentLabel, statusBadge, statusHeading, statusCopy, statusTone, placesLabel } from "./presentation";
@@ -47,7 +48,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
       api: "1", query: `${airport.pickupLatitude},${airport.pickupLongitude}`
     })}`
     : null;
-  const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
+  const retiroPaihuen = airport?.direction === "DEPARTURE" && isPaihuenReservation(airport);
+  const pickupStart = airport?.flight && reservation.status !== "CANCELLED"
+    ? paihuenPickupTime(airportPickupStart({ ...airport.flight, direction: airport.direction }), retiroPaihuen)
+    : null;
   // Voucher (#166): el pasajero lo abre desde acá y lo puede reenviar por WhatsApp.
   const voucherHref = voucherPath(reservation.code);
   const voucherWhatsApp = whatsappShareUrl(
@@ -168,7 +172,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               <div className="rp-pickup">
                 <span>{airport?.flight?.pickupStartOverrideAt ? "Inicio de recorrida" : "Inicio estimado de recorrida"}</span>
                 <strong>{formatDateTime(pickupStart)}</strong>
-                <p>{AIRPORT_PICKUP_COPY}</p>
+                <p>{retiroPaihuen ? "Te buscamos en Paihuén, la primera parada del recorrido." : AIRPORT_PICKUP_COPY}</p>
               </div>
             ) : null}
           </div>
