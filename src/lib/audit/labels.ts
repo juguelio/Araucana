@@ -36,6 +36,7 @@ export const auditEntityLabels: Record<AuditEntity, string> = {
   SCHEDULE: "Salidas",
   EXCURSION: "Excursiones",
   DEPARTURE_SHEET: "Planillas",
+  SCHOOL_RUN: "Escolares",
   SPECIAL_TRIP: "Viajes especiales",
   AIRPORT: "Aeropuerto",
   CHAPELCO: "Chapelco"

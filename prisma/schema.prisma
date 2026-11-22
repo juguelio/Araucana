@@ -8,6 +8,7 @@ datasource db {
 }
 
 model User {
+  schoolRuns SchoolRun[]
   id           String    @id @default(cuid())
   email        String    @unique
   googleSub    String?   @unique
@@ -121,6 +122,7 @@ model TravelRoute {
 }
 
 model Vehicle {
+  schoolRuns SchoolRun[]
   id           String     @id @default(cuid())
   name         String
   brand        String     @default("Araucana")
@@ -909,4 +911,22 @@ model VehicleServiceSheet {
   updatedAt  DateTime @updatedAt @default(now())
 
   @@index([vehicleId, servicedAt])
+}
+
+/// Un servicio escolar fechado. Las filas paralelas pueden tener el mismo recorrido.
+model SchoolRun {
+  id           String   @id @default(cuid())
+  serviceDate  DateTime @db.Date
+  routeName    String
+  shift        String
+  driverId     String?
+  driver       User?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  vehicleId    String?
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  companion    String?
+  notes        String?
+  review       String?
+  source       Json?
+  revision     Int      @default(0)
+  @@index([serviceDate, routeName])
 }

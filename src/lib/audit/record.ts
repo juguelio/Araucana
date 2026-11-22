@@ -16,7 +16,7 @@ export const guestActor: AuditActor = { role: "GUEST" };
 
 export const auditEntities = [
   "SESSION", "RESERVATION", "ACCOUNTING_ENTRY", "USER",
-  "ROUTE", "VEHICLE", "SCHEDULE", "EXCURSION", "DEPARTURE_SHEET", "SPECIAL_TRIP", "AIRPORT", "CHAPELCO"
+  "ROUTE", "VEHICLE", "SCHEDULE", "EXCURSION", "DEPARTURE_SHEET", "SCHOOL_RUN", "SPECIAL_TRIP", "AIRPORT", "CHAPELCO"
 ] as const;
 export type AuditEntity = (typeof auditEntities)[number];
 
