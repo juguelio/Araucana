@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resetStreetPointCache, suggestProviderAirportPlaces as suggestAirportPlaces } from "./place-suggestions";
+import { resetStreetPointCache, suggestProviderAirportPlaces as suggestAirportPlaces, variantesDeCalle } from "./place-suggestions";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -305,4 +305,94 @@ it("descarta Mariano Moreno al pedir Perito Moreno aunque GeoRef sugiera ambas",
   vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json([])).mockResolvedValueOnce(Response.json({ direcciones })));
   const matches = await suggestAirportPlaces("Perito Moreno 350", new AbortController().signal);
   expect(matches.map(match => match.label)).toEqual(["Perito Moreno 350, San Martín de los Andes"]);
+});
+
+it("saca el tratamiento cuando el nombre oficial de la calle no existe con título", () => {
+  // El literal siempre primero: si no tiene tratamiento, la lista es una sola consulta.
+  expect(variantesDeCalle("Avenida San Martín")).toEqual(["Avenida San Martín"]);
+  expect(variantesDeCalle("Doctor Ernesto Luis Nunez")).toEqual(["Doctor Ernesto Luis Nunez", "Ernesto Luis Nunez"]);
+  expect(variantesDeCalle("Dr. Ernesto Luis Núñez")).toEqual(["Dr. Ernesto Luis Núñez", "Ernesto Luis Núñez"]);
+  // Se encadenan si el nomenclador apila títulos.
+  expect(variantesDeCalle("General Doctor Manuel Campos")).toEqual(["General Doctor Manuel Campos", "Manuel Campos"]);
+});
+
+it("ancla el pin del domicilio sin geometría probando la calle sin tratamiento (#346)", async () => {
+  vi.stubEnv("AIRPORT_PHOTON_URL", "https://photon.test/api/");
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "");
+  // Calle con tratamiento que NO está en las cuadras de GeoRef (418 calles de SMA, todas las que
+  // llevan título ya figuran ahí): es el caso que queda para una calle nueva o de otra localidad, y
+  // el único donde el mecanismo general —literal, después sin el título— hace el trabajo.
+  const georef = { direcciones: [{
+    calle: { nombre: "INGENIERO WHITE" },
+    altura: { valor: 250 },
+    localidad_censal: { nombre: "San Martín de los Andes" },
+    ubicacion: { lat: null, lon: null }
+  }] };
+  const fetchProvider = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const q = url.searchParams.get("q") ?? "";
+    if (url.hostname === "photon.test") return Response.json({ features: [] });
+    if (url.hostname === "nominatim.openstreetmap.org") {
+      // El nombre oficial con «Ingeniero» no existe; sin el título sí.
+      if (/^White,/i.test(q)) {
+        return Response.json([{
+          lat: "-40.152381",
+          lon: "-71.354109",
+          display_name: "White, Barrio Chapelco, San Martín de los Andes, Neuquén, Argentina",
+          class: "highway",
+          type: "residential"
+        }]);
+      }
+      return Response.json([]);
+    }
+    return Response.json(georef);
+  });
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [suggestion] = await suggestAirportPlaces("ingeniero white 250", new AbortController().signal);
+  expect(suggestion.point).toEqual([-40.152381, -71.354109]);
+  // La reserva guarda lo que escribió el pasajero: el nombre que devuelve el geocoder no la reemplaza.
+  expect(suggestion.label).toBe("Ingeniero White 250, San Martín de los Andes");
+  const consultas = fetchProvider.mock.calls.map(([url]) => new URL(String(url)).searchParams.get("q"));
+  expect(consultas).toContain("Ingeniero White, San Martín de los Andes");
+  expect(consultas).toContain("White, San Martín de los Andes");
+});
+
+it("no prueba variantes cuando el nombre literal ya resuelve", async () => {
+  vi.stubEnv("AIRPORT_PHOTON_URL", "https://photon.test/api/");
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "");
+  const georef = { direcciones: [{
+    calle: { nombre: "INGENIERO WHITE" },
+    altura: { valor: 250 },
+    localidad_censal: { nombre: "San Martín de los Andes" },
+    ubicacion: { lat: null, lon: null }
+  }] };
+  const fetchProvider = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    if (url.hostname === "photon.test") {
+      // La calle sola resuelve con el nombre oficial: el literal gana y no se consulta la variante.
+      if (q === "ingeniero white") {
+        return Response.json({ features: [{
+          geometry: { type: "Point", coordinates: [-71.34, -40.15] },
+          properties: { name: "Ingeniero White", street: "Ingeniero White", city: "San Martín de los Andes", type: "highway" }
+        }] });
+      }
+      return Response.json({ features: [] });
+    }
+    if (url.hostname === "nominatim.openstreetmap.org") return Response.json([]);
+    return Response.json(georef);
+  });
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [suggestion] = await suggestAirportPlaces("ingeniero white 250", new AbortController().signal);
+  // Photon devuelve [lon, lat]: el punto se guarda [lat, lon].
+  expect(suggestion.point).toEqual([-40.15, -71.34]);
+  const consultas = fetchProvider.mock.calls.map(([url]) => new URL(String(url)));
+  expect(consultas.some((url) => url.hostname === "nominatim.openstreetmap.org")).toBe(false);
+  // Sólo se preguntó por el nombre oficial, nunca por «White» pelado.
+  const calles = consultas.filter((url) => url.hostname === "photon.test")
+    .map((url) => (url.searchParams.get("q") ?? "").toLowerCase());
+  expect(calles).toContain("ingeniero white");
+  expect(calles).not.toContain("white");
 });

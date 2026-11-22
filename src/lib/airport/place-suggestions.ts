@@ -162,6 +162,25 @@ async function nominatimStreetPoint(street: string, requestSignal: AbortSignal):
 }
 
 /**
+ * Tratamientos que el nomenclador antepone al nombre oficial de la calle y que OpenStreetMap no
+ * conoce: «Doctor Ernesto Luis Nunez» no devuelve nada, «Ernesto Luis Nunez» sí (#346). Se sacan sólo
+ * los que están al principio y se admite el punto de la abreviatura («Dr.», «Cnel.»).
+ */
+const tratamientoDeCalle = /^(?:doctora|doctor|dra|dr|doña|dona|general|gral|coronel|cnel|teniente|tte|presidente|pres|vicepresidente|vicepres|ingeniero|ing|arquitecto|arq|profesor|prof|comandante|com|capitán|capitan|cap|sargento|sarg|cabo|mayor|almirante|fray|padre)\.?\s+/i;
+
+/**
+ * La calle tal cual y, si tiene tratamiento, también sin él. El literal va **primero** y sin
+ * excepciones: es el caso normal, y mientras acierte la variante no se consulta, así que no puede
+ * romper nada. La variante sólo rescata el caso en que el título oficial es lo único que sobra.
+ */
+export function variantesDeCalle(street: string): string[] {
+  const literal = street.trim();
+  let sinTitulo = literal;
+  while (tratamientoDeCalle.test(sinTitulo)) sinTitulo = sinTitulo.replace(tratamientoDeCalle, "").trim();
+  return sinTitulo && sinTitulo !== literal ? [literal, sinTitulo] : [literal];
+}
+
+/**
  * Busca dónde cae la calle para anclar el pin cuando nadie tiene esa altura.
  * Primero el geocoder comercial de la app y, si no la conoce o está limitado,
  * OpenStreetMap. Se cachea para no repetir la consulta por cada búsqueda.
@@ -171,16 +190,21 @@ async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Pr
   const cached = streetPointCache.get(key);
   if (cached && Date.now() - cached.at < cached.ttl) return cached.point;
 
-  const named = await lookupNamedPlaces(street, requestSignal).catch(() => []);
-  const match = named.find((candidate) => candidate.point
-    && streetKey(candidate.label.split(",")[0]) === key);
-  let point = match?.point ?? null;
-  let answered = Boolean(match);
-  if (!point) {
-    const nominatim = await nominatimStreetPoint(street, requestSignal)
-      .catch(() => ({ point: null, answered: false }));
-    point = nominatim.point;
-    answered ||= nominatim.answered;
+  let point: PickupPoint | null = null;
+  let answered = false;
+  for (const variante of variantesDeCalle(street)) {
+    const named = await lookupNamedPlaces(variante, requestSignal).catch(() => []);
+    const match = named.find((candidate) => candidate.point
+      && streetKey(candidate.label.split(",")[0]) === streetKey(variante));
+    point = match?.point ?? null;
+    answered ||= Boolean(match);
+    if (!point) {
+      const nominatim = await nominatimStreetPoint(variante, requestSignal)
+        .catch(() => ({ point: null, answered: false }));
+      point = nominatim.point;
+      answered ||= nominatim.answered;
+    }
+    if (point) break;
   }
   // Un timeout o un 429 no se cachea: el próximo intento puede resolverlo.
   if (!requestSignal.aborted && (point || answered)) {
@@ -203,6 +227,12 @@ export function matchesStreetNumber(label: string, street: string, number: strin
 }
 
 // GeoRef registra el nombre oficial; en OpenStreetMap el orden de los nombres está invertido.
+//
+// Excepción justificada, no deuda olvidada (#348, #349, #351): en OSM la calle figura como «Luis
+// Ernesto Núñez», el orden está invertido y ninguna variante del nombre oficial recupera la altura
+// con confianza, así que se ancla al `way` del mapa. Es el único caso donde se fija a mano; para el
+// resto de los nombres oficiales con tratamiento (Coronel, General, Teniente…) alcanza con probar la
+// calle sin el título (variantesDeCalle), que se resuelve contra el geocoder y no necesita tabla.
 const nunezStreet = new Set(["doctor ernesto luis nunez", "dr ernesto luis nunez", "ernesto luis nunez", "luis ernesto nunez"]);
 const nunezStreetReference = {
   point: [-40.135793, -71.2972797] as PickupPoint,
