@@ -1,12 +1,14 @@
+import { localStreetReference, streetKey } from "./street-reference";
 import { z } from "zod";
 import { ApiError } from "@/lib/api/responses";
 import { lookupAirportIntersection } from "./intersection-lookup";
 import {
   airportSearchBounds, airportSearchCenter, airportSearchLocality, isIntersectionQuery,
-  normalizePlaceText, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
+  lodgingSearchQuery, normalizePlaceText, prioritizeLocalPlaces, splitPlaceQuery, splitStreetAddress
 } from "./place-search-area";
 import type { PickupPoint } from "./pickup-zone";
 import { lookupStreetAddresses } from "./street-address-lookup";
+import { suggestMunicipalLodgings, withMunicipalLodgings } from "./lodging-catalogue";
 
 /**
  * Cuánto se sabe del punto. `approximate` solo no distingue "la fuente ubicó la
@@ -24,7 +26,12 @@ export type AirportPlaceSuggestion = {
    * punto lo marca el operador en el mapa. Nunca se inventan coordenadas.
    */
   point: PickupPoint | null;
-  source: "georef" | "locationiq" | "photon";
+  source: "georef" | "locationiq" | "photon" | "municipal";
+  lodgingId?: string;
+  isLodging?: true;
+  locationMatch?: "address" | "establishment";
+  coordinateSourceUrl?: string;
+  coordinateSource?: "georef" | "locationiq" | "photon";
   approximate: boolean;
 };
 
@@ -39,6 +46,8 @@ const photonResponse = z.object({
       housenumber: z.string().optional(),
       city: z.string().optional(),
       district: z.string().optional(),
+      osm_key: z.string().optional(),
+      osm_value: z.string().optional(),
       type: z.string().optional()
     })
   }))
@@ -68,6 +77,7 @@ export function resetStreetPointCache() {
 
 const { south, west, north, east } = airportSearchBounds;
 const viewbox = [west, south, east, north].join(",");
+const lodgingTypes = new Set(["hotel", "guest_house", "hostel", "apartment", "chalet", "motel", "camp_site", "alpine_hut"]);
 const areaTypes = new Set(["city", "locality", "district", "suburb", "neighbourhood", "quarter", "village", "street", "road"]);
 
 function locationIqAutocomplete() {
@@ -107,6 +117,7 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
       return locationIqResponse.parse(payload).map((place) => {
         const coarse = areaTypes.has(place.type ?? "") || ["place", "boundary", "highway"].includes(place.class ?? "");
         return {
+          ...(place.class === "tourism" && lodgingTypes.has(place.type ?? "") ? { isLodging: true as const } : {}),
           label: place.display_name, point: [place.lat, place.lon] as PickupPoint, source: "locationiq" as const,
           approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const
         };
@@ -116,26 +127,16 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
     return photonResponse.parse(payload).features.flatMap(({ properties, geometry }) => {
       const { name, street, housenumber, district, city, type } = properties;
       const address = [street, housenumber].filter(Boolean).join(" ");
-      const primary = housenumber && street ? address : name;
+      const primary = name || address;
       const label = [...new Set([primary, address, district, city].filter(Boolean))].join(", ");
       if (!label) return [];
       const [lon, lat] = geometry.coordinates;
       const coarse = areaTypes.has(type ?? "");
-      return [{ label, point: [lat, lon] as PickupPoint, source: "photon" as const, approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const }];
+      return [{ ...(properties.osm_key === "tourism" && lodgingTypes.has(properties.osm_value ?? "") ? { isLodging: true as const } : {}), label, point: [lat, lon] as PickupPoint, source: "photon" as const, approximate: coarse, precision: coarse ? "interpolated" as const : "exact" as const }];
     });
   } catch {
     throw new ApiError("ADDRESS_LOOKUP_UNAVAILABLE", "No pudimos buscar lugares. Podés marcar el punto en el mapa.", 503);
   }
-}
-
-/** "Avenida X" y "Av X" son la misma calle; "San Martín" y "Av San Martín" no. */
-const streetAbbreviations: Record<string, string> = { avenida: "av", pasaje: "pje", boulevard: "blvd" };
-
-function streetKey(value: string) {
-  return normalizePlaceText(value)
-    .split(" ")
-    .map((word) => streetAbbreviations[word] ?? word)
-    .join(" ");
 }
 
 async function nominatimStreetPoint(street: string, requestSignal: AbortSignal): Promise<{ point: PickupPoint | null; answered: boolean }> {
@@ -188,12 +189,25 @@ async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Pr
   return point;
 }
 
-function matchesStreetNumber(label: string, street: string, number: string) {
-  const [first, second] = label.split(",").map(normalizePlaceText);
-  const address = splitStreetAddress(first);
-  const matchedStreet = first === number ? second : address?.number === number ? address.street : undefined;
-  return Boolean(matchedStreet && (matchedStreet === street || matchedStreet.endsWith(` ${street}`)));
+export function matchesStreetNumber(label: string, street: string, number: string, allowShortName = true) {
+  const parts = label.split(",").map(normalizePlaceText);
+  // Una dirección puede venir precedida por el nombre del hotel.
+  return parts.slice(0, 2).some((part, index) => {
+    const address = splitStreetAddress(part);
+    const matchedStreet = part === number ? parts[index + 1] : address?.number === number ? address.street : undefined;
+    if (!matchedStreet) return false;
+    const actual = streetKey(matchedStreet);
+    const target = streetKey(street);
+    return actual === target || (allowShortName && actual.endsWith(` ${target}`));
+  });
 }
+
+// GeoRef registra el nombre oficial; en OpenStreetMap el orden de los nombres está invertido.
+const nunezStreet = new Set(["doctor ernesto luis nunez", "dr ernesto luis nunez", "ernesto luis nunez", "luis ernesto nunez"]);
+const nunezStreetReference = {
+  point: [-40.135793, -71.2972797] as PickupPoint,
+  coordinateSourceUrl: "https://www.openstreetmap.org/way/169405015"
+};
 
 async function suggestStreetAddress(name: string, context: string, address: NonNullable<ReturnType<typeof splitStreetAddress>>, signal: AbortSignal) {
   const locality = context || airportSearchLocality;
@@ -204,9 +218,15 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     : [];
   if (exact.length || signal.aborted) return exact;
 
-  const official = await lookupStreetAddresses(name, context.split(",")[0], signal).catch(() => []);
+  const localNunez = nunezStreet.has(street) && normalizePlaceText(locality.split(",")[0]) === normalizePlaceText(airportSearchLocality);
+  const officialQuery = localNunez ? `Doctor Ernesto Luis Núñez ${address.number}` : name;
+  const official = await lookupStreetAddresses(officialQuery, context.split(",")[0], signal).catch(() => []);
   const suggestions: AirportPlaceSuggestion[] = [];
-  for (const match of official) {
+  const requestedStreet = streetKey(localNunez ? "Doctor Ernesto Luis Núñez" : address.street);
+  const sameStreet = official.filter((match) => streetKey(match.calle.nombre) === requestedStreet);
+  const knownStreet = localStreetReference(address.street, address.number, locality);
+  const relevant = sameStreet.length || knownStreet ? sameStreet : official;
+  for (const match of relevant) {
     if (String(match.altura.valor) !== address.number || signal.aborted) continue;
     const officialStreet = match.calle.nombre.toLocaleLowerCase("es").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
     const { nombre: city } = match.localidad_censal;
@@ -224,10 +244,26 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
       suggestions.push(...canonicalExact);
       continue;
     }
+    if (localNunez && nunezStreet.has(canonical) && normalizePlaceText(city) === normalizePlaceText(airportSearchLocality)) {
+      const mapStreet = "Luis Ernesto Núñez";
+      const mapped = street === normalizePlaceText(mapStreet) ? [] :
+        await lookupNamedPlaces(`${mapStreet} ${address.number}, ${airportSearchLocality}`, signal).catch(() => []);
+      const atNumber = mapped.find((candidate) => matchesStreetNumber(candidate.label, normalizePlaceText(mapStreet), address.number));
+      if (signal.aborted) return [];
+      suggestions.push(atNumber
+        ? { ...atNumber, label }
+        : { ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
+      continue;
+    }
+    const local = localStreetReference(officialStreet, address.number, city);
+    if (local) {
+      suggestions.push(local);
+      continue;
+    }
     const reference = candidates.find((candidate) => candidate.approximate
       && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
     if (reference) {
-      suggestions.push({ ...reference, label, approximate: true });
+      suggestions.push({ ...reference, label, approximate: true, precision: "street" });
       continue;
     }
     // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
@@ -241,11 +277,14 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     // Se ofrece igual; el punto se marca en el mapa.
     suggestions.push({ label, point: null, source: "georef", approximate: true, precision: "none" });
   }
-  if (!suggestions.length && !Array.isArray(named)) throw named;
+  if (!suggestions.length && !signal.aborted) {
+    if (knownStreet) return [knownStreet];
+    if (!Array.isArray(named)) throw named;
+  }
   return suggestions;
 }
 
-export async function suggestAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
+export async function suggestProviderAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
   if (isIntersectionQuery(query)) {
     const corners = await lookupAirportIntersection(query, signal).catch(() => []);
     if (corners.length > 0) {
@@ -260,8 +299,27 @@ export async function suggestAirportPlaces(query: string, signal: AbortSignal): 
   const matches = address
     ? await suggestStreetAddress(name, context, address, signal)
     : await lookupNamedPlaces(search, signal);
+  const lodgingQuery = !address && lodgingSearchQuery(search);
+  if (lodgingQuery && !signal.aborted) {
+    // Complementa el nombre literal: «Hotel del Esquiador» puede estar registrado
+    // como «Hostal del Esquiador». La misma área geográfica sigue restringida.
+    matches.push(...await lookupNamedPlaces(lodgingQuery, signal).catch(() => []));
+  }
   const unique = [...new Map(matches.map((match) => [
     `${match.label}:${match.point ? match.point.join(",") : "sin-punto"}`, match
   ])).values()];
   return context ? unique : prioritizeLocalPlaces(unique, (place) => place.label);
+}
+
+export async function suggestAirportPlaces(query: string, signal: AbortSignal): Promise<AirportPlaceSuggestion[]> {
+  if (signal.aborted) return [];
+  try {
+    const external = await suggestProviderAirportPlaces(query, signal);
+    return signal.aborted ? [] : withMunicipalLodgings(query, external);
+  } catch (error) {
+    if (signal.aborted) return [];
+    const municipal = suggestMunicipalLodgings(query);
+    if (municipal.length) return municipal;
+    throw error;
+  }
 }

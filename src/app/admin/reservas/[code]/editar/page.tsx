@@ -7,9 +7,9 @@ import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPayment } from "@/lib/booking/admin-price";
 import { getReservationByCode } from "@/lib/booking/repository";
-import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
+import { DISABILITY_DOCUMENT_PROVIDER } from "@/lib/booking/disability-fare";
+import { politicaDeComprobante } from "@/lib/payments/receipt-policy";
 import { tarifaPorPersona } from "@/lib/booking/reservation-edit";
-import { getStopFares } from "@/lib/booking/stop-fares";
 import { isAdminRole } from "@/lib/auth/roles";
 import { manageReservationAction, updateReservationAction } from "../../actions";
 import { ConfirmReservationButton } from "../confirm-reservation-button";
@@ -40,10 +40,17 @@ export default async function EditReservationPage({ params }: { params: Promise<
   const esDocumentacion = reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER;
   const puedeVerComprobante = !esDocumentacion || isAdminRole(user.role);
   const tieneComprobante = Boolean(reservation.payment?.receiptBlobPathname) && puedeVerComprobante;
-  const puedeSubirComprobante = Boolean(reservation.payment)
-    && reservation.status === receiptPendingStatus(reservation.payment?.provider ?? null)
-    && ["PENDING", "REJECTED"].includes(reservation.payment?.status ?? "")
-    && puedeVerComprobante;
+  // Regla única (receipt-policy), la misma del guard del servidor: si el pago ya se registró sin
+  // comprobante, la pantalla ofrece adjuntarlo; si ya tiene uno validado, no ofrece nada.
+  const politicaComprobante = politicaDeComprobante(reservation.status, reservation.payment
+    ? {
+        provider: reservation.payment.provider,
+        status: reservation.payment.status,
+        hasReceipt: Boolean(reservation.payment.receiptBlobPathname)
+      }
+    : null);
+  const puedeSubirComprobante = politicaComprobante !== "bloqueado" && puedeVerComprobante;
+  const reemplazaComprobante = politicaComprobante === "reemplazar";
   const correctPayment = canCorrectManualPayment(reservation.status, reservation.payment);
   const editPrice = canEditReservationTotal(reservation.status, reservation.payment);
   // Cargar el pago también desde acá (no sólo desde el detalle): mismas reglas que «Registrar pago».
@@ -57,12 +64,12 @@ export default async function EditReservationPage({ params }: { params: Promise<
   // Base del total (#267): con esto el formulario muestra la diferencia antes de guardar y la
   // cantidad de pasajeros/equipaje se recalcula sin volver a consultar la base.
   // Ruta con paradas: la tarifa por persona es la de la parada donde baja (la misma cuenta del alta).
-  const paradas = reservation.bookingMode === "SEATED" ? getStopFares(reservation.route) : [];
   const priceBasis = {
-    priceCents: tarifaPorPersona(reservation.route, reservation.dropoffStop),
+    priceCents: tarifaPorPersona(reservation.route, reservation.dropoffStop, reservation.boardingStop),
     passengerCount: reservation.passengerCount,
     halfFareCount: reservation.halfFareCount ?? 0,
     freeFareCount: reservation.freeFareCount ?? 0,
+    paihuenUnitCents: airport?.paihuenUnitCents ?? 0,
     zoneExtraCents: airport?.zoneExtraCents ?? 0,
     sportsLuggageCount: airport?.sportsLuggageCount ?? 0,
     sportsLuggageUnitCents: airport?.sportsLuggageUnitCents ?? 0
@@ -90,7 +97,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
             <p className="muted">Todavía no hay un comprobante cargado.</p>
           )}
           {puedeSubirComprobante ? (
-            <ReceiptUploadForm code={reservation.code} replace={tieneComprobante} />
+            <ReceiptUploadForm code={reservation.code} replace={reemplazaComprobante} />
           ) : (
             <p className="muted">El pago ya no admite un comprobante nuevo.</p>
           )}
@@ -107,9 +114,8 @@ export default async function EditReservationPage({ params }: { params: Promise<
             airport: Boolean(airport),
             // La tarifa sin cargo por discapacidad es de un solo pasajero adulto: ahí no se cargan menores.
             disability,
-            routePriceCents: reservation.route.priceCents,
-            destination: reservation.route.to,
-            stops: paradas,
+            route: reservation.route,
+            boardingStop: reservation.boardingStop ?? "",
             dropoffStop: reservation.dropoffStop ?? "",
             zoneExtraConfigCents,
             paymentApproved: reservation.payment?.status === "APPROVED" && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER,

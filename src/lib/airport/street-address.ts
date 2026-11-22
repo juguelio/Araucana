@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { airportSearchLocality, normalizePlaceText } from "./place-search-area";
+import { airportSearchLocality } from "./place-search-area";
 import type { AirportPlaceSuggestion } from "./place-suggestions";
-import { suggestAirportPlaces } from "./place-suggestions";
+import { matchesStreetNumber, suggestAirportPlaces } from "./place-suggestions";
 
 /**
  * Calles del nomenclador municipal. El cliente pidió poder elegir la calle
@@ -79,11 +79,7 @@ export async function resolveStreetAddress(
   if (!name || !/^\d{1,5}[a-z]?$/i.test(height)) return null;
 
   const matches = await suggestAirportPlaces(`${name} ${height}`, requestSignal);
-  const target = normalizePlaceText(name);
-  const same = matches.find((match) => {
-    const label = normalizePlaceText(match.label.split(",")[0]);
-    return label === target || label.startsWith(`${target} `) || label.endsWith(` ${target}`);
-  });
+  const same = matches.find((match) => matchesStreetNumber(match.label, name, height, false));
   if (same) return same;
   return {
     label: `${streetLabel(name)} ${height}, ${airportSearchLocality}`,

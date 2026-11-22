@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PassengerFields, initialPassenger, validateCheckoutPassenger } from "./passenger-fields";
+import { PassengerFields, initialPassenger, validateCheckoutPassenger, buildPassengerPayload } from "./passenger-fields";
 
 // La nacionalidad es opcional en todos los formularios del pasajero (pedido de Jugue, 19-nov).
 describe("PassengerFields: nacionalidad opcional", () => {
@@ -18,4 +18,13 @@ describe("PassengerFields: nacionalidad opcional", () => {
     const completo = { ...initialPassenger, firstName: "Ana", lastName: "Prueba", email: "ana@example.com", phoneCountryCode: "+54", phone: "2972412345", documentId: "30111222" };
     expect(validateCheckoutPassenger(completo)).toEqual({});
   });
+});
+
+it.each(["", "+1", "+54"])("acepta un número completo sin signo + con el prefijo seleccionado %s", (phoneCountryCode) => {
+  const passenger = {
+    ...initialPassenger, firstName: "Ana", lastName: "Prueba", email: "ana@example.com",
+    phoneCountryCode, phone: "1 (202) 983-3018", documentId: "30111222"
+  };
+  expect(validateCheckoutPassenger(passenger)).toEqual({});
+  expect(buildPassengerPayload(passenger).phone).toBe("+12029833018");
 });

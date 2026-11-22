@@ -8,6 +8,7 @@ datasource db {
 }
 
 model User {
+  schoolRuns SchoolRun[]
   id           String    @id @default(cuid())
   email        String    @unique
   googleSub    String?   @unique
@@ -121,6 +122,7 @@ model TravelRoute {
 }
 
 model Vehicle {
+  schoolRuns SchoolRun[]
   id           String     @id @default(cuid())
   name         String
   brand        String     @default("Araucana")
@@ -160,6 +162,7 @@ model Vehicle {
   airportAssignments AirportVehicleAssignment[]
   specialTripAssignments SpecialTripAssignment[]
   damages      VehicleDamage[]
+  serviceSheets VehicleServiceSheet[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -382,6 +385,7 @@ model AirportReservationDetails {
   sportsLuggageUnitCents Int @default(0)
   /// Recargo por zona (segundo límite del mapa) cobrado al reservar.
   zoneExtraCents         Int @default(0)
+  paihuenUnitCents       Int @default(0)
   /// Nave en la que va el pasajero cuando el vuelo tiene más de una (orden de servicio por nave).
   /// `null` = la reparte la orden según la capacidad. Se ignora si la asignación es de otro vuelo.
   assignmentId  String?
@@ -517,6 +521,7 @@ model Reservation {
   seatId      String?
   seat        Seat?      @relation(fields: [seatId], references: [id], onDelete: Restrict)
   seatNumber  String?
+  boardingStop String?
   dropoffStop String?
   passengerCount Int     @default(1)
   // Tarifas por edad (issue #33): los pasajeros vienen dentro de passengerCount, que es el total
@@ -700,9 +705,17 @@ model ChapelcoManifestStop {
 
 model SpecialTrip {
   id            String   @id @default(cuid())
+  /** Día en que sale el viaje. */
   serviceDate   DateTime @db.Date
+  /**
+   * Día en que vuelve, para los viajes de varios días («del 20 al 26»): el viaje figura en cada día del
+   * rango. Vacío = viaje de un día, como todos los que se cargaron antes de esta columna.
+   */
+  endDate       DateTime? @db.Date
   client        String
   contact       String?
+  contactName   String?
+  contactPhone  String?
   passengers    Int?
   status        String
   notes         String?
@@ -723,6 +736,7 @@ model SpecialTrip {
   departureSheets DepartureSheet[]
 
   @@index([serviceDate, status])
+  @@index([endDate])
 }
 
 model SpecialTripAssignment {
@@ -877,4 +891,42 @@ model ExcursionBooking {
 
   @@index([departureAt])
   @@index([excursionId, departureAt])
+}
+
+/// Planilla de service de una nave: la que hoy el taller llena en papel. `checks` guarda
+/// { <id del ítem>: "OK" | "FALLA" | "NA" } sobre el catálogo de src/lib/vehicles/service-sheet.ts.
+model VehicleServiceSheet {
+  id         String   @id @default(cuid())
+  vehicleId  String
+  vehicle    Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// Día del service, a medianoche UTC (igual que los días de Chapelco).
+  servicedAt DateTime
+  odometerKm Int
+  checks     Json     @default("{}")
+  /// Qué se le hizo: aceite, filtros, frenos, cubiertas.
+  workDone   String?
+  notes      String?
+  reportedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt @default(now())
+
+  @@index([vehicleId, servicedAt])
+}
+
+/// Un servicio escolar fechado. Las filas paralelas pueden tener el mismo recorrido.
+model SchoolRun {
+  id           String   @id @default(cuid())
+  serviceDate  DateTime @db.Date
+  routeName    String
+  shift        String
+  driverId     String?
+  driver       User?    @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  vehicleId    String?
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  companion    String?
+  notes        String?
+  review       String?
+  source       Json?
+  revision     Int      @default(0)
+  @@index([serviceDate, routeName])
 }

@@ -6,10 +6,8 @@ import { idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet
 import { OrdenAcciones } from "@/components/orden-acciones";
 import { RecorridoEditable } from "@/components/recorrido-editable";
 import { ServiceOrderMap } from "@/components/service-order-map";
-import { getAirportOfficePickup } from "@/lib/airport/office-pickup";
-import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
+import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
 import {
-  buildServiceOrderBlocks,
   esOrdenElegida,
   filtrarPorNave,
   ordenesDelVuelo,
@@ -69,8 +67,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   const flightIdsPedidos = flightId ? [] : vuelosDeLaHoja(params?.flights);
   // Órdenes puntuales elegidas en «Hoja del chofer»: en una recorrida con varias combis, la de cada combi.
   const ordenesPedidas = flightId ? [] : ordenesDeLaHoja(params?.ordenes);
+  const { blocks: ordenesDelDia, oficina } = await getAirportServiceOrder(date, flightId, { incluirVacias: true });
   const todas = filtrarPorNave(
-    ordenesDelVuelo(buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true }), flightId),
+    ordenesDelVuelo(ordenesDelDia, flightId),
     vehicle
   );
   const seleccion = ordenesPedidas.length
@@ -93,10 +92,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
   // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
   const flightIds = [...new Set(blocks.flatMap((block) => block.flightIds))];
-  const [vuelos, { naves, choferes }, oficina] = await Promise.all([
+  const [vuelos, { naves, choferes }] = await Promise.all([
     prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
-    opcionesDeCombi(),
-    getAirportOfficePickup()
+    opcionesDeCombi()
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
   const nombreEquipo = vehicleId !== undefined

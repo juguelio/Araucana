@@ -104,6 +104,10 @@
 .naves-fila-unidad { grid-area: unidad; }
 .naves-fila-servicio { grid-area: servicio; }
 .naves-fila-modelo { color: var(--ink); font-size: 14px; font-weight: 700; text-decoration: none; }
+/* Atajo al mapa en vivo: se pincha la unidad y se la ve en el mapa (pedido del 21/11). */
+.naves-fila-mapa { display: inline-flex; align-items: center; gap: 5px; width: fit-content; margin-top: 2px; color: var(--primary); font-size: 11.5px; font-weight: 700; text-decoration: none; }
+.naves-fila-mapa:hover, .naves-fila-mapa:focus-visible { text-decoration: underline; }
+.naves-fila-mapa-pin { width: 8px; height: 8px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: currentColor; opacity: .8; }
 .naves-fila-modelo:hover, .naves-fila-modelo:focus-visible { color: var(--primary); text-decoration: underline; }
 .naves-fila-extra { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--ink-muted); font-size: 12px; }
 .naves-fila-patente { font-weight: 700; letter-spacing: .05em; font-variant-numeric: tabular-nums; }

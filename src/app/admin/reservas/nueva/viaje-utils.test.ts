@@ -66,6 +66,16 @@ describe("viaje de Nueva reserva (template, 18-nov)", () => {
     expect(tiraConServicio([], "2027-01-02")).toEqual({ dias: [], base: 0, hayAntes: false, hayDespues: false });
   });
 
+  it("encuentra salidas para dos paradas y propone la vuelta con las paradas invertidas", () => {
+    const horarios = salidas.map((salida) => ({ ...salida, bookingMode: "SEATED" }));
+    expect(origenes(horarios)).toContainEqual({ nombre: "Río Hermoso", salidas: 5 });
+    expect(destinosDesde(horarios, "Río Hermoso").map((lugar) => lugar.nombre)).toContain("Falkner");
+    const [ida] = salidasDelTramo(horarios, "Río Hermoso", "Falkner");
+    const [vuelta] = vueltasPosibles(horarios, "Río Hermoso", "Falkner", ida);
+    expect(ida).toMatchObject({ id: "i1", boardingStop: "Río Hermoso", dropoffStop: "Falkner", priceCents: 600000 });
+    expect(vuelta).toMatchObject({ id: "v1", boardingStop: "Falkner", dropoffStop: "Río Hermoso", priceCents: 600000 });
+  });
+
   it("la vuelta es la ruta inversa y sólo las salidas posteriores a la ida", () => {
     const ida = salidasDelTramo(salidas, SMA, "Villa Traful")[0];
     expect(vueltasPosibles(salidas, SMA, "Villa Traful").map((s) => s.id)).toEqual(["v0", "v1", "v2"]);

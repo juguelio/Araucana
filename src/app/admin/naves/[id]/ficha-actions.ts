@@ -9,6 +9,7 @@ import { recordAudit } from "@/lib/audit/record";
 import { diffRecords } from "@/lib/audit/diff";
 import { parseAccountingEntryInput } from "@/lib/accounting/service";
 import { ESTADO_DANIO_LABEL, GRAVEDAD_LABEL, esEstadoDeDanio, leerDanio } from "@/lib/vehicles/ficha";
+import { checksParaGuardar, errorDeKilometraje, leerPlanillaDeService, resumenDePlanilla } from "@/lib/vehicles/service-sheet";
 import { errorState, type AdminFormState } from "../../form-state";
 import { revalidarNaves } from "../revalidate";
 
@@ -23,7 +24,7 @@ function value(formData: FormData, key: string) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
-function volver(vehicleId: string, seccion: "danios" | "reparaciones", notice: string): never {
+function volver(vehicleId: string, seccion: "danios" | "reparaciones" | "service", notice: string): never {
   revalidarNaves();
   revalidatePath("/admin/contabilidad");
   redirect(`/admin/naves/${vehicleId}/${seccion}?notice=${encodeURIComponent(notice)}`);
@@ -173,4 +174,70 @@ export async function createRepairAction(_state: AdminFormState, formData: FormD
   }
 
   volver(vehicleId, "reparaciones", "Arreglo registrado.");
+}
+
+/**
+ * Guarda la planilla de service de la nave: fecha, kilometraje, qué se revisó (ítem por ítem) y qué se
+ * le hizo. Queda en la auditoría de la nave como el resto de sus cambios, para que se pueda reconstruir
+ * el historial del taller sin abrir la libreta de papel.
+ */
+export async function createServiceSheetAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
+  const actor = await getCurrentAdminOrRedirect();
+  const vehicleId = value(formData, "vehicleId");
+  const checks: Record<string, string> = {};
+  const notas: Record<string, string> = {};
+  for (const [clave, valor] of formData.entries()) {
+    if (typeof valor !== "string" || !valor) continue;
+    if (clave.startsWith("check:")) checks[clave.slice("check:".length)] = valor;
+    else if (clave.startsWith("nota:")) notas[clave.slice("nota:".length)] = valor;
+  }
+
+  const leido = leerPlanillaDeService({
+    servicedAt: value(formData, "servicedAt"),
+    odometerKm: value(formData, "odometerKm"),
+    workDone: value(formData, "workDone"),
+    notes: value(formData, "notes"),
+    checks,
+    notas
+  });
+  if (!leido.ok) return errorState("Revisá la planilla de service.", leido.errores);
+  // El cuentakilómetros no va para atrás: se compara con las planillas que ya tiene la nave.
+  const anteriores = await prisma.vehicleServiceSheet.findMany({ where: { vehicleId }, select: { servicedAt: true, odometerKm: true } });
+  const errorKm = errorDeKilometraje(leido.data, anteriores);
+  if (errorKm) return errorState("Revisá el kilometraje.", { odometerKm: errorKm });
+
+  const resumen = resumenDePlanilla(leido.data.checks);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const nave = await tx.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, name: true, internalNumber: true } });
+      if (!nave) throw new Error("La nave ya no existe.");
+      const planilla = await tx.vehicleServiceSheet.create({
+        data: {
+          vehicleId, servicedAt: leido.data.servicedAt, odometerKm: leido.data.odometerKm,
+          workDone: leido.data.workDone, notes: leido.data.notes,
+          checks: checksParaGuardar(leido.data.checks, leido.data.notas),
+          reportedBy: actor.name?.trim() || null
+        }
+      });
+      await recordAudit(tx, {
+        actor,
+        action: "UPDATE",
+        entity: "VEHICLE",
+        entityId: vehicleId,
+        entityLabel: nave.name,
+        summary: `Planilla de service (${leido.data.odometerKm.toLocaleString("es-AR")} km): ${resumen.fallas} falla${resumen.fallas === 1 ? "" : "s"} en ${resumen.revisados} ítems revisados`,
+        changes: diffRecords(null, {
+          "service.servicedAt": planilla.servicedAt,
+          "service.odometerKm": planilla.odometerKm,
+          "service.workDone": planilla.workDone,
+          "service.fallas": resumen.fallas
+        })
+      });
+    });
+  } catch (error) {
+    return errorState(error instanceof Error ? error.message : "No pudimos guardar la planilla.");
+  }
+
+  volver(vehicleId, "service", "Planilla de service guardada.");
 }

@@ -27,13 +27,21 @@ describe("receipt storage lifecycle", () => {
     await expect(uploadReservationReceipt("test", receipt())).rejects.toMatchObject({ code: "RESERVATION_NOT_FOUND" });
     expect(mocks.store).not.toHaveBeenCalled();
   });
-  it("rejects unauthorized callers and approved payments before writing", async () => {
+  it("rejects unauthorized callers and payments that already have a validated receipt", async () => {
     mocks.access.mockRejectedValueOnce(new Error("forbidden"));
     await expect(uploadReservationReceipt("test", receipt())).rejects.toThrow("forbidden");
     expect(mocks.get).not.toHaveBeenCalled();
-    mocks.get.mockResolvedValue({ status: "CONFIRMED", payment: { provider: "MANUAL", status: "APPROVED" } });
+    mocks.get.mockResolvedValue({ status: "CONFIRMED", payment: { provider: "MANUAL", status: "APPROVED", receiptBlobPathname: "old" } });
     await expect(uploadReservationReceipt("test", receipt())).rejects.toMatchObject({ status: 409 });
     expect(mocks.store).not.toHaveBeenCalled();
+  });
+
+  it("accepts the receipt of a payment that was registered without one, and records who uploaded it", async () => {
+    mocks.get.mockResolvedValue({ status: "PENDING_PAYMENT", payment: { provider: "MANUAL", status: "APPROVED" } });
+    const actor = { id: "user-1", name: "Ivo", email: "ivo@example.com", role: "SECRETARY" };
+    await expect(uploadReservationReceipt("test", receipt(), undefined, actor)).resolves.toEqual({ code: "test" });
+    expect(mocks.store).toHaveBeenCalled();
+    expect(mocks.attach).toHaveBeenCalledWith("test", expect.anything(), actor);
   });
   it("reports missing storage configuration without attempting a write", async () => {
     vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");
@@ -46,7 +54,7 @@ describe("receipt storage lifecycle", () => {
     expect(mocks.del).toHaveBeenCalledExactlyOnceWith("new");
   });
   it("checks access, state and storage without touching the file (runs before the body is read)", async () => {
-    mocks.get.mockResolvedValue({ status: "CONFIRMED", payment: { provider: "MANUAL", status: "APPROVED" } });
+    mocks.get.mockResolvedValue({ status: "CONFIRMED", payment: { provider: "MANUAL", status: "APPROVED", receiptBlobPathname: "old" } });
     await expect(assertReceiptUploadAllowed("test")).rejects.toMatchObject({ status: 409 });
     mocks.get.mockResolvedValue({ status: "PENDING_PAYMENT", payment: { provider: "MANUAL", status: "PENDING" } });
     vi.stubEnv("BLOB_READ_WRITE_TOKEN", "");

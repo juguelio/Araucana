@@ -121,6 +121,27 @@ svg {
   gap: 12px;
 }
 
+.nav-account {
+  display: block;
+  max-width: clamp(85px, 20vw, 132px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 8px 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.nav-account:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 460px) {
+  .site-nav {
+    gap: 12px;
+  }
+}
+
 .page-shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -654,6 +675,16 @@ svg {
 .checkout-layout input:disabled,
 .admin-form-grid button:disabled {
   cursor: not-allowed;
+}
+
+/* Un guardado bloqueado que se ve igual que uno disponible es media explicación: el cliente lee «no me
+   deja apretar guardar» (#343). Además del motivo al pie del formulario, el botón tiene que verse apagado. */
+.button:disabled,
+.button[aria-disabled="true"],
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  filter: grayscale(.25);
 }
 
 .route-summary {
@@ -2480,6 +2511,15 @@ a.wizard-option { text-decoration: none; }
 /* Aviso de reservas que quedaron sobre un vuelo que ninguna fuente confirma: no es un vuelo del
    tablero, es una reserva a reasignar. Se marca al costado para que no se pierda entre el texto. */
 .flights-aviso { margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 0 8px 8px 0; font-size: 13px; line-height: 1.45; }
+.flights-aviso p { margin: 0; }
+/* El `a` global hereda color y no se subraya: en el aviso eso dejaba «Reservas» indistinguible de una
+   palabra más, sobre todo en el celular (reportado por el cliente el 21-nov). */
+.flights-aviso a { color: var(--accent); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+/* La lista de reservas fantasma (#331): qué son, no cuántas. */
+.flights-aviso-lista { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.flights-aviso-vuelo { font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: var(--ink-soft); }
+.flights-aviso-lista ul { margin: 4px 0 0; padding: 0 0 0 14px; display: grid; gap: 4px; }
+.flights-aviso-lista ul li { line-height: 1.4; }
 .flights-pasados .flights-list { margin-top: 8px; }
 .flight-card[data-pasado="true"] { filter: grayscale(1); opacity: .62; }
 .flight-card[data-pasado="true"]:hover, .flight-card[data-pasado="true"]:focus-within { opacity: 1; filter: none; }
@@ -2764,3 +2804,8 @@ a.wizard-option { text-decoration: none; }
   .pickup-flow .place-shortcut { padding: 7px 10px; }
   .trip-search-panel[data-paso="siguiente"] .trip-search-panel-title { font-size: 21px; }
 }
+
+.booking-search-card { min-width: 0; padding: 16px; border-radius: 18px; background: var(--surface, #fff); color: var(--ink); }
+.booking-search-card .booking-card-top { margin-bottom: 12px; }
+.public-trip-search { display: grid; min-width: 0; gap: 16px; }
+.public-trip-search > .button { justify-self: start; }

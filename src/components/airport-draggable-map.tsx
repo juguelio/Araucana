@@ -42,7 +42,7 @@ export function AirportDraggableMap({ point, approximate, precision, disabled, o
       const pin = L.marker(instance.getCenter(), {
         draggable: true,
         title: "Arrastrá el marcador para ajustar el punto",
-        icon: L.divIcon({ className: styles.vertex, iconSize: [22, 22] })
+        icon: L.divIcon({ className: styles.pickupMarker, iconSize: [28, 28] })
       });
       pin.on("dragend", () => finishDrag(pin));
       marker.current = pin;
@@ -67,10 +67,10 @@ export function AirportDraggableMap({ point, approximate, precision, disabled, o
     }
     const alreadyVisible = instance.hasLayer(pin);
     pin.setLatLng(point).addTo(instance);
-    if (!alreadyVisible || !instance.getBounds().contains(point)) instance.setView(point, approximate ? 13 : 18);
+    if (!alreadyVisible || !instance.getBounds().contains(point)) instance.setView(point, precision === "street" ? 15 : 18);
     if (disabled) pin.dragging?.disable();
     else pin.dragging?.enable();
-  }, [point, approximate, disabled, ready]);
+  }, [point, precision, disabled, ready]);
 
   return (
     <div className={styles.map}>

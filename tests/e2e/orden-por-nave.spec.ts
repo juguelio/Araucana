@@ -364,3 +364,61 @@ test("cargar transferencia conserva el pago aprobado y sus datos", async ({ page
   await expect(selector).toBeVisible();
   await orden(page, naves.a.name).screenshot({ path: "/tmp/araucana-orden-forma-pago-celular.png" });
 });
+
+test("optimiza oficina → retiros → aeropuerto igual en panel, Excel y enlace del chofer", async ({ page, context, browser }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const vuelo = await db.flight.create({ data: {
+    number: `OPT${suffix}`, origin: "Aeroparque", direction: "DEPARTURE", scheduledAt: new Date(`${day}T15:15:00-03:00`), source: "MANUAL"
+  } });
+  const puntos = [
+    { firstName: "Oeste", lat: -40.165, lng: -71.365 },
+    { firstName: "Este", lat: -40.15, lng: -71.337 },
+    { firstName: "Oficina", lat: oficina.point[0], lng: oficina.point[1] },
+    { firstName: "Sin punto", lat: null, lng: null }
+  ];
+  for (const p of puntos) {
+    await db.reservation.create({ data: {
+      code: `ARA-OPT-${randomUUID().replaceAll("-", "")}`, shortCode: createReservationShortCode(),
+      bookingMode: "AIRPORT", status: "CONFIRMED", passengerCount: 1, totalCents: 1000000, currency: "ARS",
+      passenger: { create: { firstName: p.firstName, lastName: suffix, email: "opt@example.com", phone: "+5492944000000", documentType: "DNI", documentId: "30111222" } },
+      airportDetails: { create: {
+        flightId: vuelo.id, flightNumber: vuelo.number, direction: "DEPARTURE", serviceDate: new Date(`${day}T12:00:00-03:00`),
+        pickupName: p.firstName, pickupLatitude: p.lat, pickupLongitude: p.lng
+      } }
+    } });
+  }
+  await page.goto(`/admin/aeropuerto/orden-de-servicio/ver?date=${day}&flight=${vuelo.id}`);
+  const filas = page.locator(".orden-tabla tbody tr[data-codigo] td:first-child");
+  const esperado = ["Oficina", "Oeste", "Este", "Sin punto"].map((nombre) => `${nombre} ${suffix}`);
+  await expect(filas).toContainText(esperado);
+  await page.getByRole("button", { name: "Visualizar recorrido" }).click();
+  await expect(page.locator(".recorrido-mapa-parada")).toHaveText(["1", "2", "3"]);
+  await expect(page.locator(".recorrido-mapa-parada").first()).toHaveAttribute("title", /1\. Oficina/);
+  await expect(page.locator(".recorrido-mapa-oficina")).toBeVisible();
+  await expect(page.getByText("Línea orientativa entre puntos", { exact: false })).toBeVisible();
+  await expect(page.locator(".recorrido-mapa-sin-ubicar")).toContainText("Sin punto");
+
+  const respuesta = await page.request.get((await page.getByRole("link", { name: "Descargar Excel" }).getAttribute("href"))!);
+  expect(respuesta.status()).toBe(200);
+  const ExcelJS = (await import("exceljs")).default;
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.load(await respuesta.body() as unknown as Parameters<typeof libro.xlsx.load>[0]);
+  const nombresExcel: string[] = [];
+  libro.getWorksheet("Orden de servicio")!.eachRow((fila) => {
+    const nombre = String(fila.getCell(1).value ?? "");
+    if (esperado.includes(nombre)) nombresExcel.push(nombre);
+  });
+  expect(nombresExcel).toEqual(esperado);
+
+  await page.getByRole("button", { name: "Copiar link" }).click();
+  await expect(page.getByRole("button", { name: "Link copiado" })).toBeVisible();
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  const anonimo = await browser.newContext();
+  try {
+    const chofer = await anonimo.newPage();
+    await chofer.goto(link);
+    await expect(chofer.locator(".orden-tabla tbody tr td:first-child")).toContainText(esperado);
+  } finally {
+    await anonimo.close();
+  }
+});

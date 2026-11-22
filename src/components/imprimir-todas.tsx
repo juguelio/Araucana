@@ -10,7 +10,7 @@ function imprimirTodas() {
 }
 
 /**
- * «Imprimir todas»: las órdenes de la pantalla seguidas, en las menos hojas posibles. Con `alAbrir`
+ * «Imprimir todas»: cada orden de la pantalla empieza en su propia hoja. Con `alAbrir`
  * (la hoja de varios vuelos marcados en Aeropuerto) el diálogo de impresión se abre solo, una vez.
  */
 export function ImprimirTodas({ alAbrir = false, cantidad }: { alAbrir?: boolean; cantidad: number }) {

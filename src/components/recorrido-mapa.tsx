@@ -5,6 +5,7 @@ import type { Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { AEROPUERTO_CHAPELCO } from "@/lib/airport/route-order";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
+import { distanceMeters } from "@/lib/driver/location";
 import "./recorrido-mapa.css";
 
 export type ParadaDelMapa = {
@@ -21,6 +22,7 @@ type RecorridoProps = {
   paradas: ParadaDelMapa[];
   sentido: "ARRIVAL" | "DEPARTURE";
   titulo: string;
+  origenPaihuen?: boolean;
   oficina: Pick<AirportOfficePickup, "address" | "point">;
 };
 
@@ -31,19 +33,19 @@ type RecorridoProps = {
  * Sirve para revisar de un vistazo que el recorrido no vaya y venga. Los pasajeros sin punto en el mapa
  * se listan abajo.
  */
-export function VerRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps) {
+export function VerRecorrido({ paradas, sentido, titulo, oficina, origenPaihuen }: RecorridoProps) {
   const [abierto, setAbierto] = useState(false);
   return (
     <div className="recorrido-mapa no-print">
       <button className="ghost-button" type="button" aria-expanded={abierto} onClick={() => setAbierto((actual) => !actual)}>
         {abierto ? "Ocultar recorrido" : "Visualizar recorrido"}
       </button>
-      {abierto ? <MapaDelRecorrido paradas={paradas} sentido={sentido} titulo={titulo} oficina={oficina} /> : null}
+      {abierto ? <MapaDelRecorrido paradas={paradas} sentido={sentido} titulo={titulo} oficina={oficina} origenPaihuen={origenPaihuen} /> : null}
     </div>
   );
 }
 
-function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps) {
+function MapaDelRecorrido({ paradas, sentido, titulo, oficina, origenPaihuen }: RecorridoProps) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<LeafletMap | null>(null);
   const [fallo, setFallo] = useState(false);
@@ -73,9 +75,14 @@ function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps)
 
       if (origen) {
         const etiqueta = document.createElement("span");
-        etiqueta.textContent = `Oficina · ${oficina.address} (inicio del recorrido)`;
+        etiqueta.textContent = origenPaihuen ? "Paihuén · punto 0" : `Oficina · ${oficina.address} (inicio del recorrido)`;
         L.marker(origen, {
-          icon: L.divIcon({ className: "recorrido-mapa-oficina", html: "O", iconSize: [30, 30] }),
+          icon: L.divIcon({
+            className: "recorrido-mapa-oficina", html: origenPaihuen ? "0" : "O", iconSize: [30, 30],
+            // Si hay un retiro en la oficina, se ven juntas la O y su número.
+            iconAnchor: puntos.some(([latitude, longitude]) => distanceMeters({ latitude, longitude }, { latitude: origen[0], longitude: origen[1] }) < 1)
+              ? [44, 15] : [15, 15]
+          }),
           title: etiqueta.textContent,
           zIndexOffset: 1000
         }).bindTooltip(etiqueta).addTo(instancia);
@@ -104,7 +111,7 @@ function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps)
       mapa.current?.remove();
       mapa.current = null;
     };
-  }, [paradas, sentido, oficina]);
+  }, [paradas, sentido, oficina, origenPaihuen]);
 
   return (
     <div className="recorrido-mapa-cuerpo">
@@ -115,15 +122,17 @@ function MapaDelRecorrido({ paradas, sentido, titulo, oficina }: RecorridoProps)
       )}
       <p className="muted recorrido-mapa-nota">
         {sentido === "DEPARTURE"
-          ? oficina.point
+          ? origenPaihuen ? "El recorrido comienza en Paihuén (punto 0), 15 minutos antes del horario habitual." : oficina.point
             ? `La línea sale de la oficina (${oficina.address}), sigue los retiros en el orden de la hoja y termina en el aeropuerto. El 1 es el primer retiro.`
             : `Salida desde la oficina: ${oficina.address}. Falta configurar su punto en el mapa para mostrar el tramo inicial. Los números siguen el orden de la hoja y la línea termina en el aeropuerto.`
           : "Los números siguen el orden de la hoja: la línea sale del aeropuerto y el 1 es la primera parada."}
       </p>
+      <p className="muted recorrido-mapa-nota">Línea orientativa entre puntos: no representa el camino por calles ni contempla el tránsito.</p>
       {sinUbicar.length ? (
         <p className="recorrido-mapa-sin-ubicar">
           <strong>Sin punto en el mapa ({sinUbicar.length}):</strong>{" "}
           {sinUbicar.map((parada) => `${parada.numero}. ${parada.nombre} (${parada.lugar})`).join(" · ")}
+          {" "}Estos retiros no participan de la optimización porque faltan sus coordenadas.
         </p>
       ) : null}
     </div>

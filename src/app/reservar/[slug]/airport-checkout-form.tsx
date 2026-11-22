@@ -1,19 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
-import { detalleDeLaVuelta, hrefConViaje } from "./airport-trip-options";
+import { useAirportSearch, type FlightOption } from "./airport-search";
 import { statusLabel } from "@/lib/airport/flights";
-import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
-import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./ida-y-vuelta/trip-search-bar";
+import type { LugarDeOtroServicio } from "./ida-y-vuelta/trip-search-bar";
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { MapPointAddress } from "@/components/map-point-address";
+import { isPaihuen, paihuenPickupTime, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
+import { nombreDelLugarSugerido, pickupNameParaElChofer } from "./pickup-name";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airport-place-search";
 import { AirportGooglePickup } from "@/components/airport-google-pickup";
@@ -69,28 +71,6 @@ type AirportRouteProps = {
   currency: string;
 };
 
-type FlightOption = {
-  id: string;
-  number: string;
-  direction: "ARRIVAL" | "DEPARTURE";
-  airline: string | null;
-  /**
-   * Aeropuerto del otro extremo del vuelo: en una llegada es de dónde viene, en una salida desde
-   * Chapelco es a dónde va. Se muestra porque el número solo no alcanza para reconocer el vuelo.
-   */
-  origin?: string | null;
-  scheduledAt: string;
-  estimatedAt: string | null;
-  pickupStartAt?: string | null;
-  pickupStartCoordinated?: boolean;
-  status: string;
-  /** "API" = dato real; "ESTIMADO" = patrón proyectado (AirLabs no publica horarios futuros). */
-  source?: string;
-  available: number;
-  bookable: boolean;
-  reason: string | null;
-};
-
 type AirportCheckoutFormProps = {
   route: AirportRouteProps;
   /** Tarifa vigente por sentido: es la misma que graba la reserva (no la del slug de la página). */
@@ -104,6 +84,7 @@ type AirportCheckoutFormProps = {
   /** Atajo «salir desde la sucursal» (#34): sólo llega si está activo y con punto. */
   officePickup?: (AirportOfficePickup & { point: [number, number] }) | null;
   fromAdmin?: boolean;
+  locale?: "es" | "en" | "pt";
   /** Panel: los lugares de las rutas por salida en Desde/Hacia (pantalla única de «Reservar»). */
   lugaresExtra?: LugaresExtra;
   /** A dónde lleva «Ida y vuelta»: la pantalla pública o la del panel. */
@@ -193,18 +174,8 @@ function formatPrice(cents: number, currency: string) {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
 }
 
-export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId, lugaresExtra }: AirportCheckoutFormProps) {
+export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId, lugaresExtra, locale }: AirportCheckoutFormProps) {
   const router = useRouter();
-  const [date, setDate] = useState(initialDate);
-  const [flights, setFlights] = useState<FlightOption[]>(initialFlights);
-  const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(
-    // Si el sentido con el que entra la página no tiene tarifa activa, se arranca por el otro.
-    fares[initialDirection] ? initialDirection : fares.DEPARTURE ? "DEPARTURE" : "ARRIVAL"
-  );
-  const [selectedId, setSelectedId] = useState<string>(
-    // Al volver del ida y vuelta se conserva el vuelo de ese sentido, si sigue en la lista del día.
-    () => initialFlights.find((vuelo) => vuelo.id === initialFlightId && vuelo.direction === initialDirection)?.id ?? ""
-  );
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
   // Derivación de otra agencia (#109): sólo existe en el alta del panel.
@@ -213,7 +184,15 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [freeFareCount, setFreeFareCount] = useState(0);
   const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
   const [useGooglePickup, setUseGooglePickup] = useState(googlePickupConfigured);
+  const [manual, setManual] = useState<{ point: PickupPoint; pending: boolean } | null>(null);
   const [pickupAddress, setPickupAddress] = useState("");
+  /**
+   * Nombre del lugar («Hostal del Esquiador»): es lo que el chofer lee en la orden de servicio.
+   * Se propone solo con la sugerencia elegida y el pasajero lo puede corregir (#320).
+   */
+  const [pickupName, setPickupName] = useState("");
+  /** El pasajero escribió el nombre: no se lo pisa con la próxima sugerencia. */
+  const [pickupNameTocado, setPickupNameTocado] = useState(false);
   const [pickupPoint, setPickupPoint] = useState<PickupPoint | null>(null);
   const [originalPoint, setOriginalPoint] = useState<PickupPoint | null>(null);
   const [pickupMode, setPickupMode] = useState<"address" | "location">("address");
@@ -237,8 +216,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   // El error tiene que quedar a la vista y el foco ir al campo culpable, no a un cartel lejano.
   useFocusFirstError(fieldErrors, AIRPORT_FIELD_ORDER, formRef);
   const [error, setError] = useState("");
+  const { date, sentido, selectedId, selected, setSelectedId, searchBar } = useAirportSearch({
+    slug: route.slug, fares, initialDirection, initialDate, initialFlights, initialFlightId, fromAdmin, lugaresExtra,
+    roundTripHref: roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, locale
+  }, setError);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [cargandoVuelos, setCargandoVuelos] = useState(false);
+
   // Vuelo privado: charter o avión particular que no figura en la lista del día. Lo carga el
   // pasajero y queda marcado como "privado" para que la operación lo revise.
   const [esPrivado, setEsPrivado] = useState(false);
@@ -262,40 +245,13 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     claveDeIdempotencia.current = "";
   }, [selectedId, date, sentido, esPrivado, privadoNumero, privadoHora]);
 
-  // La barra muestra los vuelos del sentido elegido en las tarjetas que hoy se pueden reservar; el
-  // vuelo elegido manda en la reserva. Los que ya no se pueden reservar tienen su motivo y quedan
-  // afuera de la barra: para eso está el vuelo privado o el panel.
-  const { reservables } = useMemo(
-    () => separarVuelosDelSelector(flights, sentido),
-    [flights, sentido]
-  );
-  const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
-
-  /**
-   * El único tramo de la barra (pedido de Jugue, 17-nov: «el mismo wizard de ida y vuelta, para un
-   * tramo»). Se arma con el sentido elegido en las tarjetas, el día y los vuelos, igual que el ida
-   * y vuelta arma los suyos. `minimo` usa la misma fórmula que allá: en la web no se reserva para
-   * días que ya pasaron y el panel puede cargar atrasados.
-   */
-  const tramoDeLaBarra: TramoDeLaBarra = {
-    sentido,
-    // Igual que el primer casillero del ida y vuelta: «Ida · Llegada» / «Ida · Salida».
-    etapa: "Ida",
-    titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín",
-    pregunta: sentido === "ARRIVAL"
-      ? "¿Qué día aterriza en Chapelco y en qué vuelo?"
-      : "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
-    fecha: date,
-    minimo: fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10),
-    opciones: reservables,
-    elegido: selectedId,
-    cargando: cargandoVuelos
-  };
   const privadoListo = privadoNumero.trim().length >= 3 && /^\d{2}:\d{2}$/.test(privadoHora);
   const sentidoDelVuelo = esPrivado ? sentido : selected?.direction ?? sentido;
-  const pickupStart = esPrivado && privadoListo
+  const normalPickupStart = esPrivado && privadoListo
     ? airportPickupStart({ direction: sentidoDelVuelo, scheduledAt: new Date(`${date}T${privadoHora}:00-03:00`) })
     : selected?.pickupStartAt ? new Date(selected.pickupStartAt) : null;
+  const esPaihuen = isPaihuen(pickupName, pickupAddress, pickupPoint);
+  const pickupStart = paihuenPickupTime(normalPickupStart, esPaihuen && sentidoDelVuelo === "DEPARTURE");
   const pickupStartLabel = !esPrivado && selected?.pickupStartCoordinated ? "Inicio de recorrida" : "Inicio estimado de recorrida";
   // La tarifa es la de la ruta canónica de ese sentido: la misma que graba la reserva.
   const tarifa = fares[sentidoDelVuelo] ?? null;
@@ -309,7 +265,8 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     { zoneExtra: chargesZoneExtra(pickupPoint, coverage), sportsLuggageCount: ofreceEquipaje ? sportsLuggageCount : 0 },
     extras
   );
-  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents;
+  const paihuenCents = esPaihuen && moneda === "ARS" ? passengerCount * PAIHUEN_UNIT_CENTS : 0;
+  const total = overrideTotalCents ?? reservationTotalCents(precioPorPersona, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents + paihuenCents;
   const puedeSeguir = Boolean(tarifa) && (esPrivado ? privadoListo : Boolean(selected && selected.bookable));
 
   const outsideCoverage = Boolean(coverage.enabled && pickupPoint && !isInsideAirportPickupZone(pickupPoint, coverage));
@@ -362,6 +319,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }, [startAtFlights]);
 
   function selectPickupPoint(point: PickupPoint | null) {
+    setManual(null);
     setUsandoSucursal(false);
     setApproximateAddress(false);
     setPickupPrecision(point ? "exact" : null);
@@ -424,6 +382,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setGoogleReference(null);
     setUsandoSucursal(false);
     if (!adjustPickupPoint(point)) selectPickupPoint(point);
+    setPickupMode("address");
+    setPickupAddress("");
+    setApproximateAddress(false);
+    setPickupPrecision("exact");
+    setManual({ point, pending: true });
   }
 
   function selectSearchPlace(place: AirportSelectedPlace) {
@@ -432,6 +395,9 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setLocationError("");
     const google = place.source === "google";
     setPickupAddress(google ? "" : place.label.slice(0, 160));
+    // El nombre del lugar sale de la sugerencia (si es un lugar, no una calle) mientras el pasajero
+    // no lo haya escrito él mismo: es el dato que va a la orden del chofer (#320).
+    if (!pickupNameTocado) setPickupName(nombreDelLugarSugerido(place));
     selectPickupPoint(google ? null : place.point);
     setApproximateAddress(place.approximate);
     setPickupPrecision(place.precision);
@@ -459,26 +425,6 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
       delete nextErrors[field];
       return nextErrors;
     });
-  }
-
-  async function cargarVuelos(fecha: string) {
-    setCargandoVuelos(true);
-    setError("");
-    try {
-      const res = await fetch(`/api/v1/airport/flights?slug=${encodeURIComponent(route.slug)}&date=${fecha}`);
-      const data = await res.json();
-      if (!res.ok) {
-        setFlights([]);
-        setError(data?.error?.message ?? "No pudimos traer los vuelos de ese día.");
-      } else {
-        setFlights(data.flights ?? []);
-        setSelectedId("");
-      }
-    } catch {
-      setFlights([]);
-      setError("No pudimos traer los vuelos de ese día. Probá de nuevo.");
-    }
-    setCargandoVuelos(false);
   }
 
   /** Muestra el problema arriba del formulario y lo deja a la vista (puede estar lejos de donde está la persona). */
@@ -551,7 +497,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           referredBy: fromAdmin ? referredBy.trim() || undefined : undefined,
           passenger: buildPassengerPayload(passenger),
           pickupAddress: pickupMode === "location" ? undefined : pickupAddress.trim() || undefined,
-          pickupName: usandoSucursal && officePickup ? officePickup.label : undefined,
+          pickupName: pickupNameParaElChofer({ usandoSucursal, sucursalLabel: officePickup?.label, escrito: pickupName }),
           pickupPoint: pickupPoint ?? undefined,
           pickupNotes: pickupNotes.trim() || undefined,
           ...(esPrivado
@@ -610,29 +556,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
 
           {/* El mismo recuadro que el ida y vuelta (pedido de Jugue, 18-nov): Desde ⇄ Hacia cambia
               entre llegada y salida, y al lado de la fecha está la vuelta, apagada, para sumarla. */}
-          <TripSearchBar
-            tramos={[tramoDeLaBarra]}
-            lugaresExtra={lugaresExtra}
-            routeSlug={route.slug}
-            onPedirOrden={(nuevo) => {
-              // Pasar de llegada a salida (o al revés) es otro viaje: se borra el vuelo y el lugar.
-              if (nuevo === sentido || !fares[nuevo]) return;
-              useAddress();
-              setPickupAddress("");
-              setSentido(nuevo);
-              setSelectedId("");
-              setEsPrivado(false);
-              setError("");
-            }}
-            onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
-            onVuelo={(_, vueloId) => { setSelectedId(vueloId); setEsPrivado(false); setError(""); }}
-            agregarVuelta={detalleDeLaVuelta(sentido, fares) === null ? undefined : {
-              // `abrir=vuelta`: al llegar, la vuelta ya muestra sus vuelos (antes había que tocar
-              // el casillero dos veces: una para agregarla y otra para ver las opciones).
-              href: `${hrefConViaje(roundTripHref ?? `/reservar/${route.slug}/ida-y-vuelta`, { date, sentido, vuelo: esPrivado ? undefined : selectedId || undefined })}&abrir=vuelta`,
-              detalle: detalleDeLaVuelta(sentido, fares) ?? undefined
-            }}
-          />
+          {searchBar(() => {
+            useAddress();
+            setPickupAddress("");
+            setEsPrivado(false);
+          }, () => setEsPrivado(false))}
           {fieldErrors.flight ? <p className="field-error" role="alert">{fieldErrors.flight}</p> : null}
 
 
@@ -761,8 +689,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     onUnavailable={() => setUseGooglePickup(false)}
                   />
                 ) : (
-                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
+                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={(point) => { markPickupPoint(point); return true; }} onSelect={markPickupPoint} />
                 )}
+                {manual && manual.point === pickupPoint ? <MapPointAddress point={manual.point} onResult={(address) => {
+                  setPickupAddress(address);
+                  setManual({ point: manual.point, pending: false });
+                }} /> : null}
                 {coverage.enabled && pickupPoint ? (
                   <p className={outsideCoverage ? "field-error" : "muted"} role="status">
                     {outsideCoverage ? (
@@ -773,11 +705,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   </p>
                 ) : null}
                 {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
-                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
+                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => markPickupPoint(originalPoint)}>Volver al punto original</button>
                 ) : null}
                 {pickupPoint && !outsideCoverage ? (
                   <label>
-                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting} onChange={(event) => {
+                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting || manual?.pending} onChange={(event) => {
                       setPickupConfirmed(event.target.checked);
                       setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
                     }} /> Confirmo que el mapa marca el lugar correcto
@@ -786,7 +718,18 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 {pickupMode === "address" && (pickupPoint || pickupAddress) ? (
                   <label>Dirección o referencia para el chofer (opcional)
                     <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
-                      disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />
+                      disabled={isSubmitting} onChange={(event) => { setManual(null); setPickupAddress(event.target.value); }} />
+                  </label>
+                ) : null}
+                {/* El nombre del lugar es lo que el chofer busca en la calle; la dirección sola no
+                    siempre alcanza (issue #320). Con el atajo de la sucursal ya viene el de la oficina. */}
+                {!usandoSucursal && (pickupPoint || pickupAddress) ? (
+                  <label>Nombre del lugar (opcional)
+                    <input name="pickupName" maxLength={120} value={pickupName} placeholder="Ej.: Hostal del Esquiador"
+                      disabled={isSubmitting} onChange={(event) => {
+                        setPickupName(event.target.value);
+                        setPickupNameTocado(true);
+                      }} />
                   </label>
                 ) : null}
                 <label>Notas (opcional)<input name="pickupNotes" value={pickupNotes} onChange={(e) => setPickupNotes(e.target.value)} /></label>
@@ -815,7 +758,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
               {pickupStart && Number.isFinite(pickupStart.getTime()) ? (
                 <div className="plain-card ticket-summary">
                   <strong>{pickupStartLabel}: {airportPickupDateTime.format(pickupStart)}</strong>
-                  <p className="muted">{AIRPORT_PICKUP_COPY}</p>
+                  <p className="muted">{esPaihuen ? "Te buscamos en Paihuén, la primera parada del recorrido." : AIRPORT_PICKUP_COPY}</p>
                 </div>
               ) : null}
               <PassengerFields
@@ -913,6 +856,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
           {freeFareCount > 0 ? <span>Menores de 4 sin cargo: <strong>{freeFareCount}</strong></span> : null}
           {overrideTotalCents == null ? <span>Tarifa: <strong>{formatPrice(precioPorPersona, moneda)} por persona</strong></span> : <span>Precio total ajustado por administración</span>}
           {adicionales.sportsLuggageCount > 0 ? <span>Equipaje deportivo: <strong>{adicionales.sportsLuggageCount}{overrideTotalCents == null ? ` · ${formatPrice(adicionales.sportsLuggageTotalCents, moneda)}` : ""}</strong></span> : null}
+          {paihuenCents > 0 && overrideTotalCents == null ? <span>Adicional Paihuén ({passengerCount} × $13.000): <strong>{formatPrice(paihuenCents, moneda)}</strong></span> : null}
           {adicionales.zoneExtraCents > 0 && overrideTotalCents == null ? <span>Recargo por zona: <strong>{formatPrice(adicionales.zoneExtraCents, moneda)}</strong></span> : null}
         </div>
         <strong className="price">{formatPrice(total, moneda)}</strong>

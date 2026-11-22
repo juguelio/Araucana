@@ -13,13 +13,14 @@ import "./ficha.css";
 
 export const TIPO_LABEL: Record<string, string> = { CAMIONETA: "Camioneta", BUS: "Bus", UTILITARIO: "Utilitario" };
 
-export type SeccionDeNave = "resumen" | "recorridos" | "vencimientos" | "danios" | "reparaciones" | "editar";
+export type SeccionDeNave = "resumen" | "recorridos" | "vencimientos" | "danios" | "service" | "reparaciones" | "editar";
 
 const SECCIONES: Array<{ seccion: SeccionDeNave; label: string; path: string }> = [
   { seccion: "resumen", label: "Ficha", path: "" },
   { seccion: "recorridos", label: "Recorridos", path: "/recorridos" },
   { seccion: "vencimientos", label: "Vencimientos y seguro", path: "/vencimientos" },
   { seccion: "danios", label: "Daños", path: "/danios" },
+  { seccion: "service", label: "Service", path: "/service" },
   { seccion: "reparaciones", label: "Reparaciones", path: "/reparaciones" },
   { seccion: "editar", label: "Editar", path: "/editar" }
 ];

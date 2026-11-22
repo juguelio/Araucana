@@ -12,10 +12,11 @@ describe("listado de viajes especiales", () => {
   });
 
   it("las vistas que miran al futuro ordenan ascendente y las de historial descendente", () => {
-    expect(condicionVista("proximos", hoy)).toEqual({ where: { serviceDate: { gte: hoy }, status: { not: "CANCELLED" } }, orden: "asc" });
-    expect(condicionVista("semana", hoy).where).toEqual({ serviceDate: { gte: hoy, lt: dia("2026-11-17") } });
-    expect(condicionVista("hoy", hoy).where).toEqual({ serviceDate: hoy });
-    expect(condicionVista("sinNave", hoy).where).toEqual({ status: "CONFIRMED", serviceDate: { gte: hoy }, assignments: { none: {} } });
+    const noTerminado = { OR: [{ serviceDate: { gte: hoy } }, { endDate: { gte: hoy } }] };
+    expect(condicionVista("proximos", hoy)).toEqual({ where: { AND: [noTerminado, { status: { not: "CANCELLED" } }] }, orden: "asc" });
+    expect(condicionVista("semana", hoy).where).toEqual({ serviceDate: { lt: dia("2026-11-17") }, OR: [{ serviceDate: { gte: hoy } }, { endDate: { gte: hoy } }] });
+    expect(condicionVista("hoy", hoy).where).toEqual({ serviceDate: { lte: hoy }, OR: [{ serviceDate: hoy }, { endDate: { gte: hoy } }] });
+    expect(condicionVista("sinNave", hoy).where).toEqual({ AND: [noTerminado, { status: "CONFIRMED", assignments: { none: {} } }] });
     expect(condicionVista("realizados", hoy).orden).toBe("desc");
     expect(condicionVista("todos", hoy)).toEqual({ where: {}, orden: "desc" });
   });
@@ -54,6 +55,9 @@ describe("listado de viajes especiales", () => {
     expect(tonoFila({ status: "CONFIRMED", serviceDate: dia("2026-10-20") }, false, hoy)).toEqual({ tono: "curso", label: "Confirmado" });
     expect(tonoFila({ status: "COMPLETED", serviceDate: dia("2026-10-20") }, false, hoy)).toEqual({ tono: "ok", label: "Realizado" });
     expect(tonoFila({ status: "CANCELLED", serviceDate: dia("2026-12-20") }, false, hoy)).toEqual({ tono: "normal", label: "Cancelado" });
+    // Salió hace dos días y vuelve mañana: está afuera, no «vencido».
+    expect(tonoFila({ status: "PENDING", serviceDate: dia("2026-11-08"), endDate: dia("2026-11-11") }, false, hoy)).toEqual({ tono: "atencion", label: "Pendiente" });
+    expect(tonoFila({ status: "CONFIRMED", serviceDate: dia("2026-11-08"), endDate: dia("2026-11-11") }, false, hoy)).toEqual({ tono: "atencion", label: "Confirmado · sin nave" });
   });
 
   it("agrupa por mes respetando el orden de llegada", () => {

@@ -18,6 +18,7 @@ import { estadoDeTaller } from "@/lib/vehicles/estado-en-flota";
 import { daniosPorNave, dispatchIssues, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
 import { ReservationWorkspace, type ReservationParams } from "../reservas/reservation-workspace";
 import { FleetAgenda } from "./fleet-agenda";
+import { diaDelViaje, etiquetaRango, ultimoDia, whereVigenteEn } from "@/lib/special-trips/rango";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
@@ -93,8 +94,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       }
     }),
     prisma.specialTrip.findMany({
-      where: { serviceDate, status: { not: "CANCELLED" } },
-      include: { assignments: { orderBy: { startsAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } } }
+      where: { AND: [{ status: { not: "CANCELLED" } }, { OR: [whereVigenteEn(serviceDate), { assignments: { some: { startsAt: { lt: to }, endsAt: { gt: from } } } }] }] },
+      include: { assignments: { where: { startsAt: { lt: to }, endsAt: { gt: from } }, orderBy: { startsAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } } }
     }),
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { ...VEHICLE_SELECT, internalNumber: true, publicTransport: true, kind: true } }),
     prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, orderBy: [{ name: "asc" }, { email: "asc" }], select: DRIVER_SELECT }),
@@ -164,12 +165,16 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         units: (day?.vehicleDuties ?? []).map((duty) => ({ id: duty.id, capacity: duty.capacity, vehicle: duty.vehicle, driver: duty.driver }))
       };
     }),
-    specialTrips: specialTrips.map((trip) => ({
+    specialTrips: specialTrips.map((trip) => {
+      const day = diaDelViaje(trip, serviceDate);
+      return {
       id: trip.id,
       client: trip.client,
       passengers: trip.passengers,
       status: trip.status,
       firstLegAt: null,
+      day: day ? { number: day.numero, total: day.total, returnLabel: etiquetaRango({ serviceDate: ultimoDia(trip) }, serviceDate) } : null,
+      continuing: day ? !day.primero : trip.serviceDate.toISOString().slice(0, 10) !== dateKey,
       units: trip.assignments.map((assignment) => ({
         id: assignment.id,
         startsAt: assignment.startsAt,
@@ -177,7 +182,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: seatsOf(assignment.vehicle) },
         driver: assignment.driver
       }))
-    }))
+      };
+    })
   });
 
   // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
@@ -260,6 +266,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               id={panel ? "servicio-" + row.key : undefined}
               className="sd-row"
               data-area={row.area}
+              data-sigue={row.continuing || undefined}
               data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
             >
               <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} issues={issues.get(row.key)} />}>
@@ -271,7 +278,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
                 {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
               </div> : <>
               <div className="sd-time">
-                <strong>{row.at ? hourFormat.format(row.at) : "—"}</strong>
+                <strong>{row.at ? hourFormat.format(row.at) : row.timeText ?? "—"}</strong>
                 <span>{row.atLabel}</span>
               </div>
 
@@ -494,7 +501,7 @@ function ServiceSummary({ row, issues = [] }: { row: BoardRow; issues?: string[]
   const first = row.units[0];
   const count = row.units.length;
   return <>
-    <span className="plan-time"><strong>{row.at ? hourFormat.format(row.at) : "—"}</strong><small>{row.atLabel}</small></span>
+    <span className="plan-time"><strong>{row.at ? hourFormat.format(row.at) : row.timeText ?? "—"}</strong><small>{row.atLabel}</small></span>
     <span className="plan-service">
       <small>{AREA_LABEL[row.area]}{row.inactiveRoute && " · Inactiva"}</small>
       <strong>{row.title}</strong>
@@ -636,6 +643,15 @@ function UnitsReadOnly({ units, note }: { units: BoardUnit[]; note: ReactNode })
   );
 }
 
+const dayKeyAr = (date: Date) => localDateKey(date);
+const shortDayFormat = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "numeric", timeZone: "America/Argentina/Salta" });
+/** «08:00–18:00», o con el día cuando la nave queda ocupada varios días: «jue 19 08:00 → lun 23 20:00». */
+function blockLabel(from?: Date, to?: Date) {
+  if (!from || !to || dayKeyAr(from) === dayKeyAr(to)) return `${timeFormat(from)}–${timeFormat(to)}`;
+  const day = (date: Date) => shortDayFormat.format(date).replace(",", "").replace(".", "");
+  return `${day(from)} ${timeFormat(from)} → ${day(to)} ${timeFormat(to)}`;
+}
+
 const timeFormat = (date?: Date) => (date ? hourFormat.format(date) : "");
 
 /** Rutas: las naves de la salida, cada una con su chofer; abajo, sumar otra nave a la salida. */
@@ -710,6 +726,7 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
         <FleetAssignmentForm action={addSpecialVehicleAction}>
         <OriginField />
         <input type="hidden" name="tripId" value={row.serviceId} />
+        <input type="hidden" name="date" value={dateKey} />
         <DropSelect name="vehicleId" defaultValue="" aria-label="Nave para sumar al viaje" required>
           <option value="" disabled>{row.units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
           {vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
@@ -727,7 +744,7 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
       </div>
       {row.units.map((unit) => (
         <div className="sd-unit" key={unit.id}>
-          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{timeFormat(unit.from)}–{timeFormat(unit.to)}</span></p>
+          <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{blockLabel(unit.from, unit.to)}</span></p>
           <DriverForm unit={unit} action={setSpecialDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
           <form action={removeSpecialVehicleAction} className="sd-remove">
         <OriginField />

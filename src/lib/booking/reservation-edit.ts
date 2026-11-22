@@ -11,7 +11,7 @@
  * de `manageReservation` sólo trae los datos y aplica la cuenta.
  */
 import { fareCounts, hasFullFare, reservationTotalCents, sinAdultoMensaje } from "./passenger-fares";
-import { getStopFares } from "./stop-fares";
+import { segmentPrice } from "./segment-fares";
 
 /**
  * Tope de una reserva, no del servicio: es el máximo que vende el alta de Chapelco (60 personas) y
@@ -28,6 +28,7 @@ export type ReservationPriceBasis = {
   freeFareCount: number;
   /** Adicionales del aeropuerto guardados hoy (0 en las reservas que no son del aeropuerto). */
   zoneExtraCents: number;
+  paihuenUnitCents?: number;
   sportsLuggageCount: number;
   sportsLuggageUnitCents: number;
 };
@@ -36,6 +37,7 @@ export type ReservationPriceBasis = {
 export function totalDerivadoCents(basis: ReservationPriceBasis) {
   const tarifas = fareCounts(basis.passengerCount, basis.halfFareCount, basis.freeFareCount);
   return reservationTotalCents(basis.priceCents, tarifas)
+    + (basis.paihuenUnitCents ?? 0) * basis.passengerCount
     + basis.zoneExtraCents
     + basis.sportsLuggageCount * basis.sportsLuggageUnitCents;
 }
@@ -66,6 +68,7 @@ export function totalAlEditar(input: {
   freeFareCount?: number;
   /** Recargo por zona después de mover el punto del traslado. */
   zoneExtraCents?: number;
+  paihuenUnitCents?: number;
   /** Tarifa por persona después de cambiar la bajada (parada intermedia o destino final). */
   priceCents?: number;
 }): TotalAlEditar {
@@ -79,6 +82,7 @@ export function totalAlEditar(input: {
     passengerCount: input.passengerCount ?? basis.passengerCount,
     halfFareCount: input.halfFareCount ?? basis.halfFareCount,
     freeFareCount: input.freeFareCount ?? basis.freeFareCount,
+    paihuenUnitCents: input.paihuenUnitCents ?? basis.paihuenUnitCents,
     zoneExtraCents: input.zoneExtraCents ?? basis.zoneExtraCents,
     sportsLuggageCount: input.sportsLuggageCount ?? basis.sportsLuggageCount
   });
@@ -100,10 +104,10 @@ export function minimoDePasajeros(basis: Pick<ReservationPriceBasis, "halfFareCo
  */
 export function tarifaPorPersona(
   route: { from: string; to: string; priceCents: number; stops?: unknown },
-  dropoffStop: string | null | undefined
+  dropoffStop: string | null | undefined,
+  boardingStop?: string | null
 ): number {
-  if (!dropoffStop) return route.priceCents;
-  return getStopFares(route).find((fare) => fare.name === dropoffStop)?.priceCents ?? route.priceCents;
+  return segmentPrice(route, boardingStop, dropoffStop) ?? route.priceCents;
 }
 
 /**

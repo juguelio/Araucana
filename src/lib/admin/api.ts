@@ -340,7 +340,7 @@ async function persistAdminApiSchedule(
     return saved;
   });
   if (result.conflicts) {
-    throw new ApiError("FLEET_CONFLICT", "La nave ya tiene un viaje especial en ese horario.", 409, {
+    throw new ApiError("FLEET_CONFLICT", "La nave ya está tomada en ese horario.", 409, {
       confirmation: result.confirmation, conflicts: JSON.stringify(result.conflicts)
     });
   }

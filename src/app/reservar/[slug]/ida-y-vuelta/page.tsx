@@ -1,3 +1,5 @@
+import { getTripCatalog, airportPlaces } from "@/lib/booking/public-trip-catalog";
+import { getI18n } from "@/i18n/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
@@ -46,12 +48,12 @@ export default async function AirportRoundTripPage({ params, searchParams }: Rut
 
   const fechaDelLink = typeof query?.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date) ? query.date : null;
   const fecha = fechaDelLink ?? todayInputValue();
-  const [vuelos, tarifas, coverage, extras, officePickup] = await Promise.all([
+  const [vuelos, tarifas, coverage, extras, officePickup, catalog, {locale}] = await Promise.all([
     loadAirportCheckoutFlights(fecha),
     getAirportFares(),
     getAirportCoverage(),
     getAirportExtras(),
-    getAirportOfficePickup()
+    getAirportOfficePickup(), getTripCatalog(), getI18n()
   ]);
   const ambosSentidos = Boolean(tarifas.ARRIVAL && tarifas.DEPARTURE);
 
@@ -95,7 +97,8 @@ export default async function AirportRoundTripPage({ params, searchParams }: Rut
         </section>
 
         {ambosSentidos ? (
-          <RoundTripCheckoutForm
+          <RoundTripCheckoutForm locale={locale}
+            lugaresExtra={airportPlaces(catalog, locale)}
             route={{ slug: route.slug, from: route.from, to: route.to, priceCents: route.priceCents, currency: route.currency }}
             fares={tarifas}
             initialDate={fecha}

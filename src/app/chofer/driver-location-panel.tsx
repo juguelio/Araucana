@@ -16,8 +16,6 @@ type DriverLocationPanelProps = {
   initialVehicleId?: string;
 };
 
-type ShareState = "idle" | "sharing" | "error";
-
 type BatteryManager = EventTarget & {
   charging: boolean;
   level: number;
@@ -46,20 +44,30 @@ async function readDeviceTelemetry() {
   };
 }
 
+/**
+ * Panel del chofer (issue #316). El pedido del cliente es «mientras el chofer esté logueado»: el
+ * envío arranca solo al entrar al panel, con la nave que ya tenía elegida, y el botón queda como
+ * pausa explícita. Si el navegador niega el permiso, se dice con instrucciones en vez de dejar de
+ * mandar en silencio (el admin lo ve como «sin ubicación»).
+ */
 export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverLocationPanelProps) {
   const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId);
-  const [shareState, setShareState] = useState<ShareState>("idle");
+  const [paused, setPaused] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [message, setMessage] = useState("");
+  const [ultimoEnvio, setUltimoEnvio] = useState<string | null>(null);
   const isSendingRef = useRef(false);
 
+  const sharing = Boolean(selectedVehicleId) && !paused && !blocked;
+
   useEffect(() => {
-    if (shareState !== "sharing" || !selectedVehicleId) {
+    if (!sharing || !selectedVehicleId) {
       return;
     }
 
     if (!("geolocation" in navigator)) {
-      setShareState("error");
-      setMessage("Este dispositivo no permite compartir ubicacion.");
+      setBlocked(true);
+      setMessage("Este dispositivo no permite compartir ubicación.");
       return;
     }
 
@@ -94,13 +102,16 @@ export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverL
         });
 
         if (!response.ok) {
-          throw new Error("No pudimos actualizar la ubicacion.");
+          throw new Error("No pudimos actualizar la ubicación.");
         }
 
-        setMessage(`Ubicacion actualizada ${new Date().toLocaleTimeString("es-AR", { timeStyle: "medium" })}`);
+        if (stopped) return;
+        setUltimoEnvio(new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false }));
+        setMessage("");
       } catch (error) {
-        setShareState("error");
-        setMessage(error instanceof Error ? error.message : "No pudimos actualizar la ubicacion.");
+        if (stopped) return;
+        // Un corte de red no apaga el compartir: el próximo intento (3 s) lo resuelve.
+        setMessage(error instanceof Error ? error.message : "No pudimos actualizar la ubicación.");
       } finally {
         isSendingRef.current = false;
       }
@@ -109,9 +120,16 @@ export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverL
     function requestPosition() {
       navigator.geolocation.getCurrentPosition(
         sendPosition,
-        () => {
-          setShareState("error");
-          setMessage("No pudimos leer tu ubicacion. Revisa el permiso del navegador.");
+        (error) => {
+          if (stopped) return;
+          if (error.code === error.PERMISSION_DENIED) {
+            setBlocked(true);
+            setMessage(
+              "El navegador tiene bloqueado el acceso a la ubicación. Abrí el candado de la barra de direcciones, elegí «Ubicación» y permitila; después tocá «Reintentar»."
+            );
+            return;
+          }
+          setMessage("No pudimos leer tu ubicación todavía. Reintentamos solos en unos segundos.");
         },
         {
           enableHighAccuracy: true,
@@ -128,9 +146,9 @@ export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverL
       stopped = true;
       window.clearInterval(intervalId);
     };
-  }, [selectedVehicleId, shareState]);
+  }, [selectedVehicleId, sharing]);
 
-  const canShare = vehicles.length > 0 && selectedVehicleId;
+  const canShare = vehicles.length > 0 && Boolean(selectedVehicleId);
 
   return (
     <section className="plain-card admin-section">
@@ -141,7 +159,6 @@ export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverL
             value={selectedVehicleId}
             onChange={(event) => {
               setSelectedVehicleId(event.target.value);
-              setShareState("idle");
               setMessage("");
             }}
           >
@@ -155,31 +172,45 @@ export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverL
         </label>
 
         <div className="span-2 table-actions">
-          <button
-            className="button"
-            type="button"
-            disabled={!canShare || shareState === "sharing"}
-            onClick={() => {
-              setMessage("Compartiendo ubicacion...");
-              setShareState("sharing");
-            }}
-          >
-            Compartir ubicacion
-          </button>
-          <button
-            className="ghost-button"
-            type="button"
-            disabled={shareState !== "sharing"}
-            onClick={() => {
-              setShareState("idle");
-              setMessage("Ubicacion pausada.");
-            }}
-          >
-            Pausar
-          </button>
+          {sharing ? (
+            <button
+              className="button"
+              type="button"
+              onClick={() => {
+                setPaused(true);
+                setUltimoEnvio(null);
+                setMessage("Ubicación pausada: la operación no ve dónde estás hasta que la reanudes.");
+              }}
+            >
+              Pausar
+            </button>
+          ) : (
+            <button
+              className="button"
+              type="button"
+              disabled={!canShare}
+              onClick={() => {
+                setBlocked(false);
+                setPaused(false);
+                setMessage("");
+              }}
+            >
+              {blocked ? "Reintentar" : "Compartir ubicación"}
+            </button>
+          )}
+          {sharing ? (
+            <span className="muted">
+              Compartiendo sola desde que entraste
+              {ultimoEnvio ? ` · última señal ${ultimoEnvio}` : " · esperando la primera señal"}.
+            </span>
+          ) : null}
         </div>
 
-        {message ? <p className={shareState === "error" ? "error span-2" : "muted span-2"}>{message}</p> : null}
+        {!selectedVehicleId ? (
+          <p className="muted span-2">Elegí la nave que estás manejando para empezar a compartir la ubicación.</p>
+        ) : null}
+
+        {message ? <p className={blocked ? "error span-2" : "muted span-2"}>{message}</p> : null}
       </div>
     </section>
   );

@@ -94,3 +94,9 @@ it("si el número ya viene completo (+…), no se le agrega el código", async (
     .rejects.toThrow("redirect:/admin/reservas/ARC-IDA");
   expect(mocks.crear.mock.calls[0][0].passenger.phone).toBe("+56912345678");
 });
+
+it("guarda un número de EE. UU. pegado sin el signo +, aunque el desplegable tuviera otro país", async () => {
+  await expect(createAdminReservationAction(initialAdminFormState, formulario({ phoneCountryCode: "+54", phone: "1 (202) 983-3018" })))
+    .rejects.toThrow("redirect:/admin/reservas/ARC-IDA");
+  expect(mocks.crear.mock.calls[0][0].passenger.phone).toBe("+12029833018");
+});

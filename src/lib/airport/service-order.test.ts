@@ -247,6 +247,42 @@ describe("orden de servicio del aeropuerto", () => {
     expect(workbook.byteLength).toBeGreaterThan(10000);
   });
 
+  describe("recorrida desde la oficina", () => {
+    const oficina = { latitude: -40.158, longitude: -71.353 };
+    const retiro = (code: string, latitude: number, longitude: number, routePosition?: number) => reserva({
+      code, passengerCount: 1, pickupLatitude: latitude, pickupLongitude: longitude, routePosition
+    });
+
+    it("la oficina participa del cálculo y el retiro en la sucursal va primero", () => {
+      const [orden] = buildServiceOrderBlocks([
+        retiro("oeste", -40.161, -71.36), retiro("este", -40.15, -71.337),
+        retiro("oficina", oficina.latitude, oficina.longitude), reserva({ code: "sin-punto" })
+      ], { oficina });
+      expect(orden.passengers.map((p) => p.code)).toEqual(["oficina", "oeste", "este", "sin-punto"]);
+      expect(orden.manualOrder).toBe(false);
+    });
+
+    it("conserva el orden manual y optimiza lo nuevo desde el último retiro fijado", () => {
+      const [orden] = buildServiceOrderBlocks([
+        retiro("fijada-2", -40.161, -71.36, 1), retiro("este", -40.15, -71.337),
+        retiro("fijada-1", -40.13, -71.30, 0), retiro("oficina", oficina.latitude, oficina.longitude)
+      ], { oficina });
+      expect(orden.passengers.map((p) => p.code)).toEqual(["fijada-1", "fijada-2", "oficina", "este"]);
+      expect(orden.manualOrder).toBe(true);
+    });
+
+    it("cada nave mantiene sus pasajeros elegidos y calcula su propio trayecto desde la oficina", () => {
+      const vehicles = [
+        { assignmentId: "a", vehicleId: "a", name: "A", seats: 4, driver: null },
+        { assignmentId: "b", vehicleId: "b", name: "B", seats: 4, driver: null }
+      ];
+      const reservas = [retiro("este", -40.15, -71.337), retiro("oficina", oficina.latitude, oficina.longitude), retiro("otra", -40.13, -71.30)]
+        .map((r) => ({ ...r, assignmentId: r.code === "otra" ? "b" : "a", flight: vuelo({ vehicles }) }));
+      const ordenes = buildServiceOrderBlocks(reservas, { oficina });
+      expect(ordenes.map((o) => o.passengers.map((p) => p.code))).toEqual([["oficina", "este"], ["otra"]]);
+    });
+  });
+
   it.each([
     [null, "[ ] Efectivo\n[ ] Transferencia"],
     ["Efectivo", "[x] Efectivo\n[ ] Transferencia"],
@@ -530,4 +566,26 @@ describe("orden de servicio del aeropuerto", () => {
       expect(textos).toContain("INICIO DE RECORRIDA 12:45");
     });
   });
+});
+
+it("inicia en Paihuén 15 minutos antes del horario coordinado, incluso con otra parada fijada", () => {
+  const flight = vuelo({ pickupStartOverrideAt: new Date("2026-11-12T15:00:00Z") });
+  const [block] = buildServiceOrderBlocks([
+    reserva({ flight, code: "oficina", routePosition: 0 }),
+    reserva({ flight, code: "hotel", pickupName: null, pickupAddress: "Paihuen, Ruta Nac. 40 Ex. 234 km 78" })
+  ]);
+  expect(block.passengers.map(p => p.code)).toEqual(["hotel", "oficina"]);
+  expect(block.operationAt.toISOString()).toBe("2026-11-12T14:45:00.000Z");
+});
+
+it("deja a todos los pasajeros de Paihuén al final al llegar del aeropuerto", () => {
+  const flight = vuelo({ direction: "ARRIVAL" });
+  const [block] = buildServiceOrderBlocks([
+    reserva({ flight, code: "hotel1", pickupName: "Paihuén", routePosition: 0 }),
+    reserva({ flight, code: "centro", routePosition: 1 }),
+    reserva({ flight, code: "hotel2", pickupName: "Paihuen Resort de Montaña" }),
+    reserva({ flight, code: "barrio" })
+  ]);
+  expect(block.passengers.map(p => p.code)).toEqual(["centro", "barrio", "hotel1", "hotel2"]);
+  expect(block.operationAt).toEqual(flight.scheduledAt);
 });

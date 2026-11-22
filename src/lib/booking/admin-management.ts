@@ -1,3 +1,4 @@
+import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { MAX_SPORTS_LUGGAGE } from "@/lib/airport/extras";
 import { z } from "zod";
@@ -10,7 +11,7 @@ import { canCorrectManualPayment, canEditReservationTotal, canRegisterManualPaym
 import { BookingError, firstAvailableSeat } from "./repository";
 import { extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
 import { MAX_PASSENGERS, errorDeMenores, tarifaPorPersona, totalAlEditar } from "./reservation-edit";
-import { getStopFares } from "./stop-fares";
+import { segmentPrice } from "./segment-fares";
 import { lugarEnChapelco, lugarEnSalida, lugarEnVuelo } from "./service-capacity";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
@@ -81,6 +82,7 @@ export const reservationManagementSchema = z.discriminatedUnion("operation", [
     halfFareCount: z.coerce.number().int().min(0, "Cantidad inválida.").max(MAX_PASSENGERS).optional(),
     freeFareCount: z.coerce.number().int().min(0, "Cantidad inválida.").max(MAX_PASSENGERS).optional(),
     /** Parada donde baja en una ruta con paradas intermedias. Vacío = baja en el destino final. */
+    boardingStop: z.string().trim().max(160).optional(),
     dropoffStop: z.string().trim().max(160).optional(),
     /** Nombre del lugar del traslado (hotel, cabaña) que sale en la orden del chofer. Vacío lo borra. */
     pickupName: z.string().trim().max(120).optional(),
@@ -311,7 +313,7 @@ export async function manageReservation(code: string, command: ReservationOperat
           }
 
           if (command.operation !== "edit") break;
-          const { pickup, notes, passenger, referredBy, passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName, move } = command;
+          const { pickup, notes, passenger, referredBy, passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, boardingStop, dropoffStop, pickupName, move } = command;
           const mediasAhora = reservation.halfFareCount ?? 0;
           const sinCargoAhora = reservation.freeFareCount ?? 0;
 
@@ -324,17 +326,19 @@ export async function manageReservation(code: string, command: ReservationOperat
           const cambiaMenores = (halfFareCount !== undefined && halfFareCount !== mediasAhora)
             || (freeFareCount !== undefined && freeFareCount !== sinCargoAhora);
           const bajadaNueva = dropoffStop === undefined ? undefined : dropoffStop || null;
+          const subidaNueva = boardingStop === undefined ? undefined : boardingStop || null;
+          const cambiaSubida = subidaNueva !== undefined && subidaNueva !== (reservation.boardingStop ?? null);
           const cambiaBajada = bajadaNueva !== undefined && bajadaNueva !== (reservation.dropoffStop ?? null);
           if (move && move.mode !== reservation.bookingMode) {
             throw new BookingError("RESERVATION_LOCKED", "La reserva sólo se puede pasar a otro servicio del mismo tipo.");
           }
-          if ((cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || move) && status === "CANCELLED") {
+          if ((cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || move) && status === "CANCELLED") {
             throw new BookingError("RESERVATION_LOCKED", "La reserva está cancelada.");
           }
           if (sportsLuggageCount !== undefined && reservation.bookingMode !== "AIRPORT") {
             throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene adicionales del aeropuerto.");
           }
-          if (cambiaBajada && reservation.bookingMode !== "SEATED") {
+          if ((cambiaSubida || cambiaBajada) && reservation.bookingMode !== "SEATED") {
             throw new BookingError("RESERVATION_LOCKED", "Esta reserva no tiene paradas intermedias.");
           }
           const pasajerosFinal = passengerCount ?? reservation.passengerCount;
@@ -527,8 +531,8 @@ export async function manageReservation(code: string, command: ReservationOperat
 
           // Ruta con paradas: la bajada tiene que ser una de las paradas con tarifa de la ruta, y
           // cambia la tarifa por persona igual que en el alta.
-          const selectRuta = { priceCents: true, from: true, to: true, stops: true } as const;
-          const rutaDeLaReserva = reservation.routeId && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || pickup?.point || movida)
+          const selectRuta = { priceCents: true, from: true, to: true, stops: true, bookingMode: true, currency: true } as const;
+          const rutaDeLaReserva = reservation.routeId && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || pickup || pickupName !== undefined || movida)
             ? await tx.travelRoute.findUnique({ where: { id: reservation.routeId }, select: selectRuta })
             : null;
           // Si el cambio de servicio pasó la reserva a otra ruta (otra salida, otro sentido del
@@ -536,15 +540,27 @@ export async function manageReservation(code: string, command: ReservationOperat
           const rutaFinal = rutaNuevaId && rutaNuevaId !== reservation.routeId
             ? await tx.travelRoute.findUnique({ where: { id: rutaNuevaId }, select: selectRuta })
             : rutaDeLaReserva;
-          const esParadaDe = (nombre: string | null) => Boolean(nombre && rutaFinal && getStopFares(rutaFinal).some((fare) => fare.name === nombre));
+          let subidaFinal = subidaNueva === undefined ? reservation.boardingStop ?? null : subidaNueva;
           let bajadaFinal = bajadaNueva === undefined ? reservation.dropoffStop ?? null : bajadaNueva;
-          if (cambiaBajada && bajadaNueva && !esParadaDe(bajadaNueva)) {
-            throw new BookingError("STOP_NOT_AVAILABLE", "Esa parada no está entre las paradas con tarifa de la ruta.");
+          if (!rutaFinal && (cambiaSubida || cambiaBajada)) {
+            throw new BookingError("STOP_NOT_AVAILABLE", "No se pudo verificar el tramo de la reserva.");
           }
-          // En otra ruta, una parada que no existe ahí vuelve al destino final.
-          if (bajadaFinal && rutaFinal !== rutaDeLaReserva && !esParadaDe(bajadaFinal)) bajadaFinal = null;
-          if (bajadaFinal !== (reservation.dropoffStop ?? null)) {
-            await tx.reservation.update({ where: { id }, data: { dropoffStop: bajadaFinal } });
+          if (rutaFinal && segmentPrice(rutaFinal, subidaFinal, bajadaFinal) === undefined) {
+            if (cambiaSubida || cambiaBajada) {
+              throw new BookingError("STOP_NOT_AVAILABLE", "Las paradas elegidas no tienen tarifa en ese sentido.");
+            }
+            if (rutaFinal !== rutaDeLaReserva) {
+              subidaFinal = null;
+              bajadaFinal = null;
+            }
+          }
+          const cambiaOrigen = subidaFinal !== (reservation.boardingStop ?? null);
+          const cambiaDestino = bajadaFinal !== (reservation.dropoffStop ?? null);
+          if (cambiaOrigen || cambiaDestino) {
+            await tx.reservation.update({ where: { id }, data: {
+              ...(cambiaOrigen && { boardingStop: subidaFinal }),
+              ...(cambiaDestino && { dropoffStop: bajadaFinal })
+            } });
           }
 
           // Recargo por zona: si el punto del traslado se mueve, se cobra o se descuenta igual que
@@ -556,6 +572,17 @@ export async function manageReservation(code: string, command: ReservationOperat
             if (!cobraZona) zonaFinal = 0;
             else if (zonaAhora === 0) zonaFinal = (await getAirportExtras(tx)).zoneExtraCents ?? 0;
           }
+          const detalle = reservation.airportDetails;
+          const unidadActual = detalle?.paihuenUnitCents ?? 0;
+          let unidadFinal = unidadActual;
+          if (detalle && reservation.currency === "ARS" && (pickup || pickupName !== undefined)) {
+            const punto = pickup ? pickup.point : detalle.pickupLatitude != null && detalle.pickupLongitude != null
+              ? [detalle.pickupLatitude, detalle.pickupLongitude] as [number, number] : null;
+            const nombre = pickupName ?? (pickup && !pickup.point ? null : detalle.pickupName);
+            unidadFinal = isPaihuen(nombre, pickup ? pickup.address : detalle.pickupAddress, punto) ? PAIHUEN_UNIT_CENTS : 0;
+          }
+          const cambiaPaihuen = unidadFinal !== unidadActual;
+          if (cambiaPaihuen) await tx.airportReservationDetails.update({ where: { reservationId: id }, data: { paihuenUnitCents: unidadFinal } });
           const cambiaZona = zonaFinal !== zonaAhora;
           if (cambiaZona) {
             await tx.airportReservationDetails.update({ where: { reservationId: id }, data: { zoneExtraCents: zonaFinal } });
@@ -567,13 +594,14 @@ export async function manageReservation(code: string, command: ReservationOperat
           const precioEscrito = financial !== undefined && (
             financial.operation === "price" || (financial.operation === "correctPayment" && financial.totalCents !== undefined)
           );
-          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaBajada || cambiaZona || movida) && rutaDeLaReserva && rutaFinal) {
+          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || cambiaZona || cambiaPaihuen || movida) && rutaDeLaReserva && rutaFinal) {
             const total = totalAlEditar({
               basis: {
-                priceCents: tarifaPorPersona(rutaDeLaReserva, reservation.dropoffStop),
+                priceCents: tarifaPorPersona(rutaDeLaReserva, reservation.dropoffStop, reservation.boardingStop),
                 passengerCount: reservation.passengerCount,
                 halfFareCount: mediasAhora,
                 freeFareCount: sinCargoAhora,
+                paihuenUnitCents: unidadActual,
                 zoneExtraCents: zonaAhora,
                 sportsLuggageCount: reservation.airportDetails?.sportsLuggageCount ?? 0,
                 sportsLuggageUnitCents: reservation.airportDetails?.sportsLuggageUnitCents ?? 0
@@ -583,8 +611,9 @@ export async function manageReservation(code: string, command: ReservationOperat
               sportsLuggageCount,
               halfFareCount: mediasFinal,
               freeFareCount: sinCargoFinal,
+              paihuenUnitCents: unidadFinal,
               zoneExtraCents: zonaFinal,
-              priceCents: tarifaPorPersona(rutaFinal, bajadaFinal)
+              priceCents: tarifaPorPersona(rutaFinal, bajadaFinal, subidaFinal)
             });
             if (total.seRecalcula && total.totalCents !== reservation.totalCents) {
               // Con un comprobante por revisar no se mueve la plata: es la misma guarda que ya

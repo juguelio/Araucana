@@ -7,6 +7,7 @@ import type { ChapelcoAvailabilityDto } from "@/lib/chapelco/types";
 import { chapelcoAscentSlots, type ChapelcoAscentSlot } from "@/lib/chapelco/constants";
 import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { PhoneCountryPicker } from "@/components/phone-country-picker";
 import { createChapelcoReservationAction } from "./chapelco-actions";
 import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
 
@@ -60,14 +61,7 @@ const initialPassenger: PassengerForm = {
   nationality: ""
 };
 
-const countryDialCodes = [
-  { value: "+54", label: "Argentina +54" },
-  { value: "+56", label: "Chile +56" },
-  { value: "+55", label: "Brasil +55" },
-  { value: "+598", label: "Uruguay +598" },
-  { value: "+1", label: "EE.UU./Canada +1" },
-  { value: "+34", label: "Espana +34" }
-];
+// Misma lista (todos los países) que el resto de los formularios de reserva.
 
 function todayInputValue() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -338,18 +332,8 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
               {fieldError(fieldErrors, "email")}
             </label>
             <div className="phone-field-row">
-              <label>
-                Codigo
-                <select value={passenger.phoneCountryCode} onChange={(event) => updatePassenger("phoneCountryCode", event.target.value)}>
-                  <option value="">Seleccionar</option>
-                  {countryDialCodes.map((country) => (
-                    <option value={country.value} key={country.value}>
-                      {country.label}
-                    </option>
-                  ))}
-                </select>
-                {fieldError(fieldErrors, "phoneCountryCode")}
-              </label>
+              <PhoneCountryPicker value={passenger.phoneCountryCode} onChange={(value) => updatePassenger("phoneCountryCode", value)}
+                disabled={isSubmitting} error={fieldErrors.phoneCountryCode} />
               <label>
                 Telefono
                 <input type="tel" autoComplete="tel-national" value={passenger.phone} onChange={(event) => updatePassenger("phone", event.target.value)} disabled={isSubmitting} />

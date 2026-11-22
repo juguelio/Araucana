@@ -33,16 +33,23 @@ export async function uploadReceiptFromAdminAction(_previous: AdminReceiptState,
     if (reservation.payment?.provider === DISABILITY_DOCUMENT_PROVIDER && !isAdminRole(user.role)) {
       return { ok: false, message: "La documentación de la tarifa sin cargo la carga administración." };
     }
-    await uploadReservationReceipt(code, receipt);
+    // Con la sesión del panel queda en la auditoría quién subió el archivo, aunque el pago ya esté aprobado.
+    const actualizada = await uploadReservationReceipt(code, receipt, undefined, user);
+    const pagoYaRegistrado = actualizada?.payment?.status === "APPROVED";
+
+    for (const path of ["/admin", "/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`]) {
+      revalidatePath(path);
+    }
+    return {
+      ok: true,
+      message: pagoYaRegistrado
+        ? "Comprobante adjuntado al pago registrado."
+        : "Comprobante cargado. Ya se puede validar el pago."
+    };
   } catch (error) {
     if (error instanceof ApiError || error instanceof AuthorizationError || error instanceof BookingError) {
       return { ok: false, message: error.message };
     }
     return { ok: false, message: "No pudimos subir el comprobante. Intentalo de nuevo." };
   }
-
-  for (const path of ["/admin", "/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`]) {
-    revalidatePath(path);
-  }
-  return { ok: true, message: "Comprobante cargado. Ya se puede validar el pago." };
 }

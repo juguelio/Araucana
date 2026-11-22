@@ -160,9 +160,21 @@ export async function savePublicSchedule(tx: Prisma.TransactionClient, data: Sch
     : [];
   const vehicleIds = [...new Set([data.vehicleId, ...extras])];
   await lockFleet(tx, vehicleIds);
-  const conflicts = data.status === "CLOSED" ? [] : (await Promise.all(vehicleIds.map((vehicleId) => specialConflicts(tx, {
-    vehicleId, startsAt: data.departureAt, endsAt: data.arrivalAt
-  })))).flat();
+  /**
+   * Antes acá sólo se miraban los viajes especiales: desde el calendario de salidas se podía asignar la
+   * misma nave a dos servicios públicos a la misma hora y nadie avisaba (pasó con «Araucana 24», que
+   * quedó en cuatro salidas del 21/11, dos de ellas a las 13:00). `fleetConflicts` es la misma función
+   * que usa el tablero del día; acá se toman sólo los choques duros —otra salida o un viaje especial— y
+   * se dejan afuera aeropuerto y Chapelco, que se cuentan por día y piden confirmación, no bloqueo.
+   */
+  const conflicts = data.status === "CLOSED" || statusOnly
+    ? []
+    : (await Promise.all(vehicleIds.map((vehicleId) => fleetConflicts(
+        tx,
+        { vehicleId, startsAt: data.departureAt, endsAt: data.arrivalAt },
+        undefined,
+        id
+      )))).flat().filter((conflict) => !conflict.possible);
   const confirmation = conflictKey(conflicts, [id, data]);
   if (conflicts.length && acknowledgment !== confirmation) return { conflicts, confirmation };
   const saved = id

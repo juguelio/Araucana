@@ -1,7 +1,6 @@
 import { AuthorizationError, requireReservationsUser } from "@/lib/auth/service";
-import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
+import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
 import {
-  buildServiceOrderBlocks,
   buildServiceOrderWorkbook,
   filtrarPorNave,
   naveDeLaOrden,
@@ -53,8 +52,8 @@ export async function GET(request: Request) {
   }
 
   const generatedAt = new Date();
-  const reservas = await getAirportServiceOrderReservations(date, flightId);
-  const blocks = filtrarPorNave(ordenesDelVuelo(buildServiceOrderBlocks(reservas), flightId), vehicle);
+  const { blocks: ordenesDelDia } = await getAirportServiceOrder(date, flightId);
+  const blocks = filtrarPorNave(ordenesDelVuelo(ordenesDelDia, flightId), vehicle);
   const workbook = await buildServiceOrderWorkbook({ date, generatedAt }, blocks);
   const nave = vehicle && blocks[0] ? naveDeLaOrden(blocks[0]) : null;
   const referencia = flightId ? [blocks[0]?.flightNumber ?? flightId, nave].filter(Boolean).join(" ") : null;

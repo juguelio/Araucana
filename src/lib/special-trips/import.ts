@@ -8,7 +8,7 @@ type Sheet = typeof sourceSheets[number];
 export type SourceRow = { sheet: Sheet; row: number; original: string[] };
 export type ImportSource = SourceRow & { id: string; issues: string[] };
 export type ImportTrip = {
-  client: string; serviceDate: Date; status: string; contact: string | null; passengers: number | null;
+  client: string; serviceDate: Date; endDate: Date | null; status: string; contact: string | null; passengers: number | null;
   legs: Leg[]; notes: string | null; currency: string; totalCents: number | null; billingMode: string;
   payments: PaymentInput[]; supplier: string | null; invoice: string | null; invoiceDate: Date | null;
   paymentStatus: string | null; sources: ImportSource[];
@@ -142,13 +142,15 @@ export function previewHistory(rows: SourceRow[], today: string) {
     if (group && previous) {
       previous.legs.push({ ...leg, included: true });
       previous.sources.push(source);
+      // Un regreso días después es el mismo viaje de varios días: la vuelta queda en ese día.
+      if (+date > +(previous.endDate ?? previous.serviceDate)) previous.endDate = date;
       continue;
     }
     if (!district && !included && !price.cents && /^(?:regreso|vuelta)\b/i.test(description)) source.issues.push("Regreso sin una ida identificada con certeza.");
     const invoiceDate = district ? sheetDate(balance) : null;
     if (district && balance && !invoiceDate) source.issues.push("Fecha de factura sin interpretar.");
     previous = {
-      client: client || "Cliente sin identificar", serviceDate: date, status: day < today ? "COMPLETED" : "PENDING",
+      client: client || "Cliente sin identificar", serviceDate: date, endDate: null, status: day < today ? "COMPLETED" : "PENDING",
       contact: !district ? contact || null : null, passengers, legs: [leg],
       notes: !district ? notes || null : null, currency,
       totalCents: price.cents, billingMode: account ? "ACCOUNT" : price.cents !== null ? "FIXED" : included ? "INCLUDED" : "UNKNOWN",

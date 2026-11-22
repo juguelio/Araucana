@@ -21,7 +21,7 @@ import { reservationRowClassName } from "./row-style";
 import { RegistrarPagoForm as FormularioDeCobro } from "./[code]/registrar-pago-form";
 import { RowModal } from "./row-modal";
 import { MenuFila } from "@/components/admin-list/menu-fila";
-import { estadoDeFila, type EstadoDeFila } from "./estado-fila";
+import { estadoDeFila, etiquetaDeAccion, type EstadoDeFila } from "./estado-fila";
 import { ComprobanteViewer, fechaDeSubida } from "./comprobante-viewer";
 import { ReceiptUploadForm } from "./receipt-upload-form";
 import "@/components/admin-list/pagination.css";
@@ -199,6 +199,11 @@ function CancelarForm({ reservation, listQuery }: { reservation: AdminReservatio
  */
 function EstadoYPagoModal({ reservation, estado, listQuery }: { reservation: AdminReservationRowDto; estado: EstadoDeFila; listQuery: string }) {
   const detailPath = `/admin/reservas/${reservation.code}`;
+  const muestraPagoAprobado = estado.pagada && !estado.cancelada && estado.canViewReceipt;
+  const tieneComprobanteAprobado = muestraPagoAprobado && reservation.hasReceipt;
+  const modalClassName = tieneComprobanteAprobado
+    ? "reservas-modal-pago-aprobado"
+    : estado.validaPagoManual ? "reservas-modal-comprobante" : undefined;
   return (
     <RowModal
       triggerLabel={`${estado.etiqueta}. Ver estado y pago`}
@@ -206,35 +211,45 @@ function EstadoYPagoModal({ reservation, estado, listQuery }: { reservation: Adm
       eyebrow="Estado y pago"
       title={estado.disabilityFare ? `${estado.etiqueta}` : `${estado.etiqueta} · ${formatTotal(reservation)}`}
       subtitle={`${reservation.passenger} · ${formatShortCode(reservation.shortCode)} · cargada por ${reservation.creatorLabel}`}
-      modalClassName={estado.validaPagoManual ? "reservas-modal-comprobante" : undefined}
+      modalClassName={modalClassName}
     >
-      {estado.validaPagoManual ? <ValidarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
-      {estado.revisaDocumentacion ? <RevisarDocumentacionForm reservation={reservation} listQuery={listQuery} /> : null}
-      {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}
-      {estado.puedeRegistrarPago && !estado.validaPagoManual ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
-      {reservation.status === "PENDING_PAYMENT" && !estado.disabilityFare ? (
-        <form className="reservas-modal-form" action={manageReservationAction}>
-          <Ocultos code={reservation.code} listQuery={listQuery} />
-          <input type="hidden" name="operation" value="confirm" />
-          <button className="button" type="submit" disabled={!estado.pagada && reservation.totalCents > 0}>Confirmar reserva</button>
-          {!estado.pagada && reservation.totalCents > 0 ? <small className="muted">Se confirma cuando el pago está registrado o validado.</small> : null}
-        </form>
+      {tieneComprobanteAprobado ? (
+        <ComprobanteViewer href={`${detailPath}/comprobante`} fileName={reservation.receiptFileName} subido={fechaDeSubida(reservation.receiptUploadedAt)} />
       ) : null}
-      {!estado.validaPagoManual && !estado.revisaDocumentacion && !estado.puedeRegistrarPago && reservation.status !== "PENDING_PAYMENT" ? (
-        <p className="muted">
-          {estado.pagada ? "El pago está aprobado. Para corregir la forma de pago o el precio, editá la reserva." : "No hay acciones de pago disponibles para esta reserva."}
-        </p>
-      ) : null}
-      {!estado.cancelada ? (
-        <CancelarForm reservation={reservation} listQuery={listQuery} />
-      ) : (
-        <form className="reservas-modal-form" action={manageReservationAction}>
-          <Ocultos code={reservation.code} listQuery={listQuery} />
-          <input type="hidden" name="operation" value="restore" />
-          <button className="button" type="submit">Restituir reserva</button>
-        </form>
-      )}
-      <Link className="ghost-button" href={`${detailPath}/editar`}>Editar reserva</Link>
+      <div className="reservas-modal-acciones-estado">
+        {muestraPagoAprobado && !tieneComprobanteAprobado ? <p className="muted">Este pago no tiene un comprobante adjunto.</p> : null}
+        {estado.validaPagoManual ? <ValidarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
+        {estado.revisaDocumentacion ? <RevisarDocumentacionForm reservation={reservation} listQuery={listQuery} /> : null}
+        {/* Con comprobante subido la acción es validarlo: «Registrar pago» ahí confunde. */}
+        {estado.puedeRegistrarPago && !estado.validaPagoManual ? <RegistrarPagoForm reservation={reservation} listQuery={listQuery} /> : null}
+        {reservation.status === "PENDING_PAYMENT" && !estado.disabilityFare ? (
+          <form className="reservas-modal-form" action={manageReservationAction}>
+            <Ocultos code={reservation.code} listQuery={listQuery} />
+            <input type="hidden" name="operation" value="confirm" />
+            <button className="button" type="submit" disabled={!estado.pagada && reservation.totalCents > 0}>Confirmar reserva</button>
+            {estado.pagada ? (
+              <small className="muted">El pago ya está registrado: este paso confirma la reserva y habilita el voucher para enviarle al pasajero.</small>
+            ) : reservation.totalCents > 0 ? (
+              <small className="muted">Se confirma cuando el pago está registrado o validado.</small>
+            ) : null}
+          </form>
+        ) : null}
+        {!estado.validaPagoManual && !estado.revisaDocumentacion && !estado.puedeRegistrarPago && reservation.status !== "PENDING_PAYMENT" ? (
+          <p className="muted">
+            {estado.pagada ? "El pago está aprobado. Para corregir la forma de pago o el precio, editá la reserva." : "No hay acciones de pago disponibles para esta reserva."}
+          </p>
+        ) : null}
+        {!estado.cancelada ? (
+          <CancelarForm reservation={reservation} listQuery={listQuery} />
+        ) : (
+          <form className="reservas-modal-form" action={manageReservationAction}>
+            <Ocultos code={reservation.code} listQuery={listQuery} />
+            <input type="hidden" name="operation" value="restore" />
+            <button className="button" type="submit">Restituir reserva</button>
+          </form>
+        )}
+        <Link className="ghost-button" href={`${detailPath}/editar`}>Editar reserva</Link>
+      </div>
     </RowModal>
   );
 }
@@ -264,6 +279,7 @@ function FilaDeReserva({
   const companero = reservation.roundTripPartner;
   const conComprobante = estado.puedeSubirComprobante || (reservation.hasReceipt && estado.canViewReceipt);
   const pideAtencion = estado.accion === "validar-pago" || estado.accion === "aprobar-documentacion";
+  const accion = etiquetaDeAccion(estado.accion);
 
   return (
     <li className={`reservas-fila ${reservationRowClassName(reservation.status) ?? ""}`} data-atencion={pideAtencion || undefined}>
@@ -295,22 +311,22 @@ function FilaDeReserva({
       </div>
       <div className="reservas-fila-accion">
         {estado.accion === "validar-pago" ? (
-          <RowModal triggerLabel="Validar pago" triggerClassName="button table-action" trigger="Validar pago" eyebrow="Comprobante de pago" title={formatTotal(reservation)} subtitle={subtitulo} modalClassName="reservas-modal-comprobante">
+          <RowModal triggerLabel="Validar pago" triggerClassName="button table-action" trigger={accion} eyebrow="Comprobante de pago" title={formatTotal(reservation)} subtitle={subtitulo} modalClassName="reservas-modal-comprobante">
             <ValidarPagoForm reservation={reservation} listQuery={listQuery} />
           </RowModal>
         ) : estado.accion === "aprobar-documentacion" ? (
-          <RowModal triggerLabel="Revisar documentación" triggerClassName="button table-action" trigger="Revisar docs" eyebrow="Documentación" title="Tarifa sin cargo" subtitle={subtitulo}>
+          <RowModal triggerLabel="Revisar documentación" triggerClassName="button table-action" trigger={accion} eyebrow="Documentación" title="Tarifa sin cargo" subtitle={subtitulo}>
             <RevisarDocumentacionForm reservation={reservation} listQuery={listQuery} />
           </RowModal>
         ) : estado.accion === "registrar-pago" ? (
-          <RowModal triggerLabel="Registrar pago" triggerClassName="button table-action" trigger="Registrar pago" eyebrow="Registrar pago" title={formatTotal(reservation)} subtitle={subtitulo}>
+          <RowModal triggerLabel="Registrar pago" triggerClassName="button table-action" trigger={accion} eyebrow="Registrar pago" title={formatTotal(reservation)} subtitle={subtitulo}>
             <RegistrarPagoForm reservation={reservation} listQuery={listQuery} />
           </RowModal>
         ) : estado.accion === "confirmar" ? (
           <form action={manageReservationAction}>
             <Ocultos code={reservation.code} listQuery={listQuery} />
             <input type="hidden" name="operation" value="confirm" />
-            <button className="button table-action" type="submit">Confirmar</button>
+            <button className="button table-action" type="submit" title="El pago ya está registrado: confirma la reserva y habilita el voucher.">{accion}</button>
           </form>
         ) : estado.accion === "whatsapp" && whatsappUrl ? (
           <a
@@ -424,7 +440,7 @@ export async function ReservationWorkspace({ params, role, panel = false, servic
 
   const pestanas: Array<{ id: Pestana; etiqueta: string; cuenta: number | null; alerta?: boolean }> = [
     { id: "pending-payment", etiqueta: "Por cobrar", cuenta: porCobrar },
-    { id: "receipt-pending", etiqueta: "Comprobantes", cuenta: comprobantes, alerta: comprobantes > 0 },
+    { id: "receipt-pending", etiqueta: "Por validar", cuenta: comprobantes, alerta: comprobantes > 0 },
     ...(esAdmin && (documentacion > 0 || pestana === "documentation-pending")
       ? [{ id: "documentation-pending" as Pestana, etiqueta: "Documentación", cuenta: documentacion, alerta: documentacion > 0 }]
       : []),

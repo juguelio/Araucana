@@ -1,3 +1,4 @@
+import { isPaihuen, paihuenPickupTime, PAIHUEN_POINT } from "./paihuen";
 /**
  * Orden de servicio del aeropuerto: la hoja que se le entrega al chofer.
  *
@@ -21,7 +22,7 @@ import ExcelJS from "exceljs";
 import { airportPickupStart } from "./pickup-start";
 import { horaEfectivaDelVuelo } from "./effective-time";
 import { repartirPorZonas } from "./fleet-split";
-import { ordenarPorRecorrido, whatsappLink } from "./route-order";
+import { AEROPUERTO_CHAPELCO, optimizarEntreExtremos, ordenarPorRecorrido, whatsappLink, type PickupCoords } from "./route-order";
 import { ORDER_LOGO_PNG_BASE64 } from "./service-order-logo";
 
 export type ServiceOrderDirection = "ARRIVAL" | "DEPARTURE";
@@ -319,6 +320,10 @@ function unirVuelosCoordinados(grupos: Map<string, GrupoDeVuelo>) {
 }
 
 const lugaresDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.seats, 0);
+export function retiroPaihuen(p: ServiceOrderPassenger) {
+  return isPaihuen(p.lodging, p.lodgingDetail, p.pickup ? [p.pickup.latitude, p.pickup.longitude] : null);
+}
+
 const totalDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total, p) => total + p.amountCents, 0);
 
 /**
@@ -326,19 +331,37 @@ const totalDe = (pasajeros: ServiceOrderPassenger[]) => pasajeros.reduce((total,
  * el resto en el orden sugerido (`ordenarPorRecorrido`). Así una reserva nueva cae al final de lo que ya
  * se acomodó, en vez de desarmarlo.
  *
- * El sugerido se arma desde el aeropuerto encadenando el retiro más cercano. En un arribo es el orden en
- * que se deja a la gente: sale del aeropuerto. En una partida es al revés (pedido del cliente, 19/11): la
- * camioneta junta a la gente y termina en el aeropuerto, así que el primer retiro es el más lejano y el
- * último el más cercano al aeropuerto. Los pasajeros sin ubicación en el mapa van al final en los dos casos.
+ * En las partidas se minimiza el camino oficina → retiros → aeropuerto. Si ya hay un orden manual,
+ * se conserva y se optimiza sólo lo nuevo desde el último punto fijado. Sin oficina configurada se
+ * mantiene el sugerido anterior (cercanía desde el aeropuerto, invertido). Los no ubicados van al final.
  */
-export function ordenDeLaRecorrida(pasajeros: ServiceOrderPassenger[], direction: ServiceOrderDirection = "ARRIVAL") {
+export function ordenDeLaRecorrida(
+  pasajeros: ServiceOrderPassenger[],
+  direction: ServiceOrderDirection = "ARRIVAL",
+  oficina: PickupCoords | null = null
+): ServiceOrderPassenger[] {
+  const paihuen = pasajeros.filter(retiroPaihuen);
+  const resto = paihuen.length ? pasajeros.filter(p => !retiroPaihuen(p)) : pasajeros;
+  if (direction === "DEPARTURE" && paihuen.length) {
+    const origen = paihuen[0].pickup ?? { latitude: PAIHUEN_POINT[0], longitude: PAIHUEN_POINT[1] };
+    return [...paihuen, ...ordenarResto(resto, direction, origen)];
+  }
+  return [...ordenarResto(resto, direction, oficina), ...paihuen];
+}
+
+function ordenarResto(pasajeros: ServiceOrderPassenger[], direction: ServiceOrderDirection, oficina: PickupCoords | null) {
   const fijados = pasajeros
     .map((pasajero, indice) => ({ pasajero, indice }))
     .filter(({ pasajero }) => pasajero.routePosition !== null)
     .sort((a, b) => (a.pasajero.routePosition as number) - (b.pasajero.routePosition as number) || a.indice - b.indice)
     .map(({ pasajero }) => pasajero);
+  const pendientes = pasajeros.filter((pasajero) => pasajero.routePosition === null);
+  if (direction === "DEPARTURE" && oficina) {
+    const origen = [...fijados].reverse().find((pasajero) => pasajero.pickup)?.pickup ?? oficina;
+    return [...fijados, ...optimizarEntreExtremos(pendientes, (pasajero) => pasajero.pickup, origen, AEROPUERTO_CHAPELCO)];
+  }
   const sugeridos = ordenarPorRecorrido(
-    pasajeros.filter((pasajero) => pasajero.routePosition === null),
+    pendientes,
     (pasajero) => pasajero.pickup
   );
   if (direction !== "DEPARTURE") return [...fijados, ...sugeridos];
@@ -411,7 +434,7 @@ export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: Servi
  */
 export function buildServiceOrderBlocks(
   reservations: ServiceOrderReservationInput[],
-  { incluirVacias = false }: { incluirVacias?: boolean } = {}
+  { incluirVacias = false, oficina = null }: { incluirVacias?: boolean; oficina?: PickupCoords | null } = {}
 ): ServiceOrderBlock[] {
   const grupos = new Map<string, GrupoDeVuelo>();
 
@@ -489,13 +512,14 @@ export function buildServiceOrderBlocks(
 
   const ordenes: ServiceOrderBlock[] = [];
   for (const { flightKey, vehicles, pickupGroupId: _grupo, ...grupo } of grupos.values()) {
-    // La recorrida encadena el retiro más cercano al aeropuerto (al revés en las partidas, que terminan
-    // ahí), salvo lo que el operador ya ordenó a mano. Los que no tienen ubicación en el mapa van al final.
-    const recorrida = ordenDeLaRecorrida(grupo.passengers, grupo.direction);
+    // La recorrida usa los extremos del traslado y respeta el orden manual. Los que no tienen
+    // ubicación en el mapa van al final, sin inventar un punto para ellos.
+    const recorrida = ordenDeLaRecorrida(grupo.passengers, grupo.direction, oficina);
     const orden = (vehicle: ServiceOrderVehicle | null, passengers: ServiceOrderPassenger[]): ServiceOrderBlock => ({
       ...grupo,
       key: `${flightKey}:${vehicle?.assignmentId ?? SIN_NAVE}`,
       vehicle,
+      operationAt: paihuenPickupTime(grupo.operationAt, grupo.direction === "DEPARTURE" && passengers.some(retiroPaihuen)),
       passengers,
       totalCents: totalDe(passengers),
       manualOrder: passengers.some((pasajero) => pasajero.routePosition !== null)
@@ -509,10 +533,10 @@ export function buildServiceOrderBlocks(
     // Cada nave hace su propia recorrida: el reparto es por zona y después se ordena la de cada una.
     const { porNave, sinNave } = repartirEnNaves(recorrida, vehicles);
     for (const nave of vehicles) {
-      const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? [], grupo.direction);
+      const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? [], grupo.direction, oficina);
       if (pasajeros.length || incluirVacias) ordenes.push(orden(nave, pasajeros));
     }
-    if (sinNave.length) ordenes.push(orden(null, ordenDeLaRecorrida(sinNave, grupo.direction)));
+    if (sinNave.length) ordenes.push(orden(null, ordenDeLaRecorrida(sinNave, grupo.direction, oficina)));
   }
 
   // `sort` es estable: las naves de un mismo vuelo quedan en el orden en que se asignaron.

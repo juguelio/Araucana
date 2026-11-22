@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import "./buscadores-flota.css";
 
 export type NaveElegible = {
   id: string;
   name: string;
   /** Butacas que vende para el aeropuerto (las chicas dejan 4 para el equipaje). */
-  seats: number;
+  seats?: number;
   internalNumber: string | null;
   licensePlate: string | null;
 };
@@ -18,8 +19,9 @@ const normalizar = (texto: string) =>
  * Lista de naves con buscador para el modal de la combi del vuelo: se escribe el nombre, el interno o
  * la patente y se elige con un toque. Va dentro del formulario de asignación (`vehicleId`).
  */
-export function NaveBuscador({ naves, flightNumber }: { naves: NaveElegible[]; flightNumber: string }) {
+export function NaveBuscador({ naves, flightNumber, defaultId = "", optional = false }: { naves: NaveElegible[]; flightNumber: string; defaultId?: string; optional?: boolean }) {
   const [busqueda, setBusqueda] = useState("");
+  const [selected, setSelected] = useState(defaultId);
   const termino = normalizar(busqueda);
   const visibles = termino
     ? naves.filter((nave) => normalizar([nave.name, nave.internalNumber, nave.licensePlate].filter(Boolean).join(" ")).includes(termino))
@@ -27,6 +29,7 @@ export function NaveBuscador({ naves, flightNumber }: { naves: NaveElegible[]; f
 
   return (
     <div className="nave-buscador">
+      {selected && !visibles.some(option => option.id === selected) && <input type="hidden" name="vehicleId" value={selected} />}
       <label className="nave-buscador-campo">
         Buscar nave
         <input
@@ -39,12 +42,16 @@ export function NaveBuscador({ naves, flightNumber }: { naves: NaveElegible[]; f
         />
       </label>
       <div className="nave-buscador-lista" role="radiogroup" aria-label={`Naves para ${flightNumber}`}>
+        {optional && <label className="nave-buscador-opcion">
+          <input type="radio" name="vehicleId" value="" checked={!selected} onChange={() => setSelected("")} />
+          <strong>Sin nave</strong>
+        </label>}
         {visibles.length === 0 ? (
           <p className="muted">Ninguna nave coincide con «{busqueda}».</p>
         ) : (
           visibles.map((nave) => (
             <label key={nave.id} className="nave-buscador-opcion">
-              <input type="radio" name="vehicleId" value={nave.id} required />
+              <input type="radio" name="vehicleId" value={nave.id} checked={selected === nave.id} onChange={() => setSelected(nave.id)} required={!optional && !selected} />
               <span>
                 <strong>{nave.name}</strong>
                 <small className="muted">
@@ -52,7 +59,7 @@ export function NaveBuscador({ naves, flightNumber }: { naves: NaveElegible[]; f
                     nave.internalNumber ? `Int. ${nave.internalNumber}` : null,
                     nave.licensePlate,
                     /* Una unidad sin plano no vende nada: decir «0 lugares» parece un cupo lleno. */
-                    nave.seats > 0 ? `${nave.seats} lugares para aeropuerto` : "sin butacas cargadas"
+                    nave.seats == null ? null : nave.seats > 0 ? `${nave.seats} lugares para aeropuerto` : "sin butacas cargadas"
                   ]
                     .filter(Boolean)
                     .join(" · ")}

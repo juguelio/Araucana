@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estadoDeFila } from "./estado-fila";
+import { estadoDeFila, etiquetaDeAccion } from "./estado-fila";
 
 const base = {
   status: "PENDING_PAYMENT",
@@ -33,6 +33,16 @@ describe("estadoDeFila: una etiqueta y una acción por reserva (listado del 20-n
     expect(estadoDeFila({ ...base, paymentStatus: "APPROVED" }, { esAdmin: false })).toMatchObject({ etiqueta: "Pagada · sin confirmar", accion: "confirmar" });
   });
 
+  it("pagada sin comprobante: la fila ofrece subirlo aunque el pago ya esté registrado", () => {
+    const estado = estadoDeFila({ ...base, paymentStatus: "APPROVED" }, { esAdmin: false });
+    expect(estado).toMatchObject({ etiqueta: "Pagada · sin confirmar", accion: "confirmar", puedeSubirComprobante: true });
+    expect(estadoDeFila({ ...base, status: "CONFIRMED", paymentStatus: "APPROVED" }, { esAdmin: false }).puedeSubirComprobante).toBe(true);
+  });
+
+  it("con el comprobante ya validado no se ofrece reemplazarlo", () => {
+    expect(estadoDeFila({ ...base, status: "CONFIRMED", paymentStatus: "APPROVED", hasReceipt: true }, { esAdmin: false }).puedeSubirComprobante).toBe(false);
+  });
+
   it("confirmada y pagada: la acción es mandar el voucher por WhatsApp", () => {
     expect(estadoDeFila({ ...base, status: "CONFIRMED", paymentStatus: "APPROVED" }, { esAdmin: false })).toMatchObject({
       etiqueta: "Pagada",
@@ -53,5 +63,22 @@ describe("estadoDeFila: una etiqueta y una acción por reserva (listado del 20-n
     const docs = { ...base, status: "DOCUMENTATION_PENDING", paymentProvider: "DISABILITY_DOCUMENT", hasReceipt: true, receiptUploadedAt: new Date() };
     expect(estadoDeFila(docs, { esAdmin: true })).toMatchObject({ etiqueta: "Documentación por revisar", accion: "aprobar-documentacion" });
     expect(estadoDeFila(docs, { esAdmin: false })).toMatchObject({ etiqueta: "Docs pendientes", canViewReceipt: false, puedeSubirComprobante: false });
+  });
+});
+
+describe("etiquetaDeAccion: el botón de la fila dice qué hace", () => {
+  it("«Confirmar» a secas se leía como confirmar el pago: ahora dice «Confirmar reserva»", () => {
+    expect(etiquetaDeAccion("confirmar")).toBe("Confirmar reserva");
+  });
+
+  it("las demás acciones conservan el texto corto de la fila", () => {
+    expect(etiquetaDeAccion("validar-pago")).toBe("Validar pago");
+    expect(etiquetaDeAccion("aprobar-documentacion")).toBe("Revisar docs");
+    expect(etiquetaDeAccion("registrar-pago")).toBe("Registrar pago");
+    expect(etiquetaDeAccion("whatsapp")).toBe("WhatsApp");
+  });
+
+  it("sin acción no hay botón", () => {
+    expect(etiquetaDeAccion(null)).toBeNull();
   });
 });

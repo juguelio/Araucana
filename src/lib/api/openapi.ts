@@ -346,6 +346,8 @@ export function getOpenApiSpec(baseUrl = "https://araucana.app"): OpenApiSpec {
           required: ["scheduleId", "passengerCount", "passenger"],
           properties: {
             scheduleId: { type: "string" },
+            boardingStop: { type: "string" },
+            dropoffStop: { type: "string" },
             passengerCount: { type: "integer", minimum: 1 },
             passenger: { type: "object" }
           }

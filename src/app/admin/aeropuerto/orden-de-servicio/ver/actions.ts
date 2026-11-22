@@ -7,8 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { recordEntityAuditAfterCommit } from "@/lib/audit/entity";
 import { formatAuditDate } from "@/lib/audit/labels";
 import { rangoDelDia } from "@/lib/airport/booking";
-import { getAirportServiceOrderReservations } from "@/lib/airport/service-order-repository";
-import { buildServiceOrderBlocks } from "@/lib/airport/service-order";
+import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
 
 /**
  * Edición de la recorrida desde la orden de servicio: el operador arrastra a los pasajeros para fijar
@@ -52,7 +51,7 @@ async function reservasDelVuelo(date: string, flightIds: string[], codes: string
  * misma camioneta los hace en la misma vuelta (ver `unirVuelosCoordinados`).
  */
 async function vuelosDeLaOrden(date: string, flightId: string) {
-  const blocks = buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true });
+  const { blocks } = await getAirportServiceOrder(date, flightId, { incluirVacias: true });
   return blocks.find((block) => block.flightIds.length > 1 && block.flightIds.includes(flightId))?.flightIds ?? [flightId];
 }
 
@@ -155,7 +154,7 @@ export async function moverANaveAction(input: z.input<typeof moverSchema>): Prom
   if (!parsed.success) return { error: "No se pudo mover al pasajero." };
   const { date, flightId, assignmentId, code } = parsed.data;
 
-  const blocks = buildServiceOrderBlocks(await getAirportServiceOrderReservations(date, flightId), { incluirVacias: true });
+  const { blocks } = await getAirportServiceOrder(date, flightId, { incluirVacias: true });
   const destino = blocks.find((block) => block.vehicle?.assignmentId === assignmentId);
   if (!destino) return { error: "Esa nave ya no está asignada al vuelo. Recargá la orden." };
 

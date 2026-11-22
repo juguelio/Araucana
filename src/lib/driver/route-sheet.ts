@@ -1,3 +1,4 @@
+import { fareStopName } from "@/lib/booking/segment-fares";
 import ExcelJS from "exceljs";
 import {
   documentoDelPasajero,
@@ -30,6 +31,7 @@ export type RouteSheetReservationInput = {
   /** Código del ticket: lo que puede ver el chofer. El `code` de la reserva es el link privado. */
   ticketCode: string | null;
   passengerCount: number;
+  boardingStop?: string | null;
   dropoffStop: string | null;
   referredBy: string | null;
   totalCents: number;
@@ -63,6 +65,7 @@ export type RouteSheetPassenger = {
   document: string;
   /** Parada que tiene cargada la reserva; vacío cuando viaja hasta el final de la ruta. */
   stop: string;
+  segment?: string;
   referredBy: string | null;
   payment: string;
   amountCents: number;
@@ -92,7 +95,7 @@ export function routeSheetRow(passenger: RouteSheetPassenger): string[] {
     passenger.name,
     String(passenger.seats),
     passenger.document,
-    passenger.stop,
+    passenger.segment || passenger.stop,
     passenger.referredBy ?? "",
     passenger.payment,
     passenger.contact
@@ -137,16 +140,16 @@ export function routeSheetOrder(passengers: RouteSheetPassenger[], stops: RouteS
 
   if (conCoordenadas.length >= 2) {
     ordenarPorRecorrido(conCoordenadas, coordenadasDeLaParada).forEach((stop, indice) => {
-      rango.set(stop.name.toLowerCase(), indice);
+      rango.set(fareStopName(stop.name).toLowerCase(), indice);
     });
   } else {
     stops.forEach((stop, indice) => {
-      rango.set(stop.name.toLowerCase(), indice);
+      rango.set(fareStopName(stop.name).toLowerCase(), indice);
     });
   }
 
   const posicion = (passenger: RouteSheetPassenger) =>
-    passenger.stop ? rango.get(passenger.stop.trim().toLowerCase()) ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
+    passenger.stop ? rango.get(fareStopName(passenger.stop.trim()).toLowerCase()) ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
 
   return [...passengers].sort((a, b) => {
     const diferencia = posicion(a) - posicion(b);
@@ -171,6 +174,7 @@ export function buildRouteSheet(input: RouteSheetInput): RouteSheet {
     name: `${reservation.passenger.firstName} ${reservation.passenger.lastName}`.trim(),
     seats: reservation.passengerCount,
     document: documentoDelPasajero(reservation.passenger.documentType, reservation.passenger.documentId),
+    segment: reservation.boardingStop ? `${reservation.boardingStop} → ${reservation.dropoffStop || input.route.to}` : undefined,
     stop: reservation.dropoffStop?.trim() || "",
     referredBy: reservation.referredBy?.trim() ? reservation.referredBy.trim() : null,
     payment: paymentLabel(reservation.paymentStatus, reservation.totalCents, reservation.currency),

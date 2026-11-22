@@ -48,6 +48,7 @@ export const PRIVATE_PREFIXES = [
   "/admin",
   "/api",
   "/login",
+  "/perfil",
   "/app",
   "/chofer",
   "/registro",
