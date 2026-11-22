@@ -8,6 +8,7 @@ import { WebVitals } from "@/components/web-vitals";
 import { currentPath, getI18n } from "@/i18n/server";
 import { LOCALE_TAGS, localizePath, type Locale } from "@/i18n/config";
 import { getAppUserFromToken } from "@/lib/auth/service";
+import { SearchableSelects } from "@/components/searchable-selects";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -77,6 +78,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           </nav>
         </header>
         {children}
+        <SearchableSelects />
         <WebVitals />
       </body>
     </html>
