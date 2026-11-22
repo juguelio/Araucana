@@ -50,6 +50,13 @@
 }
 
 /* Listado de choferes: categoría y vencimiento arriba del estado. */
+.driver-name-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .driver-doc {
   display: flex;
   flex-direction: column;

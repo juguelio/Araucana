@@ -139,7 +139,9 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
         <tbody>
           {pagina.items.map((user) => (
             <tr key={user.id}>
-              <td>{user.name ?? "-"}</td>
+              <td>{esChoferes
+                ? <Link className="driver-name-link" href={`/admin/choferes/${user.id}/actividad`}>{user.name || user.email}</Link>
+                : user.name ?? "-"}</td>
               <td>{user.email}</td>
               {!esChoferes && <td>{getManagedUserRoleName(user.role as ManagedUserRole)}</td>}
               {verDocumentacion && (
