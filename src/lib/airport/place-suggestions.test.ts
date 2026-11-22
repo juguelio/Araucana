@@ -263,7 +263,7 @@ it("prueba el nombre que usa el mapa para recuperar la altura de Núñez antes d
       lat: "-40.13727434", lon: "-71.29521035",
       display_name: "139, Luis Ernesto Núñez, Parque La Cascada, San Martín de los Andes",
       class: "place", type: "house"
-    }])));
+    }]));
   vi.stubGlobal("fetch", fetchProvider);
 
   const [match] = await suggestAirportPlaces("Doctor Ernesto Luis Nunez 139, San Martín de los Andes", new AbortController().signal);
