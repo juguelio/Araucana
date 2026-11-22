@@ -39,8 +39,14 @@ export function parseMoney(raw: string, max = 2_147_483_647) {
 }
 
 const line = z.string().trim().max(500);
+export const tripPointSchema = z.object({
+  name: line.min(1),
+  date: z.string().refine((value) => value === "" || dateOnly(value) !== null),
+  amount: z.string().trim().refine((value) => value === "" || parseMoney(value) !== null)
+});
 export const legSchema = z.object({
   origin: line, destination: line, country: z.enum(["AR", "CL", "AR_CL"]), stops: line,
+  points: z.array(tripPointSchema).max(50).optional(),
   zone: z.enum(timezones), arrivalZone: z.enum(timezones).optional(), departure: line, arrival: line, included: z.boolean(), description: z.string().max(4000)
 });
 export const assignmentSchema = z.object({ vehicleId: line.min(1), driverId: line, start: line, end: line });
@@ -52,6 +58,12 @@ export const paymentSchema = z.object({
 });
 export const MAX_TRIP_PAYMENTS = 100;
 export type Leg = z.infer<typeof legSchema>;
+export type TripPoint = z.infer<typeof tripPointSchema>;
+
+export function pointsForLeg(leg: Pick<Leg, "points" | "stops">): TripPoint[] {
+  return leg.points ?? leg.stops.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    .map((name) => ({ name, date: "", amount: "" }));
+}
 export type AssignmentInput = z.infer<typeof assignmentSchema>;
 export type PaymentInput = z.infer<typeof paymentSchema>;
 

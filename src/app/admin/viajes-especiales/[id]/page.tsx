@@ -7,7 +7,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import {
   argentina, billingModes, legSchema, MAX_TRIP_PAYMENTS, parseMoney, paymentKinds, paymentSchema,
-  statuses, tripContactLabel, tripPaymentTotals
+  pointsForLeg, statuses, tripContactLabel, tripPaymentTotals
 } from "@/lib/special-trips/data";
 import { parseTripLegs, planillaKindsForSpecialTrip } from "@/lib/departure-sheets/applicability";
 import { listDepartureSheetsForSpecialTrip } from "@/lib/departure-sheets/repository";
@@ -173,7 +173,15 @@ export default async function TripPage({ params, searchParams }: { params: Promi
                         {leg.country !== "AR" ? <span>{paises[leg.country] ?? leg.country}</span> : null}
                         {leg.included ? <span>Incluido</span> : null}
                       </p>
-                      {leg.stops ? <p className="muted">Paradas: {leg.stops.split(/\r?\n/).map((stop) => stop.trim()).filter(Boolean).join(" → ")}</p> : null}
+                      {pointsForLeg(leg).length > 0 ? (
+                        <ul className="viaje-puntos" aria-label="Puntos intermedios">{pointsForLeg(leg).map((point, pointIndex) => {
+                          const amount = parseMoney(point.amount);
+                          return <li key={pointIndex}>
+                            {point.name}{point.date ? ` · ${point.date.split("-").reverse().join("/")}` : ""}
+                            {amount === null ? "" : ` · ${money.format(amount / 100)}`}
+                          </li>;
+                        })}</ul>
+                      ) : null}
                       {leg.description ? <p className="viaje-tramo-descripcion">{leg.description}</p> : null}
                     </div>
                   </li>

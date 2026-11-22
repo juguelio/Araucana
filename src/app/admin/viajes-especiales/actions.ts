@@ -47,7 +47,14 @@ export async function saveTrip(id: string | null, version: string | null, _state
     if ((value("total") || billingMode === "FIXED") && totalCents === null) throw new TripError("Ingresá un importe válido sin separador de miles.");
     if (["UNKNOWN", "INCLUDED"].includes(billingMode) && totalCents !== null) throw new TripError("Dejá el total vacío para esta condición de cobro.");
 
-    const legs = z.array(legSchema).min(1).max(200).parse(JSON.parse(value("legs")));
+    const parsedLegs = z.array(legSchema).min(1).max(200).safeParse(JSON.parse(value("legs")));
+    if (!parsedLegs.success) {
+      if (parsedLegs.error.issues.some(({ path }) => path[1] === "points")) {
+        throw new TripError("Revisá los puntos intermedios. Cada punto necesita un lugar. Si cargás una fecha o un importe, deben ser válidos.");
+      }
+      throw new TripError("Revisá los datos de los recorridos.");
+    }
+    const legs = parsedLegs.data;
     for (const leg of legs) {
       if ((!leg.origin || !leg.destination) && !leg.description.trim()) throw new TripError("Ingresá origen y destino o una descripción para cada tramo.");
       const departure = localDateTime(leg.departure, leg.zone);

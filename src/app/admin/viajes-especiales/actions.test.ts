@@ -50,7 +50,10 @@ it("guarda un viaje de varios días con recorridos, contacto y seña", async () 
   db.create.mockResolvedValue({ id: "viaje", client: "Grupo" });
   const legs = [
     { ...emptyLeg, origin: "San Martín", destination: "Lago Puelo", stops: "El Bolsón\nCerro Radal" },
-    { ...emptyLeg, origin: "Lago Puelo", destination: "El Hoyo" },
+    { ...emptyLeg, origin: "Lago Puelo", destination: "El Hoyo", points: [
+      { name: "Puerto Patriada", date: "2026-12-02", amount: "12500,50" },
+      { name: "Cascada Corbata Blanca", date: "", amount: "" }
+    ] },
     { ...emptyLeg, origin: "El Hoyo", destination: "San Martín" }
   ];
   const payments = [{ date: "2026-11-22", amount: "300.00", kind: "DEPOSIT", note: "" }];
