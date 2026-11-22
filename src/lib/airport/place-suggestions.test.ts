@@ -294,3 +294,15 @@ it.each(["Belgrano 9999", "Perito Moreno 350, Junín de los Andes"])(
     expect(await suggestAirportPlaces(address, new AbortController().signal)).toEqual([]);
   }
 );
+
+it("descarta Mariano Moreno al pedir Perito Moreno aunque GeoRef sugiera ambas", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const direcciones = ["MARIANO MORENO", "PERITO MORENO"].map(nombre => ({
+    calle: { nombre }, altura: { valor: 350 }, localidad_censal: { nombre: "San Martín de los Andes" },
+    ubicacion: { lat: -40.15338, lon: -71.34750 }
+  }));
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json([])).mockResolvedValueOnce(Response.json({ direcciones })));
+  const matches = await suggestAirportPlaces("Perito Moreno 350", new AbortController().signal);
+  expect(matches.map(match => match.label)).toEqual(["Perito Moreno 350, San Martín de los Andes"]);
+});
