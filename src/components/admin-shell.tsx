@@ -15,7 +15,9 @@ type AdminShellProps = {
 const links: Array<{ href: string; label: string; roles: AppRole[] }> = [
   { href: "/admin", label: "Panel", roles: ["ADMIN"] },
   { href: "/admin/rutas", label: "Rutas", roles: ["ADMIN"] },
-  { href: "/admin/naves", label: "Naves", roles: ["ADMIN"] },
+  // Naves abre directo en el mapa: es la pantalla que el cliente mira todo el día. El tablero de flota
+  // queda a un clic desde ahí («Tablero de flota»).
+  { href: "/admin/naves/en-vivo", label: "Naves", roles: ["ADMIN"] },
   // Los choferes son cuentas con acceso a su planilla: los carga también la secretaría.
   { href: "/admin/choferes", label: "Choferes", roles: ["ADMIN", "SECRETARY"] },
   // Issue #174: todos los servicios del día con su nave y su chofer, de todas las áreas.

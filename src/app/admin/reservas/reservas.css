@@ -244,26 +244,6 @@
     align-items: start;
   }
 }
-.reservas-modal-form { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.reservas-modal-form p { margin: 0; }
-.reservas-modal-form label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink-soft); }
-.reservas-modal-form input:not([type="file"]),
-.reservas-modal-form textarea {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 13px;
-  border: 1px solid var(--line-strong);
-  border-radius: 12px;
-  background: #fffaf1;
-  color: var(--ink);
-  font: inherit;
-  font-weight: 500;
-}
-.reservas-modal-form textarea { resize: vertical; }
-.reservas-modal-form input:focus-visible,
-.reservas-modal-form textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.reservas-modal-form .button,
-.reservas-modal-form .danger-button { justify-self: start; }
 .reservas-modal-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
 /* El comprobante se ve adentro del modal: sin esto se puede validar sin haberlo mirado. */
 .comprobante-viewer { display: grid; gap: 6px; margin: 0; }
