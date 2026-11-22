@@ -247,7 +247,14 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
       continue;
     }
     if (localNunez && nunezStreet.has(canonical) && normalizePlaceText(city) === normalizePlaceText(airportSearchLocality)) {
-      suggestions.push({ ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
+      const mapStreet = "Luis Ernesto Núñez";
+      const mapped = street === normalizePlaceText(mapStreet) ? [] :
+        await lookupNamedPlaces(`${mapStreet} ${address.number}, ${airportSearchLocality}`, signal).catch(() => []);
+      const atNumber = mapped.find((candidate) => matchesStreetNumber(candidate.label, normalizePlaceText(mapStreet), address.number));
+      if (signal.aborted) return [];
+      suggestions.push(atNumber
+        ? { ...atNumber, label }
+        : { ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
       continue;
     }
     const reference = candidates.find((candidate) => candidate.approximate

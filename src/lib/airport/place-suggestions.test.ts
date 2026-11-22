@@ -246,3 +246,31 @@ it("ubica la calle Núñez 139 como referencia cuando GeoRef reconoce la altura 
   });
   expect(fetchProvider.mock.calls[1][0].searchParams.get("direccion")).toBe("Doctor Ernesto Luis Núñez 139");
 });
+
+it("prueba el nombre que usa el mapa para recuperar la altura de Núñez antes de marcar la calle", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "DOCTOR ERNESTO LUIS NUNEZ" },
+      altura: { valor: 139 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json([{
+      lat: "-40.13727434", lon: "-71.29521035",
+      display_name: "139, Luis Ernesto Núñez, Parque La Cascada, San Martín de los Andes",
+      class: "place", type: "house"
+    }]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [match] = await suggestAirportPlaces("Doctor Ernesto Luis Nunez 139, San Martín de los Andes", new AbortController().signal);
+  expect(match).toMatchObject({
+    label: "Doctor Ernesto Luis Nunez 139, San Martín de los Andes",
+    point: [-40.13727434, -71.29521035],
+    precision: "interpolated",
+    approximate: true
+  });
+});
