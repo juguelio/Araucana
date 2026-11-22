@@ -13,7 +13,7 @@ import type { PassengerDto, PublicRouteDto } from "@/lib/booking/types";
 import { AdminFormAlert, FieldError } from "../../form-ui";
 import { initialAdminFormState, type AdminFormState } from "../../form-state";
 import { PassengerFields, type PassengerDraft } from "./passenger-form";
-import { canSavePickup, pickupFormFields } from "./pickup-address";
+import { canSavePickup, pickupBlockReason, pickupFormFields, PICKUP_BLOCK_MESSAGES } from "./pickup-address";
 import { PickupAddressFields, type PickupAddressDraft } from "./pickup-address-form";
 import { ServiceMoveFields, type ServiceMoveDraft } from "./service-move-fields";
 import type { ServiceMove } from "./editar/service-options";
@@ -166,6 +166,20 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const priceInputError = priceChanged && !reservationPriceCents.safeParse(parseReservationPrice(total)).success
     ? reservationPriceError : undefined;
   const canSave = hasChanges && countsValid && !serviceIncomplete && !priceInputError && (!needsAcknowledgement || acknowledged) && savePickup;
+  /**
+   * Por qué el guardado no está disponible, dicho al pie del formulario (#343). Los avisos de campo
+   * viven donde está el campo —el del mapa, arriba del domicilio—, así que un bloqueo por el tilde de
+   * confirmación se leía como «el botón no anda» y «no veo el rojo».
+   */
+  const pickupBlock = pickupBlockReason(addressChanged, pickup, { airport: Boolean(transfer?.airport), outside });
+  const saveBlockedReason = canSave ? null
+    : !hasChanges ? null
+    : !countsValid ? "Revisá la cantidad de pasajeros, menores o equipaje."
+    : serviceIncomplete ? "Completá los datos del cambio de servicio."
+    : priceInputError ? priceInputError
+    : pickupBlock !== "ok" ? PICKUP_BLOCK_MESSAGES[pickupBlock]
+    : needsAcknowledgement && !acknowledged ? "Confirmá la diferencia del total antes de guardar."
+    : null;
 
   const [state, formAction, pending] = useActionState(async (previous: AdminFormState, _formData: FormData) => {
     if (!canSave) return previous;
@@ -422,8 +436,12 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
         </>
       ) : null}
       {!hasChanges && countsValid && savePickup && !serviceIncomplete && !pending ? <p className="muted reservation-edit-wide" role="status">No hay cambios para guardar.</p> : null}
+      {saveBlockedReason ? (
+        <p className="form-alert error reservation-edit-wide" role="status" id="reservation-save-blocked">{saveBlockedReason}</p>
+      ) : null}
       <div className="form-actions reservation-edit-wide">
-        <button type="submit" className="button" disabled={pending || !canSave}>
+        <button type="submit" className="button" disabled={pending || !canSave}
+          aria-describedby={saveBlockedReason ? "reservation-save-blocked" : undefined}>
           {pending ? "Guardando…" : "Guardar cambios"}
         </button>
       </div>
