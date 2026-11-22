@@ -56,7 +56,7 @@ export function CabeceraDeNave({ nave, seccion, hoy = new Date() }: { nave: Nave
       <header className="plain-card nave-cabecera" data-nivel={peor?.level ?? undefined}>
         <div className="nave-cabecera-titulo">
           <h2>{nombreDeNave(nave)}</h2>
-          <span className={`status-pill ${nave.isActive ? "active" : "inactive"}`}>{nave.isActive ? "Activa" : "Inactiva"}</span>
+          <span className={`status-pill ${nave.isActive ? "active" : "inactive"}`}>{nave.isActive ? "Activa" : "No habilitada"}</span>
           {nave.publicTransport ? (
             <span className="pill pill-estado" data-tono="ok">transporte público</span>
           ) : null}

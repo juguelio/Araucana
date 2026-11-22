@@ -49,7 +49,7 @@ export default async function EditVehiclePage({ params, searchParams }: EditVehi
         <p className="muted">
           {vehicle.isActive
             ? "Activa: se puede asignar a salidas, viajes y traslados."
-            : "Inactiva: no se ofrece para asignar. Sus datos y su historial se conservan."}
+            : "No habilitada: no se ofrece para asignar. Sus datos y su historial se conservan."}
         </p>
         <div className="table-actions">
           <form action={setVehicleActiveAction}>

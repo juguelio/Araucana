@@ -35,7 +35,7 @@ const PESTANAS: Array<{ id: PestanaDeFlota; etiqueta: string }> = [
   { id: "alertas", etiqueta: "Con alertas" },
   { id: "taller", etiqueta: "En reparación" },
   { id: "publico", etiqueta: "Transporte público" },
-  { id: "inactivas", etiqueta: "Inactivas" }
+  { id: "inactivas", etiqueta: "No habilitadas" }
 ];
 
 function pestanaHref(pestana: PestanaDeFlota) {
