@@ -221,3 +221,28 @@ it("mantiene la coincidencia de altura cuando Photon incluye el nombre del hotel
   expect(results[0].label).toBe("Hotel el Viejo Esquiador, Avenida San Martín 1242, San Martín de los Andes");
   expect(fetchProvider).toHaveBeenCalledOnce();
 });
+
+it("ubica la calle Núñez 139 como referencia cuando GeoRef reconoce la altura sin coordenadas", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "DOCTOR ERNESTO LUIS NUNEZ" },
+      altura: { valor: 139 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [match] = await suggestAirportPlaces("Luis Ernesto Núñez 139, San Martín de los Andes", new AbortController().signal);
+  expect(match).toMatchObject({
+    label: "Doctor Ernesto Luis Nunez 139, San Martín de los Andes",
+    point: [-40.135793, -71.2972797],
+    precision: "street",
+    approximate: true,
+    coordinateSourceUrl: "https://www.openstreetmap.org/way/169405015"
+  });
+  expect(fetchProvider.mock.calls[1][0].searchParams.get("direccion")).toBe("Doctor Ernesto Luis Núñez 139");
+});

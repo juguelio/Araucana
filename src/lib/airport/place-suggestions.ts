@@ -208,6 +208,13 @@ function matchesStreetNumber(label: string, street: string, number: string) {
   });
 }
 
+// GeoRef registra el nombre oficial; en OpenStreetMap el orden de los nombres está invertido.
+const nunezStreet = new Set(["doctor ernesto luis nunez", "dr ernesto luis nunez", "ernesto luis nunez", "luis ernesto nunez"]);
+const nunezStreetReference = {
+  point: [-40.135793, -71.2972797] as PickupPoint,
+  coordinateSourceUrl: "https://www.openstreetmap.org/way/169405015"
+};
+
 async function suggestStreetAddress(name: string, context: string, address: NonNullable<ReturnType<typeof splitStreetAddress>>, signal: AbortSignal) {
   const locality = context || airportSearchLocality;
   const street = normalizePlaceText(address.street);
@@ -217,7 +224,9 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     : [];
   if (exact.length || signal.aborted) return exact;
 
-  const official = await lookupStreetAddresses(name, context.split(",")[0], signal).catch(() => []);
+  const localNunez = nunezStreet.has(street) && normalizePlaceText(locality.split(",")[0]) === normalizePlaceText(airportSearchLocality);
+  const officialQuery = localNunez ? `Doctor Ernesto Luis Núñez ${address.number}` : name;
+  const official = await lookupStreetAddresses(officialQuery, context.split(",")[0], signal).catch(() => []);
   const suggestions: AirportPlaceSuggestion[] = [];
   for (const match of official) {
     if (String(match.altura.valor) !== address.number || signal.aborted) continue;
@@ -235,6 +244,10 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     const canonicalExact = candidates.filter((candidate) => matchesStreetNumber(candidate.label, canonical, address.number));
     if (canonicalExact.length) {
       suggestions.push(...canonicalExact);
+      continue;
+    }
+    if (localNunez && nunezStreet.has(canonical) && normalizePlaceText(city) === normalizePlaceText(airportSearchLocality)) {
+      suggestions.push({ ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
       continue;
     }
     const reference = candidates.find((candidate) => candidate.approximate
