@@ -162,7 +162,8 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       detalle: null,
       unidades,
       pasajeros,
-      href: `/admin/rutas/${schedule.routeId ?? ""}`
+      // La tripulación de una salida se cambia en el tablero del día, no en la ficha del recorrido.
+      href: `/admin/salidas-del-dia?date=${dateKey}`
     });
   }
 
@@ -192,7 +193,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         driverName: assignment.driver?.name ?? null
       })),
       pasajeros: flight.reservations.reduce((total, detalle) => total + (detalle.reservation?.passengerCount ?? 0), 0),
-      href: "/admin/aeropuerto"
+      href: `/admin/aeropuerto?date=${dateKey}`
     });
   }
 
@@ -219,7 +220,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         driverName: duty.driver?.name ?? null
       })),
       pasajeros: route.directReservations.reduce((total, reserva) => total + reserva.passengerCount, 0),
-      href: "/admin/chapelco"
+      href: `/admin/chapelco?date=${dateKey}`
     });
   }
 

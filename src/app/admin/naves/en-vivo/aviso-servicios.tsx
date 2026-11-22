@@ -1,12 +1,24 @@
 import Link from "next/link";
 import type { ResumenDeServicios } from "@/lib/driver/servicios";
+import { seAsignaDesdeNavesEnVivo } from "@/lib/driver/servicio-id";
+import { AsignarUnidad, type ChoferParaAsignar, type NaveParaAsignar } from "./asignar-unidad";
 
 /**
  * Aviso arriba del mapa: mientras alguien mira las unidades, esto le dice si algún servicio del día
- * se está quedando sin cobertura, qué nave lo tiene asignado y permite centrarla en el mapa o ir a
- * asignarla en un clic.
+ * se está quedando sin cobertura, qué nave lo tiene asignado y permite centrarla en el mapa o
+ * asignarle nave y chofer ahí mismo.
  */
-export function AvisoDeServicios({ resumen, fecha }: { resumen: ResumenDeServicios; fecha: string }) {
+export function AvisoDeServicios({
+  resumen,
+  fecha,
+  naves = [],
+  choferes = []
+}: {
+  resumen: ResumenDeServicios;
+  fecha: string;
+  naves?: NaveParaAsignar[];
+  choferes?: ChoferParaAsignar[];
+}) {
   const pendientes = resumen.evaluados.filter(
     (servicio) => servicio.nivel === "sin-unidad" || servicio.nivel === "en-riesgo"
   );
@@ -30,19 +42,18 @@ export function AvisoDeServicios({ resumen, fecha }: { resumen: ResumenDeServici
           const etiquetaUnidad = primeraUnidad
             ? `${primeraUnidad.internalNumber ?? primeraUnidad.vehicleName}${primeraUnidad.driverName ? ` (${primeraUnidad.driverName})` : ""}`
             : null;
+          const hora = servicio.at
+            ? servicio.at.toLocaleTimeString("es-AR", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+                timeZone: "America/Argentina/Buenos_Aires"
+              })
+            : "sin hora";
           return (
             <li key={servicio.id}>
               <span className="aviso-servicios-texto">
-                <b>
-                  {servicio.at
-                    ? servicio.at.toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                        timeZone: "America/Argentina/Buenos_Aires"
-                      })
-                    : "sin hora"}
-                </b>
+                <b>{hora}</b>
                 {` · ${servicio.titulo}`}
                 {etiquetaUnidad ? ` · ${etiquetaUnidad}` : ""} — {servicio.motivo}
               </span>
@@ -53,9 +64,19 @@ export function AvisoDeServicios({ resumen, fecha }: { resumen: ResumenDeServici
                 >
                   Ver en mapa
                 </Link>
+              ) : seAsignaDesdeNavesEnVivo(servicio.area) ? (
+                <AsignarUnidad
+                  servicioId={servicio.id}
+                  titulo={servicio.titulo}
+                  subtitulo={`${hora} · ${servicio.motivo}`}
+                  fecha={fecha}
+                  naves={naves}
+                  choferes={choferes}
+                  triggerClassName="aviso-servicios-accion"
+                />
               ) : (
                 <Link className="aviso-servicios-accion" href={servicio.href}>
-                  Asignar nave
+                  Abrir tablero
                 </Link>
               )}
             </li>

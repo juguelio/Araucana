@@ -9,9 +9,10 @@ type Props = {
   setServiceDate: (date: string) => void;
   setEndDate: (date: string) => void;
   currency: string;
+  showDescriptions: boolean;
 };
 
-export function TripItinerary({ legs, setLegs, serviceDate, endDate, setServiceDate, setEndDate, currency }: Props) {
+export function TripItinerary({ legs, setLegs, serviceDate, endDate, setServiceDate, setEndDate, currency, showDescriptions }: Props) {
   function changeLeg(index: number, changes: Partial<Leg>) {
     setLegs(legs.map((leg, i) => i === index ? { ...leg, ...changes } : leg));
   }
@@ -41,6 +42,21 @@ export function TripItinerary({ legs, setLegs, serviceDate, endDate, setServiceD
           <input name="endDate" type="date" min={serviceDate} value={endDate} onChange={(event) => setEndDate(event.target.value)} />
         </label>
       </div>
+
+      {showDescriptions ? (
+        <section className={`plain-card admin-section ${styles.section}`} aria-labelledby="trip-original-itinerary">
+          <h2 id="trip-original-itinerary">Itinerario registrado</h2>
+          <p className={`muted ${styles.pointHint}`}>Este viaje tiene recorridos guardados como texto. Si el texto indica origen y destino, podés completarlos en «Desde» y «Hacia».</p>
+          <div className="admin-form-grid">
+            {legs.map((leg, index) => (
+              <label className="span-2" key={index}>
+                {legs.length > 1 ? `Descripción del recorrido ${index + 1}` : "Descripción del recorrido"}
+                <textarea rows={3} maxLength={4000} value={leg.description} onChange={(event) => changeLeg(index, { description: event.target.value })} />
+              </label>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <div className={`plain-card admin-section ${styles.section}`}>
         <h2>Puntos intermedios</h2>
@@ -81,7 +97,7 @@ export function TripItinerary({ legs, setLegs, serviceDate, endDate, setServiceD
                 <option value="">La misma que la salida</option>{timezones.map((zone) => <option key={zone}>{zone}</option>)}
               </select></label>
               <label className={styles.checkbox}><input type="checkbox" checked={leg.included} onChange={(event) => change({ included: event.target.checked })} /> Incluido en el paquete</label>
-              <label className="span-2">Descripción<textarea maxLength={4000} value={leg.description} onChange={(event) => change({ description: event.target.value })} /></label>
+              {!showDescriptions ? <label className="span-2">Descripción<textarea maxLength={4000} value={leg.description} onChange={(event) => change({ description: event.target.value })} /></label> : null}
               {legs.length > 1 && <button type="button" className="ghost-button" onClick={() => setLegs(legs.filter((_, i) => i !== index))}>Quitar recorrido {index + 1}</button>}
             </fieldset>;
           })}

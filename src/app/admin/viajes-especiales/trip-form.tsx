@@ -43,6 +43,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
   const money = (value: number) => formatter.format(value / 100);
   const origin = legs[0]?.origin.trim();
   const destination = legs.at(-1)?.destination.trim();
+  const showDescriptions = Boolean(draft.id && draft.legs.some((leg) => leg.description && (!leg.origin || !leg.destination)));
 
   function addPayment(kind: NonNullable<PaymentInput["kind"]>) {
     setPayments((items) => [...items, { date: localInput(new Date()).slice(0, 10), amount: "", note: "", kind }]);
@@ -59,18 +60,18 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
     }}>
       <fieldset disabled={pending} className={styles.form}>
         <TripItinerary legs={legs} setLegs={setLegs} serviceDate={serviceDate} endDate={endDate}
-          setServiceDate={setServiceDate} setEndDate={setEndDate} currency={currency} />
+          setServiceDate={setServiceDate} setEndDate={setEndDate} currency={currency} showDescriptions={showDescriptions} />
         <div className="checkout-layout">
           <div className="checkout-main">
             <section className={`plain-card admin-section ${styles.section}`}>
               <h2>Cliente y contacto</h2>
               <div className="admin-form-grid">
                 <label>Cliente o grupo<input name="client" required maxLength={500} defaultValue={draft.client} /></label>
+                {draft.contact ? <label>Contacto del registro original<input name="contact" maxLength={500} defaultValue={draft.contact} /></label> : null}
                 <label>Nombre de referencia<input name="contactName" maxLength={120} autoComplete="name" defaultValue={draft.contactName ?? ""} /></label>
                 <label>Teléfono de contacto<input name="contactPhone" type="tel" maxLength={32} autoComplete="tel" defaultValue={draft.contactPhone ?? ""} /></label>
                 <label>Pasajeros<input name="passengers" type="number" min="1" max="100000" defaultValue={draft.passengers ?? ""} /></label>
                 <label>Estado<select name="status" defaultValue={draft.status}>{Object.entries(statuses).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></label>
-                {draft.contact ? <label>Contacto anterior<input name="contact" maxLength={500} defaultValue={draft.contact} /></label> : null}
                 <label className="span-2">Observaciones<textarea name="notes" maxLength={12000} defaultValue={draft.notes ?? ""} /></label>
               </div>
             </section>
