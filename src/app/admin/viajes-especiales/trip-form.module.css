@@ -13,6 +13,52 @@
   border-radius: 12px;
 }
 
+.form .section {
+  margin-block: 0;
+  min-width: 0;
+}
+
+.form :global(.admin-form-grid) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.form summary,
+.quickPayment summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.paymentActions {
+  margin-block: 16px;
+}
+
+.quickPayment {
+  margin-top: 16px;
+}
+
+.quickPayment fieldset {
+  min-inline-size: 0;
+  margin-inline: 0;
+  padding: 0;
+  border: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.quickPayment :global(.span-2) {
+  grid-column: 1;
+}
+
+@media (max-width: 640px) {
+  .form :global(.admin-form-grid) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form :global(.span-2) {
+    grid-column: 1;
+  }
+}
+
 .form .checkbox {
   display: flex;
   align-items: center;

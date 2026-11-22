@@ -712,6 +712,8 @@ model SpecialTrip {
   endDate       DateTime? @db.Date
   client        String
   contact       String?
+  contactName   String?
+  contactPhone  String?
   passengers    Int?
   status        String
   notes         String?

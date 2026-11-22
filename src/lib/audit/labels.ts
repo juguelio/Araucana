@@ -143,6 +143,8 @@ const fieldLabels: Record<string, string> = {
   endDate: "Vuelve el",
   client: "Cliente",
   contact: "Contacto",
+  contactName: "Nombre de referencia",
+  contactPhone: "Teléfono de contacto",
   passengers: "Pasajeros",
   legs: "Tramos",
   payments: "Cobros",
