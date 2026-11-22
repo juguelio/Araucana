@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import "./buscadores-flota.css";
 
 export type ChoferElegible = {
   id: string;
@@ -17,8 +18,9 @@ const normalizar = (texto: string) =>
  * email y se elige con un toque. «Sin chofer» queda siempre arriba y es la opción por defecto. Va
  * dentro del formulario de asignación (`driverId`).
  */
-export function ChoferBuscador({ choferes, flightNumber }: { choferes: ChoferElegible[]; flightNumber: string }) {
+export function ChoferBuscador({ choferes, flightNumber, defaultId = "" }: { choferes: ChoferElegible[]; flightNumber: string; defaultId?: string }) {
   const [busqueda, setBusqueda] = useState("");
+  const [selected, setSelected] = useState(defaultId);
   const termino = normalizar(busqueda);
   const visibles = termino
     ? choferes.filter((chofer) => normalizar(`${chofer.label} ${chofer.email}`).includes(termino))
@@ -26,6 +28,7 @@ export function ChoferBuscador({ choferes, flightNumber }: { choferes: ChoferEle
 
   return (
     <div className="nave-buscador">
+      {selected && !visibles.some(option => option.id === selected) && <input type="hidden" name="driverId" value={selected} />}
       <label className="nave-buscador-campo">
         Buscar chofer
         <input
@@ -39,7 +42,7 @@ export function ChoferBuscador({ choferes, flightNumber }: { choferes: ChoferEle
       </label>
       <div className="nave-buscador-lista" role="radiogroup" aria-label={`Choferes para ${flightNumber}`}>
         <label className="nave-buscador-opcion">
-          <input type="radio" name="driverId" value="" defaultChecked />
+          <input type="radio" name="driverId" value="" checked={!selected} onChange={() => setSelected("")} />
           <span>
             <strong>Sin chofer</strong>
             <small className="muted">Se puede asignar después</small>
@@ -50,7 +53,7 @@ export function ChoferBuscador({ choferes, flightNumber }: { choferes: ChoferEle
         ) : (
           visibles.map((chofer) => (
             <label key={chofer.id} className="nave-buscador-opcion">
-              <input type="radio" name="driverId" value={chofer.id} />
+              <input type="radio" name="driverId" value={chofer.id} checked={selected === chofer.id} onChange={() => setSelected(chofer.id)} />
               <span>
                 <strong>{chofer.label}</strong>
                 {chofer.label !== chofer.email ? <small className="muted">{chofer.email}</small> : null}

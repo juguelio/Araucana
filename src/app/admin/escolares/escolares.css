@@ -1,13 +1,7 @@
-.school-toolbar,.school-days{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
-.school-toolbar summary,.school-run summary{cursor:pointer}
-.school-days a{border:1px solid #b7c9be;border-radius:.5rem;padding:.4rem .7rem;text-decoration:none}
-.school-days a[aria-current]{background:#205c50;color:white}
-.school-run{margin:.6rem 0;border:1px solid #c8d5ce;background:white;border-radius:.7rem;padding:.85rem 1rem}
-.school-run summary{display:flex;align-items:center;gap:.65rem 1rem;flex-wrap:wrap}
-.school-run summary strong{flex:1 1 15rem}
-.school-run small{color:#804b09;background:#fff0d3;border-radius:1rem;padding:.2rem .65rem}
-.school-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));gap:.8rem;margin:1rem 0}
-.school-form label{display:grid;gap:.3rem}
-.school-form input,.school-form select,.school-form textarea,.school-toolbar input{font:inherit;padding:.5rem;border:1px solid #bacac1;border-radius:.4rem;width:100%}
-.school-toolbar input{width:auto}
-.school-form button{align-self:end;justify-self:start}
+.school-days { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+.school-days:empty { display: none; }
+.school-facts, .school-pickers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.school-facts dt { color: var(--ink-soft); font-size: .85rem; }
+.school-facts dd { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.school-pickers { margin-top: 1rem; }
+@media (max-width: 700px) { .school-facts, .school-pickers { grid-template-columns: 1fr; } }
