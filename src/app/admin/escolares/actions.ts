@@ -21,7 +21,8 @@ export async function saveSchoolRun(form: FormData) {
   const companion = field("companion") || null;
   const notes = field("notes") || null;
   const review = field("review") || null;
-  const back = (notice: string) => redirect("/admin/escolares?" + new URLSearchParams({ fecha: date, aviso: notice }));
+  const detail = "/admin/escolares/" + encodeURIComponent(id);
+  const back = (notice: string) => redirect((revision ? detail + "/editar" : "/admin/escolares/nuevo") + "?" + new URLSearchParams({ fecha: date, aviso: notice }));
   if (!serviceDate || !routeName || !shift || !id || routeName.length > 400 || shift.length > 100 ||
       (companion?.length ?? 0) > 200 || (notes?.length ?? 0) > 2000 || (review?.length ?? 0) > 2000) {
     return back("Revisá la fecha, el recorrido, el turno y la extensión de los campos.");
@@ -55,5 +56,7 @@ export async function saveSchoolRun(form: FormData) {
     return "Recorrido escolar guardado.";
   });
   revalidatePath("/admin/escolares");
-  back(message);
+  revalidatePath(detail);
+  if (message !== "Recorrido escolar guardado.") return back(message);
+  redirect(detail + "?" + new URLSearchParams({ aviso: message }));
 }
