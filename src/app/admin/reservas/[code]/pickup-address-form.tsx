@@ -47,7 +47,9 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
     setReference(null);
     setManual({ point: nextPoint, pending: true });
     setPrecision("exact");
-    onChange({ ...pickup, address: "", point: nextPoint, confirmed: false });
+    // Mover el pin no borra lo que la persona escribió (#355): la dirección se reemplaza recién si la
+    // geocodificación inversa encuentra algo. Antes se vaciaba acá y, si la inversa fallaba, se perdía.
+    onChange({ ...pickup, point: nextPoint, confirmed: false });
   }
 
   function selectPlace(place: AirportSelectedPlace) {
@@ -92,7 +94,8 @@ export function PickupAddressFields({ pickup, coverage, airport, changed, outsid
       )}
       {manual && manual.point === point ? <MapPointAddress point={point} onResult={(address) => {
         setManual({ point, pending: false });
-        onChange({ ...pickup, address: address.slice(0, maxLength) });
+        // Sin respuesta de la inversa se conserva lo que había escrito (#355), no se vacía el campo.
+        if (address) onChange({ ...pickup, address: address.slice(0, maxLength) });
       }} /> : null}
       {!showConfirmation && mapError ? <div className="reservation-edit-wide">
         <FieldError id="reservation-pickup-point-error" message={mapError} />
