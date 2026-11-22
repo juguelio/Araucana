@@ -1,3 +1,4 @@
+import { localStreetReference, streetKey } from "./street-reference";
 import { z } from "zod";
 import { ApiError } from "@/lib/api/responses";
 import { lookupAirportIntersection } from "./intersection-lookup";
@@ -138,16 +139,6 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
   }
 }
 
-/** "Avenida X" y "Av X" son la misma calle; "San Martín" y "Av San Martín" no. */
-const streetAbbreviations: Record<string, string> = { avenida: "av", pasaje: "pje", boulevard: "blvd" };
-
-function streetKey(value: string) {
-  return normalizePlaceText(value)
-    .split(" ")
-    .map((word) => streetAbbreviations[word] ?? word)
-    .join(" ");
-}
-
 async function nominatimStreetPoint(street: string, requestSignal: AbortSignal): Promise<{ point: PickupPoint | null; answered: boolean }> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.search = new URLSearchParams({
@@ -198,13 +189,16 @@ async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Pr
   return point;
 }
 
-function matchesStreetNumber(label: string, street: string, number: string) {
+export function matchesStreetNumber(label: string, street: string, number: string, allowShortName = true) {
   const parts = label.split(",").map(normalizePlaceText);
   // Una dirección puede venir precedida por el nombre del hotel.
   return parts.slice(0, 2).some((part, index) => {
     const address = splitStreetAddress(part);
     const matchedStreet = part === number ? parts[index + 1] : address?.number === number ? address.street : undefined;
-    return Boolean(matchedStreet && (matchedStreet === street || matchedStreet.endsWith(` ${street}`)));
+    if (!matchedStreet) return false;
+    const actual = streetKey(matchedStreet);
+    const target = streetKey(street);
+    return actual === target || (allowShortName && actual.endsWith(` ${target}`));
   });
 }
 
@@ -257,10 +251,15 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
         : { ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
       continue;
     }
+    const local = localStreetReference(officialStreet, address.number, city);
+    if (local) {
+      suggestions.push(local);
+      continue;
+    }
     const reference = candidates.find((candidate) => candidate.approximate
       && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
     if (reference) {
-      suggestions.push({ ...reference, label, approximate: true });
+      suggestions.push({ ...reference, label, approximate: true, precision: "street" });
       continue;
     }
     // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
@@ -274,7 +273,11 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     // Se ofrece igual; el punto se marca en el mapa.
     suggestions.push({ label, point: null, source: "georef", approximate: true, precision: "none" });
   }
-  if (!suggestions.length && !Array.isArray(named)) throw named;
+  if (!suggestions.length && !signal.aborted) {
+    const local = localStreetReference(address.street, address.number, locality);
+    if (local) return [local];
+    if (!Array.isArray(named)) throw named;
+  }
   return suggestions;
 }
 
