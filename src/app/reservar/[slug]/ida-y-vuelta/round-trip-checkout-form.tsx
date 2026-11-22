@@ -12,6 +12,7 @@ import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
 import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
+import { MapPointAddress } from "@/components/map-point-address";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { TripSearchBar, type TramoDeLaBarra, type LugarDeOtroServicio } from "./trip-search-bar";
 import {
@@ -102,7 +103,7 @@ type LugarPickup = {
   approximate: boolean;
   elegido: boolean;
   /** Cómo se eligió: la ubicación del teléfono no tiene dirección escrita; la sucursal va con su nombre. */
-  origen: "busqueda" | "ubicacion" | "sucursal";
+  origen: "busqueda" | "ubicacion" | "sucursal" | "mapa";
 };
 
 const lugarVacio: LugarPickup = { label: "", point: null, precision: null, approximate: false, elegido: false, origen: "busqueda" };
@@ -367,6 +368,9 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   /** Una tarjeta de lugar: atajo de la sucursal, buscador, dirección elegida y mapa con el pin. */
   function tarjetaLugar(sentido: "ARRIVAL" | "DEPARTURE", titulo: string, numero: number, deshabilitado: boolean) {
     const lugar = sentido === "ARRIVAL" ? pickupLlegada : pickupVuelta;
+    function markPoint(point: PickupPoint) {
+      ponerLugar(sentido, { ...lugarVacio, point, origen: "mapa" });
+    }
     return (
       <section key={sentido} className="leg-card" data-done={Boolean(lugar.elegido && lugar.point)} data-muted={deshabilitado}>
         <header className="leg-head">
@@ -417,26 +421,11 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
             {lugar.approximate ? " · referencia (no encontramos la altura exacta)" : ""}
           </p>
         ) : null}
-        {lugar.point ? (
-          <AirportDraggableMap
-            point={lugar.point}
-            approximate={lugar.approximate}
-            precision={lugar.precision}
-            disabled={deshabilitado}
-            onMove={(point) => {
-              // Mover el pin de la sucursal ya no es la sucursal: queda como un punto elegido a mano.
-              const actualizado = { ...lugar, point, elegido: true, origen: lugar.origen === "sucursal" ? "busqueda" as const : lugar.origen };
-              if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
-              else setPickupVuelta(actualizado);
-              return true;
-            }}
-            onSelect={(point) => {
-              const actualizado = { ...lugar, point, elegido: true, origen: lugar.origen === "sucursal" ? "busqueda" as const : lugar.origen };
-              if (sentido === "ARRIVAL") setPickupLlegada(actualizado);
-              else setPickupVuelta(actualizado);
-            }}
-          />
-        ) : null}
+        <AirportDraggableMap point={lugar.point} approximate={lugar.approximate} precision={lugar.precision}
+          disabled={deshabilitado} onMove={(point) => { markPoint(point); return true; }} onSelect={markPoint} />
+        {lugar.origen === "mapa" && lugar.point ? <MapPointAddress point={lugar.point} onResult={(label) => {
+          ponerLugar(sentido, { ...lugar, label, elegido: true });
+        }} /> : null}
         {/* El mapa ya dice «Arrastrá el marcador…»: no se repite abajo. */}
       </section>
     );

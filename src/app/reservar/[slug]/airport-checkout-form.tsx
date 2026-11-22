@@ -12,6 +12,7 @@ import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admi
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { halfFareCents } from "@/lib/booking/passenger-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
+import { MapPointAddress } from "@/components/map-point-address";
 import { AirportDraggableMap } from "@/components/airport-draggable-map";
 import { nombreDelLugarSugerido, pickupNameParaElChofer } from "./pickup-name";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
@@ -182,6 +183,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   const [freeFareCount, setFreeFareCount] = useState(0);
   const [sportsLuggageCount, setSportsLuggageCount] = useState(0);
   const [useGooglePickup, setUseGooglePickup] = useState(googlePickupConfigured);
+  const [manual, setManual] = useState<{ point: PickupPoint; pending: boolean } | null>(null);
   const [pickupAddress, setPickupAddress] = useState("");
   /**
    * Nombre del lugar («Hostal del Esquiador»): es lo que el chofer lee en la orden de servicio.
@@ -313,6 +315,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
   }, [startAtFlights]);
 
   function selectPickupPoint(point: PickupPoint | null) {
+    setManual(null);
     setUsandoSucursal(false);
     setApproximateAddress(false);
     setPickupPrecision(point ? "exact" : null);
@@ -375,6 +378,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
     setGoogleReference(null);
     setUsandoSucursal(false);
     if (!adjustPickupPoint(point)) selectPickupPoint(point);
+    setPickupMode("address");
+    setPickupAddress("");
+    setApproximateAddress(false);
+    setPickupPrecision("exact");
+    setManual({ point, pending: true });
   }
 
   function selectSearchPlace(place: AirportSelectedPlace) {
@@ -677,8 +685,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                     onUnavailable={() => setUseGooglePickup(false)}
                   />
                 ) : (
-                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={adjustPickupPoint} onSelect={markPickupPoint} />
+                  <AirportDraggableMap point={pickupPoint} approximate={approximateAddress} precision={pickupPrecision} disabled={isSubmitting} onMove={(point) => { markPickupPoint(point); return true; }} onSelect={markPickupPoint} />
                 )}
+                {manual && manual.point === pickupPoint ? <MapPointAddress point={manual.point} onResult={(address) => {
+                  setPickupAddress(address);
+                  setManual({ point: manual.point, pending: false });
+                }} /> : null}
                 {coverage.enabled && pickupPoint ? (
                   <p className={outsideCoverage ? "field-error" : "muted"} role="status">
                     {outsideCoverage ? (
@@ -689,11 +701,11 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                   </p>
                 ) : null}
                 {pickupPoint && originalPoint && pickupPoint !== originalPoint ? (
-                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => adjustPickupPoint(originalPoint)}>Volver al punto original</button>
+                  <button type="button" className="ghost-button" disabled={isSubmitting} onClick={() => markPickupPoint(originalPoint)}>Volver al punto original</button>
                 ) : null}
                 {pickupPoint && !outsideCoverage ? (
                   <label>
-                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting} onChange={(event) => {
+                    <input type="checkbox" checked={pickupConfirmed} disabled={isSubmitting || manual?.pending} onChange={(event) => {
                       setPickupConfirmed(event.target.checked);
                       setFieldErrors((current) => ({ ...current, pickupAddress: undefined }));
                     }} /> Confirmo que el mapa marca el lugar correcto
@@ -702,7 +714,7 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
                 {pickupMode === "address" && (pickupPoint || pickupAddress) ? (
                   <label>Dirección o referencia para el chofer (opcional)
                     <input name="pickupAddress" autoComplete="street-address" maxLength={160} value={pickupAddress}
-                      disabled={isSubmitting} onChange={(event) => setPickupAddress(event.target.value)} />
+                      disabled={isSubmitting} onChange={(event) => { setManual(null); setPickupAddress(event.target.value); }} />
                   </label>
                 ) : null}
                 {/* El nombre del lugar es lo que el chofer busca en la calle; la dirección sola no
