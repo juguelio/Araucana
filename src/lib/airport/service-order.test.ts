@@ -577,3 +577,15 @@ it("inicia en Paihuén 15 minutos antes del horario coordinado, incluso con otra
   expect(block.passengers.map(p => p.code)).toEqual(["hotel", "oficina"]);
   expect(block.operationAt.toISOString()).toBe("2026-11-12T14:45:00.000Z");
 });
+
+it("deja a todos los pasajeros de Paihuén al final al llegar del aeropuerto", () => {
+  const flight = vuelo({ direction: "ARRIVAL" });
+  const [block] = buildServiceOrderBlocks([
+    reserva({ flight, code: "hotel1", pickupName: "Paihuén", routePosition: 0 }),
+    reserva({ flight, code: "centro", routePosition: 1 }),
+    reserva({ flight, code: "hotel2", pickupName: "Paihuen Resort de Montaña" }),
+    reserva({ flight, code: "barrio" })
+  ]);
+  expect(block.passengers.map(p => p.code)).toEqual(["centro", "barrio", "hotel1", "hotel2"]);
+  expect(block.operationAt).toEqual(flight.scheduledAt);
+});

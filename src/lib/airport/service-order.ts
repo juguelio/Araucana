@@ -333,11 +333,16 @@ export function ordenDeLaRecorrida(
   direction: ServiceOrderDirection = "ARRIVAL",
   oficina: PickupCoords | null = null
 ): ServiceOrderPassenger[] {
-  const primeros = direction === "DEPARTURE" ? pasajeros.filter(retiroPaihuen) : [];
-  if (primeros.length) {
-    const origen = primeros[0].pickup ?? { latitude: PAIHUEN_POINT[0], longitude: PAIHUEN_POINT[1] };
-    return [...primeros, ...ordenDeLaRecorrida(pasajeros.filter(p => !retiroPaihuen(p)), direction, origen)];
+  const paihuen = pasajeros.filter(retiroPaihuen);
+  const resto = paihuen.length ? pasajeros.filter(p => !retiroPaihuen(p)) : pasajeros;
+  if (direction === "DEPARTURE" && paihuen.length) {
+    const origen = paihuen[0].pickup ?? { latitude: PAIHUEN_POINT[0], longitude: PAIHUEN_POINT[1] };
+    return [...paihuen, ...ordenarResto(resto, direction, origen)];
   }
+  return [...ordenarResto(resto, direction, oficina), ...paihuen];
+}
+
+function ordenarResto(pasajeros: ServiceOrderPassenger[], direction: ServiceOrderDirection, oficina: PickupCoords | null) {
   const fijados = pasajeros
     .map((pasajero, indice) => ({ pasajero, indice }))
     .filter(({ pasajero }) => pasajero.routePosition !== null)
