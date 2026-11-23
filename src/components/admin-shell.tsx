@@ -12,9 +12,8 @@ type AdminShellProps = {
   role?: AppRole;
 };
 
-const links: Array<{ href: string; label: string; roles: AppRole[] }> = [
+const links: Array<{ href: string; label: string; roles: AppRole[]; activeFor?: string[] }> = [
   { href: "/admin", label: "Panel", roles: ["ADMIN"] },
-  { href: "/admin/rutas", label: "Rutas", roles: ["ADMIN"] },
   // Naves abre directo en el mapa: es la pantalla que el cliente mira todo el día. El tablero de flota
   // queda a un clic desde ahí («Tablero de flota»).
   { href: "/admin/naves/en-vivo", label: "Naves", roles: ["ADMIN"] },
@@ -22,8 +21,8 @@ const links: Array<{ href: string; label: string; roles: AppRole[] }> = [
   { href: "/admin/choferes", label: "Choferes", roles: ["ADMIN", "SECRETARY"] },
   // Issue #174: todos los servicios del día con su nave y su chofer, de todas las áreas.
   { href: "/admin/salidas-del-dia", label: "Salidas del día", roles: ["ADMIN", "SECRETARY"] },
-  // Boletería de las terminales: qué sale de SMA, Traful y VLA, con ocupación y venta directa.
-  { href: "/admin/servicio-publico", label: "Servicio público", roles: ["ADMIN", "SECRETARY"] },
+  // Boletería de las terminales y administración de rutas: las dos pantallas del mismo módulo.
+  { href: "/admin/servicio-publico", label: "Servicio público", roles: ["ADMIN", "SECRETARY"], activeFor: ["/admin/servicio-publico", "/admin/rutas"] },
   { href: "/admin/chapelco", label: "Chapelco", roles: ["ADMIN", "SECRETARY"] },
   { href: "/admin/aeropuerto", label: "Aeropuerto", roles: ["ADMIN", "SECRETARY"] },
   { href: "/admin/viajes-especiales", label: "Viajes especiales", roles: ["ADMIN", "SECRETARY"] },
@@ -51,7 +50,7 @@ export function AdminShell({ children, title, eyebrow = "Operacion", action, not
             <span className="brand-kicker">PANEL</span>
           </div>
         </div>
-        <AdminNav links={visibleLinks.map(({ href, label }) => ({ href, label }))} />
+        <AdminNav links={visibleLinks.map(({ href, label, activeFor }) => ({ href, label, activeFor }))} />
       </aside>
       <section className="admin-main">
         <div className="admin-top">

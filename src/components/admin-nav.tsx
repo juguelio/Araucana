@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type AdminNavLink = { href: string; label: string };
+export type AdminNavLink = { href: string; label: string; activeFor?: string[] };
 
 /**
  * Enlaces del panel con la sección actual marcada (`aria-current="page"`). Es un componente cliente
@@ -14,7 +14,12 @@ export type AdminNavLink = { href: string; label: string };
  */
 export function AdminNav({ links }: { links: AdminNavLink[] }) {
   const pathname = usePathname() ?? "";
-  const actual = (href: string) => (href === "/" ? false : href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`));
+  const actual = (link: AdminNavLink) => {
+    const prefijos = link.activeFor?.length ? link.activeFor : [link.href];
+    return prefijos.some((href) =>
+      href === "/" ? false : href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`)
+    );
+  };
 
   const scroller = useRef<HTMLDivElement>(null);
   const [bordes, setBordes] = useState({ izquierda: false, derecha: false });
@@ -60,7 +65,7 @@ export function AdminNav({ links }: { links: AdminNavLink[] }) {
       <div className="admin-nav-scroller" ref={scroller}>
         <nav aria-label="Administracion">
           {links.map((link) => (
-            <Link href={link.href} key={link.href} aria-current={actual(link.href) ? "page" : undefined}>
+            <Link href={link.href} key={link.href} aria-current={actual(link) ? "page" : undefined}>
               {link.label}
             </Link>
           ))}
