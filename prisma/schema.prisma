@@ -163,6 +163,7 @@ model Vehicle {
   specialTripAssignments SpecialTripAssignment[]
   damages      VehicleDamage[]
   serviceSheets VehicleServiceSheet[]
+  documents    VehicleDocument[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -911,6 +912,29 @@ model VehicleServiceSheet {
   updatedAt  DateTime @updatedAt @default(now())
 
   @@index([vehicleId, servicedAt])
+}
+
+/// La documentación de una unidad: póliza, técnica, RTO y cédula. Cada subida es una fila y el
+/// vigente de cada tipo es la última: reemplazar un papel deja el anterior como historial.
+model VehicleDocument {
+  id             String   @id @default(cuid())
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// POLIZA · TECNICA · RTO · CEDULA
+  kind           String
+  fileName       String
+  contentType    String
+  sizeBytes      Int
+  blobUrl        String
+  blobPathname   String
+  /// Vencimiento que declara el papel subido (opcional). Las fechas oficiales siguen en Vehicle.
+  expiresAt      DateTime?
+  /// Quién lo subió, copiado: borrar la cuenta no se lleva el rastro.
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([vehicleId, kind, createdAt])
 }
 
 /// Un servicio escolar fechado. Las filas paralelas pueden tener el mismo recorrido.
