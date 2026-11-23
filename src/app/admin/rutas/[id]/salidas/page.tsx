@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { ServicePublicNav } from "@/components/service-public-nav";
 import { EncabezadoOrdenable } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
 import { hrefDePagina, leerOrden, leerPagina, paginar } from "@/lib/admin/list-order";
@@ -154,7 +155,7 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
   return (
     <AdminShell role={sessionUser.role}
       title={`${route.from} → ${route.to}`}
-      eyebrow="Salidas de la ruta"
+      eyebrow="Servicio público · Salidas"
       notice={query?.notice}
       action={
         <div className="inline-actions">
@@ -163,6 +164,7 @@ export default async function RouteSchedulesPage({ params, searchParams }: Route
         </div>
       }
     >
+      <ServicePublicNav actual="rutas" />
       {/* Antes: un bloque grande con un eslogan. La próxima salida pasa a ser la primera cifra. */}
       <p className="salidas-ruta-meta">{route.category} · {route.via}</p>
 

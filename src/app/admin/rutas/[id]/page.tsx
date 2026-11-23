@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { ServicePublicNav } from "@/components/service-public-nav";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { updateRouteAction } from "../actions";
@@ -24,6 +25,7 @@ export default async function EditRoutePage({ params }: EditRoutePageProps) {
   return (
     <AdminShell role={sessionUser.role}
       title="Editar ruta"
+      eyebrow="Servicio público"
       action={
         <div className="inline-actions">
           <Link className="ghost-button" href="/admin/rutas">Volver a rutas</Link>
@@ -31,6 +33,7 @@ export default async function EditRoutePage({ params }: EditRoutePageProps) {
         </div>
       }
     >
+      <ServicePublicNav actual="rutas" />
       <section className="plain-card admin-section">
         <h2>
           {route.from} → {route.to}

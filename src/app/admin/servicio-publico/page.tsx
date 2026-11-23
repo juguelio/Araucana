@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { ServicePublicNav } from "@/components/service-public-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
+import { roleCanAccess } from "@/lib/auth/roles";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
@@ -125,6 +127,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
         </div>
       }
     >
+      <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
       <div className="sp-board">
         <section className="plain-card sp-controles" aria-label="Fecha y terminal">
           <div className="sp-fecha">
