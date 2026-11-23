@@ -429,6 +429,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
           issuedAt: reservation.serviceTicket.issuedAt,
           origin: reservation.serviceTicket.origin,
           destination: reservation.serviceTicket.destination,
+          departureAt: reservation.serviceTicket.departureAt ?? null,
           fareCents: reservation.serviceTicket.fareCents,
           currency: reservation.serviceTicket.currency,
           annulledAt: reservation.serviceTicket.annulledAt ?? null,

@@ -253,6 +253,9 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
                   {reservation.serviceTicket.displayNumber}
                   {reservation.serviceTicket.status === "ANULADO" ? " · anulado" : ""}
                 </strong>
+                <Link className="ghost-button" href={`/reservas/${reservation.code}/boleto`} prefetch={false}>
+                  Abrir boleto
+                </Link>
               </div>
             ) : null}
             <div>
