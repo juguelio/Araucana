@@ -56,9 +56,22 @@ describe("planilla del chofer de una salida (issue #136)", () => {
     const sheet = buildRouteSheet(salida());
 
     expect(sheet.date).toBe("2026-11-20");
-    expect(sheet.heading).toBe("San Martín de los Andes → Villa La Angostura · sale 09:00 · llega 11:30");
+    expect(sheet.heading).toBe(
+      "Terminal de Ómnibus de San Martín de los Andes → Terminal de Ómnibus de Villa La Angostura · sale 09:00 · llega 11:30"
+    );
     expect(sheet.vehicle).toBe("Sprinter 1 (AF123BC)");
     expect(sheet.passengers).toHaveLength(1);
+  });
+
+  it("imprime el lugar tal cual cuando no es una localidad con terminal", () => {
+    // Hua Hum (y Yuco, y un domicilio) no tienen terminal: la planilla no puede inventar una.
+    const sheet = buildRouteSheet(
+      salida({ route: { from: "San Martín de los Andes", to: "Hua Hum", via: "Ruta 40", stops: [] } })
+    );
+
+    expect(sheet.heading).toBe(
+      "Terminal de Ómnibus de San Martín de los Andes → Hua Hum · sale 09:00 · llega 11:30"
+    );
   });
 
   it("ordena por la secuencia de paradas de la ruta y deja al final al pasajero sin parada", () => {

@@ -8,6 +8,7 @@ import {
   plata
 } from "@/lib/airport/service-order";
 import { ordenarPorRecorrido, whatsappLink, type PickupCoords } from "@/lib/airport/route-order";
+import { lugarDeTerminal } from "@/lib/booking/terminals";
 
 /**
  * Planilla del chofer de una salida programada de ruta (issue #136).
@@ -77,6 +78,8 @@ export type RouteSheet = {
   scheduleId: string;
   date: string;
   routeLabel: string;
+  /** Sin terminales: se usa para nombrar el archivo, que tiene que seguir siendo corto. */
+  routeShortLabel: string;
   heading: string;
   departureAt: Date;
   arrivalAt: Date;
@@ -183,12 +186,17 @@ export function buildRouteSheet(input: RouteSheetInput): RouteSheet {
     contact: reservation.passenger.phone || reservation.passenger.email
   }));
 
-  const routeLabel = `${input.route.from} → ${input.route.to}`;
+  // El chofer tiene que leer la terminal, no el partido: es donde el pasajero lo espera (#276).
+  // `lugarDeTerminal` devuelve el lugar tal cual cuando no es una localidad con terminal conocida
+  // (Hua Hum, Yuco, un domicilio), así que no inventa un punto de encuentro.
+  const routeLabel = `${lugarDeTerminal(input.route.from)} → ${lugarDeTerminal(input.route.to)}`;
+  const routeShortLabel = `${input.route.from} → ${input.route.to}`;
 
   return {
     scheduleId: input.scheduleId,
     date: diaDeLaSalida(input.departureAt),
     routeLabel,
+    routeShortLabel,
     heading: `${routeLabel} · sale ${horaEnSalta(input.departureAt)} · llega ${horaEnSalta(input.arrivalAt)}`,
     departureAt: input.departureAt,
     arrivalAt: input.arrivalAt,
@@ -211,8 +219,10 @@ function slug(valor: string) {
     .toLowerCase();
 }
 
-export function routeSheetFileName(sheet: Pick<RouteSheet, "date" | "routeLabel">) {
-  return `planilla-salida-${slug(sheet.routeLabel)}-${sheet.date}.xlsx`;
+export function routeSheetFileName(sheet: Pick<RouteSheet, "date" | "routeShortLabel">) {
+  // El archivo lleva el nombre corto: «planilla-salida-san-martin-de-los-andes-...» se reconoce
+  // de un vistazo; con la terminal adelante queda un nombre larguísimo.
+  return `planilla-salida-${slug(sheet.routeShortLabel)}-${sheet.date}.xlsx`;
 }
 
 const VERDE = "FF0B4F3F";
