@@ -102,14 +102,39 @@ export const EXPIRY_LABELS: Record<ExpiryStatus, string> = {
   VALID: "Vigente"
 };
 
+/** Días que faltan para el vencimiento: negativo si ya venció, `null` si no hay fecha. */
+export function daysUntilExpiry(expiresAt: Date | null | undefined, today: string): number | null {
+  if (!expiresAt) return null;
+  const todayDate = parseDay(today);
+  if (!todayDate) return null;
+  return Math.round((expiresAt.getTime() - todayDate.getTime()) / 86_400_000);
+}
+
 /** Estado de un vencimiento al día de hoy (en Argentina). Vence al terminar el día indicado. */
 export function expiryStatus(expiresAt: Date | null | undefined, today: string): ExpiryStatus {
-  if (!expiresAt) return "MISSING";
-  const todayDate = parseDay(today)!;
-  const days = Math.round((expiresAt.getTime() - todayDate.getTime()) / 86_400_000);
+  const days = daysUntilExpiry(expiresAt, today);
+  if (days === null) return "MISSING";
   if (days < 0) return "EXPIRED";
   if (days <= EXPIRY_WARNING_DAYS) return "EXPIRING";
   return "VALID";
+}
+
+/**
+ * Días restantes en palabras, para que el operador no tenga que restar fechas: «faltan 12 días»,
+ * «vence hoy», «venció hace 3 días». `null` cuando el dato no está cargado.
+ */
+export function expiryDaysLabel(expiresAt: Date | null | undefined, today: string): string | null {
+  const days = daysUntilExpiry(expiresAt, today);
+  if (days === null) return null;
+  if (days === 0) return "vence hoy";
+  if (days > 0) return `faltan ${days} día${days === 1 ? "" : "s"}`;
+  const vencidos = Math.abs(days);
+  return `venció hace ${vencidos} día${vencidos === 1 ? "" : "s"}`;
+}
+
+/** `AAAA-MM-DD` (medianoche UTC) como `DD/MM/AAAA`, sin pasar por la zona horaria del servidor. */
+export function formatExpiryDay(date: Date): string {
+  return date.toISOString().slice(0, 10).split("-").reverse().join("/");
 }
 
 /** Lo peor de los dos vencimientos: lo que conviene mirar primero en el listado. */
