@@ -145,6 +145,10 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           </form>
         </section>
 
+        {fecha < hoy ? (
+          <p className="sp-aviso">Día pasado: el tablero es sólo consulta y las ventas están cerradas.</p>
+        ) : null}
+
         <nav className="sp-terminales" aria-label="Terminal">
           <Link className="sp-terminal" data-activa={!filtro ? "si" : undefined} href={href({ terminal: null })}>
             <span>Todas las terminales</span>
@@ -296,7 +300,11 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                           <td data-label="Estado"><span className="sp-estado" data-estado={salida.estado}>{salida.estadoLabel}</span></td>
                           <td data-label="Acciones">
                             <div className="sp-acciones">
-                              {salida.libres > 0 ? <Link className="button" href={venta}>Vender</Link> : <span className="sp-completa">Completa</span>}
+                              {salida.vendible ? (
+                                salida.libres > 0 ? <Link className="button" href={venta}>Vender</Link> : <span className="sp-completa">Completa</span>
+                              ) : (
+                                <span className="sp-no-venta">{salida.estado === "CANCELLED" ? "Cancelada" : "Venta cerrada"}</span>
+                              )}
                               <Link className="ghost-button" href={`/admin/rutas/${salida.routeId}/salidas`}>
                                 Ver ruta
                               </Link>
