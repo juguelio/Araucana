@@ -363,6 +363,7 @@ type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations" | "
     seats?: SeatRecord[];
     _count?: { seats: number };
   };
+  driver?: { id: string; name: string | null; email: string } | null;
   extraUnits?: Array<{ vehicle: { id: string; isActive?: boolean; name: string; _count?: { seats: number } } }>;
   reservations?: Array<{ status: string; passengerCount: number }>;
 };
@@ -611,6 +612,7 @@ function scheduleSummaryInclude() {
     vehicle: {
       select: { id: true, isActive: true, name: true, licensePlate: true, internalNumber: true, _count: { select: { seats: true } } }
     },
+    driver: { select: { id: true, name: true, email: true } },
     extraUnits: extraUnitsCountInclude,
     reservations: { select: { status: true, passengerCount: true } }
   };
@@ -1377,6 +1379,8 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           vehicleName: schedule.vehicle.name,
           vehiclePlate: schedule.vehicle.licensePlate ?? null,
           vehicleInternalNumber: schedule.vehicle.internalNumber ?? null,
+          driverId: schedule.driver?.id ?? null,
+          driverName: schedule.driver ? schedule.driver.name?.trim() || schedule.driver.email : null,
           extraVehicleNames: (schedule.extraUnits ?? []).map((unit) => unit.vehicle.name),
           route: `${schedule.route.from} -> ${schedule.route.to}`,
           bookingMode: schedule.route.bookingMode,

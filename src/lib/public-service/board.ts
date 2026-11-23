@@ -37,7 +37,10 @@ export type SalidaDeTerminal = {
   desde: string;
   hacia: string;
   nave: string;
+  vehicleId: string;
   patente: string | null;
+  driverId: string | null;
+  driverName: string | null;
   ocupados: number;
   capacidad: number;
   libres: number;
@@ -78,7 +81,10 @@ export function salidasDeTerminal(rows: AdminScheduleRowDto[]): SalidaDeTerminal
         desde: row.from,
         hacia: row.to,
         nave: row.vehicleName,
+        vehicleId: row.vehicleId,
         patente: row.vehiclePlate,
+        driverId: row.driverId ?? null,
+        driverName: row.driverName ?? null,
         ocupados,
         capacidad: row.totalSeats,
         libres: row.availableSeats,
