@@ -163,3 +163,50 @@ a.naves-fila-que:hover, a.naves-fila-que:focus-visible { color: var(--primary); 
 .naves-ahora-senal[data-detenida]::before, .naves-fila-senal[data-detenida]::before { background: var(--line-strong); }
 .naves-fila-ahora { color: var(--primary); }
 .naves-fila-senal { color: var(--ink-muted); font-size: 11px; }
+
+/* --- Tablero general de flota (pedido de Quique): una fila por unidad, filtros y antigüedad --- */
+.naves-indicadores { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 4px 0 14px; }
+.naves-indicadores div { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); }
+.naves-indicadores strong { display: block; color: var(--ink); font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.naves-indicadores span { display: block; margin-top: 3px; color: var(--ink-muted); font-size: 11px; font-weight: 700; line-height: 1.25; }
+.naves-indicadores div[data-tono="grave"] strong { color: #a62c22; }
+.naves-indicadores div[data-tono="atencion"] strong { color: #8a5a12; }
+
+.naves-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; margin: 0 0 14px; }
+.naves-filtros label { display: grid; gap: 4px; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.naves-filtros select { min-width: 138px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface, #fff); color: var(--ink); font: inherit; font-size: 13px; }
+.naves-filtros .button, .naves-filtros .ghost-button { min-height: 35px; }
+
+.naves-tabla-wrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface, #fff); }
+.naves-tabla { width: 100%; min-width: 1060px; border-collapse: collapse; font-size: 13px; }
+.naves-tabla th { padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.naves-tabla th a { color: inherit; text-decoration: none; }
+.naves-tabla th a:hover, .naves-tabla th a:focus-visible { color: var(--primary); text-decoration: underline; }
+.naves-tabla td { padding: 10px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+.naves-tabla td strong { display: block; font-variant-numeric: tabular-nums; }
+.naves-tabla td small { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 11px; line-height: 1.3; }
+.naves-tabla td[data-nivel="vencido"] strong { color: #a62c22; }
+.naves-tabla td[data-nivel="proximo"] strong { color: #8a5a12; }
+.naves-tabla-unidad { color: var(--ink); font-size: 15px; font-weight: 800; text-decoration: none; }
+.naves-tabla-unidad:hover, .naves-tabla-unidad:focus-visible { color: var(--primary); text-decoration: underline; }
+.naves-tabla-cadencia { color: var(--primary) !important; font-weight: 800; }
+.naves-tabla-tp { display: inline-block; margin-top: 4px; padding: 1px 7px; border-radius: 999px; background: rgba(24, 59, 50, .08); color: var(--primary); font-size: 10px; font-weight: 800; }
+.naves-tabla-alerta { color: #8a5a12 !important; font-weight: 700; }
+.naves-vacio { margin: 0; padding: 16px; color: var(--ink-muted); font-size: 13px; }
+
+@media (max-width: 980px) {
+  .naves-indicadores { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+  .naves-indicadores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .naves-filtros label, .naves-filtros select { width: 100%; }
+  .naves-tabla-wrap { border: 0; background: transparent; overflow: visible; }
+  .naves-tabla { min-width: 0; }
+  .naves-tabla thead { display: none; }
+  .naves-tabla, .naves-tabla tbody, .naves-tabla tr, .naves-tabla td { display: block; width: 100%; }
+  .naves-tabla tr { margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); }
+  .naves-tabla td { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 8px; padding: 5px 0; border: 0; }
+  .naves-tabla td::before { content: attr(data-label); color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+  .naves-tabla td strong, .naves-tabla td small { display: inline; margin: 0 4px 0 0; }
+}

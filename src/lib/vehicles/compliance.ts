@@ -22,8 +22,10 @@ const MS_DIA = 24 * 3600 * 1000;
 /** Días completos hasta el vencimiento (negativo = ya venció). Compara por día calendario. */
 export function diasHasta(fecha: Date | null | undefined, hoy: Date = new Date()): number | null {
   if (!fecha) return null;
-  const a = Date.UTC(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
-  const b = Date.UTC(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+  // Las fechas de calendario se guardan en UTC (00:00Z); usar getters locales en un server en
+  // Argentina las corre un día y el aviso de 30 días queda corrido.
+  const a = Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate());
+  const b = Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), hoy.getUTCDate());
   return Math.round((a - b) / MS_DIA);
 }
 
@@ -48,9 +50,9 @@ export function complianceLabel(fecha: Date | null | undefined, hoy: Date = new 
 /** dd/mm/aaaa sin depender del locale del servidor. */
 export function formatoFecha(fecha: Date | null | undefined): string {
   if (!fecha) return "—";
-  const d = String(fecha.getDate()).padStart(2, "0");
-  const m = String(fecha.getMonth() + 1).padStart(2, "0");
-  return `${d}/${m}/${fecha.getFullYear()}`;
+  const d = String(fecha.getUTCDate()).padStart(2, "0");
+  const m = String(fecha.getUTCMonth() + 1).padStart(2, "0");
+  return `${d}/${m}/${fecha.getUTCFullYear()}`;
 }
 
 export type UnidadConVencimientos = {
