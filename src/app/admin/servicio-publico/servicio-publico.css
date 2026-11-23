@@ -193,6 +193,17 @@
   cursor: pointer;
   font-size: 15px;
   font-weight: 800;
+  list-style: none;
+}
+
+.sp-liquidacion summary::-webkit-details-marker { display: none; }
+
+.sp-liquidacion-titulo { flex: 1 1 auto; }
+
+.sp-liquidacion-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .sp-liquidacion summary small {
@@ -200,6 +211,40 @@
   font-size: 11px;
   font-weight: 700;
 }
+
+.sp-liquidacion-estado {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sp-liquidacion-chevron {
+  display: inline-block;
+  color: var(--ink-muted);
+  font-size: 16px;
+  line-height: 1;
+  transition: transform .15s ease;
+}
+
+.sp-liquidacion[open] .sp-liquidacion-estado {
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sp-liquidacion-chevron { transform: rotate(180deg); }
 
 .sp-liquidacion[open] summary {
   border-bottom: 1px solid var(--line);
