@@ -57,7 +57,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const [anio, mes] = fecha.slice(0, 7).split("-").map(Number);
   const mesSiguiente = mes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
   const [rows, drivers, mesRows] = await Promise.all([
-    listAdminSchedules({ date: fecha }),
+    listAdminSchedules({ date: fecha, activeRoutesOnly: true }),
     prisma.user.findMany({
       where: { role: "DRIVER", isActive: true },
       select: { id: true, name: true, email: true },
@@ -68,7 +68,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
         departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
         driverId: { not: null },
         status: { not: "CANCELLED" },
-        route: { is: { bookingMode: "SEATED" } }
+        route: { is: { bookingMode: "SEATED", isActive: true } }
       },
       select: {
         departureAt: true,
