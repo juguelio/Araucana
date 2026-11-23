@@ -8,8 +8,8 @@
  * Todo acá es puro: recibe lo que ya se leyó de la base y devuelve las filas. Así se testea.
  */
 
-export type BoardArea = "RUTA" | "AEROPUERTO" | "CHAPELCO" | "ESPECIAL";
-export const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial" };
+export type BoardArea = "RUTA" | "AEROPUERTO" | "CHAPELCO" | "ESPECIAL" | "ESCOLAR" | "PERSONAL";
+export const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial", ESCOLAR: "Escolar", PERSONAL: "Traslado de personal" };
 
 export type BoardPerson = { id: string; name: string | null; email: string };
 
@@ -21,6 +21,8 @@ export type BoardUnit = {
   seats: number;
   driverId: string | null;
   driverName: string | null;
+  coDriverId?: string | null;
+  coDriverName?: string | null;
   /** Rutas: la salida a la que pertenece la nave. */
   scheduleId?: string;
   /** Rutas: la nave principal de la salida (`Schedule.vehicleId`) o una que se le sumó. */
@@ -73,6 +75,8 @@ export type BoardRow = {
   /** Rutas: para sumar otra unidad a la misma hora. */
   routeId?: string;
   inactiveRoute?: boolean;
+  school?: SchoolInput;
+  flightDate?: string;
 };
 
 export type BoardSummary = {
@@ -126,13 +130,42 @@ export type ChapelcoInput = {
   units: Array<{ id: string; capacity: number; vehicle: { id: string; name: string }; driver: BoardPerson | null }>;
 };
 
+export type SchoolInput = {
+  id: string; kind?: string; routeName: string; shift: string; companion: string | null; revision: number;
+  driver: BoardPerson | null; vehicle: { id: string; name: string } | null;
+};
+
+/** Un turno escrito como «Mañana» se conserva tal cual. Sólo una hora explícita ocupa el reloj. */
+export function schoolWindow(date: string, shift: string) {
+  const match = /^(\d{1,2}:[0-5]\d)(?:\s*(?:-|–|a)\s*(\d{1,2}:[0-5]\d))?$/i.exec(shift.trim());
+  const at = (clock?: string) => clock && Number(clock.split(":")[0]) < 24
+    ? new Date(date + "T" + clock.padStart(5, "0") + ":00-03:00") : null;
+  const start = at(match?.[1]);
+  const end = at(match?.[2]);
+  return { start, end: end && start && end > start ? end : null };
+}
+
+function schoolRow(school: SchoolInput, date: string): BoardRow {
+  const { start } = schoolWindow(date, school.shift);
+  const href = "/admin/escolares/" + school.id;
+  return {
+    key: (school.kind === "PERSONAL" ? "personal-" : "escolar-") + school.id, area: school.kind === "PERSONAL" ? "PERSONAL" : "ESCOLAR", serviceId: school.id, school,
+    at: start, atLabel: school.kind === "PERSONAL" ? "Turno de personal" : "Turno escolar", timeText: school.shift, title: school.routeName,
+    detail: school.companion ? "Acompañante · " + school.companion : null,
+    passengers: 0, capacity: null, missingVehicle: !school.vehicle, missingDriver: !school.driver,
+    overbooked: false, programmed: false, status: null, href, editHref: href + "/editar",
+    units: school.vehicle ? [{ id: school.id, vehicleId: school.vehicle.id, vehicleName: school.vehicle.name,
+      seats: 0, driverId: school.driver?.id ?? null, driverName: personName(school.driver) }] : []
+  };
+}
+
 export type SpecialTripInput = {
   id: string;
   client: string;
   passengers: number | null;
   status: string;
   firstLegAt: Date | null;
-  units: Array<{ id: string; startsAt: Date; endsAt?: Date; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
+  units: Array<{ id: string; startsAt: Date; endsAt?: Date; coDriver?: BoardPerson | null; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
   /** Varios días: qué día del viaje es este («día 2 de 5») y qué día vuelve. */
   day?: { number: number; total: number; returnLabel: string } | null;
   /** El viaje no sale este día: está afuera (varios días) o tiene la nave ocupada desde antes. */
@@ -151,7 +184,7 @@ function crewFlags(passengers: number, units: BoardUnit[], needsVehicle: boolean
   return {
     capacity: units.length ? capacity : null,
     missingVehicle: needsVehicle && units.length === 0,
-    missingDriver: units.some((unit) => !unit.driverId),
+    missingDriver: units.some((unit) => !unit.driverId && !unit.coDriverId),
     overbooked: units.length > 0 && capacity > 0 && passengers > capacity
   };
 }
@@ -242,13 +275,16 @@ export function flightRow(flight: FlightInput, dateKey: string): BoardRow {
     driverName: personName(unit.driver)
   }));
   const flightTime = flight.estimatedAt ?? flight.scheduledAt;
+  const at = departure ? flight.pickupStart ?? flight.scheduledAt : flightTime;
+  const suffix = localDateKey(at) === dateKey ? "" : " · " + localDateKey(at).slice(5).split("-").reverse().join("/");
   return {
     key: `vuelo-${flight.id}`,
+    flightDate: localDateKey(flight.scheduledAt),
     area: "AEROPUERTO",
     serviceId: flight.id,
     // Para una partida la combi sale cuando empieza la recorrida, no cuando despega el avión.
-    at: departure ? flight.pickupStart ?? flight.scheduledAt : flightTime,
-    atLabel: departure ? (flight.pickupStart ? "Recorrida" : "Despega") : "Aterriza",
+    at,
+    atLabel: (departure ? (flight.pickupStart ? "Recorrida" : "Despega") : "Aterriza") + suffix,
     title: `${flight.number} · ${departure ? "partida" : "llegada"}`,
     detail: departure ? "Hoteles → Aeropuerto Chapelco" : "Aeropuerto Chapelco → hoteles",
     passengers: flight.passengers,
@@ -256,7 +292,7 @@ export function flightRow(flight: FlightInput, dateKey: string): BoardRow {
     programmed: false,
     units,
     status: FLIGHT_STATUS[flight.status] ?? null,
-    href: `/admin/aeropuerto?date=${dateKey}#vuelo-${flight.id}`,
+    href: `/admin/aeropuerto?date=${localDateKey(flight.scheduledAt)}#vuelo-${flight.id}`,
     editHref: `/admin/aeropuerto/${flight.id}/editar`
   };
 }
@@ -297,6 +333,8 @@ export function specialTripRow(trip: SpecialTripInput): BoardRow {
     seats: unit.vehicle.seats,
     driverId: unit.driver?.id ?? null,
     driverName: personName(unit.driver),
+    coDriverId: unit.coDriver?.id ?? null,
+    coDriverName: personName(unit.coDriver ?? null),
     from: unit.startsAt,
     to: unit.endsAt
   }));
@@ -346,8 +384,10 @@ export function buildDayBoard(input: {
   flights: FlightInput[];
   chapelco: ChapelcoInput[];
   specialTrips: SpecialTripInput[];
+  schools?: SchoolInput[];
 }): { rows: BoardRow[]; summary: BoardSummary } {
   const rows = sortBoard([
+    ...(input.schools ?? []).map(school => schoolRow(school, input.dateKey)),
     ...scheduleRows(input.schedules.filter((schedule) => !["CANCELLED", "CANCELED"].includes(schedule.status))),
     // Un vuelo sin pasajeros ni combis no es un servicio todavía: en el tablero sólo sería ruido.
     ...input.flights.filter((flight) => flight.passengers > 0 || flight.units.length > 0).map((flight) => flightRow(flight, input.dateKey)),

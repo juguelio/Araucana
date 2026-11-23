@@ -28,7 +28,7 @@ export async function cargarRecorridos(vehicleId: string) {
     prisma.specialTripAssignment.findMany({
       where: { vehicleId },
       select: {
-        id: true, startsAt: true, endsAt: true, driver: chofer,
+        id: true, startsAt: true, endsAt: true, driver: chofer, coDriver: chofer,
         trip: { select: { id: true, client: true, status: true, passengers: true } }
       }
     }),

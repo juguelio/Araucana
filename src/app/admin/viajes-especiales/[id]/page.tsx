@@ -43,7 +43,7 @@ export default async function TripPage({ params, searchParams }: { params: Promi
     include: {
       assignments: {
         orderBy: { startsAt: "asc" },
-        include: { vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
+        include: { vehicle: { select: { name: true } }, coDriver: { select: { name: true, email: true } }, driver: { select: { name: true, email: true } } }
       },
       sources: { orderBy: [{ sheet: "asc" }, { row: "asc" }] }
     }
@@ -214,7 +214,7 @@ export default async function TripPage({ params, searchParams }: { params: Promi
             {trip.assignments.length ? <ul className="viaje-asignaciones">{trip.assignments.map((assignment) => (
               <li key={assignment.id}>
                 <strong>{assignment.vehicle.name}</strong>
-                <span>{assignment.driver?.name ?? assignment.driver?.email ?? "Sin chofer"}</span>
+                <span>{[assignment.driver, assignment.coDriver].flatMap(d => d ? [d.name ?? d.email] : []).join(" y ") || "Sin chofer"}</span>
                 <span className="muted">{shortDateTime.format(assignment.startsAt)} → {shortDateTime.format(assignment.endsAt)}</span>
               </li>
             ))}</ul> : (

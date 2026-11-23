@@ -1,3 +1,7 @@
+import { prisma } from "@/lib/db/prisma";
+import { driverPlan } from "@/lib/operations/driver-plan";
+import { markDriverNotified } from "./notice-actions";
+import { CopyPlan } from "./copy-plan";
 import Link from "next/link";
 import { AREA_LABEL } from "@/lib/operations/day-board";
 import { panelServiceHref, type DispatchAssignment, type DispatchDamage } from "@/lib/operations/dispatch";
@@ -9,20 +13,24 @@ import { RowModal } from "../reservas/row-modal";
 import type { Option } from "./crew-form";
 
 const clock = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Salta", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
-export function FleetAgenda({ date, drivers, vehicles, assignments, damages, people, onlyUnused, search, selected }: {
+export async function FleetAgenda({ date, drivers, vehicles, assignments, damages, people, onlyUnused, search, selected }: {
   date: string; drivers: Option[]; vehicles: Option[]; assignments: DispatchAssignment[];
   damages: ReadonlyMap<string, DispatchDamage[]>; people: boolean; onlyUnused: boolean; search: string; selected?: string;
 }) {
+  const notices = people ? await prisma.driverPlanNotice.findMany({ where: { serviceDate: new Date(date) } }) : [];
+  const noticeByDriver = new Map(notices.map(item => [item.driverId, item]));
   const kind = people ? "driverId" : "vehicleId";
   const byResource = new Map<string, DispatchAssignment[]>();
   const resources = new Map((people ? drivers : vehicles).map(item => [item.id, item.label]));
   for (const a of assignments) {
-    const id = a[kind];
-    if (!id) continue;
-    if (!resources.has(id)) resources.set(id, (people ? a.driverName : a.vehicleName) + " (inactivo)");
-    const agenda = byResource.get(id) ?? [];
-    agenda.push(a);
-    byResource.set(id, agenda);
+    const team = people ? [[a.driverId, a.driverName], [a.coDriverId, a.coDriverName]] : [[a.vehicleId, a.vehicleName]];
+    for (const [id, name] of team) {
+      if (!id) continue;
+      if (!resources.has(id)) resources.set(id, name || id);
+      const agenda = byResource.get(id) ?? [];
+      agenda.push(a);
+      byResource.set(id, agenda);
+    }
   }
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const visible = [...resources].filter(([id, name]) =>
@@ -42,10 +50,16 @@ export function FleetAgenda({ date, drivers, vehicles, assignments, damages, peo
     {!visible.length && <p>No hay coincidencias para estos filtros.</p>}
     {visible.map(([id, label]) => {
       const jobs = (byResource.get(id) ?? []).sort((a,b) => (a.start ?? Infinity) - (b.start ?? Infinity));
+      const notice = noticeByDriver.get(id);
+      const work = jobs.filter(a => !a.programmed);
+      const plan = people && (work.length || notice) ? driverPlan(date, label, work) : null;
+      const notified = !!notice && notice.fingerprint === plan?.fingerprint;
+      const orderDates = [...new Set(jobs.filter(a => a.area === "AEROPUERTO").map(a => a.orderDate ?? date))];
       const reports = people ? [] : damages.get(id) ?? [];
       const taller = estadoDeTaller(reports);
       return <details className="console-resource" key={id} open={selected === id || undefined}>
         <summary><strong>{label}</strong><span>{jobs.length ? jobs.length + (jobs.length === 1 ? " tramo" : " tramos") : "Sin servicios asignados"}</span>
+          {plan && <b className={notified ? "handoff-sent" : "console-warning"}>{notified ? "Avisado" : notice ? "Cambió · volver a avisar" : "Por avisar"}</b>}
           {reports.length > 0 && <b className="console-warning">{taller?.etiqueta ?? "Daño abierto"}</b>}</summary>
         <div className="console-resource-body">
           {reports.map(d => <div className="console-damage" key={d.id}>
@@ -58,14 +72,21 @@ export function FleetAgenda({ date, drivers, vehicles, assignments, damages, peo
             </form>
           </div>)}
           {jobs.map(a => <Link className="console-job" href={panelServiceHref(date, a.rowKey)} key={a.key}>
-            <strong>{a.start === null ? "A coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>
-            <span>{AREA_LABEL[a.area]} · {a.title}<small>{people ? a.vehicleName : a.driverName ?? "Sin chofer"}{a.cancelled ? " · servicio interrumpido" : a.estimatedWindow ? " · horario estimado" : a.start !== null && a.end === null ? " · fin a coordinar" : ""}</small></span><b>Gestionar ›</b>
+            <strong>{a.start === null ? a.shift || "A coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>
+            <span>{AREA_LABEL[a.area]} · {a.title}<small>{people ? a.vehicleName : [a.driverName, a.coDriverName].filter(Boolean).join(" y ") || "Sin chofer"}{a.programmed && " · programada sin pasajeros"}{a.cancelled ? " · servicio interrumpido" : a.estimatedWindow ? " · horario estimado" : a.start !== null && a.end === null ? " · fin a coordinar" : ""}</small></span><b>Gestionar ›</b>
           </Link>)}
+          {plan && <div className="handoff">
+            <CopyPlan key={plan.fingerprint} message={plan.message} />
+            {notified && notice ? <p>Aviso registrado por {notice.notifiedBy} el {notice.notifiedAt.toLocaleString("es-AR", { timeZone: "America/Argentina/Salta" })}.</p> :
+              <form action={markDriverNotified.bind(null, date, id, plan.fingerprint, notice?.fingerprint ?? null)}>
+                <button className="button">Marcar como avisado</button>
+              </form>}
+          </div>}
           <div className="console-resource-actions">
             {!people && <><RowModal trigger="Anotar daño" triggerClassName="ghost-button" triggerLabel={"Anotar daño de " + label} eyebrow="Flota" title="Anotar daño" subtitle={label}>
               <DamageForm action={createDamageAction} vehicleId={id} panelDate={date} />
             </RowModal><Link href={"/admin/naves/"+id}>Ficha de la nave</Link></>}
-            {jobs.some(a => a.area === "AEROPUERTO") && <Link href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date, [kind]: id } }}>Órdenes de aeropuerto</Link>}
+            {orderDates.map(day => <Link key={day} href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: day, [kind]: id } }}>Órdenes de aeropuerto{day !== date && " · " + day.split("-").reverse().join("/")}</Link>)}
           </div>
         </div>
       </details>;

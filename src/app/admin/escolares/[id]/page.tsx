@@ -22,10 +22,10 @@ export default async function SchoolDetail({ params, searchParams }: {
     ["Nave", run.vehicle?.name ?? "Sin asignar"], ["Segunda persona", run.companion ?? "Sin asignar"],
     ["Observaciones", run.notes ?? "—"], ["Pendiente de revisión", run.review ?? "—"]
   ];
-  return <AdminShell title={run.routeName} eyebrow="Escolares" role={user.role} notice={(await searchParams).aviso}
-    action={<div className="inline-actions"><Link className="ghost-button" href={`/admin/escolares?fecha=${date}`}>Volver al listado</Link><Link className="button" href={`/admin/escolares/${id}/editar`}>Editar recorrido</Link></div>}>
+  return <AdminShell title={run.routeName} eyebrow={run.kind === "PERSONAL" ? "Traslados de personal" : "Escolares"} role={user.role} notice={(await searchParams).aviso}
+    action={<div className="inline-actions"><Link className="ghost-button" href={`/admin/escolares?fecha=${date}${run.kind === "PERSONAL" ? "&tipo=personal" : ""}`}>Volver al listado</Link><Link className="button" href={`/admin/escolares/${id}/editar`}>Editar recorrido</Link></div>}>
     <section className="plain-card admin-section"><dl className="school-facts">{fields.map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
-    {source && <section className="plain-card admin-section"><h2>Planilla de origen</h2><p>Hoja {String(source.sheet)} · Fila {String(source.row)}</p>
+    {source?.sheet != null && source.row != null && <section className="plain-card admin-section"><h2>Planilla de origen</h2><p>Hoja {String(source.sheet)} · Fila {String(source.row)}</p>
       <p className="muted">Chofer {String(source.driver || "sin dato")} · Nave {String(source.vehicle || "sin dato")}</p></section>}
   </AdminShell>;
 }

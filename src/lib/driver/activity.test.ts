@@ -3,6 +3,7 @@ import { activityStatus, filterDriverActivity, type DriverActivity } from "./act
 import { listDriverActivity } from "./activity-repository";
 
 const db = vi.hoisted(() => ({
+  schoolRun: { findMany: vi.fn().mockResolvedValue([{ id: "e1", serviceDate: new Date("2026-11-23"), routeName: "Escuela", shift: "Mañana", vehicle: null }]) },
   schedule: { findMany: vi.fn() },
   airportVehicleAssignment: { findMany: vi.fn() },
   chapelcoVehicleDuty: { findMany: vi.fn() },
@@ -33,7 +34,8 @@ it("incluye la nave adicional del chofer y enlaza la orden al vuelo, nave y fech
   expect(db.schedule.findMany).toHaveBeenCalledWith(expect.objectContaining({
     where: { OR: [{ driverId: "chofer-1" }, { extraUnits: { some: { driverId: "chofer-1" } } }] }
   }));
-  expect(entries).toHaveLength(3);
+  expect(entries).toHaveLength(4);
+  expect(entries[3]).toMatchObject({ area: "ESCOLAR", date: "2026-11-23", startsAt: null, vehicle: "Sin nave asignada" });
   expect(entries[0]).toMatchObject({ vehicle: "Nave adicional", links: expect.arrayContaining([
     { href: "/admin/rutas/r1/salidas/s1/planilla", label: "Ver planilla" }
   ]) });

@@ -1,6 +1,8 @@
 import { dayRange, localDateKey, type BoardArea } from "@/lib/operations/day-board";
 
 export const driverActivityAreas: Record<BoardArea, string> = {
+  PERSONAL: "Traslados de personal",
+  ESCOLAR: "Escolares",
   RUTA: "Rutas",
   AEROPUERTO: "Aeropuerto",
   CHAPELCO: "Chapelco",

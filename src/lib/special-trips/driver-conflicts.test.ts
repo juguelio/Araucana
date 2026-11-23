@@ -32,7 +32,7 @@ describe("driverConflicts: dónde más maneja el chofer en ese tramo", () => {
     expect(calls.schedule).toHaveBeenCalledWith(expect.objectContaining({ where: { driverId: "d1", ...overlap } }));
     expect(calls.scheduleUnit).toHaveBeenCalledWith(expect.objectContaining({ where: { driverId: "d1", schedule: overlap } }));
     expect(calls.specialTripAssignment).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ driverId: "d1", startsAt: { lt: tramo.endsAt }, endsAt: { gt: tramo.startsAt } })
+      where: expect.objectContaining({ OR: [{ driverId: "d1" }, { coDriverId: "d1" }], startsAt: { lt: tramo.endsAt }, endsAt: { gt: tramo.startsAt } })
     }));
     expect(calls.chapelcoVehicleDuty).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ driverId: "d1", status: "ACTIVE" }) }));
     // La combi que se está guardando no choca consigo misma; las otras combis del mismo vuelo sí cuentan.

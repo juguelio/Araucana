@@ -49,7 +49,7 @@ export const legSchema = z.object({
   points: z.array(tripPointSchema).max(50).optional(),
   zone: z.enum(timezones), arrivalZone: z.enum(timezones).optional(), departure: line, arrival: line, included: z.boolean(), description: z.string().max(4000)
 });
-export const assignmentSchema = z.object({ vehicleId: line.min(1), driverId: line, start: line, end: line });
+export const assignmentSchema = z.object({ vehicleId: line.min(1), driverId: line, coDriverId: line.optional(), start: line, end: line });
 export const paymentKinds = { DEPOSIT: "Seña", PAYMENT: "Pago" } as const;
 export const paymentSchema = z.object({
   date: line, amount: line, note: line,

@@ -10,6 +10,7 @@ import { dateOnly } from "@/lib/special-trips/data";
 export async function saveSchoolRun(form: FormData) {
   const actor = await getCurrentReservationsUserOrRedirect();
   const field = (name: string) => String(form.get(name) ?? "").trim();
+  const kind = field("kind") === "PERSONAL" ? "PERSONAL" : "ESCOLAR";
   const id = field("id");
   const revision = field("revision");
   const date = field("date");
@@ -22,7 +23,7 @@ export async function saveSchoolRun(form: FormData) {
   const notes = field("notes") || null;
   const review = field("review") || null;
   const detail = "/admin/escolares/" + encodeURIComponent(id);
-  const back = (notice: string) => redirect((revision ? detail + "/editar" : "/admin/escolares/nuevo") + "?" + new URLSearchParams({ fecha: date, aviso: notice }));
+  const back = (notice: string) => redirect((revision ? detail + "/editar" : "/admin/escolares/nuevo") + "?" + new URLSearchParams({ fecha: date, ...(kind === "PERSONAL" ? { tipo: "personal" } : {}), aviso: notice }));
   if (!serviceDate || !routeName || !shift || !id || routeName.length > 400 || shift.length > 100 ||
       (companion?.length ?? 0) > 200 || (notes?.length ?? 0) > 2000 || (review?.length ?? 0) > 2000) {
     return back("Revisá la fecha, el recorrido, el turno y la extensión de los campos.");
@@ -44,19 +45,21 @@ export async function saveSchoolRun(form: FormData) {
       if (!update.count) return "Otra persona editó el recorrido. Revisá la versión guardada.";
     } else {
       if (!/^[\da-f-]{36}$/i.test(id)) return "Volvé a abrir el formulario de alta.";
-      const created = await tx.schoolRun.createMany({ data: [{ id, ...data }], skipDuplicates: true });
+      const created = await tx.schoolRun.createMany({ data: [{ id, kind, ...data }], skipDuplicates: true });
       if (!created.count) return "El recorrido ya estaba guardado.";
     }
     await recordEntityAudit(tx, {
       actor, entity: "SCHOOL_RUN", entityId: id, entityLabel: routeName,
-      summary: "Recorrido escolar guardado para el " + date,
+      summary: "Recorrido guardado para el " + date,
       before: previous ? Object.fromEntries(Object.keys(data).map(key => [key, previous[key as keyof typeof data]])) : null,
       after: data
     });
-    return "Recorrido escolar guardado.";
+    return "Recorrido guardado.";
   });
+  revalidatePath("/admin");
+  revalidatePath("/admin/salidas-del-dia");
   revalidatePath("/admin/escolares");
   revalidatePath(detail);
-  if (message !== "Recorrido escolar guardado.") return back(message);
+  if (message !== "Recorrido guardado.") return back(message);
   redirect(detail + "?" + new URLSearchParams({ aviso: message }));
 }

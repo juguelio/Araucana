@@ -1,3 +1,4 @@
+import { isDateKey } from "@/lib/operations/day-board";
 import { redirect } from "next/navigation";
 
 /**
@@ -19,6 +20,8 @@ export function boardHref(dateKey: string, notice?: string) {
 }
 
 export function redirectToBoard(dateKey: string, notice: string, form?: FormData): never {
+  const selectedDate = form?.get("boardDate");
+  if (typeof selectedDate === "string" && isDateKey(selectedDate)) dateKey = selectedDate;
   const href = boardHref(dateKey, notice);
   if (form?.get("panelOrigin") !== "panel") redirect(href);
   const query = new URLSearchParams({ date: dateKey, notice });

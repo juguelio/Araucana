@@ -67,7 +67,8 @@ export async function saveTrip(id: string | null, version: string | null, _state
       const startsAt = localDateTime(a.start, argentina);
       const endsAt = localDateTime(a.end, argentina);
       if (!startsAt || !endsAt || endsAt <= startsAt) throw new TripError("Cada ocupación necesita un inicio y un fin posterior.");
-      return { vehicleId: a.vehicleId, driverId: a.driverId || null, startsAt, endsAt };
+      if (a.coDriverId && a.coDriverId === a.driverId) throw new TripError("Elegí dos choferes diferentes para esta nave.");
+      return { vehicleId: a.vehicleId, driverId: a.driverId || null, coDriverId: a.coDriverId || null, startsAt, endsAt };
     });
     if (assignments.some((a, i) => assignments.slice(i + 1).some((b) =>
       a.vehicleId === b.vehicleId && a.startsAt < b.endsAt && a.endsAt > b.startsAt))) {
@@ -90,6 +91,7 @@ export async function saveTrip(id: string | null, version: string | null, _state
         current.assignments.forEach((a) => {
           assignedVehicles.add(a.vehicleId);
           if (a.driverId) assignedDrivers.add(a.driverId);
+          if (a.coDriverId) assignedDrivers.add(a.coDriverId);
         });
         await lockFleet(tx, [...current.assignments, ...assignments].map((a) => a.vehicleId));
       } else {
@@ -105,7 +107,7 @@ export async function saveTrip(id: string | null, version: string | null, _state
         throw new TripError("La suma de los cobros supera el importe acordado.");
       }
       const vehiclesToCheck = [...new Set(assignments.map((a) => a.vehicleId))].filter((vehicleId) => !assignedVehicles.has(vehicleId));
-      const driversToCheck = [...new Set(assignments.flatMap((a) => a.driverId ?? []))].filter((driverId) => !assignedDrivers.has(driverId));
+      const driversToCheck = [...new Set(assignments.flatMap(a => [a.driverId, a.coDriverId].filter((id): id is string => !!id)))].filter((driverId) => !assignedDrivers.has(driverId));
       const [vehicleCount, driverCount] = await Promise.all([
         tx.vehicle.count({ where: { id: { in: vehiclesToCheck }, isActive: true, kind: { not: "UTILITARIO" } } }),
         tx.user.count({ where: { id: { in: driversToCheck }, isActive: true, role: "DRIVER" } })
@@ -133,12 +135,12 @@ export async function saveTrip(id: string | null, version: string | null, _state
       const involved = [...(previous?.assignments ?? []), ...assignments];
       const [vehicleNames, driverNames] = await Promise.all([
         tx.vehicle.findMany({ where: { id: { in: involved.map((a) => a.vehicleId) } }, select: { id: true, name: true } }),
-        tx.user.findMany({ where: { id: { in: involved.flatMap((a) => a.driverId ?? []) } }, select: { id: true, name: true, email: true } })
+        tx.user.findMany({ where: { id: { in: involved.flatMap(a => [a.driverId, a.coDriverId].filter((id): id is string => !!id)) } }, select: { id: true, name: true, email: true } })
       ]);
-      const describe = (a: { vehicleId: string; driverId: string | null; startsAt: Date; endsAt: Date }) => {
+      const describe = (a: { vehicleId: string; driverId: string | null; coDriverId: string | null; startsAt: Date; endsAt: Date }) => {
         const vehicle = vehicleNames.find((v) => v.id === a.vehicleId)?.name ?? a.vehicleId;
-        const driver = driverNames.find((d) => d.id === a.driverId);
-        return `${vehicle}${driver ? ` (${driver.name ?? driver.email})` : ""} ${formatAuditDate(a.startsAt)} a ${formatAuditDate(a.endsAt)}`;
+        const crew = driverNames.filter(d => d.id === a.driverId || d.id === a.coDriverId).map(d => d.name ?? d.email);
+        return `${vehicle}${crew.length ? ` (${crew.join(" y ")})` : ""} ${formatAuditDate(a.startsAt)} a ${formatAuditDate(a.endsAt)}`;
       };
       const assignmentChange = listChange(previous ? (previous.assignments ?? []).map(describe) : null, assignments.map(describe));
       await recordEntityAudit(tx, {
@@ -156,6 +158,8 @@ export async function saveTrip(id: string | null, version: string | null, _state
   }
 
   revalidatePath("/admin/viajes-especiales");
+  revalidatePath("/admin");
+  revalidatePath("/admin/salidas-del-dia");
   const detailPath = `/admin/viajes-especiales/${tripId}`;
   revalidatePath(detailPath);
   revalidatePath(`${detailPath}/editar`);

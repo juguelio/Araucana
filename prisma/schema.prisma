@@ -26,7 +26,8 @@ model User {
   accountingEntries AccountingEntry[]
   chapelcoDuties ChapelcoVehicleDuty[]
   airportDuties AirportVehicleAssignment[]
-  specialTripAssignments SpecialTripAssignment[]
+  specialTripAssignments SpecialTripAssignment[] @relation("SpecialPrimaryDriver")
+  specialTripReliefs SpecialTripAssignment[] @relation("SpecialCoDriver")
   scheduleDuties Schedule[]
   scheduleUnitDuties ScheduleUnit[]
   driverProfile DriverProfile?
@@ -746,7 +747,9 @@ model SpecialTripAssignment {
   vehicleId String
   vehicle   Vehicle     @relation(fields: [vehicleId], references: [id])
   driverId  String?
-  driver    User?       @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  driver    User?       @relation("SpecialPrimaryDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  coDriverId String?
+  coDriver User? @relation("SpecialCoDriver", fields: [coDriverId], references: [id], onDelete: SetNull)
   startsAt  DateTime
   endsAt    DateTime
 
@@ -915,6 +918,8 @@ model VehicleServiceSheet {
 
 /// Un servicio escolar fechado. Las filas paralelas pueden tener el mismo recorrido.
 model SchoolRun {
+  /// Recorridos fijos escolares o de transporte de personal.
+  kind String @default("ESCOLAR")
   id           String   @id @default(cuid())
   serviceDate  DateTime @db.Date
   routeName    String
@@ -929,4 +934,15 @@ model SchoolRun {
   source       Json?
   revision     Int      @default(0)
   @@index([serviceDate, routeName])
+}
+
+/// Última jornada comunicada manualmente a un chofer.
+model DriverPlanNotice {
+  serviceDate DateTime @db.Date
+  driverId    String
+  fingerprint String
+  notifiedAt  DateTime @default(now())
+  notifiedBy  String
+
+  @@id([serviceDate, driverId])
 }

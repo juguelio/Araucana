@@ -71,8 +71,9 @@ export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, a
   const [search, setSearch] = useState("");
   const options = kind === "vehicleId" ? vehicles : drivers;
   const selectedName = options.find(o => o.id === selected?.id)?.label;
-  const agenda = selected ? assignments.filter(a => a[selected.kind] === selected.id)
+  const agenda = selected ? assignments.filter(a => a[selected.kind] === selected.id || (selected.kind === "driverId" && a.coDriverId === selected.id))
     .sort((a,b) => (a.start ?? Infinity) - (b.start ?? Infinity)) : [];
+  const orderDates = [...new Set(agenda.filter(a => a.area === "AEROPUERTO").map(a => a.orderDate ?? dateKey))];
   return <Desk.Provider value={{ panel, dragging }}>
     {panel && <div className="plan-toolbar">
       {actions}
@@ -91,15 +92,15 @@ export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, a
             <span aria-hidden="true">⠿</span> {o.label}
           </button>)}</div>
         {selected && <section className="desk-agenda" aria-live="polite"><h4>{selectedName}</h4>
-          {panel && agenda.some(a => a.area === "AEROPUERTO") && (
-            <Link prefetch={false} href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: dateKey, [selected.kind]: selected.id } }}>
-              Órdenes de aeropuerto
+          {panel && orderDates.map(day => (
+            <Link key={day} prefetch={false} href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: day, [selected.kind]: selected.id } }}>
+              Órdenes de aeropuerto{day !== dateKey && " · " + day.split("-").reverse().join("/")}
             </Link>
-          )}
+          ))}
           {agenda.length === 0 && <p>Sin servicios asignados este día.</p>}
           {agenda.map((a,i) => {
             const overlap = agenda.some((b, j) => i !== j && assignmentsOverlap(a, b));
-            return <a key={a.key} href={a.href}><strong>{a.start === null ? "Hora a coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>{AREA_LABEL[a.area]} · {a.title}{a.estimatedWindow && <span>{a.sharedPickupId ? "Recorrida compartida · horario estimado" : "Horario estimado de servicio"}</span>}{a.start !== null && a.end === null && <small>Fin a coordinar</small>}{overlap && <small>Revisar cruce horario</small>}</a>;
+            return <a key={a.key} href={a.href}><strong>{a.start === null ? a.shift || "Hora a coordinar" : clock.format(a.start)}{a.end !== null && " – " + clock.format(a.end)}</strong>{AREA_LABEL[a.area]} · {a.title}{a.estimatedWindow && <span>{a.sharedPickupId ? "Recorrida compartida · horario estimado" : "Horario estimado de servicio"}</span>}{a.start !== null && a.end === null && <small>Fin a coordinar</small>}{overlap && <small>Revisar cruce horario</small>}</a>;
           })}
         </section>}
       </aside>

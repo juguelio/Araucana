@@ -81,6 +81,7 @@ export type FuentesDeRecorridos = {
     startsAt: Date;
     endsAt: Date;
     driver?: Chofer;
+    coDriver?: Chofer;
     trip: { id: string; client: string; status: string; passengers: number | null };
   }>;
   aeropuerto: Array<{
@@ -146,7 +147,7 @@ export function recorridosDeNave(fuentes: FuentesDeRecorridos): Recorrido[] {
       soloDia: false,
       titulo: asignacion.trip.client,
       detalle: pasajeros ? `${pasajeros} ${pasajeros === 1 ? "pasajero" : "pasajeros"}` : null,
-      chofer: nombreDeChofer(asignacion.driver),
+      chofer: [nombreDeChofer(asignacion.driver), nombreDeChofer(asignacion.coDriver)].filter(Boolean).join(" y ") || null,
       estado: ESTADO_VIAJE_ESPECIAL[asignacion.trip.status as keyof typeof ESTADO_VIAJE_ESPECIAL] ?? asignacion.trip.status,
       href: `/admin/viajes-especiales/${asignacion.trip.id}`
     });

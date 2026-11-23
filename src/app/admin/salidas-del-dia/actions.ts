@@ -307,21 +307,30 @@ export async function setSpecialDriverAction(formData: FormData) {
   const actor = await getCurrentReservationsUserOrRedirect();
   const id = value(formData, "id");
   const driverId = value(formData, "driverId") || null;
+  const second = value(formData, "puesto") === "segundo";
+  const field = second ? "coDriverId" : "driverId";
   const assignment = await prisma.specialTripAssignment.findUnique({
     where: { id },
-    select: { driverId: true, tripId: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } }, trip: { select: { client: true, serviceDate: true } } }
+    select: { driverId: true, coDriverId: true, coDriver: { select: { name: true, email: true } }, tripId: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } }, trip: { select: { client: true, serviceDate: true } } }
   });
   const fallback = boardDate(formData, new Date());
   if (!assignment) redirectToBoard(fallback, "Esa nave ya no está en el viaje.", formData);
   const dateKey = tripBoardDate(formData, assignment.trip.serviceDate);
-  if (assignment.driverId === driverId) redirectToBoard(dateKey, "La nave ya tenía ese chofer.", formData);
+  if (driverId && driverId === (second ? assignment.driverId : assignment.coDriverId)) redirectToBoard(dateKey, "Elegí dos choferes diferentes.", formData);
+  if (assignment[field] === driverId) redirectToBoard(dateKey, "La nave ya tenía ese chofer.", formData);
   const driver = driverId ? await activeDriver(driverId) : null;
   if (driverId && !driver) redirectToBoard(dateKey, "Ese chofer no está disponible: elegí un chofer activo.", formData);
-  await prisma.$transaction(async (tx) => {
-    await tx.specialTripAssignment.update({ where: { id }, data: { driverId } });
+  const saved = await prisma.$transaction(async (tx) => {
+    const result = await tx.specialTripAssignment.updateMany({
+      where: { id, driverId: assignment.driverId, coDriverId: assignment.coDriverId }, data: { [field]: driverId }
+    });
+    if (!result.count) return false;
     await touchTrip(tx, assignment.tripId);
+    return true;
   });
-  await auditTrip(actor, assignment.tripId, assignment.trip.client, `Chofer de la nave ${assignment.vehicle.name} cambiado en el viaje.`, { driver: personLabel(assignment.driver) }, { driver: personLabel(driver) });
+  if (!saved) redirectToBoard(dateKey, "El equipo cambió. Revisá los choferes guardados.", formData);
+  await auditTrip(actor, assignment.tripId, assignment.trip.client, `${second ? "Segundo chofer" : "Chofer"} de la nave ${assignment.vehicle.name} cambiado en el viaje.`, { driver: personLabel(second ? assignment.coDriver : assignment.driver) }, { driver: personLabel(driver) });
+  revalidatePath("/admin");
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath(`/admin/viajes-especiales/${assignment.tripId}`);
   redirectToBoard(dateKey, driverId ? "Chofer asignado al viaje." : "Chofer quitado del viaje.", formData);

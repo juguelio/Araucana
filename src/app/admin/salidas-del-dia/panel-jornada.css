@@ -194,3 +194,31 @@ body:has(.plan-heading) .site-header { display: none; }
   .console-job { grid-template-columns: 1fr auto; }
   .console-job > strong { grid-column: 1 / -1; }
 }
+
+.ops-planning { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+.ops-planning a, .ops-week-day header a, .ops-table a { color: var(--primary-deep); text-decoration: underline; text-underline-offset: 3px; }
+.ops-planning a[aria-current] { font-weight: 700; }
+.ops-week-day { padding: 12px 0; border-top: 1px solid var(--line); }
+.ops-week-day header, .document-totals { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; }
+.ops-week-day h4 { margin: 0; text-transform: capitalize; }
+.ops-week-job { display: grid; grid-template-columns: minmax(85px, .5fr) 2fr 2fr; gap: 8px; padding: 6px 0; }
+.ops-week-job:hover { text-decoration: underline; }
+.ops-week-job small, .ops-table small { color: var(--ink-soft); }
+.ops-scroll { overflow-x: auto; }
+.ops-table { width: 100%; border-collapse: collapse; text-align: left; }
+.ops-table th, .ops-table td { padding: 8px; border-bottom: 1px solid var(--line); }
+.ops-table small { display: block; font-weight: normal; }
+.ops-table [data-urgencia=vencidos] { color: #8f3226; font-weight: 700; }
+.ops-table [data-urgencia=proximos] { color: #805314; font-weight: 600; }
+.handoff { margin: 10px 0; padding: 12px; background: var(--primary-soft); border-radius: 8px; }
+.handoff textarea { width: 100%; padding: 8px; color: inherit; background: var(--surface); font: inherit; border: 1px solid var(--line); border-radius: 6px; resize: vertical; }
+.handoff form { margin-top: 8px; }
+.handoff-sent { color: var(--primary-deep); font-size: 13px; }
+@media(max-width:600px) {
+  .ops-week-job { grid-template-columns: minmax(72px, .5fr) 2fr; }
+  .ops-week-job small { grid-column: 2; }
+  .console-switch { flex-wrap: wrap; }
+}
+.repeat-days { display: flex; flex-wrap: wrap; gap: 8px; border: 1px solid var(--line); }
+.repeat-days label { display: flex; align-items: center; }
+.repeat-days input { min-height: auto; width: auto; }

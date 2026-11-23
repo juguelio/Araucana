@@ -1,12 +1,12 @@
 import { airportServiceWindow } from "@/lib/airport/service-window";
 import { prisma } from "@/lib/db/prisma";
-import { localDateKey } from "@/lib/operations/day-board";
+import { localDateKey, schoolWindow } from "@/lib/operations/day-board";
 import type { DriverActivity } from "./activity";
 
 const vehicle = { select: { name: true } } as const;
 
 export async function listDriverActivity(driverId: string): Promise<DriverActivity[]> {
-  const [schedules, airport, chapelco, specialTrips] = await Promise.all([
+  const [schedules, airport, chapelco, specialTrips, schools] = await Promise.all([
     prisma.schedule.findMany({
       where: { OR: [{ driverId }, { extraUnits: { some: { driverId } } }] },
       select: {
@@ -38,12 +38,13 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
       }
     }),
     prisma.specialTripAssignment.findMany({
-      where: { driverId },
+      where: { OR: [{ driverId }, { coDriverId: driverId }] },
       select: {
         id: true, startsAt: true, endsAt: true, vehicle,
         trip: { select: { id: true, client: true, destinationSearch: true, status: true } }
       }
-    })
+    }),
+    prisma.schoolRun.findMany({ where: { driverId }, select: { id: true, serviceDate: true, kind: true, routeName: true, shift: true, vehicle } })
   ]);
 
   const routes: DriverActivity[] = schedules.flatMap((schedule) => {
@@ -119,5 +120,12 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
     ]
   }));
 
-  return [...routes, ...airportTransfers, ...skiDuties, ...trips];
+  const schoolRuns: DriverActivity[] = schools.map(run => {
+    const date = run.serviceDate.toISOString().slice(0,10);
+    const { start, end } = schoolWindow(date, run.shift);
+    return { id: "escolar-" + run.id, area: run.kind === "PERSONAL" ? "PERSONAL" : "ESCOLAR", date, startsAt: start, endsAt: end,
+      title: run.routeName + " · " + run.shift, vehicle: run.vehicle?.name ?? "Sin nave asignada",
+      links: [{ href: "/admin/escolares/" + run.id, label: "Ver recorrido" }] };
+  });
+  return [...routes, ...airportTransfers, ...skiDuties, ...trips, ...schoolRuns];
 }

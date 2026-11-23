@@ -108,7 +108,7 @@ export async function driverConflicts(
     tx.schedule.findMany({ where: { driverId, ...activeSchedule }, include: { route: { select: { from: true, to: true } } } }),
     tx.scheduleUnit.findMany({ where: { driverId, schedule: activeSchedule }, include: { schedule: { include: { route: { select: { from: true, to: true } } } } } }),
     tx.specialTripAssignment.findMany({
-      where: { driverId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt }, trip: { status: { not: "CANCELLED" } } },
+      where: { OR: [{ driverId }, { coDriverId: driverId }], startsAt: { lt: endsAt }, endsAt: { gt: startsAt }, trip: { status: { not: "CANCELLED" } } },
       include: { trip: { select: { client: true } } }
     }),
     tx.chapelcoVehicleDuty.findMany({

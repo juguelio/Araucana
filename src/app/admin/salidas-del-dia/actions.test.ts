@@ -50,7 +50,7 @@ vi.mock("@/lib/db/prisma", () => ({
     $transaction: (run: (tx: unknown) => unknown) => run({
       schedule: { update: mocks.updateSchedule, findUnique: mocks.findSchedule, create: mocks.createSchedule, delete: mocks.deleteSchedule },
       specialTrip: { update: mocks.touchTrip },
-      specialTripAssignment: { create: mocks.createSpecialAssignment, update: mocks.updateSpecialAssignment, delete: mocks.deleteSpecialAssignment },
+      specialTripAssignment: { create: mocks.createSpecialAssignment, updateMany: mocks.updateSpecialAssignment, delete: mocks.deleteSpecialAssignment },
       vehicle: { findMany: async () => [{ id: "v1", name: "Sprinter 1" }, { id: "v2", name: "Sprinter 2" }] },
       user: { findMany: async () => [{ id: "d1", name: "Ramón Paz", email: "ramon@ejemplo.test" }] },
       travelRoute: { findUnique: async () => ({ from: "SMA", to: "Villa Traful" }) }
@@ -265,9 +265,10 @@ describe("salidas del día: naves y choferes de un viaje especial", () => {
   });
 
   it("chofer y quitar nave de un viaje especial", async () => {
-    mocks.findSpecialAssignment.mockResolvedValue({ driverId: null, tripId: "t1", vehicle: { name: "Bus 444" }, driver: null, trip: { client: "Colegio", serviceDate: viaje.serviceDate } });
+    mocks.updateSpecialAssignment.mockResolvedValue({ count: 1 });
+    mocks.findSpecialAssignment.mockResolvedValue({ driverId: null, coDriverId: null, tripId: "t1", vehicle: { name: "Bus 444" }, driver: null, trip: { client: "Colegio", serviceDate: viaje.serviceDate } });
     expect(await redirectTo(setSpecialDriverAction(form({ id: "x1", driverId: "d1" })))).toContain("Chofer asignado al viaje.");
-    expect(mocks.updateSpecialAssignment).toHaveBeenCalledWith({ where: { id: "x1" }, data: { driverId: "d1" } });
+    expect(mocks.updateSpecialAssignment).toHaveBeenCalledWith({ where: { id: "x1", driverId: null, coDriverId: null }, data: { driverId: "d1" } });
     expect(await redirectTo(removeSpecialVehicleAction(form({ id: "x1" })))).toContain("Nave quitada del viaje.");
     expect(mocks.deleteSpecialAssignment).toHaveBeenCalledWith({ where: { id: "x1" } });
     expect(mocks.touchTrip).toHaveBeenCalledTimes(2);

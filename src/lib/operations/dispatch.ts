@@ -4,7 +4,9 @@ import type { BoardArea, BoardRow } from "./day-board";
 
 export type DispatchAssignment = {
   key: string; rowKey: string; area: BoardArea; title: string; href: string;
-  driverId: string | null; driverName: string | null; vehicleId: string; vehicleName: string;
+  driverId: string | null; driverName: string | null; vehicleId: string | null; vehicleName: string;
+  coDriverId?: string | null; coDriverName?: string | null;
+  orderDate?: string; programmed?: boolean; shift?: string; detail?: string;
   start: number | null; end: number | null; sharedPickupId?: string | null; estimatedWindow?: boolean; cancelled?: boolean;
 };
 export type DispatchDamage = { id: string; vehicleId: string; description: string; severity: string; status: string };
@@ -53,8 +55,9 @@ export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment
   const byResource = new Map<string, DispatchAssignment[]>();
   for (const item of assignments) {
     if (item.start === null || item.cancelled) continue;
-    const keys = ["nave/" + item.vehicleId];
+    const keys = item.vehicleId ? ["nave/" + item.vehicleId] : [];
     if (item.driverId) keys.push("chofer/" + item.driverId);
+    if (item.coDriverId) keys.push("chofer/" + item.coDriverId);
     for (const key of keys) {
       const items = byResource.get(key) ?? [];
       items.push(item);
@@ -68,7 +71,7 @@ export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment
         const next = items[j];
         if (next.start !== first.start && next.start! >= (first.end ?? first.start!)) break;
         if (!assignmentsOverlap(first, next)) continue;
-        const name = resource.startsWith("nave/") ? first.vehicleName : first.driverName;
+        const name = resource.startsWith("nave/") ? first.vehicleName : resource === "chofer/" + first.coDriverId ? first.coDriverName : first.driverName;
         add(first.rowKey, "Cruce de " + name + " con " + next.title);
         add(next.rowKey, "Cruce de " + name + " con " + first.title);
       }

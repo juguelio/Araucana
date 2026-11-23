@@ -10,7 +10,7 @@ import { NaveBuscador } from "../aeropuerto/nave-buscador";
 import { saveSchoolRun } from "./actions";
 import "./escolares.css";
 
-export async function SchoolEditPage({ id, fecha, aviso }: { id?: string; fecha?: string; aviso?: string }) {
+export async function SchoolEditPage({ id, fecha, aviso, tipo }: { tipo?: string; id?: string; fecha?: string; aviso?: string }) {
   const user = await getCurrentReservationsUserOrRedirect();
   const run = id ? await prisma.schoolRun.findUnique({ where: { id } }) : null;
   if (id && !run) notFound();
@@ -22,10 +22,12 @@ export async function SchoolEditPage({ id, fecha, aviso }: { id?: string; fecha?
   // La asignación actual queda a la vista al abrir ambos buscadores.
   drivers.sort((a, b) => Number(b.id === run?.driverId) - Number(a.id === run?.driverId));
   vehicles.sort((a, b) => Number(b.id === run?.vehicleId) - Number(a.id === run?.vehicleId));
-  const back = run ? `/admin/escolares/${run.id}` : `/admin/escolares?fecha=${date}`;
-  return <AdminShell title={run ? "Editar recorrido" : "Nuevo recorrido"} eyebrow="Escolares" role={user.role} notice={aviso}
+  const personal = run ? run.kind === "PERSONAL" : tipo === "personal";
+  const back = run ? `/admin/escolares/${run.id}` : `/admin/escolares?fecha=${date}${personal ? "&tipo=personal" : ""}`;
+  return <AdminShell title={run ? "Editar recorrido" : "Nuevo recorrido"} eyebrow={personal ? "Traslados de personal" : "Escolares"} role={user.role} notice={aviso}
     action={<Link className="ghost-button" href={back}>{run ? "Volver a la ficha" : "Volver al listado"}</Link>}>
     <form action={saveSchoolRun}>
+      <input type="hidden" name="kind" value={personal ? "PERSONAL" : "ESCOLAR"} />
       <input type="hidden" name="id" value={run?.id ?? randomUUID()} /><input type="hidden" name="revision" value={run?.revision ?? ""} />
       <section className="plain-card admin-section"><h2>Recorrido</h2><div className="admin-form-grid">
         <label className="span-2">Nombre del recorrido<input name="routeName" required maxLength={400} defaultValue={run?.routeName} /></label>

@@ -88,6 +88,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
                   <legend>Ocupación {index + 1}</legend>
                   <label>Nave<select aria-label="Nave" required value={assignment.vehicleId} onChange={(e) => change({ vehicleId: e.target.value })}><option value="">Elegí una nave</option>{vehicles.map((v) => <option value={v.id} key={v.id}>{v.name}</option>)}</select></label>
                   <label>Chofer<select aria-label="Chofer" value={assignment.driverId} onChange={(e) => change({ driverId: e.target.value })}><option value="">Sin asignar</option>{drivers.map((d) => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label>
+                  <label>Segundo chofer<select aria-label="Segundo chofer" value={assignment.coDriverId ?? ""} onChange={(e) => change({ coDriverId: e.target.value })}><option value="">Sin asignar</option>{drivers.map((d) => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label>
                   <label>Desde<input required type="datetime-local" value={assignment.start} onChange={(e) => change({ start: e.target.value })} /></label>
                   <label>Hasta<input required type="datetime-local" value={assignment.end} onChange={(e) => change({ end: e.target.value })} /></label>
                   <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.filter((_, i) => i !== index))}>Quitar ocupación {index + 1}</button>

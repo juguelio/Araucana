@@ -1,0 +1,2 @@
+ALTER TABLE "SchoolRun" ADD COLUMN "kind" TEXT NOT NULL DEFAULT 'ESCOLAR',
+  ADD CONSTRAINT "SchoolRun_kind_check" CHECK ("kind" IN ('ESCOLAR', 'PERSONAL'));

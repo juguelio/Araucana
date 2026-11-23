@@ -19,7 +19,7 @@ export async function TripEditPage({ id }: { id?: string }) {
       orderBy: { name: "asc" }, select: { id: true, name: true }
     }),
     prisma.user.findMany({
-      where: { OR: [{ role: "DRIVER", isActive: true }, { id: { in: trip?.assignments.flatMap((a) => a.driverId ?? []) ?? [] } }] },
+      where: { OR: [{ role: "DRIVER", isActive: true }, { id: { in: trip?.assignments.flatMap((a) => [a.driverId, a.coDriverId].filter((id): id is string => !!id)) ?? [] } }] },
       orderBy: { name: "asc" }, select: { id: true, name: true, email: true }
     })
   ]);
@@ -33,7 +33,7 @@ export async function TripEditPage({ id }: { id?: string }) {
         status: trip?.status ?? "PENDING", contact: trip?.contact, contactName: trip?.contactName,
         contactPhone: trip?.contactPhone, passengers: trip?.passengers, notes: trip?.notes,
         legs: trip ? z.array(legSchema).parse(trip.legs) : [emptyLeg],
-        assignments: trip?.assignments.map((a) => ({ vehicleId: a.vehicleId, driverId: a.driverId ?? "", start: localInput(a.startsAt), end: localInput(a.endsAt) })) ?? [],
+        assignments: trip?.assignments.map((a) => ({ vehicleId: a.vehicleId, driverId: a.driverId ?? "", coDriverId: a.coDriverId ?? "", start: localInput(a.startsAt), end: localInput(a.endsAt) })) ?? [],
         billingMode: trip?.billingMode ?? "UNKNOWN", currency: trip?.currency ?? "ARS",
         total: trip?.totalCents == null ? "" : (trip.totalCents / 100).toFixed(2),
         payments: trip ? z.array(paymentSchema).parse(trip.payments) : [], supplier: trip?.supplier, invoice: trip?.invoice,

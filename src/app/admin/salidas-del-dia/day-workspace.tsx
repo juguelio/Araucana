@@ -1,3 +1,8 @@
+import { CHAPELCO_BOOKING_MODE } from "@/lib/chapelco/constants";
+import { Deadlines } from "./deadlines";
+import { WeekAgenda } from "./week-agenda";
+import { assignSchoolCrew, repeatSchoolRun } from "./school-crew";
+import { readDispatchDays, VEHICLE_SELECT, DRIVER_SELECT, seatsOf } from "@/lib/operations/dispatch-days";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
@@ -6,19 +11,12 @@ import { DispatchDesk, DropSelect, OriginField, ServiceDisclosure } from "./disp
 import { LogoutButton } from "../logout-button";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
-import { butacasParaAeropuerto, pasajerosOcupados } from "@/lib/airport/booking";
-import { airportServiceWindow } from "@/lib/airport/service-window";
-import { esUnaRecorrida } from "@/lib/airport/service-order";
-import { airportPickupStart } from "@/lib/airport/pickup-start";
-import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
-import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
-import { AREA_LABEL, buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
+import { AREA_LABEL, personName, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
 import { countAdminReservations } from "@/lib/booking/repository";
 import { estadoDeTaller } from "@/lib/vehicles/estado-en-flota";
 import { daniosPorNave, dispatchIssues, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
 import { ReservationWorkspace, type ReservationParams } from "../reservas/reservation-workspace";
 import { FleetAgenda } from "./fleet-agenda";
-import { diaDelViaje, etiquetaRango, ultimoDia, whereVigenteEn } from "@/lib/special-trips/rango";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
@@ -29,9 +27,7 @@ import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
 import "./panel-jornada.css";
 
-export type DayParams = ReservationParams & { falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string };
-
-const ACTIVE_RESERVATION = { notIn: ["CANCELLED"] };
+export type DayParams = ReservationParams & { falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string; filtro?: string };
 
 const hourFormat = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 const dayFormat = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -42,61 +38,19 @@ function dayTitle(dateKey: string, today: string) {
   return prefix ? `${prefix}, ${label}` : label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-const seatsOf = (vehicle: { _count: { seats: number } }) => vehicle._count.seats;
-const VEHICLE_SELECT = { id: true, name: true, _count: { select: { seats: true } } } as const;
-const DRIVER_SELECT = { id: true, name: true, email: true } as const;
-
 export async function DayWorkspace({ user, params, panel = false }: { user: { role: AppRole }; params?: DayParams; panel?: boolean }) {
   const path = panel ? "/admin" : "/admin/salidas-del-dia";
   const canEditRoutes = isAdminRole(user.role);
   const today = localDateKey(new Date());
   const dateKey = isDateKey(params?.date) ? params.date : today;
-  const view = panel && (params?.vista === "reservas" || params?.vista === "flota") ? params.vista : "jornada";
+  const view = panel && (params?.vista === "reservas" || params?.vista === "flota" || params?.vista === "semana" || params?.vista === "vencimientos") ? params.vista : "jornada";
   const onlyMissing = view === "jornada" && params?.falta === "1";
   const area = panel && params?.area && Object.hasOwn(AREA_LABEL, params.area) ? params.area : "";
   const search = panel ? (params?.q ?? "").trim().slice(0, 100) : "";
-  const { from, to } = dayRange(dateKey);
-  const serviceDate = new Date(`${dateKey}T00:00:00.000Z`);
+  const { to } = dayRange(dateKey);
 
-  const [schedules, flights, chapelcoRoutes, specialTrips, vehicles, drivers, routes, damages, pendingPayments, pendingTrips] = await Promise.all([
-    prisma.schedule.findMany({
-      where: { departureAt: { gte: from, lt: to } },
-      orderBy: { departureAt: "asc" },
-      include: {
-        route: { select: { from: true, to: true, isActive: true } },
-        vehicle: { select: VEHICLE_SELECT },
-        driver: { select: DRIVER_SELECT },
-        extraUnits: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } },
-        reservations: { where: { status: ACTIVE_RESERVATION }, select: { passengerCount: true } },
-        _count: { select: { reservations: true } }
-      }
-    }),
-    prisma.flight.findMany({
-      where: { scheduledAt: { gte: from, lt: to }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] } },
-      orderBy: { scheduledAt: "asc" },
-      include: {
-        reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
-        assignments: { orderBy: { createdAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } }
-      }
-    }),
-    prisma.travelRoute.findMany({
-      where: { bookingMode: CHAPELCO_BOOKING_MODE, specialType: "CHAPELCO" },
-      select: {
-        id: true,
-        chapelcoOperationDays: {
-          where: { serviceDate },
-          include: { vehicleDuties: { where: { status: "ACTIVE" }, include: { runs: { select: { id: true, direction: true, ascentSlot: true }, orderBy: { sequence: "asc" } }, vehicle: { select: { id: true, name: true } }, driver: { select: DRIVER_SELECT } } } }
-        },
-        directReservations: {
-          where: { bookingMode: CHAPELCO_BOOKING_MODE, status: { in: [...chapelcoActiveReservationStatuses] }, chapelcoDetails: { serviceDate } },
-          select: { passengerCount: true, chapelcoDetails: { select: { ascentSlot: true } } }
-        }
-      }
-    }),
-    prisma.specialTrip.findMany({
-      where: { AND: [{ status: { not: "CANCELLED" } }, { OR: [whereVigenteEn(serviceDate), { assignments: { some: { startsAt: { lt: to }, endsAt: { gt: from } } } }] }] },
-      include: { assignments: { where: { startsAt: { lt: to }, endsAt: { gt: from } }, orderBy: { startsAt: "asc" }, include: { vehicle: { select: VEHICLE_SELECT }, driver: { select: DRIVER_SELECT } } } }
-    }),
+  const [days, vehicles, drivers, routes, damages, pendingPayments, pendingTrips] = await Promise.all([
+    readDispatchDays(dateKey, view === "semana" ? 7 : 1),
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { ...VEHICLE_SELECT, internalNumber: true, publicTransport: true, kind: true } }),
     prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, orderBy: [{ name: "asc" }, { email: "asc" }], select: DRIVER_SELECT }),
     // Rutas con salidas propias, para crear una desde el tablero (aeropuerto y Chapelco tienen su lógica).
@@ -113,78 +67,9 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     panel ? countAdminReservations({ date: dateKey, payment: "paid-unconfirmed" }) : 0
   ]);
 
-  const board = buildDayBoard({
-    dateKey,
-    schedules: schedules.map((schedule) => ({
-      id: schedule.id,
-      routeId: schedule.routeId,
-      routeActive: schedule.route.isActive,
-      from: schedule.route.from,
-      to: schedule.route.to,
-      departureAt: schedule.departureAt,
-      status: schedule.status,
-      passengers: schedule.reservations.reduce((sum, reservation) => sum + reservation.passengerCount, 0),
-      reservations: schedule._count.reservations,
-      vehicle: { id: schedule.vehicle.id, name: schedule.vehicle.name, seats: seatsOf(schedule.vehicle) },
-      driver: schedule.driver,
-      extraUnits: schedule.extraUnits.map((unit) => ({
-        id: unit.id,
-        vehicle: { id: unit.vehicle.id, name: unit.vehicle.name, seats: seatsOf(unit.vehicle) },
-        driver: unit.driver
-      }))
-    })),
-    flights: flights.map((flight) => ({
-      id: flight.id,
-      number: flight.number,
-      direction: flight.direction,
-      scheduledAt: flight.scheduledAt,
-      estimatedAt: flight.estimatedAt,
-      pickupStart: airportPickupStart(flight),
-      status: flight.status,
-      passengers: pasajerosOcupados(flight.reservations.map((detail) => detail.reservation)),
-      units: flight.assignments.map((assignment) => ({
-        id: assignment.id,
-        // Aeropuerto: las unidades de menos de 26 butacas venden 4 menos (equipaje).
-        vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: butacasParaAeropuerto(seatsOf(assignment.vehicle)) },
-        driver: assignment.driver
-      }))
-    })),
-    chapelco: chapelcoRoutes.map((route) => {
-      const day = route.chapelcoOperationDays[0] ?? null;
-      const slots = [
-        ...route.directReservations.map(reservation => reservation.chapelcoDetails?.ascentSlot),
-        ...(day?.vehicleDuties ?? []).flatMap(duty => duty.runs.filter(run => run.direction === "UP").map(run => run.ascentSlot))
-      ].filter((slot): slot is string => !!slot).sort();
-      return {
-        operationDayId: day?.id ?? null,
-        routeId: route.id,
-        dateKey,
-        status: day?.status ?? "OPEN",
-        passengers: route.directReservations.reduce((sum, reservation) => sum + reservation.passengerCount, 0),
-        firstAscent: slots[0] ? new Date(`${dateKey}T${slots[0]}:00-03:00`) : null,
-        units: (day?.vehicleDuties ?? []).map((duty) => ({ id: duty.id, capacity: duty.capacity, vehicle: duty.vehicle, driver: duty.driver }))
-      };
-    }),
-    specialTrips: specialTrips.map((trip) => {
-      const day = diaDelViaje(trip, serviceDate);
-      return {
-      id: trip.id,
-      client: trip.client,
-      passengers: trip.passengers,
-      status: trip.status,
-      firstLegAt: null,
-      day: day ? { number: day.numero, total: day.total, returnLabel: etiquetaRango({ serviceDate: ultimoDia(trip) }, serviceDate) } : null,
-      continuing: day ? !day.primero : trip.serviceDate.toISOString().slice(0, 10) !== dateKey,
-      units: trip.assignments.map((assignment) => ({
-        id: assignment.id,
-        startsAt: assignment.startsAt,
-        endsAt: assignment.endsAt,
-        vehicle: { id: assignment.vehicle.id, name: assignment.vehicle.name, seats: seatsOf(assignment.vehicle) },
-        driver: assignment.driver
-      }))
-      };
-    })
-  });
+  const { board } = days[0];
+  const serviceLinks = new Map(board.rows.map(r => [r.key, r.href]));
+  const assignments = panel ? days[0].assignments : days[0].assignments.map(a => ({ ...a, href: serviceLinks.get(a.rowKey) ?? a.href }));
 
   // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
   const serviceRows = board.rows.filter((row) => !row.programmed);
@@ -203,54 +88,19 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
   const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
-  const arrivalBySchedule = new Map(schedules.map(s => [s.id, s.arrivalAt.getTime()]));
-  const runsByDuty = new Map(chapelcoRoutes.flatMap(route =>
-    route.chapelcoOperationDays.flatMap(day => day.vehicleDuties.map(duty => [duty.id, duty.runs] as const))
-  ));
-  const flightById = new Map(flights.map(flight => [flight.id, flight]));
-  const pickupGroups = new Map<string, typeof flights>();
-  for (const flight of flights) {
-    if (!flight.pickupGroupId) continue;
-    const group = pickupGroups.get(flight.pickupGroupId) ?? [];
-    group.push(flight);
-    pickupGroups.set(flight.pickupGroupId, group);
-  }
-  const sharedPickups = new Set([...pickupGroups].filter(([, members]) => esUnaRecorrida(members)).map(([id]) => id));
-  const assignments: DispatchAssignment[] = board.rows.flatMap(row => row.units.flatMap(unit => {
-    const item = {
-      key: unit.id, rowKey: row.key, cancelled: ["Cancelado", "Desviado", "Cancelada"].includes(row.status ?? ""), title: row.inactiveRoute ? row.title + " (ruta inactiva)" : row.title, area: row.area, href: panel ? panelServiceHref(dateKey, row.key) : row.href,
-      driverName: unit.driverName, vehicleName: unit.vehicleName,
-      vehicleId: unit.vehicleId, driverId: unit.driverId,
-      start: (unit.from ?? row.at)?.getTime() ?? null,
-      end: unit.to?.getTime() ?? arrivalBySchedule.get(unit.scheduleId ?? "") ?? null
-    };
-    const flight = row.area === "AEROPUERTO" && flightById.get(row.serviceId);
-    if (flight) {
-      const { startsAt, endsAt } = airportServiceWindow(flight);
-      return [{ ...item, start: startsAt.getTime(), end: endsAt.getTime(), estimatedWindow: true,
-        sharedPickupId: flight.pickupGroupId && sharedPickups.has(flight.pickupGroupId) ? flight.pickupGroupId : null }];
-    }
-    if (row.area !== "CHAPELCO") return [item];
-    const runs = runsByDuty.get(unit.id) ?? [];
-    if (!runs.length) return [{ ...item, start: null }];
-    return runs.map(run => ({
-      ...item, key: run.id, title: run.direction === "UP" ? "Subida al cerro" : "Bajada del cerro",
-      start: run.ascentSlot ? Date.parse(`${dateKey}T${run.ascentSlot}:00-03:00`) : null
-    }));
-  }));
   const issues = dispatchIssues(board.rows, assignments, vehicleDamages);
   const pendingRows = panel ? board.rows.filter(row => issues.has(row.key)) : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const matchRow = (row: BoardRow) => (!area || row.area === area) && (!search || normalize([
-    row.title, AREA_LABEL[row.area], ...row.units.flatMap(unit => [unit.vehicleName, unit.driverName])
+    row.title, AREA_LABEL[row.area], row.school && personName(row.school.driver), ...row.units.flatMap(unit => [unit.vehicleName, unit.driverName, unit.coDriverName])
   ].join(" ")).includes(normalize(search)));
   const rows = (onlyMissing ? pendingRows : serviceRows).filter(matchRow);
   const programs = programmedRows.filter(matchRow);
   const dayHref = (key: string) => path + "?" + new URLSearchParams({ date: key,
-    ...(view !== "jornada" ? { vista: view } : {}), ...(onlyMissing ? { falta: "1" } : {})
+    ...(view !== "jornada" ? { vista: view } : {}), ...(view === "flota" && params?.tipo === "chofer" ? { tipo: "chofer" } : {}), ...(onlyMissing ? { falta: "1" } : {})
   });
-  const usedVehicles = new Set(assignments.map(a => a.vehicleId));
-  const usedDrivers = new Set(assignments.flatMap(a => a.driverId ? [a.driverId] : []));
+  const usedVehicles = new Set(assignments.flatMap(a => a.vehicleId ? [a.vehicleId] : []));
+  const usedDrivers = new Set(assignments.flatMap(a => [a.driverId, a.coDriverId].filter(Boolean)));
 
   const commercialQueues = new URLSearchParams({ date: dateKey, vista: "reservas" });
   if (pendingPayments && !pendingTrips) commercialQueues.set("payment", "pending-payment");
@@ -272,8 +122,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} issues={issues.get(row.key)} />}>
               {panel && issues.has(row.key) && <ul className="console-issues">{issues.get(row.key)!.map(message => <li key={message}>{message}</li>)}</ul>}
               {panel ? <div className="plan-detail-links">
-                {row.area !== "ESPECIAL" && <Link href={"/admin?" + new URLSearchParams({ date: dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
-                {row.area === "AEROPUERTO" && <Link href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: dateKey, flight: row.serviceId, desde: "panel" } }}>Orden de servicio</Link>}
+                {serviceReservationScope(row) && <Link href={"/admin?" + new URLSearchParams({ date: row.flightDate ?? dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
+                {row.area === "AEROPUERTO" && <Link href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: row.flightDate ?? dateKey, flight: row.serviceId, desde: "panel" } }}>Orden de servicio</Link>}
                 <Link href={row.href}>Ver servicio</Link>
                 {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
               </div> : <>
@@ -299,7 +149,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               </div>
 
               <div className="sd-pax">
-                <strong>{row.passengers}</strong>
+                <strong>{row.school ? "—" : row.passengers}</strong>
                 <span>{row.capacity !== null ? `de ${row.capacity} lugares` : "pasajeros"}</span>
               </div>
 
@@ -311,6 +161,28 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
                   ) : (
                     <UnitsReadOnly units={row.units} note="La nave y el chofer de las rutas los asigna un administrador." />
                   )
+                ) : row.school ? (
+                  <><form action={assignSchoolCrew} className="console-filters">
+                    <OriginField /><input type="hidden" name="id" value={row.serviceId} /><input type="hidden" name="revision" value={row.school.revision} />
+                    <input type="hidden" name="date" value={dateKey} />
+                    <label>Nave del recorrido<DropSelect name="vehicleId" defaultValue={row.school.vehicle?.id ?? ""}><option value="">Sin nave</option>
+                      {withCurrent(vehicleOptions,row.school.vehicle?.id ?? null,row.school.vehicle?.name ?? null).map(v => <option key={v.id} value={v.id}>{v.label}</option>)}</DropSelect></label>
+                    <label>Chofer del recorrido<DropSelect name="driverId" defaultValue={row.school.driver?.id ?? ""}><option value="">Sin chofer</option>
+                      {withCurrent(driverOptions,row.school.driver?.id ?? null,personName(row.school.driver)).map(d => <option key={d.id} value={d.id}>{d.label}</option>)}</DropSelect></label>
+                    <button className="ghost-button">Guardar equipo del día</button>
+                  </form>
+                  <details><summary>Repetir recorrido</summary>
+                    <form action={repeatSchoolRun} className="console-filters">
+                      <OriginField /><input type="hidden" name="id" value={row.serviceId} /><input type="hidden" name="revision" value={row.school.revision} /><input type="hidden" name="date" value={dateKey} />
+                      <label>Desde<input type="date" name="desde" defaultValue={shiftDateKey(dateKey,1)} required /></label>
+                      <label>Hasta<input type="date" name="hasta" required /></label>
+                      <fieldset className="repeat-days"><legend>Días de la semana</legend>
+                        {["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"].map((d,i) => <label key={d}><input type="checkbox" name="dia" value={i} defaultChecked={i === new Date(dateKey).getUTCDay()} />{d}</label>)}
+                      </fieldset>
+                      <label>Fechas a excluir (feriados u otras)<input name="excepto" placeholder="25/12/2026, 01/01/2027" /></label>
+                      <button className="ghost-button">Crear recorridos</button>
+                    </form>
+                  </details></>
                 ) : row.area === "AEROPUERTO" ? (
                   <AirportUnits row={row} dateKey={dateKey} vehicleOptions={vehicleOptions} driverOptions={driverOptions} withCurrent={withCurrent} />
                 ) : row.area === "CHAPELCO" ? (
@@ -328,6 +200,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
     <form className="sd-date" action={path}>
       <input type="date" name="date" defaultValue={dateKey} aria-label="Fecha" />
       {view !== "jornada" && <input type="hidden" name="vista" value={view} />}
+      {view === "flota" && params?.tipo === "chofer" && <input type="hidden" name="tipo" value="chofer" />}
       {onlyMissing ? <input type="hidden" name="falta" value="1" /> : null}
       <button className="ghost-button" type="submit">Ver</button>
     </form>
@@ -368,11 +241,16 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
             <small>{[pendingPayments > 0 && chargeLabel, pendingTrips > 0 && tripLabel].filter(Boolean).join(" · ") || "Sin cobros ni viajes por confirmar"}</small>
           </Link>
         </nav>
+        <nav className="ops-planning" aria-label="Planificación">
+          <Link aria-current={view === "semana" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=semana"}>Trabajo semanal</Link>
+          <Link href={path + "?date=" + shiftDateKey(today,1) + "&vista=flota&tipo=chofer"}>Avisar a los choferes de mañana</Link>
+          <Link aria-current={view === "vencimientos" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=vencimientos"}>Vencimientos a 30 días</Link>
+        </nav>
       </section> : (
       <section className="sd-head">
         <div>
           <h2>{dayTitle(dateKey, today)}</h2>
-          <p className="muted">Todos los servicios del día con su nave y su chofer: rutas, aeropuerto, Chapelco y viajes especiales, por la hora en que sale la unidad.</p>
+          <p className="muted">Todos los servicios del día con su nave y su chofer: rutas, aeropuerto, Chapelco, escolares y viajes especiales, por la hora en que sale la unidad.</p>
         </div>
         <dl className="sd-summary">
           <div><dt>Servicios</dt><dd>{board.summary.services}</dd></div>
@@ -388,7 +266,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         </div>
       </section>)}
 
-      {view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={fleetOptions} assignments={assignments} damages={vehicleDamages} people={params?.tipo === "chofer"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
+      {view === "semana" ? <WeekAgenda days={days} /> : view === "vencimientos" ? <Deadlines date={dateKey} filter={params?.filtro} /> : view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={fleetOptions} assignments={assignments} damages={vehicleDamages} people={params?.tipo === "chofer"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
       : view === "reservas" ? <section className="console-work console-reservations" aria-label="Reservas y cobros de la jornada">
         {params?.servicio && <header className="console-section-head">
           <h3>{selectedService ? [selectedService.at && hourFormat.format(selectedService.at), selectedService.title].filter(Boolean).join(" · ") : "El servicio ya no figura en esta jornada"}</h3>
@@ -437,6 +315,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
             <h3>Otros</h3>
             <Link className="ghost-button" href={`/admin/aeropuerto?date=${dateKey}`}>Cargar vuelo a mano</Link>
             <Link className="ghost-button" href={`/admin/reservas/nueva?servicio=aeropuerto&date=${dateKey}`}>Reserva de aeropuerto</Link>
+            <Link className="ghost-button" href={`/admin/escolares/nuevo?fecha=${dateKey}`}>Recorrido escolar</Link>
+            <Link className="ghost-button" href={`/admin/escolares/nuevo?fecha=${dateKey}&tipo=personal`}>Traslado de personal</Link>
             <Link className="ghost-button" href="/admin/viajes-especiales/nuevo">Viaje especial</Link>
             {canEditRoutes ? <Link className="ghost-button" href="/admin/naves/nueva">Nave nueva</Link> : null}
             {canEditRoutes ? <Link className="ghost-button" href="/admin/choferes/nueva">Chofer nuevo</Link> : null}
@@ -480,7 +360,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         </div>
       )}
       {programs.length > 0 && !onlyMissing ? (
-        <details open={programs.some(r => r.key === params?.servicio) || undefined} className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
+        <details id="programacion" open={programs.some(r => r.key === params?.servicio) || undefined} className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
           <summary>
             <strong>Ver la programación del día ({programs.length})</strong>
             <span className="muted">Salidas que todavía no tienen pasajeros.</span>
@@ -510,9 +390,10 @@ function ServiceSummary({ row, issues = [] }: { row: BoardRow; issues?: string[]
     </span>
     <span className="plan-crew">
       <strong>{count > 1 ? `${count} naves asignadas` : first?.vehicleName ?? "Sin asignar"}</strong>
-      {first && <small>{count === 1 ? first.driverName : row.units.map(unit => unit.vehicleName).join(" · ")}</small>}
+      {!first && row.school?.driver && <small>{personName(row.school.driver)}</small>}
+      {first && <small>{count === 1 ? [first.driverName, first.coDriverName].filter(Boolean).join(" y ") : row.units.map(unit => unit.vehicleName).join(" · ")}</small>}
     </span>
-    <span className="plan-load">{row.passengers}{row.capacity !== null && <small> / {row.capacity}</small>}<span className="plan-mobile-label"> pasajeros</span></span>
+    <span className="plan-load">{row.school ? "—" : row.passengers}{row.capacity !== null && <small> / {row.capacity}</small>}<span className="plan-mobile-label"> pasajeros</span></span>
     <span className="plan-chevron" aria-hidden="true">⌄</span>
   </>;
 }
@@ -554,7 +435,7 @@ function UnitHead({ unit }: { unit: BoardUnit }) {
   return <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{unit.seats} lug.</span></p>;
 }
 
-function AirportUnits({ row, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
+function AirportUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }: UnitProps) {
   const free = vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id));
   return (
     <div className="sd-units">
@@ -563,7 +444,7 @@ function AirportUnits({ row, vehicleOptions, driverOptions, withCurrent }: UnitP
         <FleetAssignmentForm action={assignVehicleAction}>
         <OriginField />
         <input type="hidden" name="flightId" value={row.serviceId} />
-        <BoardReturn />
+        <BoardReturn /><input type="hidden" name="boardDate" value={dateKey} />
         <DropSelect name="vehicleId" defaultValue="" aria-label="Combi para sumar al vuelo">
           <option value="" disabled>{row.units.length ? "Sumar otra combi…" : "Elegir combi…"}</option>
           {free.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
@@ -577,7 +458,7 @@ function AirportUnits({ row, vehicleOptions, driverOptions, withCurrent }: UnitP
           <div className="sd-airport-driver sd-driver">
             <FleetAssignmentForm action={assignVehicleAction}>
               <OriginField />
-              <BoardReturn />
+              <BoardReturn /><input type="hidden" name="boardDate" value={dateKey} />
               <input type="hidden" name="flightId" value={row.serviceId} />
               <input type="hidden" name="vehicleId" value={unit.vehicleId} />
               <input type="hidden" name="assignmentId" value={unit.id} />
@@ -587,7 +468,7 @@ function AirportUnits({ row, vehicleOptions, driverOptions, withCurrent }: UnitP
           <form action={removeAssignmentAction} className="sd-remove">
         <OriginField />
             <input type="hidden" name="id" value={unit.id} />
-            <BoardReturn />
+            <BoardReturn /><input type="hidden" name="boardDate" value={dateKey} />
             <button className="text-button" type="submit" aria-label={`Quitar ${unit.vehicleName} del vuelo`}>Quitar</button>
           </form>
         </div>
@@ -722,6 +603,7 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
   const first = row.units[0];
   return (
     <div className="sd-units">
+      {row.continuing && <p className="sd-note">La asignación cubre el bloque indicado. Para un relevo con otras fechas, <Link href={row.editHref}>editá los bloques del viaje</Link>.</p>}
       <div className="sd-sumar" data-campos="4">
         <FleetAssignmentForm action={addSpecialVehicleAction}>
         <OriginField />
@@ -746,6 +628,14 @@ function SpecialUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent
         <div className="sd-unit" key={unit.id}>
           <p className="sd-unit-name"><strong>{unit.vehicleName}</strong> <span className="muted">{blockLabel(unit.from, unit.to)}</span></p>
           <DriverForm unit={unit} action={setSpecialDriverAction} dateKey={dateKey} options={withCurrent(driverOptions, unit.driverId, unit.driverName)} />
+          <form action={setSpecialDriverAction} className="sd-driver">
+            <OriginField /><input type="hidden" name="id" value={unit.id} /><input type="hidden" name="date" value={dateKey} />
+            <input type="hidden" name="puesto" value="segundo" />
+            <label>Segundo chofer <DropSelect name="driverId" defaultValue={unit.coDriverId ?? ""}>
+              <option value="">Sin segundo chofer</option>
+              {withCurrent(driverOptions, unit.coDriverId ?? null, unit.coDriverName ?? null).filter(d => d.id !== unit.driverId).map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+            </DropSelect></label><button className="ghost-button">Guardar segundo chofer</button>
+          </form>
           <form action={removeSpecialVehicleAction} className="sd-remove">
         <OriginField />
             <input type="hidden" name="id" value={unit.id} />
