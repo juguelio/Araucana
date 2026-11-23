@@ -98,6 +98,16 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               <div><dt>{airport ? "Vuelo" : isChapelco ? "Fecha" : salidaRegular}</dt><dd>{departureLabel}</dd></div>
               <div><dt>{isChapelco ? "Cupo" : "Lugares"}</dt><dd>{placesLabel(reservation.passengerCount)}</dd></div>
               <div><dt>Total</dt><dd>{formatPrice(reservation.totalCents, reservation.currency)}</dd></div>
+              {/* Boleto numerado del servicio público (#370): el número es la traza del comprobante. */}
+              {reservation.serviceTicket ? (
+                <div>
+                  <dt>Boleto N°</dt>
+                  <dd>
+                    {reservation.serviceTicket.displayNumber}
+                    {reservation.serviceTicket.status === "ANULADO" ? " · anulado" : ""}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
             {showPaymentPanel ? (
               <a className="button rp-hero-cta" href="#pago">{disabilityFare ? "Subir el comprobante" : receiptRejected ? "Enviar un comprobante nuevo" : "Ver cómo pagar"}</a>

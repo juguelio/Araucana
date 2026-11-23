@@ -7,6 +7,7 @@ const tx = vi.hoisted(() => ({
   airportReservationDetails: { update: vi.fn(), findUnique: vi.fn() },
   chapelcoReservationDetails: { update: vi.fn(), findUnique: vi.fn() },
   chapelcoManifestStop: { deleteMany: vi.fn(), updateMany: vi.fn() },
+  serviceTicket: { findUnique: vi.fn(), update: vi.fn() },
   schedule: { findUnique: vi.fn() },
   vehicle: { findMany: vi.fn() },
   travelRoute: { findUnique: vi.fn(), findFirst: vi.fn() },
@@ -106,6 +107,16 @@ describe("administración de reservas", () => {
         cancelledAt: expect.any(Date),
         cancelledByName: null
       }
+    });
+  });
+
+  it("anula el boleto numerado conservando su número y el motivo (#370)", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "SEATED", shortCode: "2WGS-TTT7" });
+    tx.serviceTicket.findUnique.mockResolvedValue({ id: "boleto-1", status: "EMITIDO" });
+    await manageReservation(code, { operation: "cancel", reason: "El pasajero avisó que no viaja", cancelledBy: "Vale" });
+    expect(tx.serviceTicket.update).toHaveBeenCalledWith({
+      where: { id: "boleto-1" },
+      data: expect.objectContaining({ status: "ANULADO", annulReason: "El pasajero avisó que no viaja", annulledByName: "Vale" })
     });
   });
 

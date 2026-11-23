@@ -557,6 +557,7 @@ model Reservation {
   referredBy  String?
   payment     Payment?
   ticket      Ticket?
+  serviceTicket ServiceTicket?
   chapelcoDetails ChapelcoReservationDetails?
   airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
@@ -602,6 +603,53 @@ model Ticket {
   code          String      @unique
   qrPayload     String
   createdAt     DateTime    @default(now())
+}
+
+/// Contador de la numeración correlativa (issue #370). Una fila por serie: `W` = web.
+/// El número se consume al emitir, no al cobrar, y nunca se reinicia ni se reutiliza.
+model TicketSeries {
+  id         String          @id @default(cuid())
+  series     String          @unique
+  nextNumber Int             @default(1)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  tickets    ServiceTicket[]
+}
+
+/// Boleto del servicio público, numerado y correlativo (issue #370). Distinto de `Ticket`,
+/// que es el QR de control de una reserva: éste es el comprobante que se muestra y se rinde.
+model ServiceTicket {
+  id            String       @id @default(cuid())
+  series        String
+  number        Int
+  /// Número tal como se lee y se imprime: `W001`.
+  displayNumber String
+  seriesId      String
+  seriesRow     TicketSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  reservationId String       @unique
+  reservation   Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  /// EMITIDO | ANULADO
+  status        String       @default("EMITIDO")
+  issuedAt      DateTime     @default(now())
+  issuedById    String?
+  issuedByName  String?
+  origin        String
+  destination   String
+  serviceDate   DateTime
+  departureAt   DateTime?
+  fareCents     Int
+  currency      String       @default("ARS")
+  paymentMethod String?
+  annulledAt    DateTime?
+  annulledById  String?
+  annulledByName String?
+  annulReason   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([series, number])
+  @@index([status])
+  @@index([displayNumber])
 }
 
 model ChapelcoReservationDetails {
