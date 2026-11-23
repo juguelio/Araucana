@@ -1,7 +1,6 @@
 import { flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
-import { ConcesionesNav } from "@/components/concesiones-nav";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
@@ -341,7 +340,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   return (
     <AdminShell
       title="Aeropuerto"
-      eyebrow="Concesiones"
+      eyebrow="Operación"
       role={usuario.role}
       notice={params?.notice}
       action={
@@ -376,7 +375,6 @@ export default async function AirportPage({ searchParams }: PageProps) {
         </div>
       }
     >
-      <ConcesionesNav actual="aeropuerto" />
       <section className="flights-toolbar">
         {/* Siempre las dos flechas, para ir de un día al otro sin volver a «hoy». */}
         <form className="flights-date" method="get">

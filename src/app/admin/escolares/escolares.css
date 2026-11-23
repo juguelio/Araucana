@@ -5,3 +5,5 @@
 .school-facts dd { margin: .25rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .school-pickers { margin-top: 1rem; }
 @media (max-width: 700px) { .school-facts, .school-pickers { grid-template-columns: 1fr; } }
+
+.school-kind-help { margin: -4px 0 14px; max-width: 70ch; }
