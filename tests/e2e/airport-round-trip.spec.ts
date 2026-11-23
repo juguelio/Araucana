@@ -62,19 +62,17 @@ test("API crea dos pagos con recargo y no sobrevende el último cupo concurrente
 test("checkout móvil muestra recargos y crea el viaje al precio anunciado", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/reservar/${slug}/ida-y-vuelta?date=${day}`);
-  const selects = page.locator(".leg-card select");
-  await expect(selects).toHaveCount(2);
-  const arrival = await db.flight.findFirstOrThrow({ where: { number: numbers.arrival } });
-  const departure = await db.flight.findFirstOrThrow({ where: { number: numbers.departure } });
-  await selects.nth(0).selectOption(arrival.id);
-  await selects.nth(1).selectOption(departure.id);
-  await page.getByRole("button", { name: /Continuar con los pickups/ }).click();
-  await page.getByRole("button", { name: "Ir a Sucursal prueba" }).click();
+  await page.getByRole("button", { name: /Ida · Llegada/ }).click();
+  await page.getByRole("button", { name: new RegExp(numbers.arrival, "i") }).click();
+  const vuelta = page.getByRole("button", { name: /Vuelta · Salida/ });
+  await expect(vuelta).toHaveAttribute("aria-expanded", "true");
+  await page.getByRole("button", { name: new RegExp(numbers.departure, "i") }).click();
+  await page.getByRole("button", { name: /Ir a Sucursal prueba/ }).click();
+  await page.getByRole("button", { name: /Sí, el mismo lugar/ }).click();
   await expect(page.getByText(/incluye recargo de zona/).first()).toBeVisible();
   const sidebar = page.locator(".checkout-summary");
   await expect(sidebar.locator(".price")).toHaveText(/30[.,]000/);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.getByRole("button", { name: /Continuar con tus datos/ }).click();
   await page.getByLabel("Nombre").fill("Prueba");
   await page.getByLabel("Apellido").fill("Checkout");
   await page.getByLabel("Email").fill("checkout@example.com");
@@ -82,7 +80,7 @@ test("checkout móvil muestra recargos y crea el viaje al precio anunciado", asy
   await page.getByLabel("Telefono").fill("9 294 400 0000");
   await page.getByLabel(/^Documento/).fill("30111222");
   const responsePromise = page.waitForResponse(r => r.url().includes("/api/v1/airport/reservations/round-trip") && r.request().method() === "POST");
-  await page.getByRole("button", { name: "Reservar ida y vuelta", exact: true }).click();
+  await page.locator(".checkout-panel").getByRole("button", { name: "Reservar ida y vuelta", exact: true }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(201);
   const { roundTrip } = await response.json();

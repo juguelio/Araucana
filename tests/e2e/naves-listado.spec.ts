@@ -120,7 +120,7 @@ test("desde la edición de la nave se inactiva, se reactiva y se borra con confi
   page.once("dialog", (dialog) => dialog.accept());
   await estado.getByRole("button", { name: "Inactivar nave" }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/naves/${id}/editar\\?notice=`));
-  await expect(estado).toContainText("Inactiva:");
+  await expect(estado.getByRole("button", { name: "Activar nave", exact: true })).toBeVisible();
   expect((await db.vehicle.findUniqueOrThrow({ where: { id } })).isActive).toBe(false);
 
   page.once("dialog", (dialog) => dialog.accept());

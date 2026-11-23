@@ -212,7 +212,7 @@ test("Imprimir de una orden deja sólo esa orden en el papel", async ({ page }) 
   await page.emulateMedia({ media: "print" });
   await expect(orden(page, naves.b.name)).toBeVisible();
   await expect(orden(page, naves.a.name)).toBeHidden();
-  await expect(page.locator(".orden-cabecera")).toBeVisible();
+  await expect(orden(page, naves.b.name).locator(".orden-cabecera")).toBeVisible();
 });
 
 test("«Visualizar recorrido» muestra debajo de la orden el mapa con las paradas numeradas", async ({ page }) => {

@@ -93,20 +93,10 @@ test("si el DNI viene cargado, sigue validándose", async ({ request }) => {
 /** Completa el checkout de un tramo (llegada) dejando el documento vacío y devuelve la respuesta del alta. */
 async function reservarUnTramoSinDni(page: import("@playwright/test").Page, url: string, endpoint: string) {
   await page.goto(url);
-  // Las tres tarjetas de «AirportTripOptions» están siempre a la vista; la llegada fija el sentido
-  // del único tramo. No hay pasos ni botón «Continuar»: las secciones se abren solas.
-  await page.locator(".wizard-option").filter({ hasText: "Llegada a Chapelco" }).click();
-  // La barra estilo Kiwi con un solo tramo (el día ya viene en el link, `?date=`): se abre el panel
-  // del tramo y se elige el vuelo de la lista; no hay botón de invertir.
-  await page.locator(".trip-search-leg").click();
-  await page.locator(".trip-search-flight").filter({ hasText: numbers.arrival }).click();
-  await expect(page.getByRole("button", { name: "Invertir: cambiar desde y hacia" })).toHaveCount(0);
+  await page.getByRole("button", { name: /Ida · Llegada/ }).click();
+  await page.getByRole("button", { name: new RegExp(numbers.arrival, "i") }).click();
   await expect(page.getByRole("button", { name: /Continuar|Siguiente|Completar datos/ })).toHaveCount(0);
-  // Con el vuelo elegido aparece sola la sección de los lugares, con el buscador de dirección.
-  const lugares = page.locator("section.pickup-flow").filter({ hasText: "Los lugares" });
-  await expect(lugares).toBeVisible();
-  await expect(lugares.getByLabel("Hotel, cabaña o dirección")).toBeVisible();
-  await lugares.getByRole("button", { name: "Ir a Sucursal prueba" }).click();
+  await page.getByRole("button", { name: /Ir a Sucursal prueba/ }).click();
   // Y con el lugar confirmado, los datos del pasajero, sin apretar nada en el medio.
   await expect(page.getByLabel("Nombre")).toBeVisible();
   await page.getByLabel("Nombre").fill("Sin");
@@ -128,7 +118,7 @@ test("el pasajero completa el checkout web sin DNI", async ({ page }) => {
 
 test("el administrador completa la reserva del panel sin DNI", async ({ page }) => {
   await loginAdmin(page.request);
-  const response = await reservarUnTramoSinDni(page, `/admin/aeropuerto/reservar?date=${day}`, "/api/v1/airport/reservations?source=admin");
+  const response = await reservarUnTramoSinDni(page, `/admin/aeropuerto/reservar?sentido=ARRIVAL&date=${day}`, "/api/v1/airport/reservations?source=admin");
   expect(response.status(), await response.text()).toBe(201);
   await expect(page).toHaveURL(/\/admin\/reservas\/[A-Z0-9-]+/);
 });
@@ -140,7 +130,7 @@ test("el administrador edita una reserva del aeropuerto que quedó sin DNI", asy
   await loginAdmin(page.request);
   await page.goto(`/admin/reservas/${reservation.code}/editar`);
   await expect(page.getByLabel("Número de documento (opcional)")).toHaveValue("");
-  await page.getByLabel("Teléfono", { exact: true }).fill("+5492944999888");
+  await page.getByLabel("Teléfono (opcional)", { exact: true }).fill("+5492944999888");
   await page.getByRole("button", { name: "Guardar cambios" }).click();
   await expect.poll(async () => (await db.reservation.findUniqueOrThrow({ where: { code: reservation.code }, include: { passenger: true } })).passenger.phone).toBe("+5492944999888");
   const guardada = await db.reservation.findUniqueOrThrow({ where: { code: reservation.code }, include: { passenger: true } });
