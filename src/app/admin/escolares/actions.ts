@@ -6,6 +6,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { recordEntityAudit } from "@/lib/audit/entity";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly } from "@/lib/special-trips/data";
+import { normalizarTipoDeConcesion } from "@/lib/school-runs/kinds";
 
 export async function saveSchoolRun(form: FormData) {
   const actor = await getCurrentReservationsUserOrRedirect();
@@ -14,6 +15,7 @@ export async function saveSchoolRun(form: FormData) {
   const revision = field("revision");
   const date = field("date");
   const serviceDate = dateOnly(date);
+  const kind = normalizarTipoDeConcesion(field("kind"));
   const routeName = field("routeName");
   const shift = field("shift");
   const driverId = field("driverId") || null;
@@ -27,7 +29,7 @@ export async function saveSchoolRun(form: FormData) {
       (companion?.length ?? 0) > 200 || (notes?.length ?? 0) > 2000 || (review?.length ?? 0) > 2000) {
     return back("Revisá la fecha, el recorrido, el turno y la extensión de los campos.");
   }
-  const data = { routeName, serviceDate, shift, driverId, vehicleId, companion, notes, review };
+  const data = { kind, routeName, serviceDate, shift, driverId, vehicleId, companion, notes, review };
   const message = await prisma.$transaction(async (tx) => {
     const previous = await tx.schoolRun.findUnique({ where: { id } });
     if (revision === "" ? previous !== null : !previous || String(previous.revision) !== revision) {
@@ -49,14 +51,14 @@ export async function saveSchoolRun(form: FormData) {
     }
     await recordEntityAudit(tx, {
       actor, entity: "SCHOOL_RUN", entityId: id, entityLabel: routeName,
-      summary: "Recorrido escolar guardado para el " + date,
+      summary: "Servicio de concesión guardado para el " + date,
       before: previous ? Object.fromEntries(Object.keys(data).map(key => [key, previous[key as keyof typeof data]])) : null,
       after: data
     });
-    return "Recorrido escolar guardado.";
+    return "Servicio de concesión guardado.";
   });
   revalidatePath("/admin/escolares");
   revalidatePath(detail);
-  if (message !== "Recorrido escolar guardado.") return back(message);
+  if (message !== "Servicio de concesión guardado.") return back(message);
   redirect(detail + "?" + new URLSearchParams({ aviso: message }));
 }

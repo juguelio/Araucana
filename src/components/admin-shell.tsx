@@ -24,9 +24,10 @@ const links: Array<{ href: string; label: string; roles: AppRole[]; activeFor?: 
   // Boletería de las terminales y administración de rutas: las dos pantallas del mismo módulo.
   { href: "/admin/servicio-publico", label: "Servicio público", roles: ["ADMIN", "SECRETARY"], activeFor: ["/admin/servicio-publico", "/admin/rutas"] },
   { href: "/admin/chapelco", label: "Chapelco", roles: ["ADMIN", "SECRETARY"] },
-  // Concesiones agrupa los servicios recurrentes: escuelas y aeropuerto.
-  { href: "/admin/escolares", label: "Concesiones", roles: ["ADMIN", "SECRETARY"], activeFor: ["/admin/escolares", "/admin/aeropuerto"] },
+  { href: "/admin/aeropuerto", label: "Aeropuerto", roles: ["ADMIN", "SECRETARY"] },
   { href: "/admin/viajes-especiales", label: "Viajes especiales", roles: ["ADMIN", "SECRETARY"] },
+  // Concesiones agrupa los servicios recurrentes: escuelas, personal de aeropuerto y otros.
+  { href: "/admin/escolares", label: "Concesiones", roles: ["ADMIN", "SECRETARY"], activeFor: ["/admin/escolares"] },
   { href: "/admin/excursiones", label: "Excursiones", roles: ["ADMIN", "SECRETARY"] },
   { href: "/admin/usuarios", label: "CRM", roles: ["ADMIN"] },
   { href: "/admin/reservas", label: "Reservas", roles: ["ADMIN", "SECRETARY"] },

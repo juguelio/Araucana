@@ -992,6 +992,8 @@ model VehicleDocument {
 model SchoolRun {
   id           String   @id @default(cuid())
   serviceDate  DateTime @db.Date
+  /// escuela · personal-aeropuerto · otro: los servicios recurrentes que agrupa Concesiones.
+  kind         String   @default("escuela")
   routeName    String
   shift        String
   driverId     String?
