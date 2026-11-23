@@ -6,30 +6,33 @@ type ConcesionesNavProps = {
   actual: SchoolRunKind | "todos";
   /** Mantiene el día elegido al cambiar de pestaña. */
   fecha?: string;
+  /** Si está, las pestañas apuntan a la vista semanal. */
+  semana?: string;
 };
 
-const SECCIONES = [
-  { id: "todos", label: "Todos", href: "/admin/escolares" },
-  ...SCHOOL_RUN_KINDS.map((kind) => ({
-    id: kind.value,
-    label: kind.tabLabel,
-    href: `/admin/escolares?tipo=${kind.value}`
-  }))
-] as const;
-
-function conFecha(href: string, fecha?: string) {
-  if (!fecha) return href;
-  return `${href}${href.includes("?") ? "&" : "?"}fecha=${encodeURIComponent(fecha)}`;
+function conPeriodo(href: string, fecha?: string, semana?: string) {
+  const periodo = semana ? `semana=${encodeURIComponent(semana)}` : fecha ? `fecha=${encodeURIComponent(fecha)}` : "";
+  if (!periodo) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}${periodo}`;
 }
 
 /** Servicios recurrentes: escuelas, personal de aeropuerto y otros. */
-export function ConcesionesNav({ actual, fecha }: ConcesionesNavProps) {
+export function ConcesionesNav({ actual, fecha, semana }: ConcesionesNavProps) {
+  const base = semana ? "/admin/escolares/semana" : "/admin/escolares";
+  const secciones = [
+    { id: "todos", label: "Todos", href: base },
+    ...SCHOOL_RUN_KINDS.map((kind) => ({
+      id: kind.value,
+      label: kind.tabLabel,
+      href: `${base}?tipo=${kind.value}`
+    }))
+  ] as const;
   return (
     <nav className="cn-modulo-nav" aria-label="Concesiones">
-      {SECCIONES.map((seccion) => (
+      {secciones.map((seccion) => (
         <Link
           key={seccion.id}
-          href={conFecha(seccion.href, fecha)}
+          href={conPeriodo(seccion.href, fecha, semana)}
           aria-current={actual === seccion.id ? "page" : undefined}
         >
           {seccion.label}
