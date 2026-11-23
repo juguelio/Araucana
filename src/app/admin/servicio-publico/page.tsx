@@ -4,8 +4,10 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
 import { prisma } from "@/lib/db/prisma";
+import { argentinaDayStart } from "@/lib/booking/admin-filters";
 import { isDateKey, shiftDateKey } from "@/lib/operations/day-board";
-import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
+import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
+import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, terminalDe, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
 import { DriverPicker } from "./driver-picker";
 import "./servicio-publico.css";
 
@@ -15,6 +17,8 @@ export const dynamic = "force-dynamic";
 type ServicioPublicoPageProps = {
   searchParams?: Promise<{ fecha?: string; terminal?: string }>;
 };
+
+const mesFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
 
 const diaFormatter = new Intl.DateTimeFormat("es-AR", {
   weekday: "long",
@@ -47,12 +51,29 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const fecha = isDateKey(params.fecha) ? params.fecha : hoy;
   const filtro = esTerminal(params.terminal) ? params.terminal : null;
 
-  const [rows, drivers] = await Promise.all([
+  const mesInicio = `${fecha.slice(0, 7)}-01`;
+  const [anio, mes] = fecha.slice(0, 7).split("-").map(Number);
+  const mesSiguiente = mes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
+  const [rows, drivers, mesRows] = await Promise.all([
     listAdminSchedules({ date: fecha }),
     prisma.user.findMany({
       where: { role: "DRIVER", isActive: true },
       select: { id: true, name: true, email: true },
       orderBy: [{ name: "asc" }, { email: "asc" }]
+    }),
+    prisma.schedule.findMany({
+      where: {
+        departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
+        driverId: { not: null },
+        status: { not: "CANCELLED" },
+        route: { is: { bookingMode: "SEATED" } }
+      },
+      select: {
+        departureAt: true,
+        arrivalAt: true,
+        driver: { select: { id: true, name: true, email: true } },
+        route: { select: { from: true } }
+      }
     })
   ]);
   const salidas = salidasDeTerminal(rows);
@@ -60,6 +81,28 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const grupos = todosLosGrupos.filter((grupo) => (filtro ? grupo.clave === filtro : grupo.salidas.length > 0));
   const terminalesVacias = !filtro ? todosLosGrupos.filter((grupo) => grupo.salidas.length === 0) : [];
   const resumen = resumenDeSalidas(grupos.flatMap((grupo) => grupo.salidas));
+  const idsVisibles = new Set(grupos.flatMap((grupo) => grupo.salidas.map((salida) => salida.id)));
+  const choferesDelDia = resumenPorChofer(
+    rows
+      .filter((row) => idsVisibles.has(row.id) && row.status !== "CANCELLED")
+      .map((row) => ({
+        driverId: row.driverId ?? null,
+        driverName: row.driverName ?? null,
+        departureAt: new Date(row.departureAt),
+        arrivalAt: new Date(row.arrivalAt)
+      }))
+  );
+  const resumenMes = resumenPorChofer(
+    mesRows
+      .filter((row) => terminalDe(row.route.from))
+      .map((row) => ({
+        driverId: row.driver?.id ?? null,
+        driverName: row.driver ? row.driver.name?.trim() || row.driver.email : null,
+        departureAt: new Date(row.departureAt),
+        arrivalAt: new Date(row.arrivalAt)
+      }))
+  );
+  const mesLabel = mesFormatter.format(new Date(`${mesInicio}T12:00:00Z`));
   const href = (cambios: { fecha?: string; terminal?: string | null }) => {
     const busqueda = new URLSearchParams();
     const nuevaFecha = cambios.fecha ?? fecha;
@@ -129,6 +172,65 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           <div><span>Pasajeros anotados</span><strong>{resumen.pasajeros}</strong></div>
           <div><span>Lugares libres</span><strong>{resumen.libres}</strong></div>
         </section>
+
+        <section className="plain-card sp-personal">
+          <header className="sp-grupo-head">
+            <div>
+              <p className="eyebrow">Personal</p>
+              <h2>Choferes del día</h2>
+            </div>
+            <span className="sp-grupo-total">
+              {choferesDelDia.length} {choferesDelDia.length === 1 ? "chofer" : "choferes"} con salidas
+            </span>
+          </header>
+          {choferesDelDia.length ? (
+            <ul className="sp-choferes-lista">
+              {choferesDelDia.map((chofer) => (
+                <li key={chofer.driverId}>
+                  <Link className="sp-chofer-nombre" href={`/admin/choferes/${chofer.driverId}`}>{chofer.driverName}</Link>
+                  <span>{chofer.salidas} {chofer.salidas === 1 ? "salida" : "salidas"}</span>
+                  <span className="sp-chofer-horario">{chofer.primerHora} a {chofer.ultimaHora}</span>
+                  <strong>{formatoHoras(chofer.horas)}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="sp-vacio">Todavía no hay choferes asignados a las salidas de este día.</p>
+          )}
+        </section>
+
+        <details className="plain-card sp-liquidacion">
+          <summary>
+            <span>Días trabajados de {mesLabel}</span>
+            <small>Base para liquidación · sólo servicio público</small>
+          </summary>
+          {resumenMes.length ? (
+            <div className="sp-tabla-wrap">
+              <table className="sp-tabla sp-tabla-mes">
+                <thead>
+                  <tr>
+                    <th>Chofer</th>
+                    <th>Días</th>
+                    <th>Salidas</th>
+                    <th>Horas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenMes.map((chofer) => (
+                    <tr key={chofer.driverId}>
+                      <td data-label="Chofer"><Link href={`/admin/choferes/${chofer.driverId}`}>{chofer.driverName}</Link></td>
+                      <td data-label="Días"><strong>{chofer.dias.length}</strong></td>
+                      <td data-label="Salidas">{chofer.salidas}</td>
+                      <td data-label="Horas">{formatoHoras(chofer.horas)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="sp-vacio">Todavía no hay días con chofer asignado en {mesLabel}.</p>
+          )}
+        </details>
 
         {grupos.map((grupo) => (
           <section className="plain-card sp-grupo" key={grupo.clave}>
