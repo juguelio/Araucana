@@ -3,6 +3,7 @@ import { expect, it, vi } from "vitest";
 import SchoolsPage from "./page";
 import SchoolDetail from "./[id]/page";
 import { SchoolEditPage } from "./edit-page";
+import WeekPage from "./semana/page";
 
 const fixture = vi.hoisted(() => ({
   id: "esc-7", serviceDate: new Date("2026-11-24T00:00:00Z"), kind: "escuela", routeName: "Primaria Quila Quina", shift: "Mañana",
@@ -26,6 +27,14 @@ it("abre la ficha desde el listado y la edición desde la ficha", async () => {
   expect(detail).toContain('href="/admin/escolares/esc-7/editar"');
   expect(detail).toContain("Entrada norte");
   expect(detail).not.toContain("<textarea");
+});
+
+it("muestra la planilla semanal con los servicios del día", async () => {
+  const week = renderToStaticMarkup(await WeekPage({ searchParams: Promise.resolve({ semana: "2026-11-23" }) }));
+  expect(week).toContain("Primaria Quila Quina");
+  expect(week).toContain("Semana anterior");
+  expect(week).toContain('href="/admin/escolares?fecha=2026-11-23"');
+  expect(week.match(/cn-semana-dia/g)).toHaveLength(7);
 });
 
 it("precarga la asignación importada y todos los campos operativos", async () => {

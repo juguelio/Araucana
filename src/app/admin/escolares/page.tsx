@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { ConcesionesNav } from "@/components/concesiones-nav";
+import { ConcesionesVistaNav } from "@/components/concesiones-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly, localInput } from "@/lib/special-trips/data";
 import { etiquetaDeConcesion, leerTipoDeConcesion } from "@/lib/school-runs/kinds";
+import { lunesDe } from "@/lib/school-runs/week";
 import "./escolares.css";
 
 export default async function SchoolsPage({ searchParams }: { searchParams: Promise<{ fecha?: string; tipo?: string; aviso?: string }> }) {
@@ -26,8 +28,9 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
     }, ...(tipo ? { kind: tipo } : {}) }, orderBy: { serviceDate: "asc" } })
   ]);
   return <AdminShell title="Concesiones" eyebrow="Servicios recurrentes" role={user.role} notice={params.aviso}
-    action={<Link className="button" href={`/admin/escolares/nuevo?fecha=${date}${tipo ? `&tipo=${tipo}` : ""}`}>Nuevo servicio</Link>}>
+    action={<div className="inline-actions"><Link className="ghost-button" href="/admin/escolares/importar">Importar planilla</Link><Link className="button" href={`/admin/escolares/nuevo?fecha=${date}${tipo ? `&tipo=${tipo}` : ""}`}>Nuevo servicio</Link></div>}>
     <ConcesionesNav actual={tipo ?? "todos"} fecha={date} />
+    <ConcesionesVistaNav actual="dia" tipo={tipo} fecha={date} semana={lunesDe(date)} />
     {tipo === "personal-aeropuerto" ? <p className="muted school-kind-help">Traslado diario de personal, por ejemplo al aeropuerto. No es el tablero de vuelos de pasajeros: eso sigue en Aeropuerto.</p> : null}
     <section className="plain-card admin-section">
       <form className="inline-actions">{tipo ? <input type="hidden" name="tipo" value={tipo} /> : null}<label>Fecha de servicio <input type="date" name="fecha" defaultValue={date} required /></label><button className="ghost-button">Ver día</button></form>
