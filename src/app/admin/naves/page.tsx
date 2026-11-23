@@ -3,7 +3,16 @@ import { AdminShell } from "@/components/admin-shell";
 import { MenuFila } from "@/components/admin-list/menu-fila";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { ordenarNaves } from "@/lib/vehicles/fleet-table";
+import { complianceLabel, formatoFecha } from "@/lib/vehicles/compliance";
+import { leerOrdenDelListado, ordenarNaves } from "@/lib/vehicles/fleet-table";
+import {
+  cadenciaTecnica,
+  edadDeNave,
+  filtrarNaves,
+  leerFiltroFlota,
+  papelesDeNave,
+  resumenFlota
+} from "@/lib/vehicles/fleet-board";
 import {
   alertasDeNave,
   coincideBusqueda,
@@ -19,7 +28,7 @@ import { cargarSenalesDeChoferes, cargarServiciosDeLaFlota, type SenalDelChofer 
 import "./naves.css";
 
 type AdminVehiclesPageProps = {
-  searchParams?: Promise<{ notice?: string; q?: string; vista?: string }>;
+  searchParams?: Promise<{ notice?: string; q?: string; vista?: string; formato?: string; tipo?: string; papel?: string; edad?: string; uso?: string; orden?: string; dir?: string }>;
 };
 
 /** Los grupos del tablero, en el orden en que la operación piensa la flota. */
@@ -78,6 +87,9 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
   const ahora = new Date();
   const pestana = leerPestanaDeFlota(params?.vista);
   const busqueda = params?.q?.trim() ?? "";
+  const formato = params?.formato === "tarjetas" ? "tarjetas" : "tabla";
+  const filtro = leerFiltroFlota({ tipo: params?.tipo, papel: params?.papel, edad: params?.edad, uso: params?.uso });
+  const orden = leerOrdenDelListado({ orden: params?.orden, dir: params?.dir });
 
   const [flota, danios, servicios, senales] = await Promise.all([
     prisma.vehicle.findMany({ include: { _count: { select: { seats: true } } } }),
@@ -117,8 +129,40 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
       (busqueda ? true : entraEnPestana(pestana, nave.vehicle, nave.estado, nave.alertas.principal)) &&
       coincideBusqueda(nave.vehicle, busqueda)
   );
+  const filtradas = ordenarNaves(
+    filtrarNaves(
+      visibles.map((nave) => nave.vehicle),
+      filtro,
+      ahora
+    ),
+    orden.orden,
+    orden.dir,
+    ahora
+  );
+  const resumen = resumenFlota(filtradas, ahora);
+  const visiblesPorId = new Map(visibles.map((nave) => [nave.vehicle.id, nave]));
   const asientos = visibles.reduce((total, nave) => total + nave.vehicle.asientos, 0);
   const ahoraEnLaCalle = naves.filter((nave) => nave.estado.clave === "en-recorrido" || nave.estado.clave === "en-la-calle" || (nave.vehicle.isActive && nave.enCurso));
+  const urlFlota = (cambios: Record<string, string | null | undefined>) => {
+    const query = new URLSearchParams();
+    const valores: Record<string, string | null | undefined> = {
+      vista: pestana === "activas" ? null : pestana,
+      formato,
+      q: busqueda || null,
+      tipo: filtro.tipo || null,
+      papel: filtro.papel || null,
+      edad: filtro.edad || null,
+      uso: filtro.uso || null,
+      orden: orden.orden,
+      dir: orden.dir,
+      ...cambios
+    };
+    for (const [clave, valor] of Object.entries(valores)) {
+      if (valor && !(clave === "formato" && valor === "tabla") && !(clave === "dir" && !valores.orden)) query.set(clave, valor);
+    }
+    const texto = query.toString();
+    return `/admin/naves${texto ? `?${texto}` : ""}`;
+  };
 
   return (
     <AdminShell
@@ -129,6 +173,9 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
         <div className="table-actions">
           <Link className="ghost-button" href="/admin/naves/en-vivo">
             Naves en vivo
+          </Link>
+          <Link className="ghost-button" href={urlFlota({ formato: formato === "tabla" ? "tarjetas" : "tabla" })}>
+            {formato === "tabla" ? "Ver tarjetas" : "Ver tabla general"}
           </Link>
           <Link className="button" href="/admin/naves/nueva">
             Agregar nave
@@ -164,6 +211,123 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
           : `${visibles.length} ${visibles.length === 1 ? "nave" : "naves"} · ${asientos} asientos`}
         {busqueda ? <> · <Link href="/admin/naves">Ver todas</Link></> : null}
       </p>
+
+      <section className="naves-indicadores" aria-label="Resumen de la flota">
+        <div><strong>{resumen.total}</strong><span>unidades</span></div>
+        <div><strong>{resumen.publico}</strong><span>transporte público</span></div>
+        <div data-tono={resumen.vencidos > 0 ? "grave" : undefined}><strong>{resumen.vencidos}</strong><span>con papeles vencidos</span></div>
+        <div data-tono={resumen.porVencer > 0 ? "atencion" : undefined}><strong>{resumen.porVencer}</strong><span>vencen en 30 días</span></div>
+        <div data-tono={resumen.proximasA15 > 0 ? "atencion" : undefined}><strong>{resumen.proximasA15}</strong><span>a 14 años o más</span></div>
+      </section>
+
+      <form action="/admin/naves" method="get" className="naves-filtros" aria-label="Filtros de flota">
+        <input type="hidden" name="vista" value={pestana} />
+        <input type="hidden" name="formato" value="tabla" />
+        {busqueda ? <input type="hidden" name="q" value={busqueda} /> : null}
+        <label>Tipo
+          <select name="tipo" defaultValue={filtro.tipo}>
+            <option value="">Todos</option>
+            <option value="BUS">Buses</option>
+            <option value="CAMIONETA">Camionetas</option>
+            <option value="UTILITARIO">Utilitarios</option>
+          </select>
+        </label>
+        <label>Papeles
+          <select name="papel" defaultValue={filtro.papel}>
+            <option value="">Todos</option>
+            <option value="vencido">Vencidos</option>
+            <option value="proximo">Vencen en 30 días</option>
+            <option value="ok">Al día</option>
+          </select>
+        </label>
+        <label>Antigüedad
+          <select name="edad" defaultValue={filtro.edad}>
+            <option value="">Todas</option>
+            <option value="0-10">Hasta 10 años</option>
+            <option value="10-15">10 a 15 años</option>
+            <option value="15+">15 años o más</option>
+          </select>
+        </label>
+        <label>Uso
+          <select name="uso" defaultValue={filtro.uso}>
+            <option value="">Todos</option>
+            <option value="publico">Transporte público</option>
+            <option value="interno">Uso interno</option>
+            <option value="no-habilitada">No habilitadas</option>
+          </select>
+        </label>
+        <button className="button" type="submit">Aplicar</button>
+        <Link className="ghost-button" href="/admin/naves">Limpiar</Link>
+      </form>
+
+      {formato === "tabla" ? (
+        <div className="naves-tabla-wrap">
+          <table className="naves-tabla">
+            <thead>
+              <tr>
+                <th><Link href={urlFlota({ orden: "unidad", dir: orden.orden === "unidad" && orden.dir === "asc" ? "desc" : "asc" })}>Unidad</Link></th>
+                <th><Link href={urlFlota({ orden: "vehiculo", dir: orden.orden === "vehiculo" && orden.dir === "asc" ? "desc" : "asc" })}>Vehículo</Link></th>
+                <th><Link href={urlFlota({ orden: "anio", dir: orden.orden === "anio" && orden.dir === "asc" ? "desc" : "asc" })}>Año / edad</Link></th>
+                <th>RTO</th>
+                <th>Técnica</th>
+                <th>Póliza</th>
+                <th>Titular / seguro</th>
+                <th><Link href={urlFlota({ orden: "capacidad", dir: orden.orden === "capacidad" && orden.dir === "asc" ? "desc" : "asc" })}>Lugares</Link></th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.map((vehicle) => {
+                const fila = visiblesPorId.get(vehicle.id);
+                if (!fila) return null;
+                const ficha = `/admin/naves/${vehicle.id}`;
+                const edad = edadDeNave(vehicle, ahora);
+                const cadencia = cadenciaTecnica(edad?.anios ?? null);
+                const papeles = papelesDeNave(vehicle, ahora);
+                const rto = papeles.find((papel) => papel.tipo === "RTO");
+                const tecnica = papeles.find((papel) => papel.tipo === "Técnica");
+                const poliza = papeles.find((papel) => papel.tipo === "Póliza");
+                const nombre = vehicle.internalNumber ? `Interno ${vehicle.internalNumber}` : vehicle.name;
+                return (
+                  <tr key={vehicle.id} data-tono={fila.estado.tono === "grave" ? "grave" : undefined}>
+                    <td data-label="Unidad">
+                      <Link className="naves-tabla-unidad" href={ficha}>{vehicle.internalNumber ?? vehicle.name}</Link>
+                      <small>{vehicle.brand} {vehicle.model}</small>
+                      {vehicle.publicTransport ? <span className="naves-tabla-tp">Transporte público</span> : null}
+                    </td>
+                    <td data-label="Vehículo">
+                      <span>{vehicle.licensePlate ?? "sin patente"}</span>
+                      <small>{vehicle.kind === "UTILITARIO" ? "Utilitario" : vehicle.kind === "BUS" ? "Bus" : "Camioneta"}</small>
+                    </td>
+                    <td data-label="Año / edad">
+                      <strong>{vehicle.year ?? "—"}</strong>
+                      <small>{edad ? `${edad.anios} años${edad.estimada ? " (est.)" : ""}` : "Sin fecha"}</small>
+                    </td>
+                    {[rto, tecnica, poliza].map((papel) => (
+                      <td key={papel!.tipo} data-label={papel!.tipo} data-nivel={papel!.nivel}>
+                        <strong>{formatoFecha(papel!.fecha)}</strong>
+                        <small>{papel!.dias === null ? "Sin fecha" : complianceLabel(papel!.fecha, ahora, 30)}</small>
+                        {papel!.tipo !== "Póliza" && cadencia ? (
+                          <small className="naves-tabla-cadencia">
+                            {cadencia === "sin habilitación" ? "Sin habilitación para pasajeros" : `Cada ${cadencia}`}
+                          </small>
+                        ) : null}
+                      </td>
+                    ))}
+                    <td data-label="Titular / seguro"><span>{vehicle.owner ?? "—"}</span><small>Seguro: {vehicle.insurer ?? "sin dato"}</small></td>
+                    <td data-label="Lugares"><strong>{vehicle.asientos || "—"}</strong></td>
+                    <td data-label="Estado">
+                      <span className="pill pill-estado pill-tabla" data-tono={fila.estado.tono}>{fila.estado.etiqueta}</span>
+                      {fila.alertas.principal ? <small className="naves-tabla-alerta">{fila.alertas.principal.etiqueta}</small> : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {filtradas.length === 0 ? <p className="naves-vacio">No hay naves con esos filtros.</p> : null}
+        </div>
+      ) : null}
 
       {/* «Ahora»: qué nave está en recorrido y cuál, de un vistazo y sin entrar a cada una. */}
       {pestana === "activas" && !busqueda && ahoraEnLaCalle.length > 0 ? (
@@ -203,7 +367,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
         </section>
       ) : null}
 
-      {GRUPOS.map((grupo) => {
+      {formato === "tarjetas" ? GRUPOS.map((grupo) => {
         const delGrupo = visibles.filter((nave) => (GRUPOS.some((g) => g.kind === nave.vehicle.kind) ? nave.vehicle.kind : "CAMIONETA") === grupo.kind);
         if (delGrupo.length === 0) return null;
         return (
@@ -301,7 +465,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
             </ul>
           </section>
         );
-      })}
+      }) : null}
     </AdminShell>
   );
 }

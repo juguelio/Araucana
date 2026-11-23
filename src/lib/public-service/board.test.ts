@@ -45,9 +45,32 @@ describe("servicio público", () => {
     const filas = salidasDeTerminal([
       salida({ id: "a", availableSeats: 4, totalSeats: 15 }),
       salida({ id: "b", availableSeats: 0, totalSeats: 19 })
-    ]);
+    ], new Date("2026-11-01T12:00:00Z"));
     expect(filas[0]).toMatchObject({ ocupados: 11, libres: 4, capacidad: 15, estadoLabel: "Programada" });
     expect(resumenDeSalidas(filas)).toEqual({ salidas: 2, pasajeros: 30, libres: 4 });
+  });
+
+  it("no habilita la venta de una salida cerrada o que ya salió", () => {
+    const ahora = new Date("2026-11-24T12:00:00Z");
+    const filas = salidasDeTerminal([
+      salida({ id: "abierta", status: "OPEN", departureAt: new Date("2026-11-24T13:00:00Z") }),
+      salida({ id: "cerrada", status: "CLOSED", departureAt: new Date("2026-11-24T13:00:00Z") }),
+      salida({ id: "pasada", status: "OPEN", departureAt: new Date("2026-11-24T10:00:00Z") }),
+      salida({ id: "cancelada", status: "CANCELLED", departureAt: new Date("2026-11-24T13:00:00Z") })
+    ], ahora);
+    expect(filas.map((fila) => [fila.id, fila.vendible])).toEqual([
+      ["pasada", false],
+      ["abierta", true],
+      ["cerrada", false],
+      ["cancelada", false]
+    ]);
+  });
+
+  it("trae el chofer y la nave para enlazar con Choferes y Naves", () => {
+    const [fila] = salidasDeTerminal([
+      salida({ driverId: "d1", driverName: "Juan Muñoz", vehicleId: "v9", vehicleName: "Araucana 24" })
+    ]);
+    expect(fila).toMatchObject({ driverId: "d1", driverName: "Juan Muñoz", vehicleId: "v9", nave: "Araucana 24" });
   });
 
   it("agrupa cada salida en su terminal de origen", () => {

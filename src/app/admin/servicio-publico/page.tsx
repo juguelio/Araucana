@@ -3,8 +3,12 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
+import { prisma } from "@/lib/db/prisma";
+import { argentinaDayStart } from "@/lib/booking/admin-filters";
 import { isDateKey, shiftDateKey } from "@/lib/operations/day-board";
-import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
+import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
+import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, terminalDe, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
+import { DriverPicker } from "./driver-picker";
 import "./servicio-publico.css";
 
 export const metadata = { title: "Servicio público · La Araucana" };
@@ -13,6 +17,8 @@ export const dynamic = "force-dynamic";
 type ServicioPublicoPageProps = {
   searchParams?: Promise<{ fecha?: string; terminal?: string }>;
 };
+
+const mesFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
 
 const diaFormatter = new Intl.DateTimeFormat("es-AR", {
   weekday: "long",
@@ -45,12 +51,58 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const fecha = isDateKey(params.fecha) ? params.fecha : hoy;
   const filtro = esTerminal(params.terminal) ? params.terminal : null;
 
-  const rows = await listAdminSchedules({ date: fecha });
+  const mesInicio = `${fecha.slice(0, 7)}-01`;
+  const [anio, mes] = fecha.slice(0, 7).split("-").map(Number);
+  const mesSiguiente = mes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
+  const [rows, drivers, mesRows] = await Promise.all([
+    listAdminSchedules({ date: fecha }),
+    prisma.user.findMany({
+      where: { role: "DRIVER", isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: "asc" }, { email: "asc" }]
+    }),
+    prisma.schedule.findMany({
+      where: {
+        departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
+        driverId: { not: null },
+        status: { not: "CANCELLED" },
+        route: { is: { bookingMode: "SEATED" } }
+      },
+      select: {
+        departureAt: true,
+        arrivalAt: true,
+        driver: { select: { id: true, name: true, email: true } },
+        route: { select: { from: true } }
+      }
+    })
+  ]);
   const salidas = salidasDeTerminal(rows);
   const todosLosGrupos = agruparPorTerminal(salidas, rows);
   const grupos = todosLosGrupos.filter((grupo) => (filtro ? grupo.clave === filtro : grupo.salidas.length > 0));
   const terminalesVacias = !filtro ? todosLosGrupos.filter((grupo) => grupo.salidas.length === 0) : [];
   const resumen = resumenDeSalidas(grupos.flatMap((grupo) => grupo.salidas));
+  const idsVisibles = new Set(grupos.flatMap((grupo) => grupo.salidas.map((salida) => salida.id)));
+  const choferesDelDia = resumenPorChofer(
+    rows
+      .filter((row) => idsVisibles.has(row.id) && row.status !== "CANCELLED")
+      .map((row) => ({
+        driverId: row.driverId ?? null,
+        driverName: row.driverName ?? null,
+        departureAt: new Date(row.departureAt),
+        arrivalAt: new Date(row.arrivalAt)
+      }))
+  );
+  const resumenMes = resumenPorChofer(
+    mesRows
+      .filter((row) => terminalDe(row.route.from))
+      .map((row) => ({
+        driverId: row.driver?.id ?? null,
+        driverName: row.driver ? row.driver.name?.trim() || row.driver.email : null,
+        departureAt: new Date(row.departureAt),
+        arrivalAt: new Date(row.arrivalAt)
+      }))
+  );
+  const mesLabel = mesFormatter.format(new Date(`${mesInicio}T12:00:00Z`));
   const href = (cambios: { fecha?: string; terminal?: string | null }) => {
     const busqueda = new URLSearchParams();
     const nuevaFecha = cambios.fecha ?? fecha;
@@ -66,7 +118,12 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
       title="Servicio público"
       eyebrow="Terminales"
       role={user.role}
-      action={<Link className="button" href="/admin/reservas/nueva">Vender pasaje</Link>}
+      action={
+        <div className="form-actions">
+          <Link className="ghost-button" href={`/admin/salidas-del-dia?date=${fecha}`}>Salidas del día</Link>
+          <Link className="button" href="/admin/reservas/nueva">Vender pasaje</Link>
+        </div>
+      }
     >
       <div className="sp-board">
         <section className="plain-card sp-controles" aria-label="Fecha y terminal">
@@ -87,6 +144,10 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
             <button className="ghost-button" type="submit">Ver</button>
           </form>
         </section>
+
+        {fecha < hoy ? (
+          <p className="sp-aviso">Día pasado: el tablero es sólo consulta y las ventas están cerradas.</p>
+        ) : null}
 
         <nav className="sp-terminales" aria-label="Terminal">
           <Link className="sp-terminal" data-activa={!filtro ? "si" : undefined} href={href({ terminal: null })}>
@@ -116,6 +177,65 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           <div><span>Lugares libres</span><strong>{resumen.libres}</strong></div>
         </section>
 
+        <section className="plain-card sp-personal">
+          <header className="sp-grupo-head">
+            <div>
+              <p className="eyebrow">Personal</p>
+              <h2>Choferes del día</h2>
+            </div>
+            <span className="sp-grupo-total">
+              {choferesDelDia.length} {choferesDelDia.length === 1 ? "chofer" : "choferes"} con salidas
+            </span>
+          </header>
+          {choferesDelDia.length ? (
+            <ul className="sp-choferes-lista">
+              {choferesDelDia.map((chofer) => (
+                <li key={chofer.driverId}>
+                  <Link className="sp-chofer-nombre" href={`/admin/choferes/${chofer.driverId}`}>{chofer.driverName}</Link>
+                  <span>{chofer.salidas} {chofer.salidas === 1 ? "salida" : "salidas"}</span>
+                  <span className="sp-chofer-horario">{chofer.primerHora} a {chofer.ultimaHora}</span>
+                  <strong>{formatoHoras(chofer.horas)}</strong>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="sp-vacio">Todavía no hay choferes asignados a las salidas de este día.</p>
+          )}
+        </section>
+
+        <details className="plain-card sp-liquidacion">
+          <summary>
+            <span>Días trabajados de {mesLabel}</span>
+            <small>Base para liquidación · sólo servicio público</small>
+          </summary>
+          {resumenMes.length ? (
+            <div className="sp-tabla-wrap">
+              <table className="sp-tabla sp-tabla-mes">
+                <thead>
+                  <tr>
+                    <th>Chofer</th>
+                    <th>Días</th>
+                    <th>Salidas</th>
+                    <th>Horas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenMes.map((chofer) => (
+                    <tr key={chofer.driverId}>
+                      <td data-label="Chofer"><Link href={`/admin/choferes/${chofer.driverId}`}>{chofer.driverName}</Link></td>
+                      <td data-label="Días"><strong>{chofer.dias.length}</strong></td>
+                      <td data-label="Salidas">{chofer.salidas}</td>
+                      <td data-label="Horas">{formatoHoras(chofer.horas)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="sp-vacio">Todavía no hay días con chofer asignado en {mesLabel}.</p>
+          )}
+        </details>
+
         {grupos.map((grupo) => (
           <section className="plain-card sp-grupo" key={grupo.clave}>
             <header className="sp-grupo-head">
@@ -134,6 +254,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                       <th>Hora</th>
                       <th>Recorrido</th>
                       <th>Unidad</th>
+                      <th>Chofer</th>
                       <th>Ocupación</th>
                       <th>Estado</th>
                       <th><span className="sr-only">Acciones</span></th>
@@ -154,7 +275,21 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                             <strong>{salida.recorrido}</strong>
                             <span className="sp-patente">{salida.patente ?? "Sin patente"}</span>
                           </td>
-                          <td data-label="Unidad">{salida.nave}</td>
+                          <td data-label="Unidad">
+                            <Link href={`/admin/naves/${salida.vehicleId}`}>{salida.nave}</Link>
+                          </td>
+                          <td data-label="Chofer">
+                            {salida.driverId && salida.driverName ? (
+                              <Link className="sp-chofer-actual" href={`/admin/choferes/${salida.driverId}`}>{salida.driverName}</Link>
+                            ) : null}
+                            <DriverPicker
+                              scheduleId={salida.id}
+                              driverId={salida.driverId}
+                              drivers={drivers}
+                              fecha={fecha}
+                              terminal={filtro}
+                            />
+                          </td>
                           <td data-label="Ocupación">
                             <div className="sp-ocupacion">
                               <span>{salida.ocupados} de {salida.capacidad} ocupados</span>
@@ -165,7 +300,11 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                           <td data-label="Estado"><span className="sp-estado" data-estado={salida.estado}>{salida.estadoLabel}</span></td>
                           <td data-label="Acciones">
                             <div className="sp-acciones">
-                              {salida.libres > 0 ? <Link className="button" href={venta}>Vender</Link> : <span className="sp-completa">Completa</span>}
+                              {salida.vendible ? (
+                                salida.libres > 0 ? <Link className="button" href={venta}>Vender</Link> : <span className="sp-completa">Completa</span>
+                              ) : (
+                                <span className="sp-no-venta">{salida.estado === "CANCELLED" ? "Cancelada" : "Venta cerrada"}</span>
+                              )}
                               <Link className="ghost-button" href={`/admin/rutas/${salida.routeId}/salidas`}>
                                 Ver ruta
                               </Link>
