@@ -1,0 +1,351 @@
+/* === Boleto del servicio público (#370) ===
+   El comprobante que se muestra en el viaje: réplica del boleto físico de La Araucana
+   (empresa, recorrido, fecha/hora, tarifa y pie legal) con el número de la serie W.
+   Vive acá y no en globals.css porque lo usan la página de la reserva y la copia imprimible. */
+
+.boleto {
+  --boleto-tinta: #123f33;
+  --boleto-papel: #fffdf6;
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  margin: 18px 0 0;
+  border: 1px solid #d9d2c2;
+  border-radius: 18px;
+  background: var(--boleto-papel);
+  box-shadow: 0 22px 45px -34px rgba(18, 63, 51, 0.65);
+  color: var(--ink, #23291f);
+}
+
+.boleto-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px 24px;
+  padding: 18px 22px 16px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.08), transparent 45%),
+    var(--boleto-tinta);
+  color: #f6f1e3;
+}
+
+.boleto-marca {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.boleto-tipo {
+  margin: 5px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.boleto-terminal {
+  margin: 8px 0 0;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.boleto-numero {
+  display: grid;
+  gap: 2px;
+  min-width: 132px;
+  padding: 10px 16px 12px;
+  border-radius: 12px;
+  background: var(--boleto-papel);
+  color: var(--boleto-tinta);
+  text-align: center;
+  box-shadow: inset 0 0 0 1px rgba(18, 63, 51, 0.12);
+}
+
+.boleto-numero span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.boleto-numero strong {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.boleto-recorrido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px dashed #cfc7b4;
+}
+
+.boleto-recorrido > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.boleto-recorrido span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7a7466;
+}
+
+.boleto-recorrido strong {
+  font-size: clamp(19px, 2.4vw, 24px);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.boleto-flecha {
+  font-size: 22px !important;
+  color: var(--accent, #b4552d) !important;
+  letter-spacing: 0 !important;
+}
+
+.boleto-datos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.boleto-datos > div {
+  min-width: 0;
+  padding: 12px 22px 14px;
+  border-bottom: 1px dashed #e2dccd;
+}
+
+.boleto-datos > div:nth-child(3n + 2),
+.boleto-datos > div:nth-child(3n + 3) {
+  border-left: 1px dashed #e2dccd;
+}
+
+.boleto-datos dt {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7a7466;
+}
+
+.boleto-datos dd {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.boleto-datos > div:first-child dd {
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.boleto-pie {
+  display: grid;
+  gap: 4px;
+  padding: 12px 22px 14px;
+  background: #f7f3e7;
+  color: #6f695b;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.boleto-anulado-texto {
+  color: #a62c22;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.boleto-sello {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 7px;
+  border: 2px solid #a62c22;
+  border-radius: 4px;
+  letter-spacing: 0.14em;
+  transform: rotate(-2deg);
+}
+
+/* === Copia imprimible: los tres cuerpos del boleto físico === */
+.boleto-hoja {
+  display: grid;
+  gap: 16px;
+  max-width: 920px;
+}
+
+.boleto-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.boleto-acciones p {
+  margin: 0;
+  max-width: 52ch;
+}
+
+.boleto-copias {
+  display: grid;
+  gap: 14px;
+}
+
+.boleto-copia .boleto {
+  margin: 0;
+  box-shadow: none;
+}
+
+.boleto-copia-etiqueta {
+  margin: 0 0 6px;
+  color: #6f695b;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.boleto-corte {
+  margin: 0 0 10px;
+  border: 0;
+  border-top: 1px dashed #b8b09d;
+}
+
+@media (max-width: 760px) {
+  .boleto-datos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .boleto-datos > div:nth-child(3n + 2),
+  .boleto-datos > div:nth-child(3n + 3) {
+    border-left: 0;
+  }
+
+  .boleto-datos > div:nth-child(even) {
+    border-left: 1px dashed #e2dccd;
+  }
+
+  .boleto-numero {
+    width: 100%;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  .no-print,
+  header.site-header,
+  .site-footer,
+  .admin-sidebar,
+  .admin-top {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .boleto-hoja {
+    max-width: none;
+    gap: 0;
+    padding: 0 !important;
+  }
+
+  .boleto-copias {
+    gap: 5mm;
+  }
+
+  .boleto-copia {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .boleto {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border-color: #9d9789;
+    box-shadow: none;
+  }
+
+  .boleto-corte {
+    border-top-color: #9d9789;
+  }
+
+  .boleto-cabecera {
+    padding: 10px 16px 9px;
+  }
+
+  .boleto-marca {
+    font-size: 12px;
+  }
+
+  .boleto-tipo {
+    margin-top: 3px;
+    font-size: 9px;
+  }
+
+  .boleto-terminal {
+    margin-top: 4px;
+    font-size: 9.5px;
+  }
+
+  .boleto-numero {
+    min-width: 104px;
+    padding: 6px 12px 8px;
+  }
+
+  .boleto-numero strong {
+    font-size: 22px;
+  }
+
+  .boleto-recorrido {
+    padding: 10px 16px 8px;
+  }
+
+  .boleto-recorrido strong {
+    font-size: 17px;
+  }
+
+  .boleto-datos > div {
+    padding: 6px 16px 7px;
+  }
+
+  .boleto-datos dt {
+    font-size: 8px;
+  }
+
+  .boleto-datos dd,
+  .boleto-datos > div:first-child dd {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .boleto-pie {
+    padding: 7px 16px 8px;
+    font-size: 8.5px;
+  }
+
+  .boleto-copia-etiqueta {
+    margin-bottom: 3px;
+    font-size: 8px;
+  }
+}

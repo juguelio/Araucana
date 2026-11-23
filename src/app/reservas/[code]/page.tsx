@@ -13,6 +13,7 @@ import { formatShortCode } from "@/lib/booking/codes";
 import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
 import { siteOrigin } from "@/lib/site-origin";
 import { ManualPaymentPanel } from "./manual-payment-panel";
+import { BoletoCard } from "./boleto-card";
 import "./reserva.css";
 
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -110,6 +111,18 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <span className="ticket-code-note rp-link-code">Código del link privado: {reservation.code}</span>
           </div>
         </section>
+
+        {/* El boleto va a lo ancho: es el comprobante que el pasajero muestra en el viaje. */}
+        {reservation.serviceTicket ? (
+          <section className="plain-card rp-boleto">
+            <BoletoCard reservation={reservation} />
+            <div className="form-actions">
+              <Link className="ghost-button" href={`/reservas/${reservation.code}/boleto`}>
+                Ver mi boleto para imprimir
+              </Link>
+            </div>
+          </section>
+        ) : null}
 
         <section className="plain-card voucher-cta rp-voucher">
           <div>

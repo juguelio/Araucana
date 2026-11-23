@@ -91,6 +91,26 @@ type TicketRecord = {
   qrPayload: string;
 };
 
+type ServiceTicketRecord = {
+  id: string;
+  series: string;
+  number: number;
+  displayNumber: string;
+  seriesId: string;
+  reservationId: string;
+  status: string;
+  issuedAt: Date;
+  issuedById?: string | null;
+  issuedByName?: string | null;
+  origin: string;
+  destination: string;
+  serviceDate: Date;
+  departureAt?: Date | null;
+  fareCents: number;
+  currency: string;
+  paymentMethod?: string | null;
+};
+
 class FakeBookingClient {
   route: RouteRecord;
   inactiveRoute: RouteRecord;
@@ -104,6 +124,8 @@ class FakeBookingClient {
   reservations: ReservationRecord[] = [];
   payments: PaymentRecord[] = [];
   tickets: TicketRecord[] = [];
+  serviceTickets: ServiceTicketRecord[] = [];
+  ticketCounter = 1;
   transactionCallCount = 0;
   onBeforeReservationCreate?: () => void;
   private activeTransactionAborted = false;
@@ -361,9 +383,40 @@ class FakeBookingClient {
     }
   };
 
+  serviceTicket = {
+    findUnique: async ({ where }: { where: { reservationId?: string; displayNumber?: string; id?: string } }) => {
+      if (where.reservationId) return this.serviceTickets.find((ticket) => ticket.reservationId === where.reservationId) ?? null;
+      if (where.displayNumber) return this.serviceTickets.find((ticket) => ticket.displayNumber === where.displayNumber) ?? null;
+      if (where.id) return this.serviceTickets.find((ticket) => ticket.id === where.id) ?? null;
+      return null;
+    },
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      this.assertTransactionOpen();
+      const ticket = {
+        ...data,
+        id: `service-ticket-${this.serviceTickets.length + 1}`
+      } as unknown as ServiceTicketRecord;
+      this.serviceTickets.push(ticket);
+      return ticket;
+    },
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      this.assertTransactionOpen();
+      const index = this.serviceTickets.findIndex((ticket) => ticket.id === where.id);
+      if (index === -1) throw new Error("Missing service ticket");
+      this.serviceTickets[index] = { ...this.serviceTickets[index], ...(data as Partial<ServiceTicketRecord>) };
+      return this.serviceTickets[index];
+    }
+  };
+
   // Los tests no levantan Postgres: la búsqueda sin tildes devuelve vacío y el filtro sigue
-  // funcionando por ILIKE para los nombres sin acento.
-  async $queryRaw<T = unknown>(_query: TemplateStringsArray, ..._values: unknown[]): Promise<T> {
+  // funcionando por ILIKE para los nombres sin acento. El contador de boletos (#370) sí necesita
+  // un número: se reconoce por la tabla que toca, con la misma semántica de `UPDATE … RETURNING`.
+  async $queryRaw<T = unknown>(query: TemplateStringsArray, ..._values: unknown[]): Promise<T> {
+    if (query.join("?").includes("TicketSeries")) {
+      const number = this.ticketCounter;
+      this.ticketCounter += 1;
+      return [{ id: "tkserie_w", series: "W", number }] as unknown as T;
+    }
     return [] as unknown as T;
   }
 
@@ -375,6 +428,8 @@ class FakeBookingClient {
     const reservations = [...this.reservations];
     const payments = [...this.payments];
     const tickets = [...this.tickets];
+    const serviceTickets = [...this.serviceTickets];
+    const ticketCounter = this.ticketCounter;
 
     try {
       return await callback(this);
@@ -383,6 +438,8 @@ class FakeBookingClient {
       this.reservations = reservations;
       this.payments = payments;
       this.tickets = tickets;
+      this.serviceTickets = serviceTickets;
+      this.ticketCounter = ticketCounter;
       throw error;
     } finally {
       this.activeTransactionAborted = false;
@@ -431,7 +488,8 @@ class FakeBookingClient {
     return {
       ...reservation,
       payment: this.payments.find((payment) => payment.reservationId === reservation.id) ?? null,
-      ticket: this.tickets.find((ticket) => ticket.reservationId === reservation.id) ?? null
+      ticket: this.tickets.find((ticket) => ticket.reservationId === reservation.id) ?? null,
+      serviceTicket: this.serviceTickets.find((ticket) => ticket.reservationId === reservation.id) ?? null
     };
   }
 
@@ -697,6 +755,15 @@ describe("booking repository", () => {
     });
     expect(client.passengers).toHaveLength(1);
     expect(client.payments).toHaveLength(1);
+    // Boleto numerado del servicio público (#370): la reserva de salida regular se lleva W001.
+    expect(reservation.serviceTicket).toMatchObject({
+      displayNumber: "W001",
+      status: "EMITIDO",
+      origin: "SMA",
+      destination: "Bariloche",
+      fareCents: 1890000
+    });
+    expect(client.serviceTickets).toHaveLength(1);
     // The reservation code is the private link: it must not leak through the ticket or its QR.
     expect(reservation.ticket?.code).not.toContain("ARC-2611-TEST");
     expect(client.tickets[0]?.qrPayload).not.toContain("ARC-2611-TEST");

@@ -13,12 +13,13 @@ import "./ficha.css";
 
 export const TIPO_LABEL: Record<string, string> = { CAMIONETA: "Camioneta", BUS: "Bus", UTILITARIO: "Utilitario" };
 
-export type SeccionDeNave = "resumen" | "recorridos" | "vencimientos" | "danios" | "service" | "reparaciones" | "editar";
+export type SeccionDeNave = "resumen" | "recorridos" | "vencimientos" | "documentacion" | "danios" | "service" | "reparaciones" | "editar";
 
 const SECCIONES: Array<{ seccion: SeccionDeNave; label: string; path: string }> = [
   { seccion: "resumen", label: "Ficha", path: "" },
   { seccion: "recorridos", label: "Recorridos", path: "/recorridos" },
   { seccion: "vencimientos", label: "Vencimientos y seguro", path: "/vencimientos" },
+  { seccion: "documentacion", label: "Documentación", path: "/documentacion" },
   { seccion: "danios", label: "Daños", path: "/danios" },
   { seccion: "service", label: "Service", path: "/service" },
   { seccion: "reparaciones", label: "Reparaciones", path: "/reparaciones" },
@@ -56,7 +57,7 @@ export function CabeceraDeNave({ nave, seccion, hoy = new Date() }: { nave: Nave
       <header className="plain-card nave-cabecera" data-nivel={peor?.level ?? undefined}>
         <div className="nave-cabecera-titulo">
           <h2>{nombreDeNave(nave)}</h2>
-          <span className={`status-pill ${nave.isActive ? "active" : "inactive"}`}>{nave.isActive ? "Activa" : "Inactiva"}</span>
+          <span className={`status-pill ${nave.isActive ? "active" : "inactive"}`}>{nave.isActive ? "Activa" : "No habilitada"}</span>
           {nave.publicTransport ? (
             <span className="pill pill-estado" data-tono="ok">transporte público</span>
           ) : null}

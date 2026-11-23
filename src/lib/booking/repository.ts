@@ -25,6 +25,7 @@ import { diffRecords, hasChanges } from "@/lib/audit/diff";
 import { guestActor, recordAudit, type AuditActor, type AuditClient } from "@/lib/audit/record";
 import { recordReservationCreated, withShortCode } from "@/lib/audit/reservation";
 import { reservationCreatorData, reservationCreatorLabel, type ReservationCreationContext } from "./reservation-creator";
+import { emitServiceTicket, type TicketTransactionClient } from "@/lib/tickets/service-tickets";
 import { corridorStops, segmentPrice } from "./segment-fares";
 import { getStopFares } from "./stop-fares";
 import type { PaymentProvider } from "@/lib/payments/types";
@@ -114,6 +115,21 @@ type TicketRecord = {
   qrPayload: string;
 };
 
+/** Boleto numerado del servicio público (#370), tal como lo muestra el pasajero. */
+type ServiceTicketSummaryRecord = {
+  displayNumber: string;
+  status: string;
+  issuedAt: Date;
+  origin: string;
+  destination: string;
+  serviceDate: Date;
+  departureAt?: Date | null;
+  fareCents: number;
+  currency: string;
+  annulledAt?: Date | null;
+  annulReason?: string | null;
+};
+
 type ReservationRecord = {
   id: string;
   code: string;
@@ -148,6 +164,7 @@ type ReservationRecord = {
   passenger: PassengerRecord;
   payment?: PaymentRecord | null;
   ticket?: TicketRecord | null;
+  serviceTicket?: ServiceTicketSummaryRecord | null;
   chapelcoDetails?: {
     serviceDate: Date;
     ascentSlot: string;
@@ -406,6 +423,20 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
     restoredAt: reservation.restoredAt ?? null,
     restoredByName: reservation.restoredByName ?? null,
     seatNumber: reservation.seatNumber,
+    serviceTicket: reservation.serviceTicket
+      ? {
+          displayNumber: reservation.serviceTicket.displayNumber,
+          status: reservation.serviceTicket.status,
+          issuedAt: reservation.serviceTicket.issuedAt,
+          origin: reservation.serviceTicket.origin,
+          destination: reservation.serviceTicket.destination,
+          departureAt: reservation.serviceTicket.departureAt ?? null,
+          fareCents: reservation.serviceTicket.fareCents,
+          currency: reservation.serviceTicket.currency,
+          annulledAt: reservation.serviceTicket.annulledAt ?? null,
+          annulReason: reservation.serviceTicket.annulReason ?? null
+        }
+      : null,
     totalCents: reservation.totalCents,
     total: centsToPrice(reservation.totalCents),
     currency: reservation.currency,
@@ -524,6 +555,7 @@ function reservationInclude() {
     passenger: true,
     payment: true,
     ticket: true,
+    serviceTicket: true,
     chapelcoDetails: true,
     airportDetails: { include: { flight: true } }
   };
@@ -850,6 +882,21 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
     });
 
     if (!disabilityFare) await issueScheduleTicket(tx, reservation.id, schedule.id, requestedSeats);
+    // Boleto numerado del servicio público (#370): se consume al emitir y en la misma transacción
+    // de la reserva, así que o queda el boleto con su número o no queda la reserva. El QR de
+    // `issueScheduleTicket` sigue siendo el control interno; éste es el comprobante que se rinde.
+    await emitServiceTicket(tx as unknown as TicketTransactionClient, {
+      reservationId: reservation.id,
+      bookingMode: schedule.route.bookingMode,
+      origin: tramo.boardingStop ?? schedule.route.from,
+      destination: tramo.dropoffStop ?? schedule.route.to,
+      serviceDate: schedule.departureAt,
+      departureAt: schedule.departureAt,
+      fareCents: totalCents,
+      currency: schedule.route.currency,
+      issuedById: tramo.creator?.id ?? null,
+      issuedByName: tramo.creator ? tramo.creator.name?.trim() || tramo.creator.email : null
+    });
     await recordReservationCreated(tx, reservation, tramo.creator, "salida regular");
 
     return code;
@@ -879,6 +926,25 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
             if (decision === "APPROVED") {
               if (!reservation.scheduleId) throw new BookingError("SCHEDULE_NOT_FOUND", "La reserva no tiene una salida asignada.");
               await issueScheduleTicket(tx, reservation.id, reservation.scheduleId, reservation.passengerCount);
+              // El viaje gratuito por discapacidad también es servicio público y lleva su número (#370).
+              const salida = await tx.schedule.findUnique({
+                where: { id: reservation.scheduleId },
+                select: { departureAt: true, route: { select: { from: true, to: true, bookingMode: true, currency: true } } }
+              });
+              if (salida) {
+                await emitServiceTicket(tx as unknown as TicketTransactionClient, {
+                  reservationId: reservation.id,
+                  bookingMode: salida.route.bookingMode,
+                  origin: reservation.boardingStop ?? salida.route.from,
+                  destination: reservation.dropoffStop ?? salida.route.to,
+                  serviceDate: salida.departureAt,
+                  departureAt: salida.departureAt,
+                  fareCents: reservation.totalCents,
+                  currency: salida.route.currency,
+                  issuedById: actor?.id ?? null,
+                  issuedByName: actor ? actor.name?.trim() || actor.email || null : null
+                });
+              }
             }
           }
           // La foto de antes se toma antes de escribir: no depende de que `reservation` siga intacto.

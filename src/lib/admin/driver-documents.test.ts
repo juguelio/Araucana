@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { driverDocumentsAudit, expiryStatus, normalizeCuil, parseDay, todayInArgentina, validateDriverDocuments, worstStatus } from "./driver-documents";
+import { driverDocumentsAudit, daysUntilExpiry, expiryDaysLabel, expiryStatus, formatExpiryDay, normalizeCuil, parseDay, todayInArgentina, validateDriverDocuments, worstStatus } from "./driver-documents";
 
 const completo = {
   documentNumber: "29.098.806",
@@ -63,6 +63,23 @@ describe("documentación del chofer", () => {
 
   it("el día de hoy es el de Argentina, no el de UTC", () => {
     expect(todayInArgentina(new Date("2026-11-18T02:00:00Z"))).toBe("2026-11-17");
+  });
+
+  it("dice los días que faltan sin que el operador reste fechas (#368)", () => {
+    const hoy = "2026-11-17";
+    expect(daysUntilExpiry(parseDay("2026-11-29"), hoy)).toBe(12);
+    expect(expiryDaysLabel(parseDay("2026-11-29"), hoy)).toBe("faltan 12 días");
+    expect(expiryDaysLabel(parseDay("2026-11-18"), hoy)).toBe("faltan 1 día");
+    expect(expiryDaysLabel(parseDay("2026-11-17"), hoy)).toBe("vence hoy");
+    expect(expiryDaysLabel(parseDay("2026-11-16"), hoy)).toBe("venció hace 1 día");
+    expect(expiryDaysLabel(parseDay("2026-11-01"), hoy)).toBe("venció hace 16 días");
+    expect(expiryDaysLabel(null, hoy)).toBeNull();
+    expect(expiryDaysLabel(parseDay("2026-11-29"), "no-es-un-dia")).toBeNull();
+  });
+
+  it("formatea el vencimiento como DD/MM/AAAA sin correrse de día", () => {
+    expect(formatExpiryDay(parseDay("2027-02-01")!)).toBe("01/02/2027");
+    expect(formatExpiryDay(new Date("2026-12-31T00:00:00.000Z"))).toBe("31/12/2026");
   });
 
   it("la auditoría lleva los datos con nombre de chofer y el alcance en palabras", () => {

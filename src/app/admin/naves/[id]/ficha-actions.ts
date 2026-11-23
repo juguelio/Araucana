@@ -241,3 +241,67 @@ export async function createServiceSheetAction(_state: AdminFormState, formData:
 
   volver(vehicleId, "service", "Planilla de service guardada.");
 }
+
+/**
+ * Kilometraje entre services (#369). Quique anota el km cuando carga combustible: con el km del último
+ * service, la unidad avisa cuánto falta para el próximo. No bloquea asignaciones.
+ */
+export async function createOdometerReadingAction(formData: FormData) {
+  const actor = await getCurrentAdminOrRedirect();
+  const vehicleId = value(formData, "vehicleId");
+  if (!vehicleId) redirect("/admin/naves");
+  const km = Number.parseInt(value(formData, "km").replace(/[.\s]/g, ""), 10);
+  if (!Number.isFinite(km) || km < 0 || km > 3_000_000) volver(vehicleId, "service", "Kilometraje inválido.");
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const nave = await tx.vehicle.findUnique({ where: { id: vehicleId }, select: { id: true, name: true } });
+      if (!nave) throw new Error("La nave ya no existe.");
+      const lectura = await tx.vehicleOdometerReading.create({
+        data: { vehicleId, km, source: "PANEL", createdBy: actor.name ?? actor.email }
+      });
+      await recordAudit(tx, {
+        actor,
+        action: "UPDATE",
+        entity: "VEHICLE",
+        entityId: vehicleId,
+        entityLabel: nave.name,
+        summary: `Kilometraje anotado: ${km.toLocaleString("es-AR")} km`,
+        changes: diffRecords(null, { "lectura.km": lectura.km, "lectura.readAt": lectura.readAt })
+      });
+    });
+  } catch (error) {
+    volver(vehicleId, "service", error instanceof Error ? error.message : "No pudimos guardar el kilometraje.");
+  }
+  volver(vehicleId, "service", `Kilometraje anotado: ${km.toLocaleString("es-AR")} km.`);
+}
+
+/** Intervalo de service de la unidad, en km. Vacío = sin intervalo (no se avisa nada). */
+export async function saveServiceIntervalAction(formData: FormData) {
+  const actor = await getCurrentAdminOrRedirect();
+  const vehicleId = value(formData, "vehicleId");
+  if (!vehicleId) redirect("/admin/naves");
+  const crudo = value(formData, "intervalKm").replace(/[.\s]/g, "");
+  const intervalKm = crudo === "" ? null : Number.parseInt(crudo, 10);
+  if (intervalKm != null && (!Number.isFinite(intervalKm) || intervalKm < 1_000 || intervalKm > 100_000)) {
+    volver(vehicleId, "service", "El intervalo tiene que estar entre 1.000 y 100.000 km.");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const nave = await tx.vehicle.update({ where: { id: vehicleId }, data: { serviceIntervalKm: intervalKm }, select: { name: true } });
+      await recordAudit(tx, {
+        actor,
+        action: "UPDATE",
+        entity: "VEHICLE",
+        entityId: vehicleId,
+        entityLabel: nave.name,
+        summary: intervalKm ? `Service cada ${intervalKm.toLocaleString("es-AR")} km` : "Intervalo de service borrado",
+        changes: diffRecords(null, { serviceIntervalKm: intervalKm })
+      });
+    });
+  } catch (error) {
+    volver(vehicleId, "service", error instanceof Error ? error.message : "No pudimos guardar el intervalo.");
+  }
+  volver(vehicleId, "service", intervalKm ? `Service cada ${intervalKm.toLocaleString("es-AR")} km.` : "Intervalo de service borrado.");
+}

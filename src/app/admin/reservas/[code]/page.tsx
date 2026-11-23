@@ -246,6 +246,18 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
               <span>Código corto</span>
               <strong>{formatShortCode(reservation.shortCode)}</strong>
             </div>
+            {reservation.serviceTicket ? (
+              <div>
+                <span>Boleto N°</span>
+                <strong>
+                  {reservation.serviceTicket.displayNumber}
+                  {reservation.serviceTicket.status === "ANULADO" ? " · anulado" : ""}
+                </strong>
+                <Link className="ghost-button" href={`/reservas/${reservation.code}/boleto`} prefetch={false}>
+                  Abrir boleto
+                </Link>
+              </div>
+            ) : null}
             <div>
               <span>Creada por</span>
               <strong>{reservation.creatorLabel}</strong>

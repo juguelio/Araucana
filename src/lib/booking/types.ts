@@ -130,6 +130,19 @@ export type ReservationDetailDto = {
   /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
   shortCode: string;
   bookingMode: string;
+  /** Boleto numerado del servicio público (#370). `null` en aeropuerto, Chapelco y charter. */
+  serviceTicket?: {
+    displayNumber: string;
+    status: string;
+    issuedAt: Date;
+    origin: string;
+    destination: string;
+    departureAt?: Date | null;
+    fareCents: number;
+    currency: string;
+    annulledAt?: Date | null;
+    annulReason?: string | null;
+  } | null;
   boardingStop?: string | null;
   dropoffStop?: string | null;
   passengerCount: number;

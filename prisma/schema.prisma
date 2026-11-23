@@ -164,6 +164,10 @@ model Vehicle {
   specialTripAssignments SpecialTripAssignment[]
   damages      VehicleDamage[]
   serviceSheets VehicleServiceSheet[]
+  documents    VehicleDocument[]
+  /** Cada cuántos km corresponde un service; null = la unidad no tiene intervalo definido. */
+  serviceIntervalKm Int?
+  odometerReadings VehicleOdometerReading[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -554,6 +558,7 @@ model Reservation {
   referredBy  String?
   payment     Payment?
   ticket      Ticket?
+  serviceTicket ServiceTicket?
   chapelcoDetails ChapelcoReservationDetails?
   airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
@@ -599,6 +604,53 @@ model Ticket {
   code          String      @unique
   qrPayload     String
   createdAt     DateTime    @default(now())
+}
+
+/// Contador de la numeración correlativa (issue #370). Una fila por serie: `W` = web.
+/// El número se consume al emitir, no al cobrar, y nunca se reinicia ni se reutiliza.
+model TicketSeries {
+  id         String          @id @default(cuid())
+  series     String          @unique
+  nextNumber Int             @default(1)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  tickets    ServiceTicket[]
+}
+
+/// Boleto del servicio público, numerado y correlativo (issue #370). Distinto de `Ticket`,
+/// que es el QR de control de una reserva: éste es el comprobante que se muestra y se rinde.
+model ServiceTicket {
+  id            String       @id @default(cuid())
+  series        String
+  number        Int
+  /// Número tal como se lee y se imprime: `W001`.
+  displayNumber String
+  seriesId      String
+  seriesRow     TicketSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
+  reservationId String       @unique
+  reservation   Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  /// EMITIDO | ANULADO
+  status        String       @default("EMITIDO")
+  issuedAt      DateTime     @default(now())
+  issuedById    String?
+  issuedByName  String?
+  origin        String
+  destination   String
+  serviceDate   DateTime
+  departureAt   DateTime?
+  fareCents     Int
+  currency      String       @default("ARS")
+  paymentMethod String?
+  annulledAt    DateTime?
+  annulledById  String?
+  annulledByName String?
+  annulReason   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([series, number])
+  @@index([status])
+  @@index([displayNumber])
 }
 
 model ChapelcoReservationDetails {
@@ -916,6 +968,29 @@ model VehicleServiceSheet {
   @@index([vehicleId, servicedAt])
 }
 
+/// La documentación de una unidad: póliza, técnica, RTO y cédula. Cada subida es una fila y el
+/// vigente de cada tipo es la última: reemplazar un papel deja el anterior como historial.
+model VehicleDocument {
+  id             String   @id @default(cuid())
+  vehicleId      String
+  vehicle        Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  /// POLIZA · TECNICA · RTO · CEDULA
+  kind           String
+  fileName       String
+  contentType    String
+  sizeBytes      Int
+  blobUrl        String
+  blobPathname   String
+  /// Vencimiento que declara el papel subido (opcional). Las fechas oficiales siguen en Vehicle.
+  expiresAt      DateTime?
+  /// Quién lo subió, copiado: borrar la cuenta no se lleva el rastro.
+  uploadedById   String?
+  uploadedByName String?
+  createdAt      DateTime @default(now())
+
+  @@index([vehicleId, kind, createdAt])
+}
+
 /// Un servicio escolar fechado. Las filas paralelas pueden tener el mismo recorrido.
 model SchoolRun {
   /// Recorridos fijos escolares o de transporte de personal.
@@ -945,4 +1020,20 @@ model DriverPlanNotice {
   notifiedBy  String
 
   @@id([serviceDate, driverId])
+}
+
+/// Lectura de kilometraje de una unidad, entre services. Quique las anota cuando carga en YPF en ruta
+/// (#369): el service sabe el km con el que se hizo, esto dice cuánto se recorrió desde entonces.
+model VehicleOdometerReading {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  km        Int
+  readAt    DateTime @default(now())
+  /// PANEL · CHOFER · SERVICE
+  source    String   @default("PANEL")
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId, readAt])
 }
