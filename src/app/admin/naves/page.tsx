@@ -14,6 +14,7 @@ import {
 } from "@/lib/vehicles/estado-en-flota";
 import type { Recorrido } from "@/lib/vehicles/ficha";
 import { proximoYHoy, type ServicioDeNave } from "@/lib/vehicles/servicio-en-curso";
+import { enlaceAlMapa } from "@/lib/vehicles/enlace-mapa";
 import { cargarSenalesDeChoferes, cargarServiciosDeLaFlota, type SenalDelChofer } from "./servicios-de-la-flota";
 import "./naves.css";
 
@@ -34,7 +35,7 @@ const PESTANAS: Array<{ id: PestanaDeFlota; etiqueta: string }> = [
   { id: "alertas", etiqueta: "Con alertas" },
   { id: "taller", etiqueta: "En reparación" },
   { id: "publico", etiqueta: "Transporte público" },
-  { id: "inactivas", etiqueta: "Inactivas" }
+  { id: "inactivas", etiqueta: "No habilitadas" }
 ];
 
 function pestanaHref(pestana: PestanaDeFlota) {
@@ -175,7 +176,11 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
           <ul>
             {ahoraEnLaCalle.map(({ vehicle, enCurso, senal }) => (
               <li key={vehicle.id}>
-                <Link href={`/admin/naves/${vehicle.id}`} className="naves-ahora-interno">
+                <Link
+                  href={enlaceAlMapa(vehicle.id)}
+                  className="naves-ahora-interno"
+                  title={`Ver ${vehicle.internalNumber ? `el interno ${vehicle.internalNumber}` : vehicle.name} en el mapa`}
+                >
                   {vehicle.internalNumber ?? vehicle.name}
                 </Link>
                 {enCurso ? (
@@ -224,6 +229,9 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                     </Link>
                     <div className="naves-fila-unidad">
                       <Link className="naves-fila-modelo" href={ficha}>{vehicle.brand} {vehicle.model}</Link>
+                      <Link className="naves-fila-mapa" href={enlaceAlMapa(vehicle.id)} title={`Ver ${nombre} en el mapa`}>
+                        <span aria-hidden="true" className="naves-fila-mapa-pin" /> Ver en el mapa
+                      </Link>
                       <span className="naves-fila-extra">
                         <span className="naves-fila-patente">{vehicle.licensePlate ?? "sin patente"}</span>
                         {vehicle.year ? <span>{vehicle.year}</span> : null}
@@ -279,6 +287,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
                     </div>
                     <div className="naves-fila-menu">
                       <MenuFila etiqueta={`Más opciones de ${nombre}`}>
+                        <Link className="menu-fila-item" href={enlaceAlMapa(vehicle.id)}>Ver en el mapa</Link>
                         <Link className="menu-fila-item" href={ficha}>Ver ficha</Link>
                         <Link className="menu-fila-item" href={`${ficha}/recorridos`}>Recorridos</Link>
                         <Link className="menu-fila-item" href={`${ficha}/vencimientos`}>Vencimientos y seguro</Link>

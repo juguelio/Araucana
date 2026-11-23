@@ -21,7 +21,7 @@ function pick(source: Loose, fields: readonly string[], prefix: string) {
 }
 
 const RESERVATION_FIELDS = [
-  "status", "totalCents", "currency", "passengerCount", "seatNumber", "dropoffStop", "referredBy",
+  "status", "totalCents", "currency", "passengerCount", "seatNumber", "boardingStop", "dropoffStop", "referredBy",
   "cancellationReason", "cancelledByName", "restoredByName"
 ] as const;
 const PAYMENT_FIELDS = ["provider", "status", "amountCents", "method", "externalRef"] as const;

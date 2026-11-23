@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getAppUserFromToken } from "@/lib/auth/service";
-import { BookingError, createWebReservation } from "@/lib/booking/repository";
+import { BookingError, createRouteRoundTripReservation, createWebReservation } from "@/lib/booking/repository";
 import { createReservationSchema, type CreateReservationInput } from "@/lib/booking/validation";
 
 type ReservationActionResult =
@@ -25,6 +25,8 @@ const bookingMessages: Record<string, string> = {
   SCHEDULE_NOT_FOUND: "La salida seleccionada ya no esta disponible.",
   SEAT_NOT_FOUND: "El asiento seleccionado no existe para esta salida.",
   DISABILITY_FARE_NOT_AVAILABLE: "La solicitud de viaje gratuito corresponde a un pasajero de transporte público.",
+  ROUND_TRIP_ROUTE_MISMATCH: "La vuelta tiene que recorrer las mismas paradas en sentido inverso.",
+  INVALID_ROUND_TRIP_ORDER: "Elegí una vuelta posterior a la ida.",
   STOP_NOT_AVAILABLE: "La parada seleccionada ya no está disponible. Actualizá la página y volvé a elegir.",
   SCHEDULE_CLOSED: "La salida seleccionada ya no acepta reservas.",
   AIRPORT_SCHEDULE_NOT_BOOKABLE: "El aeropuerto se reserva eligiendo el vuelo, no por horario.",
@@ -33,7 +35,7 @@ const bookingMessages: Record<string, string> = {
   CODE_COLLISION: "No pudimos generar el codigo de reserva. Intentalo nuevamente."
 };
 
-export async function createReservationAction(input: CreateReservationInput): Promise<ReservationActionResult> {
+export async function createReservationAction(input: CreateReservationInput, returnScheduleId?: string, regreso?: { boardingStop?: string; dropoffStop?: string }): Promise<ReservationActionResult> {
   const parsed = createReservationSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -56,6 +58,16 @@ export async function createReservationAction(input: CreateReservationInput): Pr
 
   try {
     const creator = await getAppUserFromToken();
+    if (returnScheduleId) {
+      const { ida, vuelta } = await createRouteRoundTripReservation({
+        ...parsed.data, returnScheduleId,
+        returnBoardingStop: regreso ? regreso.boardingStop : parsed.data.dropoffStop,
+        returnDropoffStop: regreso ? regreso.dropoffStop : parsed.data.boardingStop
+      }, { creator });
+      revalidatePath(`/reservar/${ida.route.slug}`);
+      revalidatePath(`/reservar/${vuelta.route.slug}`);
+      return { ok: true, code: ida.code };
+    }
     const reservation = await createWebReservation(parsed.data, { creator });
     revalidatePath(`/reservar/${reservation.route.slug}`);
 

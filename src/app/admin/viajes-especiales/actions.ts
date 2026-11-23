@@ -6,7 +6,8 @@ import { z } from "zod";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import {
-  argentina, assignmentSchema, billingModes, dateOnly, legSchema, localDateTime, parseMoney, paymentSchema, statuses
+  argentina, assignmentSchema, billingModes, dateOnly, legSchema, localDateTime, MAX_TRIP_PAYMENTS, parseMoney,
+  paymentSchema, statuses, tripPaymentTotals
 } from "@/lib/special-trips/data";
 import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { leerRango } from "@/lib/special-trips/rango";
@@ -32,15 +33,28 @@ export async function saveTrip(id: string | null, version: string | null, _state
     const currency = value("currency");
     const invoiceDate = dateOnly(value("invoiceDate"));
     const passengers = value("passengers") ? Number(value("passengers")) : null;
+    const contactName = value("contactName");
+    const contactPhone = value("contactPhone");
     if (!client || client.length > 500 || !Object.hasOwn(statuses, status)) throw new TripError("Revisá el cliente y el estado.");
     if (passengers !== null && (!Number.isInteger(passengers) || passengers < 1 || passengers > 100000)) throw new TripError("Ingresá una cantidad válida de pasajeros.");
+    if (contactName.length > 120) throw new TripError("El nombre de referencia debe tener hasta 120 caracteres.");
+    if (contactPhone && (!/^[+\d() .-]{6,32}$/.test(contactPhone) || !/^\d{6,15}$/.test(contactPhone.replace(/\D/g, "")))) {
+      throw new TripError("Ingresá un teléfono de contacto válido, con código de área.");
+    }
     if (!Object.hasOwn(billingModes, billingMode) || !["ARS", "USD"].includes(currency)) throw new TripError("Revisá las condiciones de cobro.");
     if (value("invoiceDate") && !invoiceDate) throw new TripError("Revisá la fecha de factura.");
     const totalCents = value("total") ? parseMoney(value("total")) : null;
     if ((value("total") || billingMode === "FIXED") && totalCents === null) throw new TripError("Ingresá un importe válido sin separador de miles.");
     if (["UNKNOWN", "INCLUDED"].includes(billingMode) && totalCents !== null) throw new TripError("Dejá el total vacío para esta condición de cobro.");
 
-    const legs = z.array(legSchema).min(1).max(200).parse(JSON.parse(value("legs")));
+    const parsedLegs = z.array(legSchema).min(1).max(200).safeParse(JSON.parse(value("legs")));
+    if (!parsedLegs.success) {
+      if (parsedLegs.error.issues.some(({ path }) => path[1] === "points")) {
+        throw new TripError("Revisá los puntos intermedios. Cada punto necesita un lugar. Si cargás una fecha o un importe, deben ser válidos.");
+      }
+      throw new TripError("Revisá los datos de los recorridos.");
+    }
+    const legs = parsedLegs.data;
     for (const leg of legs) {
       if ((!leg.origin || !leg.destination) && !leg.description.trim()) throw new TripError("Ingresá origen y destino o una descripción para cada tramo.");
       const departure = localDateTime(leg.departure, leg.zone);
@@ -59,8 +73,10 @@ export async function saveTrip(id: string | null, version: string | null, _state
       a.vehicleId === b.vehicleId && a.startsAt < b.endsAt && a.endsAt > b.startsAt))) {
       throw new TripError("Unificá las ocupaciones superpuestas de una misma nave en este viaje.");
     }
-    const payments = z.array(paymentSchema).max(100).parse(JSON.parse(value("payments")));
-    if (payments.some((p) => (parseMoney(p.amount) ?? 0) <= 0 || (p.date && !dateOnly(p.date)))) throw new TripError("Revisá las fechas y los importes de los cobros.");
+    const payments = z.array(paymentSchema).max(MAX_TRIP_PAYMENTS).parse(JSON.parse(value("payments")));
+    if (payments.some((p) => (parseMoney(p.amount) ?? 0) <= 0 || ((p.date || p.kind) && !dateOnly(p.date)))) {
+      throw new TripError("Revisá las fechas y los importes de los cobros.");
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const assignedVehicles = new Set<string>();
@@ -79,6 +95,15 @@ export async function saveTrip(id: string | null, version: string | null, _state
       } else {
         await lockFleet(tx, assignments.map((a) => a.vehicleId));
       }
+      const { paid, balance } = tripPaymentTotals(totalCents, payments);
+      const previousPayments = z.array(paymentSchema).parse(previous?.payments ?? []);
+      const previousTotals = tripPaymentTotals(previous?.totalCents ?? null, previousPayments);
+      if (previous && previous.currency !== currency && previousTotals.paid > 0) {
+        throw new TripError("El viaje ya tiene cobros en otra moneda. La moneda debe coincidir con la de los cobros registrados.");
+      }
+      if (balance !== null && balance < 0 && (previous?.totalCents !== totalCents || paid > previousTotals.paid)) {
+        throw new TripError("La suma de los cobros supera el importe acordado.");
+      }
       const vehiclesToCheck = [...new Set(assignments.map((a) => a.vehicleId))].filter((vehicleId) => !assignedVehicles.has(vehicleId));
       const driversToCheck = [...new Set(assignments.flatMap((a) => a.driverId ?? []))].filter((driverId) => !assignedDrivers.has(driverId));
       const [vehicleCount, driverCount] = await Promise.all([
@@ -94,7 +119,8 @@ export async function saveTrip(id: string | null, version: string | null, _state
       const data = {
         client, serviceDate, endDate, passengers, status, billingMode, currency, totalCents, legs, payments,
         destinationSearch: legs.map((leg) => leg.destination || leg.description).join("\n"),
-        contact: value("contact").slice(0, 500) || null, notes: value("notes").slice(0, 12000) || null,
+        contact: value("contact").slice(0, 500) || null,
+        contactName: contactName || null, contactPhone: contactPhone || null, notes: value("notes").slice(0, 12000) || null,
         supplier: value("supplier").slice(0, 500) || null, invoice: value("invoice").slice(0, 500) || null,
         invoiceDate, paymentStatus: value("paymentStatus").slice(0, 500) || null
       };
@@ -134,4 +160,43 @@ export async function saveTrip(id: string | null, version: string | null, _state
   revalidatePath(detailPath);
   revalidatePath(`${detailPath}/editar`);
   redirect(`${detailPath}?guardado=1`);
+}
+
+export async function addTripPayment(
+  id: string, operationId: string, _state: TripFormResult, form: FormData
+): Promise<TripFormResult> {
+  const user = await getCurrentReservationsUserOrRedirect();
+  const parsed = paymentSchema.safeParse({
+    id: operationId, kind: form.get("kind"), date: form.get("date"), amount: form.get("amount"), note: form.get("note")
+  });
+  const amountCents = parsed.success ? parseMoney(parsed.data.amount) : null;
+  if (!parsed.success || !amountCents || !dateOnly(parsed.data.date)) return { error: "Ingresá una fecha y un importe de cobro válidos." };
+  const payment = { ...parsed.data, amount: (amountCents / 100).toFixed(2) };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "SpecialTrip" WHERE id = ${id} FOR UPDATE`;
+      const trip = await tx.specialTrip.findUnique({ where: { id } });
+      if (!trip) throw new TripError("El viaje ya no existe.");
+      const payments = z.array(paymentSchema).parse(trip.payments);
+      if (payments.some((item) => item.id === operationId)) return;
+      if (trip.currency !== form.get("currency")) throw new TripError("La moneda del viaje cambió. Volvé a abrir la ficha.");
+      const { balance } = tripPaymentTotals(trip.totalCents, payments);
+      if (balance !== null && amountCents > balance) throw new TripError("El cobro supera el saldo pendiente.");
+      if (payments.length >= MAX_TRIP_PAYMENTS) throw new TripError("El viaje alcanzó el límite de cobros registrados.");
+      const updated = await tx.specialTrip.update({ where: { id }, data: { payments: [...payments, payment] } });
+      await recordEntityAudit(tx, {
+        actor: user, entity: "SPECIAL_TRIP", entityId: id, entityLabel: trip.client.slice(0, 120),
+        summary: payment.kind === "DEPOSIT" ? "Seña del viaje especial registrada." : "Pago del viaje especial registrado.",
+        before: trip, after: updated, json: ["payments"]
+      });
+    });
+  } catch (error) {
+    return { error: error instanceof TripError ? error.message : "No pudimos registrar el cobro. Intentá nuevamente." };
+  }
+
+  const path = `/admin/viajes-especiales/${id}`;
+  revalidatePath(path);
+  revalidatePath(`${path}/editar`);
+  redirect(`${path}?cobro=1#facturacion`);
 }

@@ -4,6 +4,7 @@
  * puede ofrecer y cuánto sale.
  */
 
+import { corridorStops, segmentPrice } from "@/lib/booking/segment-fares";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
 import { claveDeLugar } from "@/lib/booking/place-names";
 import type { SalidaOption } from "./salida-picker-utils";
@@ -11,7 +12,19 @@ import type { SalidaOption } from "./salida-picker-utils";
 export type Lugar = { nombre: string; salidas: number };
 
 /** Una ruta activa, tenga o no salidas cargadas (para listarla igual en Desde/Hacia). */
-export type RutaDelPanel = { id: string; from: string; to: string };
+export type RutaDelPanel = { id: string; from: string; to: string; bookingMode?: string; currency?: string };
+
+export function lugaresDeSalida(route: RutaDelPanel) {
+  const stops = corridorStops(route);
+  return stops.length ? stops.slice(0, -1) : [route.from];
+}
+
+function lugaresDeLlegada(route: RutaDelPanel, origen: string) {
+  const stops = corridorStops(route);
+  if (!stops.length) return origen === route.from ? [route.to] : [];
+  const index = stops.indexOf(origen);
+  return index < 0 ? [] : stops.slice(index + 1);
+}
 
 /**
  * Un solo nombre por lugar: «San Martin de los Andes» y «San Martín de los Andes» son el mismo (las
@@ -45,13 +58,13 @@ export function momento(salida: Pick<SalidaOption, "dayKey" | "timeLabel">) {
   return `${salida.dayKey} ${salida.timeLabel}`;
 }
 
-function contar(nombres: string[]): Lugar[] {
+function contar(nombres: string[], cabeceras = new Set<string>()): Lugar[] {
   const mapa = new Map<string, number>();
   for (const nombre of nombres) mapa.set(nombre, (mapa.get(nombre) ?? 0) + 1);
   // Primero los lugares con más salidas (los que más se usan), después por nombre.
   return [...mapa.entries()]
     .map(([nombre, salidas]) => ({ nombre, salidas }))
-    .sort((a, b) => b.salidas - a.salidas || a.nombre.localeCompare(b.nombre, "es"));
+    .sort((a, b) => b.salidas - a.salidas || Number(cabeceras.has(b.nombre)) - Number(cabeceras.has(a.nombre)) || a.nombre.localeCompare(b.nombre, "es"));
 }
 
 /** Suma con 0 salidas los lugares de rutas activas que todavía no tienen salidas cargadas. */
@@ -63,26 +76,33 @@ function conRutasSinSalidas(lugares: Lugar[], nombres: string[]) {
 
 /** Desde dónde se puede salir (las rutas sin salidas cargadas, al final). */
 export function origenes(salidas: SalidaOption[], rutas: RutaDelPanel[] = []) {
-  return conRutasSinSalidas(contar(salidas.map((salida) => salida.from)), rutas.map((ruta) => ruta.from));
+  return conRutasSinSalidas(contar(salidas.flatMap(lugaresDeSalida), new Set(salidas.map((s) => s.from))), rutas.flatMap(lugaresDeSalida));
 }
 
 /** Adónde se puede ir desde `origen` (las rutas sin salidas cargadas, al final). */
 export function destinosDesde(salidas: SalidaOption[], origen: string, rutas: RutaDelPanel[] = []) {
   return conRutasSinSalidas(
-    contar(salidas.filter((salida) => salida.from === origen).map((salida) => salida.to)),
-    rutas.filter((ruta) => ruta.from === origen).map((ruta) => ruta.to)
+    contar(salidas.flatMap((salida) => lugaresDeLlegada(salida, origen)), new Set(salidas.map((s) => s.to))),
+    rutas.flatMap((ruta) => lugaresDeLlegada(ruta, origen))
   );
 }
 
 /** La ruta activa de `desde` a `hacia` (para ofrecer cargarle salidas si no tiene). */
 export function rutaEntre(rutas: RutaDelPanel[], desde: string, hacia: string) {
-  return rutas.find((ruta) => ruta.from === desde && ruta.to === hacia) ?? null;
+  return rutas.find((ruta) => lugaresDeLlegada(ruta, desde).includes(hacia)) ?? null;
 }
 
 /** Las salidas de un tramo, en orden. */
 export function salidasDelTramo(salidas: SalidaOption[], desde: string, hacia: string) {
   return salidas
-    .filter((salida) => salida.from === desde && salida.to === hacia)
+    .flatMap((salida) => {
+      if (!lugaresDeLlegada(salida, desde).includes(hacia)) return [];
+      if (!corridorStops(salida).length) return [salida];
+      const boardingStop = desde === salida.from ? undefined : desde;
+      const dropoffStop = hacia === salida.to ? undefined : hacia;
+      const priceCents = segmentPrice({ ...salida, stops: salida.stopFares, priceCents: salida.priceCents ?? 0 }, boardingStop, dropoffStop);
+      return [{ ...salida, boardingStop, dropoffStop, priceCents, stopFares: [] }];
+    })
     .sort((a, b) => momento(a).localeCompare(momento(b)));
 }
 
@@ -99,7 +119,7 @@ export function conteoPorDia(salidas: SalidaOption[]) {
  */
 export function vueltasPosibles(salidas: SalidaOption[], origen: string, destino: string, ida?: SalidaOption | null) {
   const inversa = salidasDelTramo(salidas, destino, origen);
-  return ida ? inversa.filter((salida) => momento(salida) > momento(ida)) : inversa;
+  return ida ? inversa.filter((salida) => momento(salida) > momento(ida) && (!ida.currency || !salida.currency || ida.currency === salida.currency)) : inversa;
 }
 
 /** El primer día con salidas desde `minimo` (o el primero de todos). */

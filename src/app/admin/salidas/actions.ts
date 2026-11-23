@@ -147,7 +147,7 @@ async function saveAudited(
 
 async function saveSchedule(data: Awaited<ReturnType<typeof scheduleData>>["data"], form: FormData, actor: AuditActor & { id: string }, id?: string) {
   const result = await saveAudited(actor, id ? "Salida editada." : "Salida creada.", data, value(form, "confirmation"), id);
-  if (result.conflicts) return { ...errorState("La nave ya tiene un viaje especial en ese horario."), ...result };
+  if (result.conflicts) return { ...errorState("La nave ya está tomada en ese horario."), ...result };
   return null;
 }
 

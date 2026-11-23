@@ -5,7 +5,7 @@ import { formatCurrency } from "@/lib/admin/salary";
 import { canDeleteManagedUser, canSeeSalary, managedUsersBasePath } from "@/lib/admin/driver-access";
 import { getCurrentAdminOrRedirect, getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { EXPIRY_LABELS, LICENSE_SCOPES, expiryStatus, todayInArgentina, worstStatus, type ExpiryStatus, type LicenseScope } from "@/lib/admin/driver-documents";
+import { EXPIRY_LABELS, LICENSE_SCOPES, expiryDaysLabel, expiryStatus, formatExpiryDay, todayInArgentina, worstStatus, type ExpiryStatus, type LicenseScope } from "@/lib/admin/driver-documents";
 import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
 import { hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado } from "@/lib/admin/list-order";
@@ -67,7 +67,9 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
   const documentacion = (user: (typeof users)[number]) => {
     const licencia = expiryStatus(user.driverProfile?.licenseExpiresAt, hoy);
     const antecedentes = expiryStatus(user.driverProfile?.criminalRecordExpiresAt, hoy);
-    return { licencia, antecedentes, peor: worstStatus([licencia, antecedentes]) };
+    const diasLicencia = expiryDaysLabel(user.driverProfile?.licenseExpiresAt, hoy);
+    const diasAntecedentes = expiryDaysLabel(user.driverProfile?.criminalRecordExpiresAt, hoy);
+    return { licencia, antecedentes, diasLicencia, diasAntecedentes, peor: worstStatus([licencia, antecedentes]) };
   };
   const aRevisar = verDocumentacion ? users.filter((user) => user.isActive && documentacion(user).peor !== "VALID").length : 0;
   const columnas = 6 + (verSueldo ? 1 : 0) + (verDocumentacion ? 3 : 0);
@@ -139,7 +141,9 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
         <tbody>
           {pagina.items.map((user) => (
             <tr key={user.id}>
-              <td>{user.name ?? "-"}</td>
+              <td>{esChoferes
+                ? <Link className="driver-name-link" href={`/admin/choferes/${user.id}/actividad`}>{user.name || user.email}</Link>
+                : user.name ?? "-"}</td>
               <td>{user.email}</td>
               {!esChoferes && <td>{getManagedUserRoleName(user.role as ManagedUserRole)}</td>}
               {verDocumentacion && (
@@ -149,13 +153,13 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
                     {user.driverProfile ? (
                       <span className="driver-doc">
                         {user.driverProfile.licenseCategory} · {LICENSE_SCOPES[user.driverProfile.licenseScope as LicenseScope] ?? user.driverProfile.licenseScope}
-                        <small>vence {formatDay(user.driverProfile.licenseExpiresAt)}</small>
+                        <small>vence {formatExpiryDay(user.driverProfile.licenseExpiresAt)}{documentacion(user).diasLicencia ? ` · ${documentacion(user).diasLicencia}` : ""}</small>
                       </span>
                     ) : null}
                     <ExpiryPill status={documentacion(user).licencia} />
                   </td>
                   <td>
-                    {user.driverProfile ? <span className="driver-doc"><small>vence {formatDay(user.driverProfile.criminalRecordExpiresAt)}</small></span> : null}
+                    {user.driverProfile ? <span className="driver-doc"><small>vence {formatExpiryDay(user.driverProfile.criminalRecordExpiresAt)}{documentacion(user).diasAntecedentes ? ` · ${documentacion(user).diasAntecedentes}` : ""}</small></span> : null}
                     <ExpiryPill status={documentacion(user).antecedentes} />
                   </td>
                 </>
@@ -187,10 +191,6 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
       <Paginador {...pagina} hrefPagina={(n) => hrefDePagina(base, params, n)} etiqueta="cuentas" />
     </AdminShell>
   );
-}
-
-function formatDay(date: Date) {
-  return date.toISOString().slice(0, 10).split("-").reverse().join("/");
 }
 
 /** Vigente en verde; por vencer, vencido o faltante, marcado para revisar. */

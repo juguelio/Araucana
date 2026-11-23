@@ -222,3 +222,13 @@ describe("reserva de aeropuerto: extras", () => {
     }
   });
 });
+
+it.each(["ARRIVAL", "DEPARTURE"])("cobra y registra el adicional de Paihuén por pasajero en %s", async direction => {
+  const flights = await mocks.findManyFlights();
+  mocks.findManyFlights.mockResolvedValue(flights.map((flight: { direction: string }) => ({ ...flight, direction })));
+  await reserva({ direction, pickupAddress: "Paihuén, Ruta Nacional 40", halfFareCount: 1 });
+  expect(mocks.createReservation.mock.calls[0][0].data).toMatchObject({
+    totalCents: 8_600_000, airportDetails: { create: { paihuenUnitCents: 1_300_000 } }
+  });
+  expect(mocks.createPayment.mock.calls[0][0].data.amountCents).toBe(8_600_000);
+});

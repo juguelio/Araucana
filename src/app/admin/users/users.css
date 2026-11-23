@@ -50,6 +50,13 @@
 }
 
 /* Listado de choferes: categoría y vencimiento arriba del estado. */
+.driver-name-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .driver-doc {
   display: flex;
   flex-direction: column;
@@ -60,4 +67,39 @@
 .status-pill[data-vencimiento="EXPIRING"] {
   background: rgba(200, 140, 20, 0.16);
   color: #7a5200;
+}
+
+/* Vencimientos en la ficha del chofer (#368): vencido en rojo, por vencer en ámbar. */
+.driver-expiry {
+  margin: 0 0 18px;
+}
+
+.driver-expiry p {
+  margin: 0 0 6px;
+}
+
+.driver-expiry ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.driver-expiry li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.driver-expiry-doc {
+  min-width: 220px;
+  font-weight: 700;
+}
+
+.status-pill[data-vencimiento="EXPIRED"],
+.status-pill[data-vencimiento="MISSING"] {
+  background: rgba(180, 40, 40, 0.14);
+  color: #9b1c1c;
 }

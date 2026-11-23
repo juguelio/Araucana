@@ -38,13 +38,15 @@ export function AirportGooglePickup({
     if (!host) return;
     let active = true;
     let click: google.maps.MapsEventListener | undefined;
+    let drag: google.maps.MapsEventListener | undefined;
     void Promise.all([loadGoogleLibrary("maps"), loadGoogleLibrary("marker")]).then(([maps, markers]) => {
       if (!active) return;
       const instance = new maps.Map(host, {
         center: airportSearchCenter, zoom: 13, mapId: googlePickupMapId, gestureHandling: "cooperative",
         mapTypeControl: false, streetViewControl: false, fullscreenControl: false, clickableIcons: false
       });
-      marker.current = new markers.AdvancedMarkerElement({ title: "Punto marcado para el traslado" });
+      marker.current = new markers.AdvancedMarkerElement({ title: "Punto marcado para el traslado", gmpDraggable: true });
+      drag = marker.current.addListener("dragend", (event: google.maps.MapMouseEvent) => pick(event.latLng));
       click = instance.addListener("click", (event: google.maps.MapMouseEvent) => pick(event.latLng));
       setMap(instance);
     }).catch(() => { if (active) unavailable(); });
@@ -52,6 +54,7 @@ export function AirportGooglePickup({
     return () => {
       active = false;
       click?.remove();
+      drag?.remove();
       if (marker.current) marker.current.map = null;
       marker.current = null;
       host.replaceChildren();
@@ -104,6 +107,7 @@ export function AirportGooglePickup({
   useEffect(() => {
     const pin = marker.current;
     if (!map || !pin) return;
+    pin.gmpDraggable = !disabled;
     if (!point) {
       pin.map = null;
       return;
@@ -113,7 +117,7 @@ export function AirportGooglePickup({
     if (!pin.map || !map.getBounds()?.contains(position)) map.setCenter(position);
     pin.position = position;
     pin.map = map;
-  }, [approximate, map, point]);
+  }, [approximate, disabled, map, point]);
 
   useEffect(() => {
     if (!map || !reference) return;

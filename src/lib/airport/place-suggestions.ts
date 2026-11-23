@@ -1,3 +1,4 @@
+import { localStreetReference, streetKey } from "./street-reference";
 import { z } from "zod";
 import { ApiError } from "@/lib/api/responses";
 import { lookupAirportIntersection } from "./intersection-lookup";
@@ -138,16 +139,6 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
   }
 }
 
-/** "Avenida X" y "Av X" son la misma calle; "San Martín" y "Av San Martín" no. */
-const streetAbbreviations: Record<string, string> = { avenida: "av", pasaje: "pje", boulevard: "blvd" };
-
-function streetKey(value: string) {
-  return normalizePlaceText(value)
-    .split(" ")
-    .map((word) => streetAbbreviations[word] ?? word)
-    .join(" ");
-}
-
 async function nominatimStreetPoint(street: string, requestSignal: AbortSignal): Promise<{ point: PickupPoint | null; answered: boolean }> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.search = new URLSearchParams({
@@ -198,15 +189,66 @@ async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Pr
   return point;
 }
 
-function matchesStreetNumber(label: string, street: string, number: string) {
+export function matchesStreetNumber(label: string, street: string, number: string, allowShortName = true) {
   const parts = label.split(",").map(normalizePlaceText);
   // Una dirección puede venir precedida por el nombre del hotel.
   return parts.slice(0, 2).some((part, index) => {
     const address = splitStreetAddress(part);
     const matchedStreet = part === number ? parts[index + 1] : address?.number === number ? address.street : undefined;
-    return Boolean(matchedStreet && (matchedStreet === street || matchedStreet.endsWith(` ${street}`)));
+    if (!matchedStreet) return false;
+    const actual = streetKey(matchedStreet);
+    const target = streetKey(street);
+    return actual === target || (allowShortName && actual.endsWith(` ${target}`));
   });
 }
+
+// GeoRef registra el nombre oficial; en OpenStreetMap el orden de los nombres está invertido.
+const nunezStreet = new Set(["doctor ernesto luis nunez", "dr ernesto luis nunez", "ernesto luis nunez", "luis ernesto nunez"]);
+
+const calleGenerica = new Set(["avenida", "av", "calle", "ruta", "pasaje", "camino", "boulevard", "bv", "nacional", "provincial"]);
+const tratamiento = new Set(["doctor", "dr", "dra", "ingeniero", "ing", "presidente", "coronel", "teniente", "fray", "general", "comandante", "sargento", "cabo", "padre", "licenciado", "lic"]);
+
+function tokensDeCalle(value: string) {
+  return normalizePlaceText(value).split(" ").filter((token) => token && !calleGenerica.has(token) && !tratamiento.has(token));
+}
+
+function distanciaDeEdicion(a: string, b: string) {
+  const fila = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i++) {
+    let anterior = fila[0];
+    fila[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const guardado = fila[j];
+      fila[j] = Math.min(fila[j] + 1, fila[j - 1] + 1, anterior + (a[i - 1] === b[j - 1] ? 0 : 1));
+      anterior = guardado;
+    }
+  }
+  return fila[b.length];
+}
+
+/** Igualdad tolerante a una letra de diferencia: «Curruhinca» entra con «Curruhuinca». */
+function mismoToken(a: string, b: string) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 2) return false;
+  return distanciaDeEdicion(a, b) <= 2;
+}
+
+/**
+ * ¿La calle que devuelve el nomenclador es la que se pidió? Compara por palabras (sin tratamientos ni
+ * genéricos como «avenida»), así «Ingeniero White» entra con «White» y «Curruhinca» con «Cacique
+ * Curruhuinca», pero una homónima inventada («Doctor Ficticio Perez» → «Teniente Coronel Perez») no (#352).
+ * Tiene que coincidir cada palabra pedida: compartir sólo el apellido no alcanza.
+ */
+export function streetNameMatches(requested: string, official: string) {
+  const pedidas = tokensDeCalle(requested);
+  const oficiales = tokensDeCalle(official);
+  if (!pedidas.length || !oficiales.length) return false;
+  return pedidas.every((token) => oficiales.some((candidato) => mismoToken(token, candidato)));
+}
+const nunezStreetReference = {
+  point: [-40.135793, -71.2972797] as PickupPoint,
+  coordinateSourceUrl: "https://www.openstreetmap.org/way/169405015"
+};
 
 async function suggestStreetAddress(name: string, context: string, address: NonNullable<ReturnType<typeof splitStreetAddress>>, signal: AbortSignal) {
   const locality = context || airportSearchLocality;
@@ -215,11 +257,23 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
   const exact = Array.isArray(named)
     ? named.filter((match) => matchesStreetNumber(match.label, street, address.number))
     : [];
-  if (exact.length || signal.aborted) return exact;
+  const exactos = exact.filter((match) => match.precision === "exact" && !match.approximate);
+  // Un punto «interpolado» del proveedor no decide antes que el nomenclador municipal (#361): si no hay
+  // una altura exacta, se sigue con GeoRef y recién al final se usa el del proveedor como respaldo.
+  if (exactos.length || signal.aborted) return exactos.length ? exactos : exact;
 
-  const official = await lookupStreetAddresses(name, context.split(",")[0], signal).catch(() => []);
+  const localNunez = nunezStreet.has(street) && normalizePlaceText(locality.split(",")[0]) === normalizePlaceText(airportSearchLocality);
+  const officialQuery = localNunez ? `Doctor Ernesto Luis Núñez ${address.number}` : name;
+  const official = await lookupStreetAddresses(officialQuery, context.split(",")[0], signal).catch(() => []);
   const suggestions: AirportPlaceSuggestion[] = [];
-  for (const match of official) {
+  const requestedStreet = streetKey(localNunez ? "Doctor Ernesto Luis Núñez" : address.street);
+  const sameStreet = official.filter((match) => streetKey(match.calle.nombre) === requestedStreet
+    || streetNameMatches(localNunez ? "Doctor Ernesto Luis Núñez" : address.street, match.calle.nombre));
+  const knownStreet = localStreetReference(address.street, address.number, locality);
+  // Sin coincidencia de nombre no se ofrece la calle que devolvió el nomenclador (#352): antes se usaba
+  // cualquier resultado y una consulta inventada terminaba mostrando otra calle como dirección válida.
+  const relevant = sameStreet;
+  for (const match of relevant) {
     if (String(match.altura.valor) !== address.number || signal.aborted) continue;
     const officialStreet = match.calle.nombre.toLocaleLowerCase("es").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
     const { nombre: city } = match.localidad_censal;
@@ -237,10 +291,26 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
       suggestions.push(...canonicalExact);
       continue;
     }
+    if (localNunez && nunezStreet.has(canonical) && normalizePlaceText(city) === normalizePlaceText(airportSearchLocality)) {
+      const mapStreet = "Luis Ernesto Núñez";
+      const mapped = street === normalizePlaceText(mapStreet) ? [] :
+        await lookupNamedPlaces(`${mapStreet} ${address.number}, ${airportSearchLocality}`, signal).catch(() => []);
+      const atNumber = mapped.find((candidate) => matchesStreetNumber(candidate.label, normalizePlaceText(mapStreet), address.number));
+      if (signal.aborted) return [];
+      suggestions.push(atNumber
+        ? { ...atNumber, label }
+        : { ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
+      continue;
+    }
+    const local = localStreetReference(officialStreet, address.number, city);
+    if (local) {
+      suggestions.push(local);
+      continue;
+    }
     const reference = candidates.find((candidate) => candidate.approximate
       && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
     if (reference) {
-      suggestions.push({ ...reference, label, approximate: true });
+      suggestions.push({ ...reference, label, approximate: true, precision: "street" });
       continue;
     }
     // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
@@ -254,7 +324,12 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     // Se ofrece igual; el punto se marca en el mapa.
     suggestions.push({ label, point: null, source: "georef", approximate: true, precision: "none" });
   }
-  if (!suggestions.length && !Array.isArray(named)) throw named;
+  if (!suggestions.length && !signal.aborted) {
+    // Respaldo: el punto interpolado del proveedor, pero sólo si el nomenclador no aportó nada mejor.
+    if (exact.length) return exact;
+    if (knownStreet) return [knownStreet];
+    if (!Array.isArray(named)) throw named;
+  }
   return suggestions;
 }
 

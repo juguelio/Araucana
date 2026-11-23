@@ -66,10 +66,11 @@ it("arma el domicilio con la calle elegida y la altura tipeada", async () => {
 
   await expect(resolveStreetAddress("Bertha Koessler", "1686", new AbortController().signal)).resolves.toEqual({
     label: "Bertha Koessler 1686, San Martín de los Andes",
-    point: null,
+    point: [-40.127311, -71.246992],
+    coordinateSourceUrl: expect.stringContaining("/cuadras?"),
     source: "georef",
     approximate: true,
-    precision: "none"
+    precision: "street"
   });
 });
 
@@ -94,4 +95,13 @@ it("reintenta con la última palabra cuando el nomenclador no encuentra el texto
   ]);
   const segunda = fetchProvider.mock.calls[1][0] as URL;
   expect(segunda.searchParams.get("nombre")).toBe("koessler");
+});
+
+it("conserva el pin si la fuente devuelve la altura antes de la calle", async () => {
+  configurarGeocoder();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json([{
+    display_name: "829, Avenida San Martín, San Martín de los Andes", lat: "-40.15", lon: "-71.35"
+  }])));
+  expect(await resolveStreetAddress("Av. San Martín", "829", new AbortController().signal))
+    .toMatchObject({ point: [-40.15, -71.35], precision: "exact" });
 });

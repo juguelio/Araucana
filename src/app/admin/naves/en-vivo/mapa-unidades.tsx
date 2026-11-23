@@ -190,13 +190,19 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encuadre, listo]);
 
+  /**
+   * Al elegir una unidad —desde la lista del mapa o llegando desde el tablero de flota con `?unidad=`—
+   * el mapa va a ella y acerca lo suficiente para ver dónde está. Antes sólo hacía `panTo`: si el
+   * encuadre inicial mostraba toda la provincia, la unidad seleccionada quedaba como un punto perdido.
+   */
   useEffect(() => {
-    if (!seleccion || !listo) return;
+    if (!seleccion || !listo || !mapa.current) return;
     const entrada = [...pins.current.values()].find(p => claveUnidad(p.dato) === seleccion);
-    if (entrada && mapa.current) {
-      mapa.current.panTo(entrada.marker.getLatLng(), { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
-      entrada.marker.openPopup();
-    }
+    if (!entrada) return;
+    const punto = entrada.marker.getLatLng();
+    const zoom = Math.max(mapa.current.getZoom(), 15);
+    mapa.current.setView(punto, zoom, { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
+    entrada.marker.openPopup();
   }, [seleccion, listo]);
 
   return <div className="flota-mapa-wrap">

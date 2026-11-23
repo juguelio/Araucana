@@ -17,6 +17,11 @@
 .rp-facts dd { margin: 4px 0 0; color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.3; }
 .rp-hero-cta { margin-top: 18px; }
 .rp-code { margin: 0; }
+
+/* Boleto a lo ancho (#370): comprobante del servicio público, fuera de la grilla de la cabecera. */
+.rp-boleto { display: grid; gap: 12px; }
+.rp-boleto .boleto { margin: 0; }
+.rp-boleto .form-actions { margin: 0; justify-content: flex-end; }
 .rp-code strong { letter-spacing: 0.02em; }
 .rp-link-code { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); overflow-wrap: anywhere; opacity: 0.8; }
 

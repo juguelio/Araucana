@@ -41,12 +41,15 @@ export async function unirViajesAction(formData: FormData) {
 
       const endDate = ordenados.reduce((max, t) => +ultimoDia(t) > +max ? ultimoDia(t) : max, ultimoDia(primero));
       const notas = [...new Set(ordenados.map((t) => t.notes?.trim()).filter((n): n is string => Boolean(n)))].join("\n").slice(0, 12000) || null;
+      const referencia = ordenados.find((t) => t.contactName || t.contactPhone);
       const updated = await tx.specialTrip.update({
         where: { id: primero.id },
         data: {
           endDate,
           passengers: primero.passengers ?? siguientes.find((t) => t.passengers)?.passengers ?? null,
           contact: primero.contact ?? siguientes.find((t) => t.contact)?.contact ?? null,
+          contactName: referencia?.contactName ?? null,
+          contactPhone: referencia?.contactPhone ?? null,
           notes: notas
         }
       });

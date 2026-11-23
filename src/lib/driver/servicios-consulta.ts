@@ -12,6 +12,16 @@ import type { ServicioDelDia } from "./servicios";
  *
  * Se incluyen las cuatro modalidades porque el operador no piensa en módulos: piensa en «el de las 9».
  */
+/**
+ * Cuándo queda libre la unidad de un traslado al aeropuerto. La unidad no se ocupa hasta el despegue:
+ * termina el traslado a los 90 minutos del pickup (o antes, si el avión sale antes). Un arribo se
+ * extiende 90 minutos porque el reparto de pasajeros por los hoteles no termina en el aeropuerto.
+ */
+export function cierreDelTraslado(cuando: Date, direccion: string, despegue: Date) {
+  const finTraslado = new Date(cuando.getTime() + 90 * 60_000);
+  return direccion === "ARRIVAL" ? finTraslado : new Date(Math.min(finTraslado.getTime(), despegue.getTime()));
+}
+
 export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())): Promise<ServicioDelDia[]> {
   const { from, to } = dayRange(dateKey);
   const serviceDate = new Date(`${dateKey}T00:00:00.000Z`);
@@ -115,6 +125,15 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
   const servicios: ServicioDelDia[] = [];
 
   for (const schedule of schedules) {
+    /**
+     * Las salidas de la programación diaria (la temporada cargada) nacen sin pasajeros y con una nave
+     * puesta por defecto. El propio tablero las llama «salidas programadas sin pasajeros: no son un
+     * servicio hasta que tengan reservas», pero acá se listaban como servicios con unidad: la misma
+     * «Araucana 24» aparecía en trece salidas del día. Si no hay pasajeros, no es un servicio.
+     */
+    const pasajeros = schedule.reservations.reduce((total, reserva) => total + reserva.passengerCount, 0);
+    if (pasajeros === 0) continue;
+
     const unidades = [
       schedule.vehicle
         ? {
@@ -142,8 +161,9 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       titulo: `${schedule.route.from} → ${schedule.route.to}`,
       detalle: null,
       unidades,
-      pasajeros: schedule.reservations.reduce((total, reserva) => total + reserva.passengerCount, 0),
-      href: `/admin/rutas/${schedule.routeId ?? ""}`
+      pasajeros,
+      // La tripulación de una salida se cambia en el tablero del día, no en la ficha del recorrido.
+      href: `/admin/salidas-del-dia?date=${dateKey}`
     });
   }
 
@@ -152,9 +172,12 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
     const cuando = hora instanceof Date && !Number.isNaN(hora.getTime()) ? hora : flight.scheduledAt;
     // El servicio es cuando hay que buscar al pasajero, no la hora de despegue.
     if (cuando < from || cuando >= to) continue;
-    const fin = flight.direction === "ARRIVAL"
-      ? new Date(cuando.getTime() + 90 * 60_000)
-      : flight.scheduledAt;
+    /**
+     * La unidad queda libre cuando termina el traslado, no cuando despega el avión. En una partida se
+     * tomaba la hora del vuelo como cierre: una combi que dejaba pasajeros a las 19:20 seguía «ocupada»
+     * hasta el despegue de las 20:30 y chocaba con el arribo siguiente que perfectamente podía hacer.
+     */
+    const fin = cierreDelTraslado(cuando, flight.direction, flight.scheduledAt);
     servicios.push({
       id: `vuelo-${flight.id}`,
       area: "AEROPUERTO",
@@ -170,7 +193,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         driverName: assignment.driver?.name ?? null
       })),
       pasajeros: flight.reservations.reduce((total, detalle) => total + (detalle.reservation?.passengerCount ?? 0), 0),
-      href: "/admin/aeropuerto"
+      href: `/admin/aeropuerto?date=${dateKey}`
     });
   }
 
@@ -197,7 +220,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         driverName: duty.driver?.name ?? null
       })),
       pasajeros: route.directReservations.reduce((total, reserva) => total + reserva.passengerCount, 0),
-      href: "/admin/chapelco"
+      href: `/admin/chapelco?date=${dateKey}`
     });
   }
 

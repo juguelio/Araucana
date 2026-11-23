@@ -175,6 +175,27 @@ export async function deleteSessionByToken(token: string | null) {
   await prisma.session.deleteMany({ where: { tokenHash: hashToken(token) } });
 }
 
+export async function changeAccountPassword(userId: string, token: string, currentPassword: string, newPassword: string) {
+  const account = await prisma.user.findUnique({ where: { id: userId }, select: { passwordHash: true } });
+  if (!account?.passwordHash || !(await verifyPassword(currentPassword, account.passwordHash))) return false;
+
+  const tokenHash = hashToken(token);
+  const passwordHash = await hashPassword(newPassword);
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.user.updateMany({
+      where: {
+        id: userId,
+        passwordHash: account.passwordHash,
+        sessions: { some: { tokenHash, expiresAt: { gt: new Date() } } }
+      },
+      data: { passwordHash }
+    });
+    if (updated.count !== 1) return false;
+    await tx.session.deleteMany({ where: { userId, tokenHash: { not: tokenHash } } });
+    return true;
+  });
+}
+
 export async function refreshSessionByToken(token: string | null) {
   if (!token) throw new AuthenticationError("Sesion invalida");
   const user = await getAppUserFromToken(token);

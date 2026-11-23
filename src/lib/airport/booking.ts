@@ -1,3 +1,4 @@
+import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { flightEvidenceWarning, reliableEstimate } from "./data-quality";
 import { roundTripOrderValid } from "./round-trip-summary";
 import { randomUUID } from "node:crypto";
@@ -88,6 +89,22 @@ export function pasajerosOcupados(reservas: Array<{ passengerCount: number; stat
   return reservas.filter((r) => r.status !== "CANCELLED").reduce((total, r) => total + r.passengerCount, 0);
 }
 
+/** Fila del día tal como se necesita para decidir si una proyección está confirmada. */
+export type VueloDelDia = { number: string; direction: string; source: string };
+
+/**
+ * ¿Una fila proyectada (`ESTIMADO`) quedó desmentida por el día? Si el día ya tiene datos reales y
+ * ninguno la confirma por número+sentido, la proyección no prueba que el vuelo opere (#353). En días
+ * sin datos reales devuelve `false`: ahí la proyección es lo único que hay y se sigue ofreciendo.
+ */
+export function proyeccionSinConfirmar(vuelo: VueloDelDia, delDia: VueloDelDia[]) {
+  if (vuelo.source !== "ESTIMADO") return false;
+  const reales = delDia.filter((fila) => fila.source !== "ESTIMADO");
+  if (!reales.length) return false;
+  const clave = claveDeVuelo(vuelo.number);
+  return !reales.some((fila) => claveDeVuelo(fila.number) === clave && fila.direction === vuelo.direction);
+}
+
 /**
  * ¿Se puede reservar este vuelo? Devuelve el motivo cuando no.
  *
@@ -103,13 +120,19 @@ export function motivoNoReservable(
     lastCheckedAt?: Date | null;
     actualAt?: Date | null;
     direction?: string;
+    number?: string;
     pickupStartOverrideAt?: Date | null;
   },
   disponible: number,
   ahora: Date = new Date(),
   corteArriboMinutos = 0,
-  corteSalidaMinutos = 0
+  corteSalidaMinutos = 0,
+  /** Día completo, para saber si una proyección quedó desmentida por datos reales (#353). */
+  delDia?: VueloDelDia[]
 ): string | null {
+  if (vuelo.number && delDia && proyeccionSinConfirmar({ number: vuelo.number, direction: vuelo.direction ?? "ARRIVAL", source: vuelo.source ?? "" }, delDia)) {
+    return "El vuelo no está confirmado por la aerolínea para ese día.";
+  }
   if (flightEvidenceWarning({ ...vuelo, estimatedAt: vuelo.estimatedAt ?? null }, ahora)) return "Datos del vuelo pendientes de verificación. Consultanos antes de reservar.";
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
@@ -178,11 +201,15 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
     }
   });
 
+  // Contexto del día: una proyección sólo se puede vender si el día no tiene datos reales que la
+  // desmientan (#353). Se calcula una vez con las filas de ese día.
+  const delDia = vuelos.map((v) => ({ number: v.number, direction: v.direction, source: v.source }));
+
   return vuelos.map((v) => {
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
     const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
     const disponible = Math.max(capacidad - ocupados, 0);
-    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes);
+    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes, delDia);
     return {
       id: v.id,
       number: v.number,
@@ -450,6 +477,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
     throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
   }
 
+  const paihuenUnitCents = rutaDelSentido.currency === "ARS" && isPaihuen(tramo.pickupName, tramo.pickupAddress, tramo.pickupPoint) ? PAIHUEN_UNIT_CENTS : 0;
   const fares = fareCounts(passengerCount, halfFareCount, freeFareCount);
   const reservation = await tx.reservation.create({
     data: {
@@ -463,7 +491,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
       passengerCount,
       bookingMode: "AIRPORT",
       status: "PENDING_PAYMENT",
-      totalCents: params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents,
+      totalCents: params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents + paihuenUnitCents * passengerCount,
       halfFareCount: fares.half,
       freeFareCount: fares.free,
       currency: rutaDelSentido.currency,
@@ -482,6 +510,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
           pickupNotes: tramo.pickupNotes ?? null,
           sportsLuggageCount: adicionales.sportsLuggageCount,
           sportsLuggageUnitCents: adicionales.sportsLuggageUnitCents,
+          paihuenUnitCents,
           zoneExtraCents: adicionales.zoneExtraCents
         }
       }

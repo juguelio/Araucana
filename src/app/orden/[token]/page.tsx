@@ -51,7 +51,7 @@ export default async function OrdenPublicaPage({ params }: PageProps) {
         variante="chofer"
         pieDeOrden={(block) => <ServiceOrderMap block={block} oficina={oficina} />}
       />
-      <p className="orden-pie orden-publica-pie">La Araucana Viajes S.R.L. · San Martín de los Andes</p>
+      <p className="orden-pie orden-publica-pie no-print">La Araucana Viajes S.R.L. · San Martín de los Andes</p>
     </main>
   );
 }

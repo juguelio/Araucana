@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { resetStreetPointCache, suggestProviderAirportPlaces as suggestAirportPlaces } from "./place-suggestions";
+import { resetStreetPointCache, streetNameMatches, suggestProviderAirportPlaces as suggestAirportPlaces } from "./place-suggestions";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -93,7 +93,7 @@ it("busca Curruhinca 440 en San Martín y ofrece la calle oficial como referenci
   vi.stubGlobal("fetch", fetchProvider);
 
   await expect(suggestAirportPlaces("Curruhinca 440", new AbortController().signal)).resolves.toEqual([
-    { label: "Cacique Curruhuinca 440, San Martín de los Andes", point: [-40.1539068, -71.3434156], source: "locationiq", approximate: true, precision: "interpolated" }
+    { label: "Cacique Curruhuinca 440, San Martín de los Andes", point: [-40.153962, -71.343371], source: "georef", coordinateSourceUrl: expect.stringContaining("/cuadras?"), approximate: true, precision: "street" }
   ]);
   expect(fetchProvider.mock.calls[0][0].searchParams.get("q")).toBe("Curruhinca 440, San Martín de los Andes");
   expect(fetchProvider.mock.calls[1][0].searchParams.get("localidad_censal")).toBe("San Martín de los Andes");
@@ -123,7 +123,7 @@ it("ofrece el domicilio del nomenclador aunque ningún geocoder tenga las coorde
   const fetchProvider = vi.fn()
     .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json({ direcciones: [{
-      calle: { nombre: "BERTHA KOESSLER" },
+      calle: { nombre: "CALLE DE PRUEBA" },
       altura: { valor: 1686 },
       localidad_censal: { nombre: "San Martín de los Andes" },
       ubicacion: { lat: null, lon: null }
@@ -133,8 +133,8 @@ it("ofrece el domicilio del nomenclador aunque ningún geocoder tenga las coorde
     .mockResolvedValueOnce(Response.json([]));
   vi.stubGlobal("fetch", fetchProvider);
 
-  await expect(suggestAirportPlaces("koessler 1686", new AbortController().signal)).resolves.toEqual([
-    { label: "Bertha Koessler 1686, San Martín de los Andes", point: null, source: "georef", approximate: true, precision: "none" }
+  await expect(suggestAirportPlaces("prueba 1686", new AbortController().signal)).resolves.toEqual([
+    { label: "Calle De Prueba 1686, San Martín de los Andes", point: null, source: "georef", approximate: true, precision: "none" }
   ]);
 });
 
@@ -144,7 +144,7 @@ it("ancla el pin sobre la calle cuando el geocoder conoce el eje pero no la altu
   const fetchProvider = vi.fn()
     .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json({ direcciones: [{
-      calle: { nombre: "AV RODOLFO KOESSLER" },
+      calle: { nombre: "AV DE PRUEBA" },
       altura: { valor: 1600 },
       localidad_censal: { nombre: "San Martín de los Andes" },
       ubicacion: { lat: null, lon: null }
@@ -153,18 +153,18 @@ it("ancla el pin sobre la calle cuando el geocoder conoce el eje pero no la altu
     .mockResolvedValueOnce(Response.json([{
       lat: "-40.1535518",
       lon: "-71.3321884",
-      display_name: "Avenida Rodolfo Koessler, El Oasis, San Martín de los Andes, Neuquén, Argentina",
+      display_name: "Avenida De Prueba, El Oasis, San Martín de los Andes, Neuquén, Argentina",
       class: "highway",
       type: "primary"
     }]));
   vi.stubGlobal("fetch", fetchProvider);
 
-  const [suggestion] = await suggestAirportPlaces("av rodolfo koessler 1600", new AbortController().signal);
-  expect(suggestion.label).toBe("Av Rodolfo Koessler 1600, San Martín de los Andes");
+  const [suggestion] = await suggestAirportPlaces("av de prueba 1600", new AbortController().signal);
+  expect(suggestion.label).toBe("Av De Prueba 1600, San Martín de los Andes");
   expect(suggestion.point).toEqual([-40.1535518, -71.3321884]);
   expect(suggestion.approximate).toBe(true);
   // la última consulta es la calle sola, sin la altura
-  expect(fetchProvider.mock.calls.at(-1)?.[0].toString()).toContain("q=Av+Rodolfo+Koessler");
+  expect(fetchProvider.mock.calls.at(-1)?.[0].toString()).toContain("q=Av+De+Prueba");
 });
 
 it("usa OpenStreetMap cuando el geocoder comercial no devuelve la calle", async () => {
@@ -173,7 +173,7 @@ it("usa OpenStreetMap cuando el geocoder comercial no devuelve la calle", async 
   const fetchProvider = vi.fn()
     .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json({ direcciones: [{
-      calle: { nombre: "AV RODOLFO KOESSLER" },
+      calle: { nombre: "AV DE PRUEBA" },
       altura: { valor: 1600 },
       localidad_censal: { nombre: "San Martín de los Andes" },
       ubicacion: { lat: null, lon: null }
@@ -183,9 +183,9 @@ it("usa OpenStreetMap cuando el geocoder comercial no devuelve la calle", async 
     .mockResolvedValueOnce(Response.json([{ lat: "-40.1541652", lon: "-71.3417013" }]));
   vi.stubGlobal("fetch", fetchProvider);
 
-  const [suggestion] = await suggestAirportPlaces("av rodolfo koessler 1600", new AbortController().signal);
+  const [suggestion] = await suggestAirportPlaces("av de prueba 1600", new AbortController().signal);
   expect(suggestion.point).toEqual([-40.1541652, -71.3417013]);
-  expect(suggestion.label).toBe("Av Rodolfo Koessler 1600, San Martín de los Andes");
+  expect(suggestion.label).toBe("Av De Prueba 1600, San Martín de los Andes");
   const url = fetchProvider.mock.calls.at(-1)?.[0] as URL;
   expect(url.hostname).toBe("nominatim.openstreetmap.org");
   expect((fetchProvider.mock.calls.at(-1)?.[1] as RequestInit).headers).toMatchObject({
@@ -220,4 +220,137 @@ it("mantiene la coincidencia de altura cuando Photon incluye el nombre del hotel
   const results = await suggestAirportPlaces("San Martín 1242", new AbortController().signal);
   expect(results[0].label).toBe("Hotel el Viejo Esquiador, Avenida San Martín 1242, San Martín de los Andes");
   expect(fetchProvider).toHaveBeenCalledOnce();
+});
+
+it("ubica la calle Núñez 139 como referencia cuando GeoRef reconoce la altura sin coordenadas", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "DOCTOR ERNESTO LUIS NUNEZ" },
+      altura: { valor: 139 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [match] = await suggestAirportPlaces("Luis Ernesto Núñez 139, San Martín de los Andes", new AbortController().signal);
+  expect(match).toMatchObject({
+    label: "Doctor Ernesto Luis Nunez 139, San Martín de los Andes",
+    point: [-40.135793, -71.2972797],
+    precision: "street",
+    approximate: true,
+    coordinateSourceUrl: "https://www.openstreetmap.org/way/169405015"
+  });
+  expect(fetchProvider.mock.calls[1][0].searchParams.get("direccion")).toBe("Doctor Ernesto Luis Núñez 139");
+});
+
+it("prueba el nombre que usa el mapa para recuperar la altura de Núñez antes de marcar la calle", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "DOCTOR ERNESTO LUIS NUNEZ" },
+      altura: { valor: 139 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: null, lon: null }
+    }] }))
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json([{
+      lat: "-40.13727434", lon: "-71.29521035",
+      display_name: "139, Luis Ernesto Núñez, Parque La Cascada, San Martín de los Andes",
+      class: "place", type: "house"
+    }]));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const [match] = await suggestAirportPlaces("Doctor Ernesto Luis Nunez 139, San Martín de los Andes", new AbortController().signal);
+  expect(match).toMatchObject({
+    label: "Doctor Ernesto Luis Nunez 139, San Martín de los Andes",
+    point: [-40.13727434, -71.29521035],
+    precision: "interpolated",
+    approximate: true
+  });
+});
+
+it.each([
+  ["Paseo de los Músicos 180", "street", [-40.104295, -71.312093]],
+  ["Pasaje Ruca Ñire 32", "street", [-40.149697, -71.327366]],
+  ["Perito Moreno 350", "interpolated", [-40.153381, -71.347504]],
+  ["Perito Moreno 55", "street", [-40.152162, -71.343886]]
+])("ubica %s con las cuadras locales aunque fallen los servicios", async (address, precision, point) => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+  const matches = await suggestAirportPlaces(String(address), new AbortController().signal);
+  expect(matches).toContainEqual(expect.objectContaining({ point, precision, approximate: true }));
+});
+
+it.each(["Belgrano 9999", "Perito Moreno 350, Junín de los Andes"])(
+  "no asigna una cuadra local con nombre ambiguo o de otra ciudad a %s", async (address) => {
+    vi.stubEnv("AIRPORT_PHOTON_URL", "https://photon.test/api/");
+    vi.stubEnv("AIRPORT_GEOCODER_URL", "");
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => Response.json({ features: [], direcciones: [] })));
+    expect(await suggestAirportPlaces(address, new AbortController().signal)).toEqual([]);
+  }
+);
+
+it("descarta Mariano Moreno al pedir Perito Moreno aunque GeoRef sugiera ambas", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const direcciones = ["MARIANO MORENO", "PERITO MORENO"].map(nombre => ({
+    calle: { nombre }, altura: { valor: 350 }, localidad_censal: { nombre: "San Martín de los Andes" },
+    ubicacion: { lat: -40.15338, lon: -71.34750 }
+  }));
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json([])).mockResolvedValueOnce(Response.json({ direcciones })));
+  const matches = await suggestAirportPlaces("Perito Moreno 350", new AbortController().signal);
+  expect(matches.map(match => match.label)).toEqual(["Perito Moreno 350, San Martín de los Andes"]);
+});
+
+it.each([
+  ["Curruhinca", "CACIQUE CURRUHUINCA", true],
+  ["Ingeniero White", "WHITE", true],
+  ["Presidente Peron", "PERON", true],
+  ["Fray Mamerto Esquiú", "MAMERTO ESQUIU", true],
+  ["San Martín", "AVENIDA SAN MARTIN", true],
+  ["Doctor Ficticio Perez", "TENIENTE CORONEL PEREZ", false],
+  ["Belgrano", "MARIANO MORENO", false]
+])("compara el nombre de la calle: %s vs %s → %s", (pedida, oficial, esperado) => {
+  expect(streetNameMatches(String(pedida), String(oficial))).toBe(esperado);
+});
+
+it("no ofrece la calle homónima de GeoRef cuando el domicilio pedido no existe (#352)", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "TENIENTE CORONEL PEREZ" },
+      altura: { valor: 123 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: -40.153399, lon: -71.354419 }
+    }] }));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  expect(await suggestAirportPlaces("Doctor Ficticio Perez 123", new AbortController().signal)).toEqual([]);
+});
+
+it("prefiere el punto del nomenclador antes que el interpolado del proveedor (#361)", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  const fetchProvider = vi.fn()
+    .mockResolvedValueOnce(Response.json([{
+      display_name: "440, Belgrano, San Martín de los Andes", lat: "-40.150", lon: "-71.350", class: "highway"
+    }]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [{
+      calle: { nombre: "BELGRANO" },
+      altura: { valor: 440 },
+      localidad_censal: { nombre: "San Martín de los Andes" },
+      ubicacion: { lat: -40.1522, lon: -71.3439 }
+    }] }));
+  vi.stubGlobal("fetch", fetchProvider);
+
+  const matches = await suggestAirportPlaces("Belgrano 440", new AbortController().signal);
+  expect(matches).toHaveLength(1);
+  expect(matches[0]).toMatchObject({ source: "georef", point: [-40.1522, -71.3439] });
 });

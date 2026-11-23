@@ -1,6 +1,7 @@
 "use server";
 
 import { parseReservationPrice, reservationPriceError } from "@/lib/booking/admin-price";
+import { passengerPhoneWithCountry } from "@/lib/booking/passenger-contact";
 import { reservationNotice } from "./notices";
 import { del } from "@vercel/blob";
 import { ApiError } from "@/lib/api/responses";
@@ -51,22 +52,14 @@ function value(formData: FormData, key: string) {
 /**
  * El teléfono llega como en el checkout del aeropuerto (19-nov: «que el formulario del pasajero sea
  * igual»): el código de país del desplegable con banderas y el número por separado. Se juntan acá,
- * igual que `buildPassengerPayload`; si ya escribieron el número completo (+… o 00…), se respeta.
+ * igual que `buildPassengerPayload`; si ya escribieron el número completo, se respeta.
  */
-function telefonoDelFormulario(formData: FormData) {
-  const numero = value(formData, "phone");
-  const codigo = value(formData, "phoneCountryCode");
-  if (!numero || !codigo || numero.startsWith("+") || numero.startsWith("00")) return numero;
-  return `${codigo}${numero}`;
-}
-
-/** Los datos del titular de «Nueva reserva» (los mismos campos que el formulario del aeropuerto). */
 function pasajeroDelFormulario(formData: FormData) {
   return {
     firstName: value(formData, "firstName"),
     lastName: value(formData, "lastName"),
     email: value(formData, "email"),
-    phone: telefonoDelFormulario(formData),
+    phone: passengerPhoneWithCountry(value(formData, "phone"), value(formData, "phoneCountryCode")),
     documentType: value(formData, "documentType"),
     documentId: value(formData, "documentId"),
     nationality: value(formData, "nationality") || null
@@ -87,6 +80,7 @@ export async function createAdminReservationAction(_prev: AdminFormState, formDa
     overrideTotalCents,
     scheduleId: value(formData, "scheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
+    boardingStop: value(formData, "boardingStop") || undefined,
     dropoffStop: value(formData, "dropoffStop") || undefined,
     referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
@@ -153,7 +147,9 @@ async function createAdminRouteRoundTrip(
     scheduleId: value(formData, "scheduleId"),
     returnScheduleId: value(formData, "returnScheduleId"),
     requestDisabilityFare: formData.get("requestDisabilityFare") === "on",
+    boardingStop: value(formData, "boardingStop") || undefined,
     dropoffStop: value(formData, "dropoffStop") || undefined,
+    returnBoardingStop: value(formData, "returnBoardingStop") || undefined,
     returnDropoffStop: value(formData, "returnDropoffStop") || undefined,
     referredBy: value(formData, "referredBy") || undefined,
     passengerCount: value(formData, "passengerCount"),
@@ -268,11 +264,11 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
     const latitude = value(formData, "latitude");
     const longitude = value(formData, "longitude");
     if (Boolean(latitude) !== Boolean(longitude)) {
-      return errorState("El punto del mapa quedó incompleto. Marcá de nuevo el lugar.");
+      return errorState("", { pickupPoint: "El punto del mapa quedó incompleto. Marcá de nuevo el lugar." });
     }
     if (latitude && longitude) {
       if (formData.get("confirmed") !== "on") {
-        return errorState("Confirmá el punto de traslado en el mapa.");
+        return errorState("", { pickupPoint: "Confirmá el punto de traslado en el mapa." });
       }
       pickup = { address, point: [Number(latitude), Number(longitude)] };
     } else if (address) {
@@ -280,13 +276,13 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
       // mismo camino que una dirección sin geometría. La pantalla avisa que va sin punto.
       pickup = { address, point: null };
     } else {
-      return errorState("Confirmá el punto de traslado en el mapa.");
+      return errorState("", { address: "Ingresá una dirección o marcá el punto del traslado en el mapa." });
     }
   }
   const priceChanged = formData.has("customPrice");
   const paymentChanged = formData.has("method") || formData.has("reference");
   const totalCents = priceChanged ? parseReservationPrice(value(formData, "customPrice")) : undefined;
-  if (totalCents === null) return errorState(reservationPriceError, { customPrice: reservationPriceError });
+  if (totalCents === null) return errorState("", { customPrice: reservationPriceError });
   // Cantidad de pasajeros y equipaje (#267): sólo viajan si el formulario los mandó, así una
   // edición que no los toca no los reescribe.
   const passengerCount = formData.has("passengerCount") ? value(formData, "passengerCount") : undefined;
@@ -294,6 +290,7 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   const halfFareCount = formData.has("halfFareCount") ? value(formData, "halfFareCount") : undefined;
   const freeFareCount = formData.has("freeFareCount") ? value(formData, "freeFareCount") : undefined;
   // Vacío = baja en el destino final; por eso viaja aunque esté vacío.
+  const boardingStop = formData.has("boardingStop") ? value(formData, "boardingStop") : undefined;
   const dropoffStop = formData.has("dropoffStop") ? value(formData, "dropoffStop") : undefined;
   const pickupName = formData.has("pickupName") ? value(formData, "pickupName") : undefined;
   // Cambio de servicio: el formulario manda sólo el campo del tipo de reserva y sólo si cambió.
@@ -309,34 +306,56 @@ export async function updateReservationAction(_state: AdminFormState, formData: 
   } : undefined;
   if (!pickup && notes === undefined && referredBy === undefined && !financial
     && passengerCount === undefined && sportsLuggageCount === undefined && halfFareCount === undefined
-    && freeFareCount === undefined && dropoffStop === undefined && pickupName === undefined && !move && Object.keys(passenger).length === 0) {
+    && freeFareCount === undefined && boardingStop === undefined && dropoffStop === undefined && pickupName === undefined && !move && Object.keys(passenger).length === 0) {
     return errorState("No hay cambios para guardar.");
   }
 
   const command = reservationManagementSchema.safeParse({
     operation: "edit", passenger, pickup, notes, referredBy, financial,
-    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, dropoffStop, pickupName, move,
+    passengerCount, sportsLuggageCount, halfFareCount, freeFareCount, boardingStop, dropoffStop, pickupName, move,
     acknowledgeTotalChange: formData.get("acknowledgeTotalChange") === "on"
   });
   if (!command.success) {
-    return errorState("Revisá los datos para guardar la reserva.", fieldErrorsFromZodError(command.error));
+    const errors = fieldErrorsFromZodError(command.error);
+    for (const issue of command.error.issues) {
+      const [group, field] = issue.path;
+      if (group === "pickup" && field === "point") errors.pickupPoint = "Marcá un punto válido en el mapa.";
+      if (group === "financial" && field === "totalCents") errors.customPrice = reservationPriceError;
+      if (group === "move" && (field === "flightId" || field === "scheduleId" || field === "mode")) errors.move = issue.message;
+    }
+    return errorState(Object.keys(errors).length ? "" : "Revisá los datos para guardar la reserva.", errors);
   }
 
   try {
     await manageReservation(code, command.data, actor);
   } catch (error) {
-    const message = error instanceof BookingError ? error.message : "No pudimos guardar los cambios. Intentalo de nuevo.";
-    return errorState(message, error instanceof BookingError && error.code === "INVALID_PASSENGER_DOCUMENT"
-      ? { documentId: message }
-      : error instanceof BookingError && move && ["CAPACITY_FULL", "SERVICE_ALREADY_STARTED", "FLIGHT_NOT_BOOKABLE", "FLIGHT_NOT_FOUND", "SCHEDULE_NOT_FOUND", "ROUTE_NOT_FOUND"].includes(error.code)
-        ? { move: message }
-      : error instanceof BookingError && (error.code === "CAPACITY_FULL" || error.code === "INVALID_PASSENGER_COUNT")
-        ? (halfFareCount !== undefined || freeFareCount !== undefined) && passengerCount === undefined
-          ? { halfFareCount: message }
-          : { passengerCount: message }
-        : error instanceof BookingError && error.code === "STOP_NOT_AVAILABLE"
-          ? { dropoffStop: message }
-          : {});
+    if (!(error instanceof BookingError)) return errorState("No pudimos guardar los cambios. Intentalo de nuevo.");
+    let field: string | undefined;
+    switch (error.code) {
+      case "INVALID_PASSENGER_DOCUMENT": field = "documentId"; break;
+      case "INVALID_PICKUP_ADDRESS": field = "address"; break;
+      case "INVALID_PICKUP_POINT":
+      case "OUTSIDE_PICKUP_ZONE": field = "pickupPoint"; break;
+      case "STOP_NOT_AVAILABLE": field = "dropoffStop"; break;
+      case "CAPACITY_FULL": field = move ? "move" : "passengerCount"; break;
+      case "INVALID_PASSENGER_COUNT":
+        if (passengerCount !== undefined) field = "passengerCount";
+        else if (halfFareCount !== undefined && freeFareCount === undefined) field = "halfFareCount";
+        else if (freeFareCount !== undefined && halfFareCount === undefined) field = "freeFareCount";
+        else field = "minors";
+        break;
+      case "PAYMENT_LOCKED":
+        field = priceChanged ? "customPrice" : paymentChanged ? (formData.has("method") ? "method" : "reference") : "totalChange";
+        break;
+      case "SERVICE_ALREADY_STARTED":
+      case "FLIGHT_NOT_BOOKABLE":
+      case "FLIGHT_NOT_FOUND":
+      case "SCHEDULE_NOT_FOUND":
+      case "ROUTE_NOT_FOUND":
+        if (move) field = "move";
+        break;
+    }
+    return field ? errorState("", { [field]: error.message }) : errorState(error.message);
   }
 
   for (const path of ["/admin/reservas", `/admin/reservas/${code}`, `/admin/reservas/${code}/editar`, `/reservas/${code}`, "/admin/aeropuerto", "/admin/chapelco", "/chofer", "/admin/contabilidad", "/admin/reportes"]) {

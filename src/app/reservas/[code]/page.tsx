@@ -1,3 +1,4 @@
+import { isPaihuenReservation, paihuenPickupTime } from "@/lib/airport/paihuen";
 import { DISABILITY_DOCUMENT_PROVIDER, receiptPendingStatus } from "@/lib/booking/disability-fare";
 import { AIRPORT_PICKUP_COPY, airportPickupStart } from "@/lib/airport/pickup-start";
 import { formatDateTime, formatPrice, paymentLabel, statusBadge, statusHeading, statusCopy, statusTone, placesLabel } from "./presentation";
@@ -12,6 +13,7 @@ import { formatShortCode } from "@/lib/booking/codes";
 import { absoluteUrl, voucherMessage, voucherPath, whatsappShareUrl } from "@/lib/booking/voucher";
 import { siteOrigin } from "@/lib/site-origin";
 import { ManualPaymentPanel } from "./manual-payment-panel";
+import { BoletoCard } from "./boleto-card";
 import "./reserva.css";
 
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" as const };
@@ -47,7 +49,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
       api: "1", query: `${airport.pickupLatitude},${airport.pickupLongitude}`
     })}`
     : null;
-  const pickupStart = airport?.flight && reservation.status !== "CANCELLED" ? airportPickupStart({ ...airport.flight, direction: airport.direction }) : null;
+  const retiroPaihuen = airport?.direction === "DEPARTURE" && isPaihuenReservation(airport);
+  const pickupStart = airport?.flight && reservation.status !== "CANCELLED"
+    ? paihuenPickupTime(airportPickupStart({ ...airport.flight, direction: airport.direction }), retiroPaihuen)
+    : null;
   // Voucher (#166): el pasajero lo abre desde acá y lo puede reenviar por WhatsApp.
   const voucherHref = voucherPath(reservation.code);
   const voucherWhatsApp = whatsappShareUrl(
@@ -64,9 +69,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
     : formatDateTime(reservation.schedule.departureAt);
   // El título del traslado sale del sentido del vuelo: la ruta guardada es una sola para ida y vuelta,
   // así que «Aeropuerto Chapelco - San Martín» podía quedar al revés para quien se va.
+  const salidaRegular = reservation.boardingStop ? `Salida de ${reservation.route.from}` : "Salida";
   const tripTitle = airport
     ? airport.direction === "ARRIVAL" ? "Traslado desde el Aeropuerto Chapelco" : "Traslado al Aeropuerto Chapelco"
-    : `${reservation.route.from} → ${reservation.dropoffStop ?? reservation.route.to}`;
+    : `${reservation.boardingStop ?? reservation.route.from} → ${reservation.dropoffStop ?? reservation.route.to}`;
   const showPaymentPanel = Boolean(reservation.payment && reservation.status === receiptPendingStatus(reservation.payment.provider) && ["PENDING", "REJECTED"].includes(reservation.payment.status));
   const receiptRejected = reservation.payment?.status === "REJECTED" && reservation.status === "PENDING_PAYMENT";
   const paymentText = disabilityFare ? "Sin cargo" : paymentLabel(reservation.payment?.status);
@@ -90,7 +96,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <h1 className="section-title rp-title">{headingMain}</h1>
             <p className="lead rp-lead">{statusCopy(reservation.status)}</p>
             <dl className="rp-facts">
-              <div><dt>{airport ? "Vuelo" : isChapelco ? "Fecha" : "Salida"}</dt><dd>{departureLabel}</dd></div>
+              <div><dt>{airport ? "Vuelo" : isChapelco ? "Fecha" : salidaRegular}</dt><dd>{departureLabel}</dd></div>
               <div><dt>{isChapelco ? "Cupo" : "Lugares"}</dt><dd>{placesLabel(reservation.passengerCount)}</dd></div>
               <div><dt>Total</dt><dd>{formatPrice(reservation.totalCents, reservation.currency)}</dd></div>
             </dl>
@@ -105,6 +111,18 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
             <span className="ticket-code-note rp-link-code">Código del link privado: {reservation.code}</span>
           </div>
         </section>
+
+        {/* El boleto va a lo ancho: es el comprobante que el pasajero muestra en el viaje. */}
+        {reservation.serviceTicket ? (
+          <section className="plain-card rp-boleto">
+            <BoletoCard reservation={reservation} />
+            <div className="form-actions">
+              <Link className="ghost-button" href={`/reservas/${reservation.code}/boleto`}>
+                Ver mi boleto para imprimir
+              </Link>
+            </div>
+          </section>
+        ) : null}
 
         <section className="plain-card voucher-cta rp-voucher">
           <div>
@@ -131,7 +149,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
                 </div>
               ) : null}
               <div>
-                <dt>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : "Salida"}</dt>
+                <dt>{airport ? "Horario del vuelo" : isChapelco ? "Fecha" : salidaRegular}</dt>
                 <dd>{departureLabel}</dd>
               </div>
               {airport && (airport.pickupAddress || airportMapUrl) ? (
@@ -156,8 +174,10 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               {/* «Regreso: Segun ruta» no decía nada en un traslado al aeropuerto; ahí no se muestra. */}
               {!airport ? (
                 <div>
-                  <dt>Regreso</dt>
-                  <dd>{isChapelco ? "Incluido desde las 17:00" : "Según la ruta"}</dd>
+                  <dt>{reservation.roundTripPartner ? "Ida y vuelta" : "Regreso"}</dt>
+                  <dd>{reservation.roundTripPartner
+                    ? <Link href={`/reservas/${reservation.roundTripPartner.code}`}>Ver el otro tramo · {formatShortCode(reservation.roundTripPartner.shortCode)}</Link>
+                    : isChapelco ? "Incluido desde las 17:00" : "Según la ruta"}</dd>
                 </div>
               ) : null}
             </dl>
@@ -165,7 +185,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               <div className="rp-pickup">
                 <span>{airport?.flight?.pickupStartOverrideAt ? "Inicio de recorrida" : "Inicio estimado de recorrida"}</span>
                 <strong>{formatDateTime(pickupStart)}</strong>
-                <p>{AIRPORT_PICKUP_COPY}</p>
+                <p>{retiroPaihuen ? "Te buscamos en Paihuén, la primera parada del recorrido." : AIRPORT_PICKUP_COPY}</p>
               </div>
             ) : null}
           </div>
@@ -194,6 +214,7 @@ export default async function ReservationConfirmationPage({ params }: Reservatio
               {airport?.sportsLuggageCount ? (
                 <div><dt>Equipaje deportivo</dt><dd>{airport.sportsLuggageCount} {airport.sportsLuggageCount === 1 ? "bulto" : "bultos"} · {formatPrice(airport.sportsLuggageCount * (airport.sportsLuggageUnitCents ?? 0), reservation.currency)}</dd></div>
               ) : null}
+              {airport?.paihuenUnitCents ? <div><dt>Adicional Paihuén</dt><dd>{formatPrice(airport.paihuenUnitCents * reservation.passengerCount, reservation.currency)}</dd></div> : null}
               {airport?.zoneExtraCents ? (
                 <div><dt>Recargo por zona</dt><dd>{formatPrice(airport.zoneExtraCents, reservation.currency)}</dd></div>
               ) : null}

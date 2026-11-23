@@ -13,8 +13,12 @@ export type PhoneCountry = { value: string; label: string; flag: string; name: s
 /** Primeros en la lista: los que más llegan. El resto va en orden alfabético. */
 const FIRST = ["AR", "CL", "BR", "UY", "PY", "BO", "PE", "US", "ES"];
 
-/** Nombres a mano para códigos compartidos por varios países. */
+/** Nombres de códigos compartidos y variantes de Intl que cambian entre servidor y navegador. */
 const NAMES: Record<string, string> = {
+  FK: "Islas Malvinas",
+  HK: "Hong Kong",
+  MO: "Macao",
+  PS: "Territorios Palestinos",
   US: "EE.UU./Canadá",
   RU: "Rusia/Kazajistán",
   GB: "Reino Unido",
@@ -86,4 +90,26 @@ export const phoneCountries: PhoneCountry[] = buildPhoneCountries();
 /** Etiqueta que se ve en el `<option>`: bandera + país + código. */
 export function phoneCountryLabel(c: PhoneCountry) {
   return `${c.flag} ${c.name} ${c.value}`;
+}
+
+function searchText(value: string) {
+  return value.normalize("NFD").replace(/\p{M}|\./gu, "").toLowerCase().trim();
+}
+
+export function filterPhoneCountries(query: string) {
+  const text = searchText(query);
+  if (!text) return phoneCountries;
+  if (/^(?:\+|00)?\d+$/.test(text)) {
+    const prefix = text.replace(/^(?:\+|00)/, "");
+    return phoneCountries.filter((country) => country.value.slice(1).startsWith(prefix));
+  }
+  return phoneCountries.filter((country) => {
+    const aliases = country.value === "+1" ? " Estados Unidos USA US" : "";
+    return searchText(country.name + aliases).includes(text);
+  });
+}
+
+export function dialCodeForInternationalPhone(phone: string) {
+  return phoneCountries.reduce((match, country) =>
+    country.value.length > match.length && phone.startsWith(country.value) ? country.value : match, "");
 }

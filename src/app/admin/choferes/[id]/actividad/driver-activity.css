@@ -1,0 +1,28 @@
+.driver-activity-periods {
+  margin-block: 16px;
+}
+
+.driver-activity-filters {
+  margin-bottom: 20px;
+}
+
+.driver-activity-table td {
+  vertical-align: top;
+}
+
+.driver-activity-table small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+}
+
+.driver-activity-links {
+  display: grid;
+  gap: 6px;
+}
+
+.driver-activity-links a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

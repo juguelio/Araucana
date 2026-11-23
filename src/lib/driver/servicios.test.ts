@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FlotaEnVivo } from "./en-vivo";
-import { AVISO_PREVIO_MINUTOS, evaluarServicio, evaluarServiciosDelDia, serviciosQuePidenAtencion, type ServicioDelDia } from "./servicios";
+import { cierreDelTraslado } from "./servicios-consulta";
+import { AVISO_PREVIO_MINUTOS, detectarChoquesDeUnidades, evaluarServicio, evaluarServiciosDelDia, serviciosQuePidenAtencion, type ServicioDelDia } from "./servicios";
 
 const AHORA = new Date("2026-11-20T11:00:00.000Z"); // 08:00 en Argentina
 
@@ -171,5 +172,84 @@ describe("unidad sin posición con el servicio lejos", () => {
     const evaluado = evaluarServicio(servicio({ at: enMinutos(AVISO_PREVIO_MINUTOS + 240) }), flotaCon([]), { ahora: AHORA });
     expect(evaluado.nivel).toBe("futuro");
     expect(evaluado.motivo).toBe("todavía sin posición");
+  });
+});
+
+describe("detectarChoquesDeUnidades", () => {
+  const base = (id: string, at: Date, endsAt: Date, vehicleId = "veh-24"): ServicioDelDia => ({
+    id,
+    area: "RUTA",
+    at,
+    endsAt,
+    titulo: `${id} · San Martín de los Andes → Villa La Angostura`,
+    detalle: null,
+    unidades: [{ vehicleId, vehicleName: "Araucana 24", internalNumber: "24", driverId: null, driverName: null }],
+    pasajeros: 0,
+    href: `/admin/rutas/r/${id}`
+  });
+
+  it("marca las dos salidas cuando la misma nave se pisa en el horario", () => {
+    const a = base("salida-1", enMinutos(60), enMinutos(150));
+    const b = base("salida-2", enMinutos(90), enMinutos(180));
+    const choques = detectarChoquesDeUnidades([a, b], AHORA);
+    expect(choques.get("salida-1")?.map((c) => c.servicioId)).toEqual(["salida-2"]);
+    expect(choques.get("salida-2")?.map((c) => c.servicioId)).toEqual(["salida-1"]);
+    expect(choques.get("salida-1")?.[0].unidad).toBe("Interno 24");
+  });
+
+  it("no marca nada si una sale cuando la otra ya llegó", () => {
+    const a = base("salida-1", enMinutos(0), enMinutos(60));
+    const b = base("salida-2", enMinutos(60), enMinutos(120));
+    expect(detectarChoquesDeUnidades([a, b], AHORA).size).toBe(0);
+  });
+
+  it("no cuenta los choques de salidas que ya terminaron", () => {
+    const a = base("salida-1", enMinutos(-300), enMinutos(-240));
+    const b = base("salida-2", enMinutos(-250), enMinutos(-200));
+    expect(detectarChoquesDeUnidades([a, b], AHORA).size).toBe(0);
+  });
+
+  it("usa 90 minutos de ventana cuando la salida no dice cuándo termina", () => {
+    const a: ServicioDelDia = { ...base("salida-1", enMinutos(10), enMinutos(10)), endsAt: null };
+    const b = base("salida-2", enMinutos(80), enMinutos(120));
+    expect(detectarChoquesDeUnidades([a, b], AHORA).get("salida-1")).toHaveLength(1);
+  });
+});
+
+describe("evaluarServiciosDelDia con choques", () => {
+  it("la misma nave en dos salidas a la vez no queda «listo»: queda en riesgo y lo dice", () => {
+    const flota = flotaCon([{ vehicleId: "veh-24", internalNumber: "24" }]);
+    const servicioDe = (id: string, minutos: number): ServicioDelDia => ({
+      id, area: "RUTA", at: enMinutos(minutos), endsAt: enMinutos(minutos + 90),
+      titulo: `${id} · Villa Traful → San Martín de los Andes`, detalle: null,
+      unidades: [{ vehicleId: "veh-24", vehicleName: "Araucana 24", internalNumber: "24", driverId: "chofer-1", driverName: "Juan Muñoz" }],
+      pasajeros: 0, href: "/admin/rutas/r"
+    });
+    const resumen = evaluarServiciosDelDia([servicioDe("salida-1", 60), servicioDe("salida-2", 70)], flota, { ahora: AHORA });
+    const primero = resumen.evaluados.find((s) => s.id === "salida-1")!;
+    expect(primero.nivel).toBe("en-riesgo");
+    expect(primero.motivo).toContain("misma nave en 2 servicios");
+    expect(primero.choques).toHaveLength(1);
+    expect(resumen.enRiesgo).toBe(2);
+  });
+});
+
+describe("cierreDelTraslado", () => {
+  it("una partida cierra a los 90 minutos del pickup, no cuando despega el avión", () => {
+    const pickup = new Date("2026-11-21T21:35:00.000Z");   // 18:35 en Argentina
+    const despegue = new Date("2026-11-21T23:30:00.000Z"); // 20:30
+    expect(cierreDelTraslado(pickup, "DEPARTURE", despegue).toISOString()).toBe("2026-11-21T23:05:00.000Z");
+  });
+
+  it("si el avión sale antes de los 90 minutos, la unidad queda libre al despegue", () => {
+    const pickup = new Date("2026-11-21T21:35:00.000Z");
+    const despegue = new Date("2026-11-21T22:20:00.000Z");
+    expect(cierreDelTraslado(pickup, "DEPARTURE", despegue).toISOString()).toBe("2026-11-21T22:20:00.000Z");
+  });
+
+  it("un arribo se extiende 90 minutos por el reparto en los hoteles", () => {
+    const pickup = new Date("2026-11-21T21:35:00.000Z");
+    const despegue = new Date("2026-11-21T21:00:00.000Z");
+    expect(cierreDelTraslado(pickup, "ARRIVAL", despegue).toISOString()).toBe("2026-11-21T23:05:00.000Z");
   });
 });

@@ -1,9 +1,10 @@
 "use client";
 
 import { useMemo, useState, type ChangeEvent, type KeyboardEvent } from "react";
-import { phoneCountries, phoneCountryLabel } from "@/lib/booking/phone-countries";
+import { PhoneCountryPicker } from "@/components/phone-country-picker";
+import { dialCodeForInternationalPhone } from "@/lib/booking/phone-countries";
 import { getCountryOptions } from "@/lib/booking/nationality-countries";
-import { normalizePassengerPhone, passengerDocumentError, phoneFormatError } from "@/lib/booking/passenger-contact";
+import { internationalPhoneInput, normalizePassengerPhone, passengerDocumentError, passengerPhoneWithCountry, phoneFormatError } from "@/lib/booking/passenger-contact";
 import type { CreateReservationInput } from "@/lib/booking/validation";
 
 /**
@@ -37,16 +38,11 @@ export const initialPassenger: PassengerForm = {
   nationality: ""
 };
 
-// La lista vive en un módulo compartido y ahora muestra la bandera del país.
-export const countryDialCodes = phoneCountries.map((c) => ({ value: c.value, label: phoneCountryLabel(c) }));
-
 const nationalityOptionsCache = getCountryOptions();
 
 function normalizeCheckoutPhone({ phone, phoneCountryCode }: PassengerForm) {
-  const value = phone.trim();
-  const fullNumber = value.startsWith("+") || value.startsWith("00");
-  const normalized = normalizePassengerPhone(fullNumber ? value : `${phoneCountryCode}${value}`);
-  return phoneCountryCode && normalized?.startsWith(phoneCountryCode) ? normalized : null;
+  if (!phoneCountryCode && !internationalPhoneInput(phone)) return null;
+  return normalizePassengerPhone(passengerPhoneWithCountry(phone, phoneCountryCode));
 }
 
 export function normalizeSearchValue(value: string) {
@@ -90,7 +86,7 @@ export function validateCheckoutPassenger(
     errors.email = "Ingresa un email valido.";
   }
 
-  if (!passenger.phoneCountryCode) {
+  if (!passenger.phoneCountryCode && !internationalPhoneInput(passenger.phone)) {
     errors.phoneCountryCode = "Selecciona el codigo de pais.";
   } else if (!normalizeCheckoutPhone(passenger)) {
     errors.phone = phoneFormatError;
@@ -117,7 +113,7 @@ export function buildPassengerPayload(passenger: PassengerForm): CreateReservati
     firstName: passenger.firstName.trim(),
     lastName: passenger.lastName.trim(),
     email: passenger.email.trim(),
-    phone: normalizeCheckoutPhone(passenger) ?? `${passenger.phoneCountryCode}${passenger.phone}`,
+    phone: normalizeCheckoutPhone(passenger) ?? passengerPhoneWithCountry(passenger.phone, passenger.phoneCountryCode),
     documentType: passenger.documentType,
     documentId: passenger.documentId.trim(),
     nationality: passenger.nationality.trim() || undefined
@@ -231,30 +227,8 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
         ) : null}
       </label>
       <div className="phone-field-row">
-        <label>
-          Codigo de pais
-          <select
-            name="phoneCountryCode"
-            value={passenger.phoneCountryCode}
-            onChange={(event) => onChange("phoneCountryCode", event.target.value)}
-            disabled={disabled}
-            aria-invalid={Boolean(fieldErrors.phoneCountryCode)}
-            aria-describedby={fieldErrors.phoneCountryCode ? "phoneCountryCode-error" : undefined}
-            required
-          >
-            <option value="">Seleccionar</option>
-            {countryDialCodes.map((country) => (
-              <option value={country.value} key={country.value}>
-                {country.label}
-              </option>
-            ))}
-          </select>
-          {fieldErrors.phoneCountryCode ? (
-            <span className="field-error" id="phoneCountryCode-error">
-              {fieldErrors.phoneCountryCode}
-            </span>
-          ) : null}
-        </label>
+        <PhoneCountryPicker value={passenger.phoneCountryCode} onChange={(value) => onChange("phoneCountryCode", value)}
+          disabled={disabled} required={!internationalPhoneInput(passenger.phone)} error={fieldErrors.phoneCountryCode} />
         <label>
           Telefono
           <input
@@ -263,7 +237,13 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
             inputMode="tel"
             autoComplete="tel-national"
             value={passenger.phone}
-            onChange={(event) => onChange("phone", event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              onChange("phone", value);
+              const complete = internationalPhoneInput(value);
+              const code = complete ? dialCodeForInternationalPhone(normalizePassengerPhone(complete) ?? "") : "";
+              if (code && code !== passenger.phoneCountryCode) onChange("phoneCountryCode", code);
+            }}
             disabled={disabled}
             aria-invalid={Boolean(fieldErrors.phone)}
             aria-describedby={fieldErrors.phone ? "phone-error" : undefined}

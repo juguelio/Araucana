@@ -23,6 +23,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
         orderBy: [{ dropoffStop: "asc" }, { createdAt: "asc" }],
         select: {
           passengerCount: true,
+          boardingStop: true,
           dropoffStop: true,
           referredBy: true,
           totalCents: true,
@@ -64,6 +65,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
     reservations: schedule.reservations.map((reservation) => ({
       ticketCode: reservation.ticket?.code ?? null,
       passengerCount: reservation.passengerCount,
+      boardingStop: reservation.boardingStop,
       dropoffStop: reservation.dropoffStop,
       referredBy: reservation.referredBy,
       totalCents: reservation.totalCents,

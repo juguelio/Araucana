@@ -18,7 +18,7 @@ describe("high intent route prefetching", () => {
 
     expect(source).toContain('localizePath(link.href, locale)');
     expect(source).toContain("prefetch={true}");
-    expect(source).toContain('localizePath("/rutas", locale)');
+    expect(source).toContain('label: nav.transfers, href: "/rutas"');
   });
 
   it("prefetches route selection links from the home page", () => {

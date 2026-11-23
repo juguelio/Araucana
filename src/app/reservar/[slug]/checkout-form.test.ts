@@ -336,7 +336,7 @@ describe("el resumen dice de qué terminal sale y adónde llega el micro (#276)"
 
   it("con una punta conocida muestra la terminal y no inventa la otra", () => {
     // San Martín tiene terminal; Bariloche no está en el mapa, así que sólo va la salida.
-    const html = renderToStaticMarkup(createElement(CheckoutForm, { route, schedules: [salida] }));
+    const html = renderToStaticMarkup(createElement(CheckoutForm, { route, selectedSchedule: salida }));
     expect(html).toContain("<span>Sale de</span>");
     expect(html).toContain("Terminal de Ómnibus de San Martín de los Andes");
     expect(html).not.toContain("<span>Llega a</span>");
@@ -344,7 +344,7 @@ describe("el resumen dice de qué terminal sale y adónde llega el micro (#276)"
 
   it("con las dos puntas conocidas muestra las dos", () => {
     const html = renderToStaticMarkup(
-      createElement(CheckoutForm, { route: { ...route, to: "Villa Traful" }, schedules: [salida] })
+      createElement(CheckoutForm, { route: { ...route, to: "Villa Traful" }, selectedSchedule: salida })
     );
     expect(html).toContain("<span>Sale de</span>");
     expect(html).toContain("<span>Llega a</span>");
@@ -353,7 +353,7 @@ describe("el resumen dice de qué terminal sale y adónde llega el micro (#276)"
 
   it("en una ruta que no es de micros (aeropuerto) no agrega filas de terminal", () => {
     const html = renderToStaticMarkup(
-      createElement(CheckoutForm, { route: { ...route, bookingMode: "AIRPORT", to: "Villa Traful" }, schedules: [salida] })
+      createElement(CheckoutForm, { route: { ...route, bookingMode: "AIRPORT", to: "Villa Traful" }, selectedSchedule: salida })
     );
     expect(html).not.toContain("<span>Sale de</span>");
     expect(html).not.toContain("<span>Llega a</span>");

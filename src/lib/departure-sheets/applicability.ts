@@ -171,6 +171,7 @@ export type PlanillaTripLeg = {
   destination?: string | null;
   description?: string | null;
   stops?: string | null;
+  points?: { name: string }[] | null;
 };
 
 export type PlanillaTripInfo = {
@@ -198,7 +199,9 @@ export function planillaKindsForSpecialTrip(trip: PlanillaTripInfo): DepartureSh
   }
 
   const texts = [
-    ...legs.flatMap((leg) => [leg.destination, leg.description, leg.stops]),
+    ...legs.flatMap((leg) => [
+      leg.destination, leg.description, ...(Array.isArray(leg.points) ? leg.points.map((point) => point?.name) : [leg.stops])
+    ]),
     trip.destinationSearch
   ]
     .filter((value): value is string => Boolean(value && value.trim()))

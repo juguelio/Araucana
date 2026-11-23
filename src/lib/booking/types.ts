@@ -110,6 +110,7 @@ export type ReservationDetailDto = {
     totalCents?: number;
     payment?: { status: string; amountCents: number; provider: string } | null;
     direction: string | null;
+    seated?: { from: string; to: string; departureAt: Date; serviceOrigin?: string };
     /** Datos del tramo compañero que imprime el voucher. `null` si no es un traslado al aeropuerto. */
     airport?: {
       direction: string | null;
@@ -129,6 +130,20 @@ export type ReservationDetailDto = {
   /** Código corto para dictar y buscar en el panel. Nunca abre la reserva: eso lo hace `code`. */
   shortCode: string;
   bookingMode: string;
+  /** Boleto numerado del servicio público (#370). `null` en aeropuerto, Chapelco y charter. */
+  serviceTicket?: {
+    displayNumber: string;
+    status: string;
+    issuedAt: Date;
+    origin: string;
+    destination: string;
+    departureAt?: Date | null;
+    fareCents: number;
+    currency: string;
+    annulledAt?: Date | null;
+    annulReason?: string | null;
+  } | null;
+  boardingStop?: string | null;
   dropoffStop?: string | null;
   passengerCount: number;
   halfFareCount?: number;
@@ -165,6 +180,7 @@ export type ReservationDetailDto = {
     sportsLuggageCount?: number;
     sportsLuggageUnitCents?: number;
     zoneExtraCents?: number;
+    paihuenUnitCents?: number;
     /** Vuelo de la reserva (puede faltar en reservas viejas o si el vuelo se borró). */
     flightId?: string | null;
     flightNumber: string;
