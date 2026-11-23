@@ -50,6 +50,13 @@ describe("servicio público", () => {
     expect(resumenDeSalidas(filas)).toEqual({ salidas: 2, pasajeros: 30, libres: 4 });
   });
 
+  it("trae el chofer y la nave para enlazar con Choferes y Naves", () => {
+    const [fila] = salidasDeTerminal([
+      salida({ driverId: "d1", driverName: "Juan Muñoz", vehicleId: "v9", vehicleName: "Araucana 24" })
+    ]);
+    expect(fila).toMatchObject({ driverId: "d1", driverName: "Juan Muñoz", vehicleId: "v9", nave: "Araucana 24" });
+  });
+
   it("agrupa cada salida en su terminal de origen", () => {
     const rows = [
       salida({ id: "sma", from: "San Martin de los Andes" }),

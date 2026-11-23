@@ -3,8 +3,10 @@ import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
+import { prisma } from "@/lib/db/prisma";
 import { isDateKey, shiftDateKey } from "@/lib/operations/day-board";
 import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
+import { DriverPicker } from "./driver-picker";
 import "./servicio-publico.css";
 
 export const metadata = { title: "Servicio público · La Araucana" };
@@ -45,7 +47,14 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const fecha = isDateKey(params.fecha) ? params.fecha : hoy;
   const filtro = esTerminal(params.terminal) ? params.terminal : null;
 
-  const rows = await listAdminSchedules({ date: fecha });
+  const [rows, drivers] = await Promise.all([
+    listAdminSchedules({ date: fecha }),
+    prisma.user.findMany({
+      where: { role: "DRIVER", isActive: true },
+      select: { id: true, name: true, email: true },
+      orderBy: [{ name: "asc" }, { email: "asc" }]
+    })
+  ]);
   const salidas = salidasDeTerminal(rows);
   const todosLosGrupos = agruparPorTerminal(salidas, rows);
   const grupos = todosLosGrupos.filter((grupo) => (filtro ? grupo.clave === filtro : grupo.salidas.length > 0));
@@ -66,7 +75,12 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
       title="Servicio público"
       eyebrow="Terminales"
       role={user.role}
-      action={<Link className="button" href="/admin/reservas/nueva">Vender pasaje</Link>}
+      action={
+        <div className="form-actions">
+          <Link className="ghost-button" href={`/admin/salidas-del-dia?date=${fecha}`}>Salidas del día</Link>
+          <Link className="button" href="/admin/reservas/nueva">Vender pasaje</Link>
+        </div>
+      }
     >
       <div className="sp-board">
         <section className="plain-card sp-controles" aria-label="Fecha y terminal">
@@ -134,6 +148,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                       <th>Hora</th>
                       <th>Recorrido</th>
                       <th>Unidad</th>
+                      <th>Chofer</th>
                       <th>Ocupación</th>
                       <th>Estado</th>
                       <th><span className="sr-only">Acciones</span></th>
@@ -154,7 +169,21 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                             <strong>{salida.recorrido}</strong>
                             <span className="sp-patente">{salida.patente ?? "Sin patente"}</span>
                           </td>
-                          <td data-label="Unidad">{salida.nave}</td>
+                          <td data-label="Unidad">
+                            <Link href={`/admin/naves/${salida.vehicleId}`}>{salida.nave}</Link>
+                          </td>
+                          <td data-label="Chofer">
+                            {salida.driverId && salida.driverName ? (
+                              <Link className="sp-chofer-actual" href={`/admin/choferes/${salida.driverId}`}>{salida.driverName}</Link>
+                            ) : null}
+                            <DriverPicker
+                              scheduleId={salida.id}
+                              driverId={salida.driverId}
+                              drivers={drivers}
+                              fecha={fecha}
+                              terminal={filtro}
+                            />
+                          </td>
                           <td data-label="Ocupación">
                             <div className="sp-ocupacion">
                               <span>{salida.ocupados} de {salida.capacidad} ocupados</span>

@@ -214,6 +214,51 @@
   font-size: 11px;
 }
 
+.sp-chofer-actual {
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: rgba(18, 63, 51, 0.25);
+  text-underline-offset: 3px;
+}
+
+.sp-sin-chofer {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.sp-chofer-form {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sp-chofer-form select {
+  flex: 1 1 96px;
+  min-width: 0;
+  max-width: 150px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+}
+
+.sp-chofer-form .ghost-button {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.sp-error {
+  flex-basis: 100%;
+  color: #a62c22;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .sp-ocupacion {
   display: grid;
   gap: 4px;
