@@ -565,3 +565,57 @@
     justify-content: flex-start;
   }
 }
+
+/* Planilla semanal de Servicio público: los siete días, para ver Traful aunque salga una vez. */
+.sp-semana-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.sp-semana-nav strong { font-size: 14px; }
+.sp-semana-scroll { overflow-x: auto; padding-bottom: 6px; }
+.sp-semana-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(136px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.sp-semana-dia {
+  display: flex;
+  min-height: 210px;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.sp-semana-dia[data-hoy="true"] { border-color: var(--primary); box-shadow: inset 0 3px 0 var(--primary); }
+.sp-semana-dia > header { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.sp-semana-dia > header span { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sp-semana-dia > header strong { font-size: 20px; line-height: 1; }
+.sp-semana-dia > header small { color: var(--ink-muted); font-size: 11px; }
+.sp-semana-dia > p { margin: 0; }
+.sp-semana-lista { display: flex; flex: 1; flex-direction: column; gap: 6px; }
+.sp-semana-card {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.sp-semana-card:hover { border-color: var(--primary); }
+.sp-semana-card strong { font-size: 12px; line-height: 1.25; }
+.sp-semana-card > span { color: var(--ink-muted); font-size: 10.5px; }
+.sp-semana-card .sp-estado { justify-self: start; font-size: 10px; padding: 2px 7px; }
+.sp-semana-terminal { color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; }
+.sp-semana-ver { color: var(--primary); font-size: 11px; font-weight: 800; text-decoration: none; }
+.sp-semana .sp-vacio { margin: 4px 0 0; font-size: 12px; }
+@media (max-width: 1100px) {
+  .sp-semana-grid { grid-template-columns: repeat(7, 168px); min-width: 1232px; }
+}

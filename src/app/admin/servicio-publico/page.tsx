@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { ServicePublicNav } from "@/components/service-public-nav";
+import { ServicioPublicoVistaNav } from "@/components/servicio-publico-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
@@ -9,6 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 import { argentinaDayStart } from "@/lib/booking/admin-filters";
 import { isDateKey, shiftDateKey } from "@/lib/operations/day-board";
 import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
+import { lunesDe } from "@/lib/school-runs/week";
 import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, terminalDe, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
 import { DriverPicker } from "./driver-picker";
 import "./servicio-publico.css";
@@ -128,6 +130,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
       }
     >
       <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
+      <ServicioPublicoVistaNav actual="dia" fecha={fecha} semana={lunesDe(fecha)} terminal={filtro} />
       <div className="sp-board">
         <section className="plain-card sp-controles" aria-label="Fecha y terminal">
           <div className="sp-fecha">
