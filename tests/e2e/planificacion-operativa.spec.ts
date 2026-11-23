@@ -14,7 +14,12 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
   const day = "2033-11-21";
   const admin = await db.user.create({ data: { email: tag + "@example.test", role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(tag, 6) } });
   const drivers = await Promise.all(["Ana", "Pablo", "Sol"].map(name => db.user.create({ data: { name: name + tag, email: name + tag + "@example.test", role: "DRIVER", isActive: true } })));
-  const vehicle = await db.vehicle.create({ data: { name: "Combi " + tag, technicalInspectionDueAt: new Date("2033-12-21") } });
+  const vehicle = await db.vehicle.create({ data: {
+    name: "Combi " + tag, technicalInspectionDueAt: new Date("2033-12-21"), serviceIntervalKm: 10000,
+    documents: { create: { kind: "TECNICA", fileName: "tecnica.pdf", contentType: "application/pdf", sizeBytes: 100, blobUrl: "https://example.invalid/tecnica.pdf", blobPathname: tag + ".pdf" } },
+    serviceSheets: { create: { servicedAt: new Date("2033-11-01"), odometerKm: 10000 } },
+    odometerReadings: { create: { readAt: new Date("2033-11-20"), km: 19500 } }
+  }, include: { documents: true } });
   const school = await db.schoolRun.create({ data: { routeName: "Escuela " + tag, shift: "Mañana", serviceDate: new Date(day), driverId: drivers[0].id } });
   const trip = await db.specialTrip.create({ data: {
     legs: [], payments: [], billingMode: "UNKNOWN", currency: "ARS", destinationSearch: "Pucón",
@@ -23,6 +28,15 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
   } });
   try {
     expect((await page.request.post("/api/v1/auth/login", { data: { email: admin.email, password: tag } })).status()).toBe(200);
+    await page.goto("/admin?date=" + day);
+    const priority = page.getByRole("complementary", { name: "Prioridad operativa" });
+    await expect(priority).toContainText(school.routeName);
+    await priority.getByRole("link", { name: "Resolver en la jornada" }).click();
+    await expect(page.locator(".plan-service-fold[open]")).toContainText(school.routeName);
+    await page.getByText("Atajos", { exact: true }).click();
+    await page.getByRole("link", { name: "Boletería de servicio público" }).click();
+    await expect(page.getByRole("heading", { name: "Servicio público", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Ir a una fecha")).toHaveValue(day);
     await page.goto("/admin?date=" + day + "&vista=semana");
     await expect(page.locator(".ops-week-day")).toHaveCount(7);
     const first = page.locator(".ops-week-day").first();
@@ -52,11 +66,13 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
     await expect(driver.locator("summary")).toContainText("Avisado");
     await page.reload();
     await expect(driver.locator("summary")).toContainText("Avisado");
+    await page.goto(agenda + "&avisos=pendientes");
+    await expect(page.locator(".console-resource summary").filter({ hasText: drivers[0].name! })).toHaveCount(0);
     await page.goto("/admin?date=" + day + "&servicio=escolar-" + school.id);
     await open.getByLabel("Chofer del recorrido").selectOption("");
     await open.getByRole("button", { name: "Guardar equipo del día" }).click();
     await expect(page.getByText("Equipo guardado para la jornada.")).toBeVisible();
-    await page.goto(agenda);
+    await page.goto(agenda + "&avisos=pendientes");
     await expect(driver.locator("summary")).toContainText("volver a avisar");
     await expect(driver.getByLabel("Mensaje para el chofer")).toHaveValue(/Sin servicios asignados/);
     expect((await db.schoolRun.findUniqueOrThrow({ where: { id: copy.id } })).driverId).toBe(drivers[0].id);
@@ -64,9 +80,14 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
     await expect(driver.getByLabel("Mensaje para el chofer")).toHaveValue(new RegExp(trip.client));
     await driver.getByRole("button", { name: "Marcar como avisado" }).click();
     await expect(driver.locator("summary")).toContainText("Avisado");
+    await page.goto("/admin?" + new URLSearchParams({ date: day, vista: "flota", recurso: vehicle.id }));
+    await expect(driver.locator("summary")).toContainText("Faltan 500 km");
+    await expect(driver.getByRole("link", { name: "Service y kilometraje" })).toHaveAttribute("href", "/admin/naves/" + vehicle.id + "/service#service-km");
     await page.getByRole("link", { name: "Vencimientos a 30 días" }).click();
     const documents = page.getByRole("region", { name: "Vencimientos de flota y choferes" });
-    await expect(documents.getByRole("row").filter({ hasText: vehicle.name })).toContainText("21/12/2033");
+    const inspection = documents.getByRole("row").filter({ hasText: vehicle.name });
+    await expect(inspection).toContainText("21/12/2033");
+    await expect(inspection.getByRole("link", { name: "Abrir archivo" })).toHaveAttribute("href", "/api/vehiculos/" + vehicle.id + "/documentos/" + vehicle.documents[0].id);
     await documents.getByRole("link", { name: /Sin fecha/ }).click();
     await expect(documents.getByRole("row").filter({ hasText: drivers[1].name! })).toContainText("Licencia");
   } finally {

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db/prisma";
+import { documentosVigentes, PAPEL_DE_VENCIMIENTO } from "@/lib/vehicles/documents";
 import { shiftDateKey } from "@/lib/operations/day-board";
 
 const short = (key: string) => key.split("-").reverse().join("/");
-type DocumentDate = { label: string; due?: Date | null };
+type DocumentDate = { label: string; due?: Date | null; paper?: { href: string; label: string } };
 
 function age(purchase: Date | null, date: string) {
   if (!purchase) return "Sin fecha de compra";
@@ -16,7 +17,8 @@ function age(purchase: Date | null, date: string) {
 export async function Deadlines({ date, filter }: { date: string; filter?: string }) {
   const [fleet, drivers] = await Promise.all([
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: [{ name: "asc" }, { id: "asc" }],
-      select: { id: true, name: true, internalNumber: true, acquiredAt: true, technicalInspectionDueAt: true, rtoDueAt: true, policyDueAt: true } }),
+      select: { id: true, name: true, internalNumber: true, acquiredAt: true, technicalInspectionDueAt: true, rtoDueAt: true, policyDueAt: true,
+        documents: { select: { id: true, kind: true, createdAt: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], distinct: ["vehicleId", "kind"] } } }),
     prisma.user.findMany({ where: { isActive: true, role: "DRIVER" }, orderBy: [{ name: "asc" }, { email: "asc" }],
       select: { id: true, name: true, email: true, driverProfile: { select: { licenseExpiresAt: true, criminalRecordExpiresAt: true } } } })
   ]);
@@ -27,10 +29,20 @@ export async function Deadlines({ date, filter }: { date: string; filter?: strin
     return key < date ? "vencidos" : key <= end ? "proximos" : "vigentes";
   };
   const rows = [
-    ...fleet.map(v => ({ key: "v-" + v.id, label: v.name, detail: [v.internalNumber && "Int. " + v.internalNumber, age(v.acquiredAt, date)].filter(Boolean).join(" · "),
-      href: "/admin/naves/" + v.id + "/vencimientos", docs: [
-        { label: "Técnica", due: v.technicalInspectionDueAt }, { label: "RTO", due: v.rtoDueAt }, { label: "Póliza", due: v.policyDueAt }
-      ] as DocumentDate[] })),
+    ...fleet.map(v => {
+      const latest = documentosVigentes(v.documents);
+      const paper = (label: keyof typeof PAPEL_DE_VENCIMIENTO, due: Date | null): DocumentDate => {
+        const kind = PAPEL_DE_VENCIMIENTO[label];
+        const doc = latest[kind];
+        return { label, due, paper: doc ? { href: "/api/vehiculos/" + v.id + "/documentos/" + doc.id, label: "Abrir archivo" } :
+          { href: "/admin/naves/" + v.id + "/documentacion#doc-" + kind, label: "Adjuntar" } };
+      };
+      return { key: "v-" + v.id, label: v.name,
+        detail: [v.internalNumber && "Int. " + v.internalNumber, age(v.acquiredAt, date)].filter(Boolean).join(" · "),
+        href: "/admin/naves/" + v.id + "/vencimientos", docs: [
+          paper("Técnica", v.technicalInspectionDueAt), paper("RTO", v.rtoDueAt), paper("Póliza", v.policyDueAt)
+        ] };
+    }),
     ...drivers.map(d => ({ key: "d-" + d.id, label: d.name || d.email, detail: "Chofer", href: "/admin/choferes/" + d.id,
       docs: [{ label: "Licencia", due: d.driverProfile?.licenseExpiresAt }, { label: "Antecedentes provinciales", due: d.driverProfile?.criminalRecordExpiresAt }] as DocumentDate[] }))
   ];
@@ -52,7 +64,7 @@ export async function Deadlines({ date, filter }: { date: string; filter?: strin
       <div className="ops-scroll"><table className="ops-table"><thead><tr><th>Unidad o chofer</th><th>Documento</th><th>Vencimiento</th></tr></thead>
         <tbody>{grouped.flatMap(row => row.docs.map((doc,index) => <tr key={row.key + doc.label}>
           {index === 0 && <th scope="rowgroup" rowSpan={row.docs.length}><Link href={row.href}>{row.label}</Link><small>{row.detail}</small></th>}
-          <td>{doc.label}</td><td data-urgencia={bucket(doc.due)}>{doc.due ? short(doc.due.toISOString().slice(0,10)) : "Sin fecha"}</td>
+          <td>{doc.label}{doc.paper && <small><a href={doc.paper.href}>{doc.paper.label}</a></small>}</td><td data-urgencia={bucket(doc.due)}>{doc.due ? short(doc.due.toISOString().slice(0,10)) : "Sin fecha"}</td>
         </tr>))}</tbody></table></div></> : <p>Sin documentos en esta vista.</p>}
   </section>;
 }

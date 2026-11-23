@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { chapelcoRow, flightRow, scheduleRows, specialTripRow } from "./day-board";
-import { daniosPorNave, dispatchIssues, serviceReservationScope, type DispatchAssignment } from "./dispatch";
+import { daniosPorNave, dispatchIssues, dispatchReview, serviceReservationScope, type DispatchAssignment } from "./dispatch";
 
 const job = (name: string, start: number | null, end: number | null): DispatchAssignment => ({
   key: name, rowKey: name, title: name, href: "/admin", area: "ESPECIAL", start, end,
@@ -52,4 +52,16 @@ it("una ruta inactiva con reservas queda pendiente y la programación vacía sig
   const [sinReservas] = scheduleRows([{ ...schedule, passengers: 0 }]);
   expect(sinReservas.programmed).toBe(true);
   expect(dispatchIssues([sinReservas], [], new Map()).size).toBe(0);
+});
+
+it("prioriza la nave averiada en servicio, después lo que falta y finalmente un tramo ya terminado", () => {
+  const vehicle = { id: "bus", name: "Bus", seats: 15 };
+  const broken = specialTripRow({ id: "club", client: "Club", passengers: 15, status: "OPEN", firstLegAt: new Date(9), units: [
+    { id: "a", startsAt: new Date(9), endsAt: new Date(11), vehicle, driver: null }
+  ] });
+  const empty = { ...broken, key: "pendiente", units: [], missingVehicle: true };
+  const damaged = daniosPorNave([{ id: "d", vehicleId: "bus", status: "EN_REPARACION", severity: "GRAVE", description: "Taller" }]);
+  const assignments = [{ ...job("club", 9, 11), rowKey: broken.key }];
+  expect(dispatchReview([empty, broken], assignments, damaged, 10).pending.map(r => r.key)).toEqual([broken.key, empty.key]);
+  expect(dispatchReview([empty, broken], assignments, damaged, 12).pending.map(r => r.key)).toEqual([empty.key, broken.key]);
 });

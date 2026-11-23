@@ -30,24 +30,27 @@ export function daniosPorNave(damages: DispatchDamage[]) {
   return byVehicle;
 }
 
-export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>) {
-  const issues = new Map<string, Set<string>>();
-  function add(key: string, message: string) {
-    const messages = issues.get(key) ?? new Set<string>();
-    messages.add(message);
+type QueueLevel = "capacidad" | "cruce" | "equipo" | "novedad";
+const order: Record<QueueLevel, number> = { capacidad: 0, cruce: 1, equipo: 2, novedad: 3 };
+
+export function dispatchReview(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>, now?: number) {
+  const issues = new Map<string, Map<string, number>>();
+  function add(key: string, level: QueueLevel, message: string) {
+    const messages = issues.get(key) ?? new Map<string, number>();
+    messages.set(message, order[level]);
     issues.set(key, messages);
   }
   for (const row of rows) {
-    if (row.inactiveRoute && row.passengers > 0) add(row.key, "Ruta inactiva con pasajeros");
+    if (row.inactiveRoute && row.passengers > 0) add(row.key, "capacidad", "Ruta inactiva con pasajeros");
     if (!row.programmed) {
-      if (row.missingVehicle) add(row.key, "Falta nave");
-      if (row.missingDriver) add(row.key, "Falta chofer");
-      if (row.overbooked) add(row.key, "Sobrecupo de " + (row.passengers - row.capacity!) + " lugares");
-      if (row.area === "AEROPUERTO" && row.status && row.passengers) add(row.key, "Vuelo " + row.status.toLowerCase());
+      if (row.missingVehicle) add(row.key, "equipo", "Falta nave");
+      if (row.missingDriver) add(row.key, "equipo", "Falta chofer");
+      if (row.overbooked) add(row.key, "capacidad", "Sobrecupo de " + (row.passengers - row.capacity!) + " lugares");
+      if (row.area === "AEROPUERTO" && row.status && row.passengers) add(row.key, "novedad", "Vuelo " + row.status.toLowerCase());
     }
     for (const unit of row.units) {
       const taller = estadoDeTaller(damages.get(unit.vehicleId) ?? []);
-      if (taller) add(row.key, unit.vehicleName + (taller.clave === "danio-grave" ? " tiene un daño grave" : " está en reparación"));
+      if (taller) add(row.key, "capacidad", unit.vehicleName + (taller.clave === "danio-grave" ? " tiene un daño grave" : " está en reparación"));
     }
   }
 
@@ -72,12 +75,25 @@ export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment
         if (next.start !== first.start && next.start! >= (first.end ?? first.start!)) break;
         if (!assignmentsOverlap(first, next)) continue;
         const name = resource.startsWith("nave/") ? first.vehicleName : resource === "chofer/" + first.coDriverId ? first.coDriverName : first.driverName;
-        add(first.rowKey, "Cruce de " + name + " con " + next.title);
-        add(next.rowKey, "Cruce de " + name + " con " + first.title);
+        add(first.rowKey, "cruce", "Cruce de " + name + " con " + next.title);
+        add(next.rowKey, "cruce", "Cruce de " + name + " con " + first.title);
       }
     }
   }
-  return new Map([...issues].map(([key, messages]) => [key, [...messages]]));
+  const messages = new Map([...issues].map(([key, values]) => [key, [...values].sort((a,b) => a[1] - b[1]).map(([message]) => message)]));
+  const finalEnd = new Map<string, number>();
+  for (const job of assignments) finalEnd.set(job.rowKey, Math.max(finalEnd.get(job.rowKey) ?? 0, job.end ?? Infinity));
+  const rank = (row: BoardRow) => {
+    const past = now !== undefined && (finalEnd.get(row.key) ?? Infinity) <= now;
+    return Number(past) * 10 + Number(row.programmed) * 5 + Math.min(...issues.get(row.key)!.values());
+  };
+  const pending = rows.filter(row => issues.has(row.key)).sort((a,b) =>
+    rank(a) - rank(b) || (a.at?.getTime() ?? Infinity) - (b.at?.getTime() ?? Infinity) || b.passengers - a.passengers);
+  return { messages, pending };
+}
+
+export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>) {
+  return dispatchReview(rows, assignments, damages).messages;
 }
 
 export function panelServiceHref(date: string, rowKey: string) {

@@ -1,4 +1,5 @@
 import { CHAPELCO_BOOKING_MODE } from "@/lib/chapelco/constants";
+import { terminalDe } from "@/lib/public-service/board";
 import { Deadlines } from "./deadlines";
 import { WeekAgenda } from "./week-agenda";
 import { assignSchoolCrew, repeatSchoolRun } from "./school-crew";
@@ -14,7 +15,7 @@ import { prisma } from "@/lib/db/prisma";
 import { AREA_LABEL, personName, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
 import { countAdminReservations } from "@/lib/booking/repository";
 import { estadoDeTaller } from "@/lib/vehicles/estado-en-flota";
-import { daniosPorNave, dispatchIssues, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
+import { daniosPorNave, dispatchReview, panelServiceHref, serviceReservationScope, type DispatchAssignment } from "@/lib/operations/dispatch";
 import { ReservationWorkspace, type ReservationParams } from "../reservas/reservation-workspace";
 import { FleetAgenda } from "./fleet-agenda";
 import { ReplaceVehicleForm } from "./replace-vehicle-form";
@@ -27,7 +28,7 @@ import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
 import "./panel-jornada.css";
 
-export type DayParams = ReservationParams & { falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string; filtro?: string };
+export type DayParams = ReservationParams & { falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string; avisos?: string; filtro?: string };
 
 const hourFormat = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 const dayFormat = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -88,16 +89,17 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
   const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
-  const issues = dispatchIssues(board.rows, assignments, vehicleDamages);
-  const pendingRows = panel ? board.rows.filter(row => issues.has(row.key)) : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
+  const { messages: issues, pending } = dispatchReview(board.rows, assignments, vehicleDamages, dateKey === today ? Date.now() : undefined);
+  const pendingRows = panel ? pending : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const matchRow = (row: BoardRow) => (!area || row.area === area) && (!search || normalize([
     row.title, AREA_LABEL[row.area], row.school && personName(row.school.driver), ...row.units.flatMap(unit => [unit.vehicleName, unit.driverName, unit.coDriverName])
   ].join(" ")).includes(normalize(search)));
   const rows = (onlyMissing ? pendingRows : serviceRows).filter(matchRow);
   const programs = programmedRows.filter(matchRow);
+  const firstPending = !onlyMissing && !area && !search && !params?.servicio ? pendingRows[0] : undefined;
   const dayHref = (key: string) => path + "?" + new URLSearchParams({ date: key,
-    ...(view !== "jornada" ? { vista: view } : {}), ...(view === "flota" && params?.tipo === "chofer" ? { tipo: "chofer" } : {}), ...(onlyMissing ? { falta: "1" } : {})
+    ...(view !== "jornada" ? { vista: view } : {}), ...(view === "flota" && params?.tipo === "chofer" ? { tipo: "chofer", ...(params?.avisos === "pendientes" ? { avisos: "pendientes" } : {}) } : {}), ...(onlyMissing ? { falta: "1" } : {})
   });
   const usedVehicles = new Set(assignments.flatMap(a => a.vehicleId ? [a.vehicleId] : []));
   const usedDrivers = new Set(assignments.flatMap(a => [a.driverId, a.coDriverId].filter(Boolean)));
@@ -110,6 +112,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const selectedService = view === "reservas" ? board.rows.find(row => row.key === params?.servicio) : undefined;
   const scope = selectedService && serviceReservationScope(selectedService);
 
+  const terminalByRoute = new Map(routes.filter(route => route.bookingMode === "SEATED").map(route => [route.id, terminalDe(route.from)]));
   const renderRow = (row: BoardRow) => (
             <li
               key={row.key}
@@ -124,6 +127,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               {panel ? <div className="plan-detail-links">
                 {serviceReservationScope(row) && <Link href={"/admin?" + new URLSearchParams({ date: row.flightDate ?? dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
                 {row.area === "AEROPUERTO" && <Link href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: row.flightDate ?? dateKey, flight: row.serviceId, desde: "panel" } }}>Orden de servicio</Link>}
+                {row.routeId && terminalByRoute.get(row.routeId) && <Link href={{ pathname: "/admin/servicio-publico", query: { fecha: dateKey, terminal: terminalByRoute.get(row.routeId) } }}>Boletería de la terminal</Link>}
                 <Link href={row.href}>Ver servicio</Link>
                 {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
               </div> : <>
@@ -201,6 +205,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       <input type="date" name="date" defaultValue={dateKey} aria-label="Fecha" />
       {view !== "jornada" && <input type="hidden" name="vista" value={view} />}
       {view === "flota" && params?.tipo === "chofer" && <input type="hidden" name="tipo" value="chofer" />}
+      {view === "flota" && params?.tipo === "chofer" && params?.avisos === "pendientes" && <input type="hidden" name="avisos" value="pendientes" />}
       {onlyMissing ? <input type="hidden" name="falta" value="1" /> : null}
       <button className="ghost-button" type="submit">Ver</button>
     </form>
@@ -243,7 +248,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         </nav>
         <nav className="ops-planning" aria-label="Planificación">
           <Link aria-current={view === "semana" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=semana"}>Trabajo semanal</Link>
-          <Link href={path + "?date=" + shiftDateKey(today,1) + "&vista=flota&tipo=chofer"}>Avisar a los choferes de mañana</Link>
+          <Link href={path + "?date=" + shiftDateKey(today,1) + "&vista=flota&tipo=chofer&avisos=pendientes"}>Avisar a los choferes de mañana</Link>
           <Link aria-current={view === "vencimientos" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=vencimientos"}>Vencimientos a 30 días</Link>
         </nav>
       </section> : (
@@ -266,7 +271,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
         </div>
       </section>)}
 
-      {view === "semana" ? <WeekAgenda days={days} /> : view === "vencimientos" ? <Deadlines date={dateKey} filter={params?.filtro} /> : view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={fleetOptions} assignments={assignments} damages={vehicleDamages} people={params?.tipo === "chofer"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
+      {view === "semana" ? <WeekAgenda days={days} /> : view === "vencimientos" ? <Deadlines date={dateKey} filter={params?.filtro} /> : view === "flota" ? <FleetAgenda date={dateKey} drivers={driverOptions} vehicles={fleetOptions} assignments={assignments} damages={vehicleDamages} people={params?.tipo === "chofer"} pendingNotices={params?.avisos === "pendientes"} onlyUnused={params?.libres === "1"} search={search} selected={params?.recurso} />
       : view === "reservas" ? <section className="console-work console-reservations" aria-label="Reservas y cobros de la jornada">
         {params?.servicio && <header className="console-section-head">
           <h3>{selectedService ? [selectedService.at && hourFormat.format(selectedService.at), selectedService.title].filter(Boolean).join(" · ") : "El servicio ya no figura en esta jornada"}</h3>
@@ -326,7 +331,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       } shortcuts={panel && <details name="panel-menu" className="plan-shortcuts">
         <summary>Atajos</summary>
         <nav aria-label="Atajos de operación">
-          <Link href="/admin/reservas/nueva">Nueva reserva</Link>
+          <Link href={`/admin/reservas/nueva?date=${dateKey}`}>Nueva reserva</Link>
+          <Link href={`/admin/servicio-publico?fecha=${dateKey}`}>Boletería de servicio público</Link>
           <Link href={`/admin/reservas/nueva?servicio=aeropuerto&date=${dateKey}`}>Reserva de aeropuerto</Link>
           <Link href={`/admin/aeropuerto?date=${dateKey}`}>Vuelos del día</Link>
           <Link href={`/admin/chapelco?date=${dateKey}`}>Cerro del día</Link>
@@ -334,6 +340,11 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           <LogoutButton />
         </nav>
       </details>}>
+      {panel && firstPending && <aside className="dispatch-priority" aria-label="Prioridad operativa">
+        <div><small>Revisar primero</small><strong>{firstPending.title}</strong>
+          <span>{issues.get(firstPending.key)?.slice(0, 2).join(" · ")}{firstPending.passengers > 0 && " · " + firstPending.passengers + (firstPending.passengers === 1 ? " pasajero" : " pasajeros")}</span></div>
+        <Link className="ghost-button" href={panelServiceHref(dateKey, firstPending.key)}>Resolver en la jornada</Link>
+      </aside>}
       {panel && <section className="console-agenda-head">
         <h3>{onlyMissing ? "Servicios que requieren atención" : "Servicios de la jornada"}</h3>
         <form action="/admin" className="console-filters">

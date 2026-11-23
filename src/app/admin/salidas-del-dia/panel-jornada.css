@@ -222,3 +222,7 @@ body:has(.plan-heading) .site-header { display: none; }
 .repeat-days { display: flex; flex-wrap: wrap; gap: 8px; border: 1px solid var(--line); }
 .repeat-days label { display: flex; align-items: center; }
 .repeat-days input { min-height: auto; width: auto; }
+.dispatch-priority { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 20px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #dbc8ab; border-inline-start: 4px solid #a2672a; border-radius: 8px; background: #fff9ef; }
+.dispatch-priority div { display: grid; gap: 2px; }
+.dispatch-priority small { font-weight: 700; color: #785124; }
+.dispatch-priority span { font-size: 14px; }

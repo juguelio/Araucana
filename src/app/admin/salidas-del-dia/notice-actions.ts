@@ -8,10 +8,10 @@ import { isDateKey, personName } from "@/lib/operations/day-board";
 import { readDispatchDays } from "@/lib/operations/dispatch-days";
 import { driverPlan } from "@/lib/operations/driver-plan";
 
-export async function markDriverNotified(date: string, driverId: string, submitted: string, previous: string | null) {
+export async function markDriverNotified(date: string, driverId: string, submitted: string, previous: string | null, pendingOnly = false) {
   const actor = await getCurrentAdminOrRedirect();
   if (!isDateKey(date)) redirect("/admin");
-  const back = (notice: string) => redirect("/admin?" + new URLSearchParams({ date, vista: "flota", tipo: "chofer", recurso: driverId, notice }));
+  const back = (notice: string) => redirect("/admin?" + new URLSearchParams({ date, vista: "flota", tipo: "chofer", recurso: driverId, ...(pendingOnly ? { avisos: "pendientes" } : {}), notice }));
   const [driver, [day]] = await Promise.all([
     prisma.user.findFirst({ where: { id: driverId, role: "DRIVER" }, select: { id: true, name: true, email: true } }),
     readDispatchDays(date)
