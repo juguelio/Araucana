@@ -137,6 +137,7 @@ export type ReservationDetailDto = {
     issuedAt: Date;
     origin: string;
     destination: string;
+    departureAt?: Date | null;
     fareCents: number;
     currency: string;
     annulledAt?: Date | null;
