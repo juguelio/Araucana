@@ -14,12 +14,13 @@ export type DocumentoDeLaNave = {
  * el historial de lo reemplazado es cosa de la oficina. Los archivos se sirven por la ruta
  * autenticada, que además comprueba que la unidad sea la del chofer.
  */
-export function DriverVehicleDocuments({ vehicleId, vehicleName, documentos }: {
+export function DriverVehicleDocuments({ vehicleId, vehicleName, secondaryPolicyDueAt, documentos }: {
   vehicleId: string;
   vehicleName: string;
+  secondaryPolicyDueAt?: Date | null;
   documentos: DocumentoDeLaNave[];
 }) {
-  const tipos = documentosPorTipo(documentos);
+  const tipos = documentosPorTipo(documentos, Boolean(secondaryPolicyDueAt));
 
   return (
     <section className="plain-card admin-section" aria-labelledby="chofer-papeles">
@@ -31,24 +32,27 @@ export function DriverVehicleDocuments({ vehicleId, vehicleName, documentos }: {
         La documentación vigente de la nave que tenés marcada. Si un papel falta o está vencido, avisá a la oficina.
       </p>
       <ul className="nave-lista">
-        {tipos.map(({ tipo, label, vigente }) => (
-          <li key={tipo}>
-            <span className="nave-lista-fecha">
-              {vigente?.expiresAt ? `vence ${fechaDePapel(vigente.expiresAt)}` : "sin fecha"}
-            </span>
-            <span>
-              <strong>{label}</strong>
-              <br />
-              {vigente ? (
-                <Link href={`/api/vehiculos/${vehicleId}/documentos/${vigente.id}`} target="_blank">
-                  Abrir {vigente.fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "archivo"}
-                </Link>
-              ) : (
-                <span className="muted">La oficina todavía no lo subió</span>
-              )}
-            </span>
-          </li>
-        ))}
+        {tipos.map(({ tipo, label, vigente }) => {
+          const vence = tipo === "POLIZA_SERVICIO_PUBLICO" ? secondaryPolicyDueAt ?? vigente?.expiresAt : vigente?.expiresAt;
+          return (
+            <li key={tipo}>
+              <span className="nave-lista-fecha">
+                {vence ? `vence ${fechaDePapel(vence)}` : "sin fecha"}
+              </span>
+              <span>
+                <strong>{label}</strong>
+                <br />
+                {vigente ? (
+                  <Link href={`/api/vehiculos/${vehicleId}/documentos/${vigente.id}`} target="_blank">
+                    Abrir {vigente.fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "archivo"}
+                  </Link>
+                ) : (
+                  <span className="muted">La oficina todavía no lo subió</span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

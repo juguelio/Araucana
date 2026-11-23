@@ -145,6 +145,8 @@ model Vehicle {
   rtoDueAt     DateTime?
   insurer      String?
   policyDueAt  DateTime?
+  /// Cobertura adicional para servicio público cuando la unidad conserva otra póliza vigente.
+  secondaryPolicyDueAt DateTime?
   /**
    * Habilita la unidad para "transporte público" (los tramos que vende la web).
    * En la planilla del cliente son las aseguradas por **Prot Mut**: los buses grandes.

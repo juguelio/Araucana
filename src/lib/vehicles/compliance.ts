@@ -11,7 +11,7 @@ export type ComplianceLevel = "vencido" | "proximo" | "ok";
 export const DIAS_ALERTA = 90;
 
 export type Vencimiento = {
-  tipo: "Técnica" | "RTO" | "Póliza";
+  tipo: "Técnica" | "RTO" | "Póliza" | "Segunda póliza de servicio público";
   fecha: Date | null;
   dias: number | null;
   level: ComplianceLevel | null;
@@ -57,15 +57,17 @@ export type UnidadConVencimientos = {
   technicalInspectionDueAt?: Date | null;
   rtoDueAt?: Date | null;
   policyDueAt?: Date | null;
+  secondaryPolicyDueAt?: Date | null;
 };
 
-/** Los tres papeles de una unidad, en el orden en que se controlan. */
+/** Papeles de la unidad con la segunda póliza cuando la oficina la cargó. */
 export function vencimientosDe(unidad: UnidadConVencimientos, hoy: Date = new Date()): Vencimiento[] {
   const filas: Array<[Vencimiento["tipo"], Date | null | undefined]> = [
     ["Técnica", unidad.technicalInspectionDueAt],
     ["RTO", unidad.rtoDueAt],
     ["Póliza", unidad.policyDueAt]
   ];
+  if (unidad.secondaryPolicyDueAt) filas.push(["Segunda póliza de servicio público", unidad.secondaryPolicyDueAt]);
   return filas.map(([tipo, fecha]) => ({
     tipo,
     fecha: fecha ?? null,

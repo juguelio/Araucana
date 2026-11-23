@@ -46,7 +46,7 @@ export function DocumentoForm({ action, vehicleId, kind, etiqueta }: {
           />
         </label>
         <label className="documento-form-fecha">
-          <span>Vence (opcional)</span>
+          <span>{kind === "POLIZA_SERVICIO_PUBLICO" ? "Vencimiento para la ficha (opcional)" : "Vence (opcional)"}</span>
           <input type="date" name="expiresAt" />
         </label>
         <AdminSubmitButton>{state.status === "success" ? "Subir otro" : "Subir papel"}</AdminSubmitButton>

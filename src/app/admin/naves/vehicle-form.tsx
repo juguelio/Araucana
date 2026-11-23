@@ -28,6 +28,7 @@ type VehicleFormData = {
   rtoDueAt?: Date | null;
   insurer?: string | null;
   policyDueAt?: Date | null;
+  secondaryPolicyDueAt?: Date | null;
   publicTransport?: boolean;
   kind?: string;
   notes?: string | null;
@@ -172,6 +173,10 @@ export function VehicleForm({ action, vehicle, submitLabel }: VehicleFormProps) 
       <label>
         Vencimiento de póliza
         <input name="policyDueAt" type="date" defaultValue={inputDate(vehicle?.policyDueAt)} />
+      </label>
+      <label>
+        Vencimiento de segunda póliza de servicio público (si corresponde)
+        <input name="secondaryPolicyDueAt" type="date" defaultValue={inputDate(vehicle?.secondaryPolicyDueAt)} />
       </label>
       <label className="checkbox-row">
         <input name="publicTransport" type="checkbox" defaultChecked={vehicle?.publicTransport ?? false} />

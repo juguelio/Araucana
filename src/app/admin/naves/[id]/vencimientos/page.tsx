@@ -1,3 +1,4 @@
+import { TIPO_DE_DOCUMENTO_LABEL, PAPEL_DE_VENCIMIENTO } from "@/lib/vehicles/documents";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
@@ -40,7 +41,7 @@ export default async function VencimientosDeNavePage({ params, searchParams }: P
       <section className="nave-panel" aria-label="Vencimientos">
         {papeles.map((p) => (
           <div key={p.tipo} className="admin-card nave-opcion" data-nivel={p.level ?? undefined}>
-            <span className="nave-opcion-titulo">{p.tipo === "Técnica" ? "Revisión técnica (VTV)" : p.tipo === "RTO" ? "RTO nacional" : "Póliza de seguro"}</span>
+            <span className="nave-opcion-titulo">{TIPO_DE_DOCUMENTO_LABEL[PAPEL_DE_VENCIMIENTO[p.tipo]]}</span>
             <strong>{formatoFecha(p.fecha)}</strong>
             <span className="nave-papel" data-nivel={p.level ?? undefined}>{complianceLabel(p.fecha, hoy)}</span>
           </div>

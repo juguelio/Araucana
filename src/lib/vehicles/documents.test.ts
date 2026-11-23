@@ -13,7 +13,7 @@ import {
 const doc = (kind: string, dia: number) => ({ kind, createdAt: new Date(Date.UTC(2026, 10, dia)) });
 
 describe("documentación de la flota", () => {
-  it("acepta sólo los cuatro papeles de la unidad", () => {
+  it("acepta los papeles que gestiona la flota", () => {
     expect(esTipoDeDocumento("POLIZA")).toBe(true);
     expect(esTipoDeDocumento("CEDULA")).toBe(true);
     expect(esTipoDeDocumento("FOTO")).toBe(false);
@@ -34,6 +34,15 @@ describe("documentación de la flota", () => {
     // Historial del más nuevo al más viejo, sin el vigente.
     expect(poliza.historial.map((h) => h.createdAt.toISOString().slice(0, 10))).toEqual(["2026-11-07", "2026-11-03"]);
     expect(tipos.find((t) => t.tipo === "CEDULA")?.vigente).toBeNull();
+  });
+
+  it("mantiene ambas pólizas vigentes y renueva sólo la cobertura elegida", () => {
+    const principal = doc("POLIZA", 7), vieja = doc("POLIZA_SERVICIO_PUBLICO", 1), nueva = doc("POLIZA_SERVICIO_PUBLICO", 9);
+    const tipos = documentosPorTipo([vieja, principal, nueva]);
+    expect(tipos.find(t => t.tipo === "POLIZA")?.vigente).toBe(principal);
+    expect(tipos.find(t => t.tipo === "POLIZA_SERVICIO_PUBLICO")).toMatchObject({ vigente: nueva, historial: [vieja] });
+    expect(documentosPorTipo([principal]).map(t => t.tipo)).not.toContain("POLIZA_SERVICIO_PUBLICO");
+    expect(documentosPorTipo([principal], true).find(t => t.tipo === "POLIZA_SERVICIO_PUBLICO")?.vigente).toBeNull();
   });
 
   it("ignora filas de tipos que ya no existen en vez de mostrarlas", () => {

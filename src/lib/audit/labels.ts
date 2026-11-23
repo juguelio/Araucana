@@ -124,6 +124,7 @@ const fieldLabels: Record<string, string> = {
   rtoDueAt: "Vencimiento RTO",
   insurer: "Aseguradora",
   policyDueAt: "Vencimiento de póliza",
+  secondaryPolicyDueAt: "Vencimiento de segunda póliza de servicio público",
   publicTransport: "Transporte público",
   kind: "Tipo",
   departureAt: "Salida",

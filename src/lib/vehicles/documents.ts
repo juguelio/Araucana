@@ -7,20 +7,24 @@
  * declarar además su propio vencimiento, que es el que está impreso en el documento.
  */
 
-export const TIPOS_DE_DOCUMENTO = ["POLIZA", "TECNICA", "RTO", "CEDULA"] as const;
+import type { Vencimiento } from "./compliance";
+
+export const TIPOS_DE_DOCUMENTO = ["POLIZA", "TECNICA", "RTO", "CEDULA", "POLIZA_SERVICIO_PUBLICO"] as const;
 
 export type TipoDeDocumento = (typeof TIPOS_DE_DOCUMENTO)[number];
 
 export const TIPO_DE_DOCUMENTO_LABEL: Record<TipoDeDocumento, string> = {
   POLIZA: "Póliza de seguro",
+  POLIZA_SERVICIO_PUBLICO: "Segunda póliza de servicio público",
   TECNICA: "Revisión técnica (VTV)",
   RTO: "RTO nacional",
   CEDULA: "Cédula verde o azul"
 };
 
 /** El papel que respalda cada vencimiento de la ficha, para enlazarlos. */
-export const PAPEL_DE_VENCIMIENTO: Record<"Póliza" | "Técnica" | "RTO", TipoDeDocumento> = {
+export const PAPEL_DE_VENCIMIENTO: Record<Vencimiento["tipo"], TipoDeDocumento> = {
   Póliza: "POLIZA",
+  "Segunda póliza de servicio público": "POLIZA_SERVICIO_PUBLICO",
   Técnica: "TECNICA",
   RTO: "RTO"
 };
@@ -64,12 +68,12 @@ export function documentosVigentes<T extends DocumentoConFecha & { kind: string 
   return vigentes;
 }
 
-/** Los cuatro papeles en el orden en que se controlan, con su vigente y su historial. */
+/** La cobertura adicional se muestra cuando hay un archivo o se declaró el vencimiento. */
 export function documentosPorTipo<T extends DocumentoConFecha & { kind: string }>(
-  documentos: T[]
+  documentos: T[], incluirSegundaPoliza = false
 ): Array<{ tipo: TipoDeDocumento; label: string; vigente: T | null; historial: T[] }> {
   const vigentes = documentosVigentes(documentos);
-  return TIPOS_DE_DOCUMENTO.map((tipo) => ({
+  return TIPOS_DE_DOCUMENTO.filter(tipo => tipo !== "POLIZA_SERVICIO_PUBLICO" || incluirSegundaPoliza || vigentes[tipo]).map((tipo) => ({
     tipo,
     label: TIPO_DE_DOCUMENTO_LABEL[tipo],
     vigente: vigentes[tipo] ?? null,
@@ -114,5 +118,6 @@ export async function firmaDeArchivoValida(file: { type: string; slice: (inicio:
 
 /** Qué se llama cada papel en el encabezado de la sección: «Póliza» en vez de «Póliza de seguro». */
 export function tipoCorto(tipo: TipoDeDocumento): string {
+  if (tipo === "POLIZA_SERVICIO_PUBLICO") return TIPO_DE_DOCUMENTO_LABEL[tipo];
   return tipo === "CEDULA" ? "Cédula" : tipo === "TECNICA" ? "Técnica" : tipo === "RTO" ? "RTO" : "Póliza";
 }

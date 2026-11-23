@@ -57,6 +57,18 @@ export async function uploadVehicleDocumentAction(_state: AdminFormState, formDa
   try {
     const guardado = await guardarDocumentoDeNave(vehicleId, kind, archivo);
     await prisma.$transaction(async (tx) => {
+      let cambioFecha;
+      if (kind === "POLIZA_SERVICIO_PUBLICO" && expiresAt) {
+        const fecha = new Date(expiresAt.toISOString().slice(0, 10) + "T12:00:00-03:00");
+        const [vigente] = await tx.$queryRaw<{ secondaryPolicyDueAt: Date | null }[]>`
+          SELECT "secondaryPolicyDueAt" FROM "Vehicle" WHERE "id" = ${vehicleId} FOR UPDATE
+        `;
+        if (!vigente) throw new Error("La nave ya no existe.");
+        if (vigente.secondaryPolicyDueAt?.toISOString().slice(0, 10) !== vencimientoTexto) {
+          await tx.vehicle.update({ where: { id: vehicleId }, data: { secondaryPolicyDueAt: fecha } });
+          cambioFecha = { before: vigente.secondaryPolicyDueAt?.toISOString().slice(0, 10) ?? null, after: vencimientoTexto };
+        }
+      }
       const documento = await tx.vehicleDocument.create({
         data: {
           vehicleId,
@@ -79,6 +91,7 @@ export async function uploadVehicleDocumentAction(_state: AdminFormState, formDa
         entityLabel: nave.name,
         summary: `Documentación: ${TIPO_DE_DOCUMENTO_LABEL[kind].toLowerCase()} adjunta`,
         changes: {
+          ...(cambioFecha && { secondaryPolicyDueAt: cambioFecha }),
           "documento.kind": { before: null, after: kind },
           "documento.fileName": { before: null, after: documento.fileName },
           // Una fecha vacía no es «cambió a null»: se dice sólo cuando el papel la declara.

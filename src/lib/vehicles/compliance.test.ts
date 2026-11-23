@@ -70,6 +70,12 @@ describe("vencimientos de la flota", () => {
     expect(filas.map((f) => f.tipo)).toEqual(["Póliza", "Técnica", "RTO"]);
   });
 
+  it("cuenta las dos pólizas de una suplente y avisa primero la que vence antes", () => {
+    const unidad = { policyDueAt: new Date(2026, 11, 17), secondaryPolicyDueAt: new Date(2026, 10, 5) };
+    expect(resumenVencimientos([unidad], hoy)).toEqual({ vencidos: 0, proximos: 2 });
+    expect(peorVencimiento(unidad, hoy)?.tipo).toBe("Segunda póliza de servicio público");
+  });
+
   it("sin ningún vencimiento cargado no inventa un estado", () => {
     expect(peorVencimiento({}, hoy)).toBeNull();
   });

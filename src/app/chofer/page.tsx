@@ -24,7 +24,8 @@ export default async function DriverPage() {
         name: true,
         brand: true,
         model: true,
-        licensePlate: true
+        licensePlate: true,
+        secondaryPolicyDueAt: true
       }
     }),
     prisma.driverVehicleLocation.findUnique({
@@ -45,7 +46,7 @@ export default async function DriverPage() {
   const documentosDeLaNave = naveEnUso
     ? await prisma.vehicleDocument.findMany({
         where: { vehicleId: naveEnUso.id },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: { id: true, kind: true, fileName: true, createdAt: true, expiresAt: true }
       })
     : [];
@@ -74,7 +75,7 @@ export default async function DriverPage() {
       <DriverLocationPanel vehicles={vehicles} initialVehicleId={currentLocation?.vehicleId} />
       <DriverRouteSchedulesPanel routes={scheduleDashboard.routes} schedules={scheduleDashboard.schedules} />
       {naveEnUso ? (
-        <DriverVehicleDocuments vehicleId={naveEnUso.id} vehicleName={naveEnUso.name} documentos={documentosDeLaNave} />
+        <DriverVehicleDocuments vehicleId={naveEnUso.id} vehicleName={naveEnUso.name} secondaryPolicyDueAt={naveEnUso.secondaryPolicyDueAt} documentos={documentosDeLaNave} />
       ) : null}
       <ChapelcoDriverPanel runs={chapelcoRuns} />
     </main>

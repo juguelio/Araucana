@@ -24,10 +24,10 @@ export default async function DocumentacionDeNavePage({ params, searchParams }: 
   const nave = await cargarNave(id);
   const documentos = await prisma.vehicleDocument.findMany({
     where: { vehicleId: id },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: { id: true, kind: true, fileName: true, createdAt: true, expiresAt: true, uploadedByName: true }
   });
-  const tipos = documentosPorTipo(documentos);
+  const tipos = documentosPorTipo(documentos, Boolean(nave.secondaryPolicyDueAt));
   const conPapel = tipos.filter((t) => t.vigente).length;
 
   return (
@@ -84,6 +84,10 @@ export default async function DocumentacionDeNavePage({ params, searchParams }: 
             ) : null}
           </div>
         ))}
+        {!tipos.some(t => t.tipo === "POLIZA_SERVICIO_PUBLICO") && <details className="plain-card admin-section">
+          <summary>Agregar segunda póliza de servicio público</summary>
+          <DocumentoForm action={uploadVehicleDocumentAction} vehicleId={id} kind="POLIZA_SERVICIO_PUBLICO" etiqueta="Segunda póliza de servicio público" />
+        </details>}
       </section>
     </AdminShell>
   );

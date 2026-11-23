@@ -104,6 +104,7 @@ function vehicleData(formData: FormData) {
       rtoDueAt: dateOrNull(formData, "rtoDueAt"),
       insurer: optionalValue(formData, "insurer"),
       policyDueAt: dateOrNull(formData, "policyDueAt"),
+      ...(formData.has("secondaryPolicyDueAt") && { secondaryPolicyDueAt: dateOrNull(formData, "secondaryPolicyDueAt") }),
       publicTransport: formData.get("publicTransport") === "on",
       kind: value(formData, "kind") || "CAMIONETA",
       notes: optionalValue(formData, "notes")

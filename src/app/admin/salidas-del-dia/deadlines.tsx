@@ -17,7 +17,7 @@ function age(purchase: Date | null, date: string) {
 export async function Deadlines({ date, filter }: { date: string; filter?: string }) {
   const [fleet, drivers] = await Promise.all([
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: [{ name: "asc" }, { id: "asc" }],
-      select: { id: true, name: true, internalNumber: true, acquiredAt: true, technicalInspectionDueAt: true, rtoDueAt: true, policyDueAt: true,
+      select: { id: true, name: true, internalNumber: true, acquiredAt: true, technicalInspectionDueAt: true, rtoDueAt: true, policyDueAt: true, secondaryPolicyDueAt: true,
         documents: { select: { id: true, kind: true, createdAt: true }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], distinct: ["vehicleId", "kind"] } } }),
     prisma.user.findMany({ where: { isActive: true, role: "DRIVER" }, orderBy: [{ name: "asc" }, { email: "asc" }],
       select: { id: true, name: true, email: true, driverProfile: { select: { licenseExpiresAt: true, criminalRecordExpiresAt: true } } } })
@@ -40,7 +40,8 @@ export async function Deadlines({ date, filter }: { date: string; filter?: strin
       return { key: "v-" + v.id, label: v.name,
         detail: [v.internalNumber && "Int. " + v.internalNumber, age(v.acquiredAt, date)].filter(Boolean).join(" · "),
         href: "/admin/naves/" + v.id + "/vencimientos", docs: [
-          paper("Técnica", v.technicalInspectionDueAt), paper("RTO", v.rtoDueAt), paper("Póliza", v.policyDueAt)
+          paper("Técnica", v.technicalInspectionDueAt), paper("RTO", v.rtoDueAt), paper("Póliza", v.policyDueAt),
+          ...(v.secondaryPolicyDueAt || latest.POLIZA_SERVICIO_PUBLICO ? [paper("Segunda póliza de servicio público", v.secondaryPolicyDueAt)] : [])
         ] };
     }),
     ...drivers.map(d => ({ key: "d-" + d.id, label: d.name || d.email, detail: "Chofer", href: "/admin/choferes/" + d.id,

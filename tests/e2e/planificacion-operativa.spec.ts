@@ -139,3 +139,45 @@ test("incluye la recorrida nocturna en el aviso correcto y permite crear un tras
     await db.user.deleteMany({ where: { id: { in: [admin.id, driver.id] } } });
   }
 });
+
+test("una suplente conserva las dos pólizas y el chofer ve el archivo vigente de cada cobertura", async ({ page }) => {
+  const tag = randomUUID();
+  const passwordHash = await bcrypt.hash(tag, 6);
+  const admin = await db.user.create({ data: { email: "admin-" + tag + "@example.test", passwordHash, role: "ADMIN", isActive: true } });
+  const driver = await db.user.create({ data: { email: "chofer-" + tag + "@example.test", passwordHash, role: "DRIVER", isActive: true } });
+  const paper = (kind: string, id: string, day: string) => ({
+    kind, fileName: id + ".pdf", blobPathname: tag + "/" + id + ".pdf", blobUrl: "https://example.invalid/" + id,
+    sizeBytes: 100, contentType: "application/pdf", createdAt: new Date(day)
+  });
+  const vehicle = await db.vehicle.create({ data: {
+    name: "Suplente " + tag, brand: "Demo", model: "Combi", policyDueAt: new Date("2033-03-15T15:00:00Z"),
+    seats: { create: { number: "1", row: 1, column: 1 } },
+    documents: { create: [paper("POLIZA", "base", "2033-01-10"), paper("POLIZA_SERVICIO_PUBLICO", "anterior", "2033-01-01"), paper("POLIZA_SERVICIO_PUBLICO", "vigente", "2033-01-15")] }
+  }, include: { documents: true } });
+  try {
+    await db.driverVehicleLocation.create({ data: { driverId: driver.id, vehicleId: vehicle.id, latitude: 0, longitude: 0, recordedAt: new Date() } });
+    expect((await page.request.post("/api/v1/auth/login", { data: { email: admin.email, password: tag } })).status()).toBe(200);
+    await page.goto("/admin/naves/" + vehicle.id + "/editar");
+    await page.getByLabel(/Vencimiento de segunda póliza/).fill("2033-03-05");
+    await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+    await expect.poll(async () => (await db.vehicle.findUniqueOrThrow({ where: { id: vehicle.id } })).secondaryPolicyDueAt?.toISOString().slice(0, 10)).toBe("2033-03-05");
+    await page.goto("/admin?date=2033-03-01&vista=vencimientos");
+    const href = (fileName: string) => "/api/vehiculos/" + vehicle.id + "/documentos/" + vehicle.documents.find(doc => doc.fileName === fileName)!.id;
+    const table = page.getByRole("table");
+    const primary = table.getByRole("row").filter({ hasText: vehicle.name });
+    await expect(primary).toContainText("15/03/2033");
+    const secondary = table.getByRole("row").filter({ has: page.locator('a[href="' + href("vigente.pdf") + '"]') });
+    await expect(secondary).toContainText("Segunda póliza de servicio público");
+    await expect(secondary).toContainText("05/03/2033");
+    await expect(secondary.getByRole("link", { name: "Abrir archivo" })).toHaveAttribute("href", href("vigente.pdf"));
+    expect((await page.request.post("/api/v1/auth/login", { data: { email: driver.email, password: tag } })).status()).toBe(200);
+    await page.goto("/chofer");
+    const papers = page.getByRole("region", { name: "Papeles de la unidad" });
+    await expect(papers.getByRole("link", { name: "Abrir PDF" })).toHaveCount(2);
+    await expect(papers.getByRole("listitem").filter({ hasText: "Segunda póliza" }).getByRole("link")).toHaveAttribute("href", href("vigente.pdf"));
+    await expect(papers.getByRole("listitem").filter({ hasText: "Póliza de seguro" }).getByRole("link")).toHaveAttribute("href", href("base.pdf"));
+  } finally {
+    await db.vehicle.delete({ where: { id: vehicle.id } });
+    await db.user.deleteMany({ where: { id: { in: [admin.id, driver.id] } } });
+  }
+});

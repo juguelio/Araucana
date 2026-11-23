@@ -232,6 +232,7 @@ export const CAMPOS_DE_PAPELES = {
   technicalInspectionDueAt: "Técnica (VTV)",
   rtoDueAt: "RTO",
   policyDueAt: "Póliza",
+  secondaryPolicyDueAt: "Segunda póliza de servicio público",
   insurer: "Aseguradora",
   publicTransport: "Transporte público"
 } as const;
