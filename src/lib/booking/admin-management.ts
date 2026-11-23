@@ -172,6 +172,22 @@ export async function manageReservation(code: string, command: ReservationOperat
             }
           });
           await tx.chapelcoManifestStop.deleteMany({ where: { reservationId: id, status: "PENDING" } });
+          // Boleto numerado (#370): conserva su número y queda ANULADO con motivo, fecha y usuario.
+          if (reservation.bookingMode === "SEATED") {
+            const boleto = await tx.serviceTicket.findUnique({ where: { reservationId: id } });
+            if (boleto && boleto.status === "EMITIDO") {
+              await tx.serviceTicket.update({
+                where: { id: boleto.id },
+                data: {
+                  status: "ANULADO",
+                  annulledAt: new Date(),
+                  annulledById: actor?.id ?? null,
+                  annulledByName: actor ? actor.name?.trim() || actor.email : command.cancelledBy ?? null,
+                  annulReason: command.reason
+                }
+              });
+            }
+          }
           break;
         case "restore": {
           // Restitución (#117): volver atrás sin borrar la reserva. Se exigen las mismas condiciones
@@ -248,6 +264,17 @@ export async function manageReservation(code: string, command: ReservationOperat
               restoredByName: command.restoredBy ?? null
             }
           });
+          // La reserva vuelve a estar viva: el boleto anulado se reactiva con su mismo número
+          // (la base guarda un boleto por reserva y éste nunca viajó).
+          if (reservation.bookingMode === "SEATED") {
+            const boleto = await tx.serviceTicket.findUnique({ where: { reservationId: id } });
+            if (boleto && boleto.status === "ANULADO") {
+              await tx.serviceTicket.update({
+                where: { id: boleto.id },
+                data: { status: "EMITIDO", annulledAt: null, annulledById: null, annulledByName: null, annulReason: null }
+              });
+            }
+          }
           break;
         }
         case "delete":
