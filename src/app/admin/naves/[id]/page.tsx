@@ -141,7 +141,10 @@ export default async function FichaDeNavePage({ params, searchParams }: FichaDeN
         <section className="plain-card admin-section" aria-labelledby="nave-papeles">
           <div className="nave-seccion-top">
             <h2 id="nave-papeles">Papeles</h2>
-            <Link className="ghost-button" href={hrefDeNave(id, "vencimientos")}>Detalle</Link>
+            <span className="nave-seccion-acciones">
+              <Link className="ghost-button" href={hrefDeNave(id, "documentacion")}>Documentos</Link>
+              <Link className="ghost-button" href={hrefDeNave(id, "vencimientos")}>Detalle</Link>
+            </span>
           </div>
           <ul className="nave-lista">
             {papeles.map((p) => (
