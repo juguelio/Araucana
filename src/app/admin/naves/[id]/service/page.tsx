@@ -6,8 +6,9 @@ import {
   SECCIONES_DE_SERVICE, checksGuardados, fallasDePlanilla, fallasQueSeRepiten, notasGuardadas, resumenDePlanilla, type EstadoDeItem
 } from "@/lib/vehicles/service-sheet";
 import { CabeceraDeNave, SinDatos, cargarNave, diaUtc, hrefDeNave, nombreDeNave } from "../ficha-de-nave";
-import { createServiceSheetAction } from "../ficha-actions";
+import { createOdometerReadingAction, createServiceSheetAction, saveServiceIntervalAction } from "../ficha-actions";
 import { ServiceCardForm, type UltimoService } from "../service-form";
+import { estadoKilometraje, textoKilometraje } from "@/lib/vehicles/odometer";
 import "./service.css";
 
 type Props = {
@@ -42,6 +43,18 @@ export default async function ServiceDeNavePage({ params, searchParams }: Props)
     orderBy: [{ servicedAt: "desc" }, { createdAt: "desc" }]
   });
   const hoyClave = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Salta" }).format(new Date());
+  const lecturas = await prisma.vehicleOdometerReading.findMany({
+    where: { vehicleId: id },
+    orderBy: [{ readAt: "desc" }, { createdAt: "desc" }],
+    take: 5
+  });
+  const ultimaLectura = lecturas[0] ?? null;
+  const ultimoServiceKm = planillas.length ? Math.max(...planillas.map((p) => p.odometerKm)) : null;
+  const estadoKm = estadoKilometraje({
+    intervalo: nave.serviceIntervalKm,
+    ultimoServiceKm,
+    ultimaLecturaKm: ultimaLectura?.km ?? null
+  });
 
   const ultima = planillas[0];
   const ultimaChecks = ultima ? checksGuardados(ultima.checks) : {};
@@ -86,6 +99,34 @@ export default async function ServiceDeNavePage({ params, searchParams }: Props)
           ) : null}
         </section>
       ) : null}
+
+      <section className="plain-card admin-section" aria-labelledby="service-km">
+        <div className="nave-seccion-top">
+          <h2 id="service-km">Kilometraje</h2>
+          <span className="muted">{nave.serviceIntervalKm ? `Service cada ${km(nave.serviceIntervalKm)}` : "sin intervalo definido"}</span>
+        </div>
+        <p className="svc-km-estado" data-alerta={estadoKm.estado === "vencido" || estadoKm.estado === "proximo" || undefined}>{textoKilometraje(estadoKm)}</p>
+        <p className="muted">
+          {ultimaLectura
+            ? `Última lectura: ${km(ultimaLectura.km)} · ${diaUtc(ultimaLectura.readAt)}`
+            : "Todavía no hay lecturas de kilometraje entre services."}
+        </p>
+        <form className="svc-km-form" action={createOdometerReadingAction}>
+          <input type="hidden" name="vehicleId" value={id} />
+          <label>Km actual<input name="km" inputMode="numeric" required placeholder="Ej. 248500" /></label>
+          <button className="button" type="submit">Anotar km</button>
+        </form>
+        <form className="svc-km-form" action={saveServiceIntervalAction}>
+          <input type="hidden" name="vehicleId" value={id} />
+          <label>Service cada (km)<input name="intervalKm" inputMode="numeric" defaultValue={nave.serviceIntervalKm ?? ""} placeholder="Ej. 10000" /></label>
+          <button className="button" type="submit">Guardar intervalo</button>
+        </form>
+        {lecturas.length > 1 ? (
+          <ul className="muted">
+            {lecturas.slice(1).map((lectura) => <li key={lectura.id}>{diaUtc(lectura.readAt)} · {km(lectura.km)}</li>)}
+          </ul>
+        ) : null}
+      </section>
 
       <section className="plain-card admin-section" aria-labelledby="service-nueva">
         <h2 id="service-nueva">Cargar planilla de service</h2>

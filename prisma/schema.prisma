@@ -164,6 +164,9 @@ model Vehicle {
   damages      VehicleDamage[]
   serviceSheets VehicleServiceSheet[]
   documents    VehicleDocument[]
+  /** Cada cuántos km corresponde un service; null = la unidad no tiene intervalo definido. */
+  serviceIntervalKm Int?
+  odometerReadings VehicleOdometerReading[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt @default(now())
 
@@ -953,4 +956,20 @@ model SchoolRun {
   source       Json?
   revision     Int      @default(0)
   @@index([serviceDate, routeName])
+}
+
+/// Lectura de kilometraje de una unidad, entre services. Quique las anota cuando carga en YPF en ruta
+/// (#369): el service sabe el km con el que se hizo, esto dice cuánto se recorrió desde entonces.
+model VehicleOdometerReading {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  km        Int
+  readAt    DateTime @default(now())
+  /// PANEL · CHOFER · SERVICE
+  source    String   @default("PANEL")
+  createdBy String?
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId, readAt])
 }
