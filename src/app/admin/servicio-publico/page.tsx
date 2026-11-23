@@ -206,10 +206,14 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           )}
         </section>
 
-        <details className="plain-card sp-liquidacion">
+        <details className="plain-card sp-liquidacion" open={resumenMes.length === 0}>
           <summary>
-            <span>Días trabajados de {mesLabel}</span>
-            <small>Base para liquidación · sólo servicio público</small>
+            <span className="sp-liquidacion-titulo">Días trabajados de {mesLabel}</span>
+            <span className="sp-liquidacion-meta">
+              <small>Base para liquidación · sólo servicio público</small>
+              <span className="sp-liquidacion-estado">{resumenMes.length ? `${resumenMes.length} ${resumenMes.length === 1 ? "chofer" : "choferes"}` : "Sin datos"}</span>
+              <span className="sp-liquidacion-chevron" aria-hidden="true">⌄</span>
+            </span>
           </summary>
           {resumenMes.length ? (
             <div className="sp-tabla-wrap">
