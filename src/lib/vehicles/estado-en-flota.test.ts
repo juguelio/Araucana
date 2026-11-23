@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alertasDeNave, coincideBusqueda, entraEnPestana, estadoDeNave, leerPestanaDeFlota, papelEnPalabras, type NaveDelTablero } from "./estado-en-flota";
+import { alertasDeNave, coincideBusqueda, entraEnPestana, estadoDeNave, etiquetaCortaDeNave, leerPestanaDeFlota, papelEnPalabras, type NaveDelTablero } from "./estado-en-flota";
 
 const hoy = new Date(2026, 10, 20, 9, 0);
 const enDias = (dias: number) => new Date(2026, 10, 20 + dias, 12, 0);
@@ -51,6 +51,15 @@ describe("estadoDeNave: ¿puede salir? (tablero del 20-nov)", () => {
     expect(estadoDeNave({ ...sprinter, danios: [{ status: "REPARADO", severity: "GRAVE" }] }).clave).toBe("disponible");
   });
 
+  it("la tarjeta muestra un estado corto y claro", () => {
+    expect(etiquetaCortaDeNave(estadoDeNave(sprinter))).toBe("Activa");
+    expect(etiquetaCortaDeNave(estadoDeNave({ ...sprinter, serviciosHoy: 2 }))).toBe("Activa");
+    expect(etiquetaCortaDeNave(estadoDeNave({ ...sprinter, enRecorrido: true }))).toBe("Trabajando");
+    expect(etiquetaCortaDeNave(estadoDeNave({ ...sprinter, enMovimiento: true }))).toBe("En la calle");
+    expect(etiquetaCortaDeNave(estadoDeNave({ ...sprinter, danios: [{ status: "EN_REPARACION", severity: "LEVE" }] }))).toBe("En taller");
+    expect(etiquetaCortaDeNave(estadoDeNave({ ...sprinter, isActive: false }))).toBe("No habilitada");
+  });
+
   it("inactiva y utilitario no se asignan", () => {
     expect(estadoDeNave({ ...sprinter, isActive: false }).clave).toBe("inactiva");
     expect(estadoDeNave({ ...sprinter, kind: "UTILITARIO" }).clave).toBe("uso-interno");
@@ -100,7 +109,13 @@ describe("pestañas y búsqueda del tablero", () => {
   const enTaller = estadoDeNave({ ...sprinter, danios: [{ status: "EN_REPARACION", severity: "MODERADO" }] });
 
   it("cada pestaña junta lo suyo", () => {
-    expect(entraEnPestana("activas", { isActive: true }, disponible, null)).toBe(true);
+    expect(entraEnPestana("todas", { isActive: false }, enTaller, null)).toBe(true);
+    expect(entraEnPestana("activas", { isActive: true, publicTransport: true }, disponible, null, 9)).toBe(true);
+    expect(entraEnPestana("activas", { isActive: true, publicTransport: true }, disponible, null, 15)).toBe(false);
+    expect(entraEnPestana("inactivas", { isActive: true, publicTransport: true }, disponible, null, 15)).toBe(true);
+    expect(entraEnPestana("activas", { isActive: true, publicTransport: true }, disponible, { etiqueta: "x", tono: "atencion" })).toBe(false);
+    expect(entraEnPestana("activas", { isActive: true, publicTransport: true }, enTaller, null)).toBe(false);
+    expect(entraEnPestana("activas", { isActive: true, publicTransport: false }, disponible, null)).toBe(false);
     expect(entraEnPestana("alertas", { isActive: true }, disponible, null)).toBe(false);
     expect(entraEnPestana("alertas", { isActive: true }, disponible, { etiqueta: "x", tono: "atencion" })).toBe(true);
     expect(entraEnPestana("alertas", { isActive: true }, disponible, { etiqueta: "Sin fechas de papeles", tono: "normal" })).toBe(false);
@@ -110,11 +125,13 @@ describe("pestañas y búsqueda del tablero", () => {
     expect(entraEnPestana("recorrido", { isActive: true }, disponible, null)).toBe(false);
     expect(entraEnPestana("publico", { isActive: true, publicTransport: true }, disponible, null)).toBe(true);
     expect(entraEnPestana("inactivas", { isActive: false }, disponible, null)).toBe(true);
+    expect(entraEnPestana("inactivas", { isActive: true }, estadoDeNave({ ...sprinter, kind: "UTILITARIO" }), null)).toBe(true);
+    expect(entraEnPestana("inactivas", { isActive: true, publicTransport: false }, disponible, null)).toBe(true);
     expect(entraEnPestana("activas", { isActive: false }, disponible, null)).toBe(false);
   });
 
-  it("una vista desconocida cae en «activas»", () => {
-    expect(leerPestanaDeFlota("cualquiera")).toBe("activas");
+  it("una vista desconocida cae en «todas»", () => {
+    expect(leerPestanaDeFlota("cualquiera")).toBe("todas");
     expect(leerPestanaDeFlota("taller")).toBe("taller");
   });
 
