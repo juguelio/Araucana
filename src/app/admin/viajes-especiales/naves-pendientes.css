@@ -1,0 +1,7 @@
+.trip-assign-trigger { cursor: pointer; text-decoration: underline; text-underline-offset: .18em; }
+dialog.trip-assign-dialog { position: fixed; inset: 0; margin: auto; width: min(42rem, 94vw); max-height: 88dvh; overflow: auto; color: var(--ink); padding: 1.5rem; text-align: left; }
+.trip-assign-dialog:not([open]) { display: none; }
+.trip-assign-dialog::backdrop { background: rgba(20, 35, 30, .48); }
+.trip-assign-fields { display: grid; gap: 1rem; margin: 0; padding: 0; border: 0; min-width: 0; }
+.trip-assign-fields > fieldset { margin: 0; min-width: 0; padding: 1rem; border: 1px solid var(--line); border-radius: .75rem; }
+.trip-assign-fields > button { justify-self: start; }

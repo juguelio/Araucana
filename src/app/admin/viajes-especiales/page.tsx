@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NavesPendientes } from "./naves-pendientes";
 import type { Prisma } from "@prisma/client";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
@@ -97,8 +98,8 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   const orden = leerOrden(COLUMNAS, { columna: "fecha", direccion: porFecha }, { orden: value("orden"), dir: value("dir") });
   const ordenElegido = Boolean(value("orden")) && orden.columna === value("orden");
   const page = Math.min(10000, Math.max(1, Number.parseInt(value("pagina"), 10) || 1));
-  const [vehicles, trips, count, dias, agenda, conteos] = await Promise.all([
-    prisma.vehicle.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  const [vehicles, trips, count, dias, agenda, conteos, drivers] = await Promise.all([
+    prisma.vehicle.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, isActive: true, kind: true } }),
     prisma.specialTrip.findMany({
       where, skip: (page - 1) * porPagina, take: porPagina, orderBy: orderByDe(orden, porFecha),
       include: { assignments: { select: { vehicleId: true }, orderBy: { startsAt: "asc" } } }
@@ -118,8 +119,11 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
         count(*) filter (where t.status = 'CONFIRMED' and coalesce(t."endDate", t."serviceDate") >= ${claveDia(hoy)}::date
           and not exists (select 1 from "SpecialTripAssignment" a where a."tripId" = t.id))::int as sinnave,
         count(*)::int as total
-      from "SpecialTrip" t`
+      from "SpecialTrip" t`,
+    prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, email: true } })
   ]);
+  const fleet = vehicles.filter(v => v.isActive && v.kind !== "UTILITARIO").map(({ id, name }) => ({ id, name }));
+  const crew = drivers.map(d => ({ id: d.id, name: d.name ?? d.email }));
   const naves = new Map(vehicles.map((v) => [v.id, v.name]));
   const meses = mesesConViajes(dias.map((d) => ({ serviceDate: d.serviceDate, count: d._count._all })));
   const n = conteos[0] ?? { hoy: 0, semana: 0, pendientes: 0, sinnave: 0, total: 0 };
@@ -210,7 +214,11 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
               <td className="vesp-num" data-label="Pax">{trip.passengers ?? "—"}</td>
               <td className="vesp-nave" data-label="Nave">{asignadas.length ? <strong>{asignadas.join(", ")}</strong> : "Sin nave"}</td>
               <td data-label="Estado">
-                <span className="pill pill-estado" data-tono={estado.tono}>{estado.label}</span>
+                {!asignadas.length && ["PENDING", "CONFIRMED"].includes(trip.status)
+                  ? <NavesPendientes id={trip.id} version={trip.updatedAt.toISOString()} client={trip.client}
+                      start={claveDia(trip.serviceDate)} end={claveDia(trip.endDate ?? trip.serviceDate)}
+                      label={estado.label} tone={estado.tono} vehicles={fleet} drivers={crew} />
+                  : <span className="pill pill-estado" data-tono={estado.tono}>{estado.label}</span>}
                 {pendientes.length > 0 && <small className="vesp-falta">Falta: {pendientes.join(", ")}</small>}
               </td>
               <td data-label="Acciones"><Link className="table-link" href={`${base}/${trip.id}/editar`}>Editar</Link></td>
