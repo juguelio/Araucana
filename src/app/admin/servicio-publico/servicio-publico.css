@@ -406,6 +406,23 @@
   font-weight: 700;
 }
 
+.sp-no-venta {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sp-aviso {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid #e0d3b4;
+  border-radius: 12px;
+  background: #fdf6e5;
+  color: #6a5528;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .sp-vacio,
 .sp-sin-datos {
   margin: 0;
