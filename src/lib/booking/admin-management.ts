@@ -279,6 +279,17 @@ export async function manageReservation(code: string, command: ReservationOperat
         }
         case "delete":
           if (paid) throw new BookingError("PAYMENT_LOCKED", "La reserva tiene un pago registrado. Podés cancelarla para conservar el registro contable.");
+          // Boleto numerado (#381): el número emitido no se reutiliza ni se pierde con la reserva.
+          // La base también lo impide (`ON DELETE RESTRICT`); acá se devuelve el motivo legible.
+          if (reservation.bookingMode === "SEATED") {
+            const boleto = await tx.serviceTicket.findUnique({ where: { reservationId: id } });
+            if (boleto) {
+              throw new BookingError(
+                "TICKET_LOCKED",
+                `La reserva tiene el boleto ${boleto.displayNumber} de la serie: no se puede borrar porque el número emitido no se reutiliza. Cancelala para anular el boleto y conservar el registro.`
+              );
+            }
+          }
           await tx.reservation.delete({ where: { id } });
           // La fila desaparece: en la auditoría queda la foto de lo que se borró.
           await recordAudit(tx, {
