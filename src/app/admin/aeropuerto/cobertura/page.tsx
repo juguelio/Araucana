@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { ConcesionesNav } from "@/components/concesiones-nav";
 import { getAirportExtras } from "@/lib/airport/extras-settings";
 import { getAirportOfficePickup } from "@/lib/airport/office-pickup";
 import { getAirportCoverage } from "@/lib/airport/pickup-zone-settings";
@@ -13,8 +14,9 @@ export default async function AirportCoveragePage() {
   const [coverage, extras, officePickup] = await Promise.all([getAirportCoverage(), getAirportExtras(), getAirportOfficePickup()]);
 
   return (
-    <AdminShell title="Cobertura de aeropuerto" role={user.role}
+    <AdminShell title="Cobertura de aeropuerto" eyebrow="Concesiones" role={user.role}
       action={<Link className="ghost-button" href="/admin/aeropuerto">Volver a aeropuerto</Link>}>
+      <ConcesionesNav actual="aeropuerto" />
       <section className="plain-card admin-section">
         <CoverageEditor initialCoverage={coverage} />
       </section>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { ConcesionesNav } from "@/components/concesiones-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly, localInput } from "@/lib/special-trips/data";
@@ -22,8 +23,9 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
       gte: new Date(+day - 7 * 86400000), lte: new Date(+day + 7 * 86400000)
     } }, orderBy: { serviceDate: "asc" } })
   ]);
-  return <AdminShell title="Escolares" eyebrow="Operación" role={user.role} notice={params.aviso}
+  return <AdminShell title="Concesiones" eyebrow="Escolares" role={user.role} notice={params.aviso}
     action={<Link className="button" href={`/admin/escolares/nuevo?fecha=${date}`}>Nuevo recorrido</Link>}>
+    <ConcesionesNav actual="escolares" />
     <section className="plain-card admin-section">
       <form className="inline-actions"><label>Fecha de servicio <input type="date" name="fecha" defaultValue={date} required /></label><button className="ghost-button">Ver día</button></form>
       <nav className="school-days" aria-label="Días con recorridos">{days.map(({ serviceDate }) => {

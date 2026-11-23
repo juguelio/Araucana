@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { ConcesionesNav } from "@/components/concesiones-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly, localInput } from "@/lib/special-trips/data";
@@ -23,8 +24,9 @@ export async function SchoolEditPage({ id, fecha, aviso }: { id?: string; fecha?
   drivers.sort((a, b) => Number(b.id === run?.driverId) - Number(a.id === run?.driverId));
   vehicles.sort((a, b) => Number(b.id === run?.vehicleId) - Number(a.id === run?.vehicleId));
   const back = run ? `/admin/escolares/${run.id}` : `/admin/escolares?fecha=${date}`;
-  return <AdminShell title={run ? "Editar recorrido" : "Nuevo recorrido"} eyebrow="Escolares" role={user.role} notice={aviso}
+  return <AdminShell title={run ? "Editar recorrido" : "Nuevo recorrido"} eyebrow="Concesiones · Escolares" role={user.role} notice={aviso}
     action={<Link className="ghost-button" href={back}>{run ? "Volver a la ficha" : "Volver al listado"}</Link>}>
+    <ConcesionesNav actual="escolares" />
     <form action={saveSchoolRun}>
       <input type="hidden" name="id" value={run?.id ?? randomUUID()} /><input type="hidden" name="revision" value={run?.revision ?? ""} />
       <section className="plain-card admin-section"><h2>Recorrido</h2><div className="admin-form-grid">

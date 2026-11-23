@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { ConcesionesNav } from "@/components/concesiones-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import "../escolares.css";
@@ -22,8 +23,9 @@ export default async function SchoolDetail({ params, searchParams }: {
     ["Nave", run.vehicle?.name ?? "Sin asignar"], ["Segunda persona", run.companion ?? "Sin asignar"],
     ["Observaciones", run.notes ?? "—"], ["Pendiente de revisión", run.review ?? "—"]
   ];
-  return <AdminShell title={run.routeName} eyebrow="Escolares" role={user.role} notice={(await searchParams).aviso}
+  return <AdminShell title={run.routeName} eyebrow="Concesiones · Escolares" role={user.role} notice={(await searchParams).aviso}
     action={<div className="inline-actions"><Link className="ghost-button" href={`/admin/escolares?fecha=${date}`}>Volver al listado</Link><Link className="button" href={`/admin/escolares/${id}/editar`}>Editar recorrido</Link></div>}>
+    <ConcesionesNav actual="escolares" />
     <section className="plain-card admin-section"><dl className="school-facts">{fields.map(([label,value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
     {source && <section className="plain-card admin-section"><h2>Planilla de origen</h2><p>Hoja {String(source.sheet)} · Fila {String(source.row)}</p>
       <p className="muted">Chofer {String(source.driver || "sin dato")} · Nave {String(source.vehicle || "sin dato")}</p></section>}
