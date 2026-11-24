@@ -16,7 +16,7 @@ export async function TripEditPage({ id }: { id?: string }) {
   const [vehicles, drivers] = await Promise.all([
     prisma.vehicle.findMany({
       where: { OR: [{ isActive: true, kind: { not: "UTILITARIO" } }, { id: { in: trip?.assignments.map((a) => a.vehicleId) ?? [] } }] },
-      orderBy: { name: "asc" }, select: { id: true, name: true }
+      orderBy: { name: "asc" }, select: { id: true, name: true, internalNumber: true, licensePlate: true }
     }),
     prisma.user.findMany({
       where: { OR: [{ role: "DRIVER", isActive: true }, { id: { in: trip?.assignments.flatMap((a) => a.driverId ?? []) ?? [] } }] },
@@ -25,7 +25,7 @@ export async function TripEditPage({ id }: { id?: string }) {
   ]);
   return <AdminShell title={trip ? "Editar viaje especial" : "Nuevo viaje especial"} eyebrow={trip?.client} role={user.role}
     action={<Link className="ghost-button" href={trip ? `/admin/viajes-especiales/${trip.id}` : "/admin/viajes-especiales"}>{trip ? "Volver al detalle" : "Volver a Viajes especiales"}</Link>}>
-    <TripForm key={trip ? `${trip.id}:${trip.updatedAt.toISOString()}` : "new"} vehicles={vehicles} drivers={drivers.map((d) => ({ id: d.id, name: d.name ?? d.email }))}
+    <TripForm key={trip?.id ?? "new"} vehicles={vehicles} drivers={drivers.map((d) => ({ id: d.id, name: d.name ?? d.email, email: d.email }))}
       draft={{
         id: trip?.id ?? null, version: trip?.updatedAt.toISOString() ?? null, client: trip?.client ?? "",
         serviceDate: trip?.serviceDate.toISOString().slice(0, 10) ?? localInput(new Date()).slice(0, 10),

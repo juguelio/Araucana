@@ -7,11 +7,12 @@ import {
 } from "@/lib/special-trips/data";
 import styles from "./trip-form.module.css";
 import { TripItinerary } from "./trip-itinerary";
+import { TripFleetModal } from "./trip-fleet-modal";
 import { FleetConflictWarning } from "../fleet-assignment-form";
 import { saveTrip, type TripFormResult } from "./actions";
 import { cantidadDias, navesQueNoCubren, ocupacionDelViaje } from "@/lib/special-trips/rango";
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; email?: string; internalNumber?: string | null; licensePlate?: string | null };
 type Draft = {
   id: string | null; version: string | null; serviceDate: string; endDate: string; client: string; contact?: string | null;
   contactName?: string | null; contactPhone?: string | null;
@@ -23,6 +24,8 @@ type Draft = {
 export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles: Option[]; drivers: Option[] }) {
   const [legs, setLegs] = useState(draft.legs.length ? draft.legs : [emptyLeg]);
   const [assignments, setAssignments] = useState(draft.assignments);
+  const [savingAssignments, setSavingAssignments] = useState(false);
+  const [version, setVersion] = useState(draft.version);
   const [payments, setPayments] = useState(draft.payments);
   const [total, setTotal] = useState(draft.total);
   const [currency, setCurrency] = useState(draft.currency);
@@ -36,7 +39,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
   const bloque = ocupacionDelViaje(serviceDate, endDate);
   const sinCubrir = dias > 1 ? navesQueNoCubren(assignments, serviceDate, endDate) : [];
   const nombreNave = (id: string) => vehicles.find((v) => v.id === id)?.name ?? "La nave";
-  const [state, dispatch, pending] = useActionState(saveTrip.bind(null, draft.id, draft.version), {} as TripFormResult);
+  const [state, dispatch, pending] = useActionState(saveTrip.bind(null, draft.id, version), {} as TripFormResult);
   const cents = parseMoney(total);
   const { paid, balance } = tripPaymentTotals(cents, payments);
   const formatter = new Intl.NumberFormat("es-AR", { style: "currency", currency });
@@ -52,6 +55,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
   return (
     <form onSubmit={(event) => {
       event.preventDefault();
+      if (savingAssignments) return;
       const form = new FormData(event.currentTarget, event.nativeEvent instanceof SubmitEvent ? event.nativeEvent.submitter : undefined);
       form.set("legs", JSON.stringify(legs));
       form.set("assignments", JSON.stringify(assignments));
@@ -80,8 +84,14 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
               <p className="muted">Ingresá el intervalo durante el que la nave no estará disponible, en hora argentina.{dias > 1 ? ` Al agregar una, se propone el viaje entero (${dias} días).` : ""}</p>
               {sinCubrir.length > 0 && <div className={styles.aviso} role="status">
                 <p>{sinCubrir.map((a) => nombreNave(a.vehicleId)).join(", ")} no {sinCubrir.length === 1 ? "queda ocupada" : "quedan ocupadas"} todos los días del viaje: el tablero la{sinCubrir.length === 1 ? "" : "s"} va a mostrar libre{sinCubrir.length === 1 ? "" : "s"} mientras está afuera.</p>
-                <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.map((a) => sinCubrir.includes(a) ? { ...a, ...bloque } : a))}>Ocupar los {dias} días</button>
+                {!draft.id && <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.map((a) => sinCubrir.includes(a) ? { ...a, ...bloque } : a))}>Ocupar los {dias} días</button>}
               </div>}
+              {draft.id && version ? (
+                <TripFleetModal id={draft.id} version={version} client={draft.client} assignments={assignments}
+                  vehicles={vehicles} drivers={drivers} range={bloque} disabled={pending} onSavingChange={setSavingAssignments}
+                  extend={sinCubrir.length ? { days: dias, assignments: assignments.map((a) => sinCubrir.includes(a) ? { ...a, ...bloque } : a) } : undefined}
+                  onSaved={(next, savedVersion) => { setVersion(savedVersion); setAssignments(next); }} />
+              ) : <>
               {assignments.map((assignment, index) => {
                 const change = (patch: Partial<AssignmentInput>) => setAssignments(assignments.map((item, i) => i === index ? { ...item, ...patch } : item));
                 return <fieldset key={index} className="admin-form-grid">
@@ -94,6 +104,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
                 </fieldset>;
               })}
               <button type="button" className="ghost-button" onClick={() => setAssignments([...assignments, { vehicleId: "", driverId: "", ...bloque }])}>{assignments.length ? "Agregar otra nave" : "Agregar nave y chofer"}</button>
+              </>}
             </section>
             <section className={`plain-card admin-section ${styles.section}`} id="cobros">
               <h2>Precio y cobros</h2>
@@ -142,7 +153,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
             </div>
             {state.error && <p className="form-alert error" role="alert">{state.error}</p>}
             <FleetConflictWarning conflicts={state.conflicts} confirmation={state.confirmation} />
-            <button className="button" type="submit">{pending ? "Guardando…" : "Guardar viaje"}</button>
+            <button className="button" type="submit" disabled={savingAssignments}>{pending ? "Guardando…" : "Guardar viaje"}</button>
           </aside>
         </div>
       </fieldset>

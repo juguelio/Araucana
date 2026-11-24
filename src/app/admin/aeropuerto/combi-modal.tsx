@@ -8,6 +8,7 @@ import { ChoferBuscador, type ChoferElegible } from "./chofer-buscador";
 import { NaveBuscador, type NaveElegible } from "./nave-buscador";
 import { NAVES_STEP_FIELD, ORDER_RETURN_FIELD } from "./return-to-order";
 import "./aeropuerto.css";
+import "./combi-modal.css";
 
 /** Lo que necesita el modal de un vuelo: sus combis (con butacas y chofer) y sus pasajeros. */
 export const INCLUDE_COMBIS_DEL_VUELO = {
