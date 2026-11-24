@@ -72,7 +72,10 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
     ...vuelos.map((asignacion): Ocupacion => {
       const ventana = airportServiceWindow({ ...asignacion.flight, status: asignacion.flight.status ?? undefined });
       return {
-        clave: `vuelo:${asignacion.flightId}`,
+        // La clave identifica la asignación, no el vuelo: un vuelo con dos combis tiene dos
+        // asignaciones, y excluir el vuelo entero marcaba como libres naves y choferes que ya
+        // están en él (#439).
+        clave: `vuelo:${asignacion.flightId}:${asignacion.vehicleId}`,
         vehicleIds: [asignacion.vehicleId],
         driverIds: asignacion.driverId ? [asignacion.driverId] : [],
         desde: ventana.startsAt,

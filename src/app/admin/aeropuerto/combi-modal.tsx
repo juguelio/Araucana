@@ -121,10 +121,13 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
     ? <input type="hidden" name={ORDER_RETURN_FIELD} value={volverAOrden} />
     : paso ? <input type="hidden" name={NAVES_STEP_FIELD} value={vuelo.id} /> : null;
   const vuelos = [vuelo.number, ...recorrida].join(" + ");
-  // El tramo del vuelo (recorrida o reparto) y quién está en otro servicio en ese tramo. El propio
-  // vuelo y los de su recorrida no cuentan como cruce.
+  // El tramo del vuelo (recorrida o reparto) y quién está en otro servicio en ese tramo. Los vuelos
+  // de la misma recorrida no cuentan como cruce: el chofer y la nave hacen toda la vuelta. Las OTRAS
+  // combis de este vuelo sí cuentan — si ya están acá, no están libres (#439).
   const ventana = airportServiceWindow({ ...vuelo, status: vuelo.status ?? undefined });
-  const propios = [`vuelo:${vuelo.id}`, ...vuelo.assignments.map((a) => `vuelo:${a.flightId}`)];
+  const propios = vuelo.assignments
+    .filter((asignacion) => asignacion.flightId !== vuelo.id)
+    .map((asignacion) => `vuelo:${asignacion.flightId}:${asignacion.vehicleId}`);
   const tramo = { desde: ventana.startsAt, hasta: ventana.endsAt };
   const ocupacionNaves = ocupacionEnVentana(ocupacion, "nave", tramo, propios);
   const ocupacionChoferes = ocupacionEnVentana(ocupacion, "chofer", tramo, propios);
