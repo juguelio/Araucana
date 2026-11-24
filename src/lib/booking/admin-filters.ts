@@ -202,6 +202,8 @@ export const adminScheduleFiltersSchema = z.object({
   from: z.string().trim().max(120).optional(),
   to: z.string().trim().max(120).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
+  // El último día del rango es inclusivo. Sin «until», se busca sólo el día de «date».
+  until: z.iso.date().optional(),
   bookableOnly: z.boolean().optional(),
   /** La boletería no muestra salidas de rutas dadas de baja, aunque tengan horario cargado. */
   activeRoutesOnly: z.boolean().optional(),
@@ -219,7 +221,8 @@ export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new D
   if (filters.to) AND.push({ route: { is: { to: { equals: filters.to, mode: "insensitive" } } } });
   if (filters.date) {
     const gte = argentinaDayStart(filters.date);
-    AND.push({ departureAt: { gte, lt: new Date(gte.getTime() + 86400000) } });
+    const last = filters.until && filters.until >= filters.date ? argentinaDayStart(filters.until) : gte;
+    AND.push({ departureAt: { gte, lt: new Date(last.getTime() + 86_400_000) } });
   }
   if (filters.excludeAirport) {
     // Sin esta exclusión el tramo San Martín ↔ Aeropuerto Chapelco se ofrecía con sus salidas

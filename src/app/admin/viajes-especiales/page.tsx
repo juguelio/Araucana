@@ -137,6 +137,12 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
     const s = query.toString();
     return s ? `${base}?${s}` : base;
   };
+  const calendarQuery = new URLSearchParams();
+  for (const key of ["semana", "q", "estado", "nave"]) {
+    const selected = value(key);
+    if (selected) calendarQuery.set(key, selected);
+  }
+  const calendarHref = `${base}/semana${calendarQuery.size ? `?${calendarQuery}` : ""}`;
   const desde = count ? (page - 1) * porPagina + 1 : 0;
   const hasta = Math.min(page * porPagina, count);
   const titulo = filtroMes ? `Viajes de ${meses.find((m) => m.clave === mes)?.label ?? mes}` : vistas[vista];
@@ -148,6 +154,7 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   );
 
   return <AdminShell title="Viajes especiales" role={user.role} action={<div className="inline-actions">
+    <Link href={calendarHref} className="ghost-button" prefetch={false}>Calendario semanal</Link>
     <Link href={`${base}/importar`} className="ghost-button">Importar historial</Link>
     <Link href={`${base}/nuevo`} className="button">Nuevo viaje</Link>
   </div>}>
