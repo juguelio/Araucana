@@ -27,7 +27,13 @@ it("abre la ficha desde el listado y la edición desde la ficha", async () => {
   expect(list).toContain(">Mañana</h2>");
   expect(list).toContain("Confirmar horario");
   expect(list).toContain("Entrada norte");
-  expect(list).toContain('aria-label="Días de esta semana"');
+  // El calendario semanal sigue arriba del día, con el día marcado, como en Viajes especiales.
+  expect(list).toContain('aria-label="Calendario de la semana del 23 nov al 29 nov"');
+  expect(list.match(/class="cn-semana-dia"/g)).toHaveLength(7);
+  expect(list).toContain('data-actual="true"');
+  expect(list).toContain('href="/admin/escolares?fecha=2026-11-24#servicio-esc-7"');
+  expect(list).toContain('id="servicio-esc-7"');
+  expect(list).toContain(">Volver al calendario</a>");
   const detail = renderToStaticMarkup(await SchoolDetail({ params: Promise.resolve({ id: fixture.id }), searchParams: Promise.resolve({}) }));
   expect(detail).toContain('href="/admin/escolares/esc-7/editar"');
   expect(detail).toContain("Entrada norte");

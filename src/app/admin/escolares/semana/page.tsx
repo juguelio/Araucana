@@ -5,13 +5,23 @@ import { ConcesionesVistaNav } from "@/components/concesiones-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly, localInput } from "@/lib/special-trips/data";
-import { etiquetaDeConcesion, leerTipoDeConcesion } from "@/lib/school-runs/kinds";
+import { leerTipoDeConcesion } from "@/lib/school-runs/kinds";
 import { diasDeSemana, etiquetaDeSemana, leerSemana, lunesDe, sumarDias } from "@/lib/school-runs/week";
+import { CalendarioSemana, type ServicioDeCalendario } from "../calendario-semana";
 import "../escolares.css";
 
-const diaLargo = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const diaCorto = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZone: "UTC" });
 const mesCorto = new Intl.DateTimeFormat("es-AR", { month: "short", timeZone: "UTC" });
+
+function paraCalendario(run: {
+  id: string; kind: string; routeName: string; shift: string; companion: string | null;
+  driver: { name: string | null; email: string } | null; vehicle: { name: string } | null;
+}): ServicioDeCalendario {
+  return {
+    id: run.id, kind: run.kind, routeName: run.routeName, shift: run.shift, companion: run.companion,
+    chofer: run.driver ? run.driver.name ?? run.driver.email : null, nave: run.vehicle?.name ?? null
+  };
+}
 
 function fechaDe(dia: string) {
   return new Date(`${dia}T12:00:00.000Z`);
@@ -121,40 +131,14 @@ export default async function WeekPage({ searchParams }: {
           </div>
         </section>
       ) : (
-      <section className="cn-semana" aria-label={`Semana del ${etiquetaDeSemana(semana)}`}>
-        <div className="cn-semana-scroll">
-          <div className="cn-semana-grid">
-            {dias.map((dia) => {
-              const delDia = porDia.get(dia) ?? [];
-              const fecha = fechaDe(dia);
-              return (
-                <article key={dia} className="cn-semana-dia" data-hoy={dia === hoy}>
-                  <header>
-                    <span>{diaCorto.format(fecha)}</span>
-                    <strong>{fecha.getUTCDate()}</strong>
-                    <small>{mesCorto.format(fecha)}</small>
-                  </header>
-                  <div className="cn-semana-pie cn-semana-pie-top">
-                    <Link className="cn-semana-ver-dia" href={hrefDia(dia)}>Ver el día →</Link>
-                    <Link className="cn-semana-agregar" href={hrefNuevo(dia)}>+ Agregar</Link>
-                  </div>
-                  <p className="muted">{delDia.length ? `${delDia.length} ${delDia.length === 1 ? "servicio" : "servicios"}` : "Sin servicios"}</p>
-                  <div className="cn-semana-lista">
-                    {delDia.map((run) => (
-                      <Link key={run.id} className="cn-semana-servicio" href={hrefDia(dia, run.kind)} title={diaLargo.format(fecha)}>
-                        <strong>{run.routeName}</strong>
-                        <span>{run.shift}{run.companion ? ` · ${run.companion}` : ""}</span>
-                        <span className="pill">{etiquetaDeConcesion(run.kind)}</span>
-                        <span>{run.driver?.name ?? run.driver?.email ?? "Sin chofer"} · {run.vehicle?.name ?? "Sin nave"}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+      <CalendarioSemana
+        dias={dias}
+        hoy={hoy}
+        porDia={new Map([...porDia].map(([dia, delDia]) => [dia, delDia.map(paraCalendario)]))}
+        hrefDia={hrefDia}
+        hrefNuevo={hrefNuevo}
+        etiqueta={`Semana del ${etiquetaDeSemana(semana)}`}
+      />
       )}
     </AdminShell>
   );

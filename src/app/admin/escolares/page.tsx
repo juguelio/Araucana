@@ -14,9 +14,10 @@ import {
   type Choque, type EstadoDelServicio, type FiltroDelDia
 } from "@/lib/school-runs/dia";
 import { etiquetaDeConcesion, leerTipoDeConcesion } from "@/lib/school-runs/kinds";
-import { diasDeSemana, lunesDe, sumarDias } from "@/lib/school-runs/week";
+import { diasDeSemana, etiquetaDeSemana, lunesDe, sumarDias } from "@/lib/school-runs/week";
 import { dateOnly, localInput } from "@/lib/special-trips/data";
 import { AsignarRecursosConcesion } from "./asignar-recursos";
+import { CalendarioSemana, type ServicioDeCalendario } from "./calendario-semana";
 import "./escolares.css";
 
 type Params = { fecha?: string; tipo?: string; aviso?: string; filtro?: string; q?: string; agrupar?: string };
@@ -24,7 +25,6 @@ type Params = { fecha?: string; tipo?: string; aviso?: string; filtro?: string; 
 const NOMBRE_FILTRO: Record<FiltroDelDia, string> = { todos: "Todos", falta: "Falta nave o chofer", choque: "Choques", revisar: "Para revisar" };
 const NOMBRE_ESTADO: Record<EstadoDelServicio, string> = { falta: "Falta asignar", choque: "Choque", revisar: "Revisar", listo: "Listo" };
 const diaLargo = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
-const diaSemana = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZone: "UTC" });
 const sinTildes = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 /**
@@ -55,25 +55,20 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
   const semana = diasDeSemana(lunesDe(date));
   const delTipo = tipo ? { kind: tipo } : {};
 
-  const [runs, conteoSemana, faltanSemana, naves, choferes, ocupaciones] = await Promise.all([
+  const [runs, deLaSemana, naves, choferes, ocupaciones] = await Promise.all([
     prisma.schoolRun.findMany({
       where: { serviceDate: day, ...delTipo },
       orderBy: [{ routeName: "asc" }, { id: "asc" }],
       include: { driver: { select: { name: true, email: true } }, vehicle: { select: { name: true, internalNumber: true } } }
     }),
-    prisma.schoolRun.groupBy({
-      by: ["serviceDate"],
+    // El calendario semanal de arriba: los siete días, con sus servicios.
+    prisma.schoolRun.findMany({
       where: { serviceDate: { gte: new Date(`${semana[0]}T00:00:00Z`), lte: new Date(`${semana[6]}T00:00:00Z`) }, ...delTipo },
-      _count: { _all: true }
-    }),
-    prisma.schoolRun.groupBy({
-      by: ["serviceDate"],
-      where: {
-        serviceDate: { gte: new Date(`${semana[0]}T00:00:00Z`), lte: new Date(`${semana[6]}T00:00:00Z`) },
-        OR: [{ driverId: null }, { vehicleId: null }],
-        ...delTipo
-      },
-      _count: { _all: true }
+      orderBy: [{ serviceDate: "asc" }, { routeName: "asc" }],
+      select: {
+        id: true, serviceDate: true, kind: true, routeName: true, shift: true, companion: true,
+        driver: { select: { name: true, email: true } }, vehicle: { select: { name: true } }
+      }
     }),
     prisma.vehicle.findMany({
       where: { isActive: true, kind: { not: "UTILITARIO" } },
@@ -173,13 +168,19 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
   };
   const returnTo = `/admin/escolares?fecha=${date}${tipo ? `&tipo=${tipo}` : ""}`;
   const choferesOpcion = choferes.map((chofer) => ({ id: chofer.id, label: chofer.name?.trim() || chofer.email, email: chofer.email }));
-  const totalDe = (dia: string) => conteoSemana.find((c) => c.serviceDate.toISOString().slice(0, 10) === dia)?._count._all ?? 0;
-  const faltanDe = (dia: string) => faltanSemana.find((c) => c.serviceDate.toISOString().slice(0, 10) === dia)?._count._all ?? 0;
+  const porDiaSemana = new Map<string, ServicioDeCalendario[]>(semana.map((dia) => [dia, []]));
+  for (const run of deLaSemana) {
+    porDiaSemana.get(run.serviceDate.toISOString().slice(0, 10))?.push({
+      id: run.id, kind: run.kind, routeName: run.routeName, shift: run.shift, companion: run.companion,
+      chofer: run.driver ? run.driver.name?.trim() || run.driver.email : null, nave: run.vehicle?.name ?? null
+    });
+  }
+  const hrefNuevo = (dia: string) => `/admin/escolares/nuevo?fecha=${dia}${tipo ? `&tipo=${tipo}` : ""}`;
   const fechaUtc = (dia: string) => new Date(`${dia}T12:00:00Z`);
 
   return (
     <AdminShell title="Concesiones" eyebrow="Servicios recurrentes" role={user.role} notice={params.aviso}
-      action={<div className="inline-actions"><Link className="ghost-button" href="/admin/escolares/importar">Importar planilla</Link><Link className="button" href={`/admin/escolares/nuevo?fecha=${date}${tipo ? `&tipo=${tipo}` : ""}`}>Nuevo servicio</Link></div>}>
+      action={<div className="inline-actions"><Link className="ghost-button" href={`/admin/escolares/semana?semana=${semana[0]}${tipo ? `&tipo=${tipo}` : ""}`}>Volver al calendario</Link><Link className="ghost-button" href="/admin/escolares/importar">Importar planilla</Link><Link className="button" href={hrefNuevo(date)}>Nuevo servicio</Link></div>}>
       <ConcesionesNav actual={tipo ?? "todos"} fecha={date} />
       <ConcesionesVistaNav actual="dia" tipo={tipo} fecha={date} semana={lunesDe(date)} />
       {tipo === "personal-aeropuerto" ? <p className="muted school-kind-help">Traslado diario de personal, por ejemplo al aeropuerto. No es el tablero de vuelos de pasajeros: eso sigue en Aeropuerto.</p> : null}
@@ -200,20 +201,22 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
         </form>
       </nav>
 
-      <nav className="cd-semana" aria-label="Días de esta semana">
-        {semana.map((dia) => {
-          const total = totalDe(dia);
-          const faltan = faltanDe(dia);
-          return (
-            <Link key={dia} href={enlace({ fecha: dia })} className="cd-semana-dia" aria-current={dia === date ? "date" : undefined} data-hoy={dia === hoy || undefined}>
-              <span>{diaSemana.format(fechaUtc(dia)).replace(".", "")}</span>
-              <strong>{Number(dia.slice(8))}</strong>
-              <small>{total ? `${total} serv.` : "—"}</small>
-              {faltan ? <em title={`${faltan} sin nave o sin chofer`}>{faltan}</em> : null}
-            </Link>
-          );
-        })}
-      </nav>
+      <div className="cd-semana-cabeza">
+        <strong>Semana del {etiquetaDeSemana(semana[0])}</strong>
+        <Link className="ghost-button" href={enlace({ fecha: sumarDias(date, -7) })}>‹ Semana anterior</Link>
+        <Link className="ghost-button" href={enlace({ fecha: sumarDias(date, 7) })}>Semana siguiente ›</Link>
+      </div>
+      <CalendarioSemana
+        dias={semana}
+        hoy={hoy}
+        porDia={porDiaSemana}
+        seleccionado={date}
+        compacto
+        hrefDia={(dia) => enlace({ fecha: dia })}
+        hrefNuevo={hrefNuevo}
+        hrefServicio={(dia, servicio) => dia === date ? `${enlace({ filtro: null, q: null })}#servicio-${servicio.id}` : `${enlace({ fecha: dia, filtro: null, q: null })}#servicio-${servicio.id}`}
+        etiqueta={`Calendario de la semana del ${etiquetaDeSemana(semana[0])}`}
+      />
 
       <section className="cd-cifras" aria-label="Resumen del día">
         <div className="cd-cifra"><strong>{filas.length}</strong><span>{filas.length === 1 ? "servicio" : "servicios"}</span></div>
@@ -271,7 +274,7 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
                 {grupo.filas.map(({ run, choques: suyos, estado, chofer, nave }) => {
                   const ocupacion = ocupacionParaServicio(run, todosDelDia, externos.get(run.id));
                   return (
-                    <li key={run.id} className="cd-servicio" data-estado={estado}>
+                    <li key={run.id} id={`servicio-${run.id}`} className="cd-servicio" data-estado={estado}>
                       <div className="cd-servicio-que">
                         <span className="cd-servicio-hora">{porChofer ? leerTurno(run.shift).etiqueta : null}</span>
                         <Link className="cd-servicio-nombre" href={`/admin/escolares/${run.id}`}>{run.routeName}</Link>

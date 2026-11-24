@@ -13,12 +13,13 @@
 .cn-semana-scroll { overflow-x: auto; padding-bottom: 6px; }
 .cn-semana-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(136px, 1fr));
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
   gap: 8px;
   min-width: 0;
 }
 .cn-semana-dia {
   display: flex;
+  min-width: 0;
   min-height: 220px;
   flex-direction: column;
   gap: 8px;
@@ -28,7 +29,7 @@
   background: var(--surface);
 }
 .cn-semana-dia[data-hoy="true"] { border-color: var(--primary); box-shadow: inset 0 3px 0 var(--primary); }
-.cn-semana-dia > header { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.cn-semana-dia > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 6px; }
 .cn-semana-dia > header span { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .cn-semana-dia > header strong { font-size: 20px; line-height: 1; }
 .cn-semana-dia > header small { color: var(--ink-muted); font-size: 11px; }
@@ -105,25 +106,26 @@
 }
 .cd-ir input:focus-visible, .cd-buscar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-/* La semana en una tira: cuántos servicios y cuántos sin asignar por día. */
-.cd-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
-.cd-semana-dia {
-  position: relative; display: grid; justify-items: center; gap: 1px; padding: 8px 4px;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
-  color: var(--ink); text-decoration: none;
+/* El calendario semanal arriba del día (pedido de Jugue: «mantené el calendario semanal, como en
+   viajes especiales»): las siete columnas de la vista Semana, más bajas, con el día que se mira marcado
+   y cada servicio en un renglón. */
+.cd-semana-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cd-semana-cabeza strong { margin-right: auto; font-size: 14px; }
+.cn-semana-compacta { margin-bottom: 16px; }
+.cn-semana-compacta .cn-semana-dia { min-height: 0; gap: 6px; padding: 8px; }
+.cn-semana-compacta .cn-semana-pie { flex-wrap: wrap; gap: 2px 8px; }
+.cn-semana-compacta .cn-semana-dia > p { font-size: 12px; }
+.cd-semana-cabeza .ghost-button { min-height: 34px; padding: 0 12px; font-size: 13px; }
+.cn-semana-compacta .cn-semana-lista { max-height: 168px; overflow-y: auto; gap: 3px; scrollbar-width: thin; }
+.cn-semana-dia[data-actual] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); box-shadow: inset 0 3px 0 var(--primary), 0 0 0 1px var(--primary); }
+.cn-semana-viendo { color: var(--primary); font-size: 11px; font-weight: 800; }
+.cn-semana-faltan { color: var(--accent-deep); font-style: normal; font-weight: 800; }
+.cn-semana-renglon {
+  display: block; flex: 0 0 auto; overflow: hidden; padding: 4px 6px; border-radius: 6px;
+  font-size: 11px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap;
 }
-.cd-semana-dia:hover { border-color: var(--line-strong); }
-.cd-semana-dia:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cd-semana-dia span { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-.cd-semana-dia strong { font-size: 20px; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.cd-semana-dia small { color: var(--ink-muted); font-size: 11px; }
-.cd-semana-dia em {
-  position: absolute; top: 5px; right: 6px; min-width: 18px; padding: 0 5px; border-radius: 999px;
-  background: var(--accent); color: #fff; font-size: 11px; font-style: normal; font-weight: 800; text-align: center;
-}
-.cd-semana-dia[data-hoy] { box-shadow: inset 0 3px 0 var(--primary); }
-.cd-semana-dia[aria-current="date"] { border-color: var(--primary); background: var(--primary); color: #fff; }
-.cd-semana-dia[aria-current="date"] span, .cd-semana-dia[aria-current="date"] small { color: rgba(255, 255, 255, .8); }
+.cn-semana-renglon b { font-variant-numeric: tabular-nums; }
+.cn-semana-servicio[data-falta] { border-left: 3px solid var(--accent); }
 
 .cd-cifras { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
 .cd-cifra {
@@ -219,11 +221,11 @@ a.cd-cifra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
   .cd-dia-texto strong { font-size: 20px; }
   .cd-ir { width: 100%; margin-left: 0; }
   .cd-ir input { flex: 1 1 auto; min-width: 0; }
-  .cd-semana { gap: 4px; }
-  .cd-semana-dia { padding: 6px 2px; }
-  .cd-semana-dia small { display: none; }
-  .cd-semana-dia em { top: auto; right: 50%; bottom: -7px; transform: translateX(50%); min-width: 16px; font-size: 10px; line-height: 14px; }
-  .cd-semana { margin-bottom: 18px; }
+  .cd-semana-cabeza strong { flex-basis: 100%; }
+  .cd-semana-cabeza .ghost-button { flex: 1 1 0; justify-content: center; }
+  /* En el teléfono la semana se desliza de costado, con columnas más angostas. */
+  .cn-semana-compacta .cn-semana-grid { grid-template-columns: repeat(7, 148px); min-width: 0; }
+  .cn-semana-compacta .cn-semana-lista { max-height: 120px; }
   .cd-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cd-cifra:last-child { grid-column: 1 / -1; }
   .cd-cifra { padding: 10px 12px; }
