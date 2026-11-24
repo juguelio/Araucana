@@ -6,8 +6,9 @@ import { createAdminReservationAction } from "../actions";
 import { FieldError } from "../../form-ui";
 import { initialAdminFormState } from "../../form-state";
 import {
-  PassengerFields, initialPassenger, validateCheckoutPassenger, type PassengerFieldErrors, type PassengerForm
+  PassengerFields, QuantityPicker, initialPassenger, validateCheckoutPassenger, type PassengerFieldErrors, type PassengerForm
 } from "@/app/reservar/[slug]/passenger-fields";
+import { seatsFromFares, type FareCounts } from "@/lib/booking/passenger-fares";
 import type { SalidaOption } from "./salida-picker-utils";
 import { ViajeSearchBar, diaCorto, type ClaveTramo } from "./viaje-search-bar";
 import { precioDelTramo, totalDelViaje, unificarLugares, type RutaDelPanel } from "./viaje-utils";
@@ -41,6 +42,12 @@ const VACIOS = {
 };
 
 type Draft = typeof VACIOS;
+
+const tarifas = [
+  { tipo: "full", campo: "passengerCount", etiqueta: "Pasajeros con tarifa completa", minimo: 1 },
+  { tipo: "half", campo: "halfFareCount", etiqueta: "Menores de 4 a 8 años · media tarifa", minimo: 0 },
+  { tipo: "free", campo: "freeFareCount", etiqueta: "Menores de 4 años · sin cargo", minimo: 0 }
+] as const;
 
 function formatPrice(cents: number, currency = "ARS") {
   return new Intl.NumberFormat("es-AR", { style: "currency", currency, maximumFractionDigits: 0 }).format(cents / 100);
@@ -97,18 +104,32 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
   const { barra, origen, destino, salidaIda, salidaVuelta, vuelta, viajeListo, moneda, paradaIda, paradaVuelta,
     setParadaIda, setParadaVuelta, rutaSinSalidas } = useViaje(schedules, rutas, inicio);
   // Los pasajeros.
-  const [lugares, setLugares] = useState(1);
-  const [media, setMedia] = useState(0);
-  const [sinCargo, setSinCargo] = useState(0);
+  const [pasajerosPorTarifa, setPasajerosPorTarifa] = useState<FareCounts>({ full: 1, half: 0, free: 0 });
+  const { half: media, free: sinCargo } = pasajerosPorTarifa;
+  const lugares = seatsFromFares(pasajerosPorTarifa);
+
 
   // Lugares: nunca más que los libres de las salidas elegidas.
-  const maxLugares = Math.max(1, Math.min(salidaIda?.availableSeats ?? 24, salidaVuelta?.availableSeats ?? 24));
+  const maxLugares = Math.max(1, Math.min(24, salidaIda?.availableSeats ?? 24, salidaVuelta?.availableSeats ?? 24));
   useEffect(() => {
-    if (lugares <= maxLugares) return;
-    setLugares(maxLugares);
-    setMedia((valor) => Math.min(valor, Math.max(maxLugares - 1, 0)));
-    setSinCargo(0);
-  }, [lugares, maxLugares]);
+    setPasajerosPorTarifa((actual) => {
+      if (seatsFromFares(actual) <= maxLugares) return actual;
+      const full = Math.min(actual.full, maxLugares);
+      const half = Math.min(actual.half, maxLugares - full);
+      const free = Math.min(actual.free, maxLugares - full - half);
+      return { full, half, free };
+    });
+  }, [maxLugares]);
+
+  function actualizarCantidad(tipo: keyof FareCounts, valor: number) {
+    setPasajerosPorTarifa((actual) => ({ ...actual, [tipo]: valor }));
+    setErrores((actual) => {
+      if (!tarifas.some(({ campo }) => actual[campo])) return actual;
+      const siguiente = { ...actual };
+      for (const { campo } of tarifas) delete siguiente[campo];
+      return siguiente;
+    });
+  }
 
   const tramosDelPrecio = [
     ...(salidaIda ? [{ salida: salidaIda, parada: paradaIda }] : []),
@@ -188,7 +209,8 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
                     <li key={name}>
                       <a href={`#campo-${name}`} onClick={(event) => {
                         event.preventDefault();
-                        formRef.current?.querySelector<HTMLElement>(`[name="${name}"]`)?.focus();
+                        const campo = formRef.current?.querySelector<HTMLElement>(`#campo-${name}[tabindex], [name="${name}"]:not([type="hidden"])`);
+                        campo?.focus();
                       }}>{mensaje}</a>
                     </li>
                   ))}
@@ -258,34 +280,26 @@ export function NuevaReservaForm({ schedules: salidasCrudas, rutas: rutasCrudas 
                     <h3 className="leg-title">¿Cuántos viajan?</h3>
                   </div>
                 </header>
-                <div className="salida-pie">
-                  <div className="salida-cantidad">
-                    <span className="salida-cantidad-label">Lugares</span>
-                    <div className="salida-stepper">
-                      <button type="button" aria-label="Un lugar menos" disabled={lugares <= 1}
-                        onClick={() => { const n = Math.max(1, lugares - 1); setLugares(n); setMedia((v) => Math.min(v, Math.max(n - sinCargo - 1, 0))); setSinCargo((v) => Math.min(v, Math.max(n - media - 1, 0))); }}>−</button>
-                      <input type="number" name="passengerCount" min="1" max={maxLugares} value={lugares} readOnly aria-label="Lugares" />
-                      <button type="button" aria-label="Un lugar más" disabled={lugares >= maxLugares}
-                        onClick={() => setLugares(Math.min(maxLugares, lugares + 1))}>+</button>
-                    </div>
-                  </div>
-                  <div className="salida-menores">
-                    <label id="campo-halfFareCount">
-                      Menores 4 a 8 · media
-                      <input type="number" name="halfFareCount" min="0" max={lugares - sinCargo - 1} value={media}
-                        aria-invalid={Boolean(errores.halfFareCount)}
-                        onChange={(event) => setMedia(Math.max(0, Math.min(lugares - sinCargo - 1, Number(event.target.value) || 0)))} />
-                    </label>
-                    <label id="campo-freeFareCount">
-                      Menores de 4 · sin cargo
-                      <input type="number" name="freeFareCount" min="0" max={lugares - media - 1} value={sinCargo}
-                        aria-invalid={Boolean(errores.freeFareCount)}
-                        onChange={(event) => setSinCargo(Math.max(0, Math.min(lugares - media - 1, Number(event.target.value) || 0)))} />
-                    </label>
-                  </div>
+                <input type="hidden" name="passengerCount" value={lugares} />
+                <input type="hidden" name="halfFareCount" value={media} />
+                <input type="hidden" name="freeFareCount" value={sinCargo} />
+                <div className="alta-cantidades">
+                  {tarifas.map(({ tipo, campo, etiqueta, minimo }) => (
+                    <QuantityPicker
+                      key={tipo}
+                      id={`campo-${campo}`}
+                      label={etiqueta}
+                      value={pasajerosPorTarifa[tipo]}
+                      min={minimo}
+                      max={maxLugares - lugares + pasajerosPorTarifa[tipo]}
+                      disabled={pending}
+                      error={errores[campo]}
+                      onChange={(valor) => actualizarCantidad(tipo, valor)}
+                    />
+                  ))}
                 </div>
-                <FieldError id="error-halfFareCount" message={errores.halfFareCount ?? errores.freeFareCount} />
                 <p className="muted alta-nota">
+                  Lugares a reservar: <strong>{lugares}</strong>.{" "}
                   {salidaVuelta
                     ? `Quedan ${salidaIda?.availableSeats} libres en la ida y ${salidaVuelta.availableSeats} en la vuelta.`
                     : `Quedan ${salidaIda?.availableSeats} libres en esta salida.`} Los menores de 4 no pagan pero ocupan lugar.

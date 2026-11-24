@@ -14,14 +14,8 @@ type BoletoPageProps = {
   params: Promise<{ code: string }>;
 };
 
-const COPIAS = [
-  { etiqueta: "Pasajero", detalle: "Para mostrar en el viaje" },
-  { etiqueta: "Guarda", detalle: "Control a bordo" },
-  { etiqueta: "Administración", detalle: "Rendición y archivo" }
-] as const;
-
 /**
- * Copia imprimible del boleto (#370), con los tres cuerpos del boleto físico de La Araucana.
+ * Versión imprimible del boleto del servicio público.
  * Se abre con el enlace privado de la reserva; el personal del panel también entra con su sesión.
  */
 export default async function BoletoPage({ params }: BoletoPageProps) {
@@ -62,7 +56,6 @@ export default async function BoletoPage({ params }: BoletoPageProps) {
         <div>
           <p className="eyebrow">Boleto {reservation.serviceTicket.displayNumber}</p>
           <p>
-            Tres copias: pasajero, guarda y administración.{" "}
             {anulado ? "Este boleto está anulado: no es válido para viajar." : "Podés mostrarlo desde el celular o imprimirlo."}
           </p>
         </div>
@@ -74,17 +67,7 @@ export default async function BoletoPage({ params }: BoletoPageProps) {
         </div>
       </div>
 
-      <div className="boleto-copias">
-        {COPIAS.map((copia, indice) => (
-          <section className="boleto-copia" key={copia.etiqueta}>
-            <p className="boleto-copia-etiqueta">
-              {copia.etiqueta} · {copia.detalle}
-            </p>
-            <BoletoCard reservation={reservation} />
-            {indice < COPIAS.length - 1 ? <hr className="boleto-corte" /> : null}
-          </section>
-        ))}
-      </div>
+      <BoletoCard reservation={reservation} />
     </main>
   );
 }

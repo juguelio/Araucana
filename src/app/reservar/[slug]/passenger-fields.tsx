@@ -323,6 +323,8 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
 type QuantityPickerProps = {
   label: string;
   value: number;
+  id?: string;
+  error?: string;
   min?: number;
   max?: number;
   disabled?: boolean;
@@ -331,11 +333,20 @@ type QuantityPickerProps = {
 };
 
 /** Selector − n + de cantidad, el mismo en los dos checkouts. */
-export function QuantityPicker({ label, value, min = 1, max, disabled = false, help, onChange }: QuantityPickerProps) {
+export function QuantityPicker({ label, value, id, error, min = 1, max, disabled = false, help, onChange }: QuantityPickerProps) {
+  const errorId = error && id ? `${id}-error` : undefined;
   return (
-    <label className="quantity-field">
-      {label}
-      <span className="quantity-picker" role="group" aria-label={label}>
+    <div className="quantity-field">
+      <span className="quantity-label">{label}</span>
+      <span
+        id={id}
+        className="quantity-picker"
+        role="group"
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={errorId}
+        tabIndex={error ? -1 : undefined}
+      >
         <button
           className="quantity-button"
           type="button"
@@ -356,8 +367,9 @@ export function QuantityPicker({ label, value, min = 1, max, disabled = false, h
           +
         </button>
       </span>
+      {error ? <small className="field-error" id={errorId}>{error}</small> : null}
       {help ? <small className="quantity-help">{help}</small> : null}
-    </label>
+    </div>
   );
 }
 
