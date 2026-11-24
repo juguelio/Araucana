@@ -57,11 +57,11 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
     <section className="plain-card admin-section">
       <h2>{day.toLocaleDateString("es-AR", { dateStyle: "long", timeZone: "UTC" })}</h2>
       {!runs.length ? <p className="muted">No hay servicios {tipo ? etiquetaDeConcesion(tipo).toLowerCase() : "recurrentes"} para este día.</p> : <div className="table-scroll">
-        <table className="data-table"><thead><tr>{["Servicio", "Tipo", "Turno u horario", "Chofer", "Nave", "Estado"].map(h => <th key={h} scope="col">{h}</th>)}</tr></thead>
+        <table className="data-table concesiones-dia-tabla"><thead><tr>{["Servicio", "Tipo", "Turno u horario", "Chofer", "Nave", "Estado"].map(h => <th key={h} scope="col">{h}</th>)}</tr></thead>
           <tbody>{runs.map(run => <tr key={run.id}>
             <td><Link className="table-link" href={`/admin/escolares/${run.id}`}>{run.routeName}</Link></td>
             <td><span className="pill">{etiquetaDeConcesion(run.kind)}</span></td>
-            <td>{run.shift}</td><td>{run.driver?.name ?? run.driver?.email ?? "Sin asignar"}</td><td>{run.vehicle?.name ?? "Sin asignar"}</td>
+            <td>{run.shift}</td><td>{run.driver?.name ?? run.driver?.email ?? "Sin chofer"}</td><td>{run.vehicle?.name ?? "Sin nave"}</td>
             <td><AsignarRecursosConcesion
               id={run.id}
               titulo={run.routeName}
@@ -73,8 +73,8 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
               choferes={choferes.map((chofer) => ({ id: chofer.id, label: chofer.name?.trim() || chofer.email, email: chofer.email }))}
               naveActual={run.vehicleId ?? ""}
               choferActual={run.driverId ?? ""}
-              trigger={run.review || !run.driverId || !run.vehicleId ? "Revisar" : "Asignado"}
-              triggerClassName={`pill school-assign-trigger${run.review || !run.driverId || !run.vehicleId ? " school-assign-trigger-pendiente" : ""}`}
+              trigger={!run.driverId || !run.vehicleId ? "Asignar" : run.review ? "Revisar" : "Asignado"}
+              triggerClassName={`pill school-assign-trigger${!run.driverId || !run.vehicleId ? " school-assign-trigger-pendiente" : ""}`}
             /></td>
           </tr>)}</tbody></table>
       </div>}

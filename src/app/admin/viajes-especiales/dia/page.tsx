@@ -47,7 +47,7 @@ export default async function SpecialTripDayPage({ searchParams }: {
         <Link className="ghost-button" href={`${base}/semana?semana=${lunesDe(clave)}`}>Volver al calendario</Link>
         <Link className="button" href={`${base}/nuevo?fecha=${clave}`}>Nuevo viaje</Link>
       </div>}>
-      <SpecialTripsViewTabs active="calendario" />
+      <SpecialTripsViewTabs active="dia" />
       <section className="plain-card admin-section">
         <div className="inline-actions" style={{ justifyContent: "space-between" }}>
           <h2 style={{ margin: 0 }}>{fechaLarga.format(fecha)}</h2>
