@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { PassengerFields, buildPassengerPayload, initialPassenger, validateCheckoutPassenger, type PassengerFieldErrors } from "@/app/reservar/[slug]/passenger-fields";
-import { PrivateAirportContext, type PrivateAirportLeg } from "@/app/reservar/[slug]/private-airport-context";
+import { PrivateAirportChoiceContext, PrivateAirportContext, type PrivateAirportLeg } from "@/app/reservar/[slug]/private-airport-context";
 import { parseReservationPrice } from "@/lib/booking/admin-price";
 import { nuevaClaveDeIdempotencia } from "@/lib/booking/idempotency";
 import { privatePassengerCount, type PrivateStop } from "@/lib/airport/private-transfer";
@@ -138,9 +138,14 @@ export function AirportTransferChoice({ children, fares, vehicles, slug }: {
   }
 
   const place = first.stops.length > 1 ? `${first.stops.length} paradas` : first.stops[0].destination.trim() || "Alojamiento o dirección";
+  const choice = (
+    <label className="checkbox-row trip-search-private">
+      <input type="checkbox" checked={privada} disabled={pending}
+        onChange={e => { setPrivada(e.target.checked); setError(""); }} />
+      Privada · nave exclusiva para el grupo
+    </label>
+  );
   return <PrivateAirportContext.Provider value={privada ? { place, renderForm } : null}>
-    <label className="checkbox-row"><input type="checkbox" checked={privada} disabled={pending}
-      onChange={e => { setPrivada(e.target.checked); setError(""); }} />Privada · nave exclusiva para el grupo</label>
-    {children}
+    <PrivateAirportChoiceContext.Provider value={choice}>{children}</PrivateAirportChoiceContext.Provider>
   </PrivateAirportContext.Provider>;
 }

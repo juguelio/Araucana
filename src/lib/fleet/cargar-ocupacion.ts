@@ -72,13 +72,11 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
     ...vuelos.map((asignacion): Ocupacion => {
       const ventana = airportServiceWindow({ ...asignacion.flight, status: asignacion.flight.status ?? undefined });
       return {
-        // La clave identifica la ASIGNACIÓN, no el vuelo: un vuelo con dos combis tiene dos
-        // asignaciones, y excluir el vuelo entero marcaba como libres naves y choferes que ya
-        // están en él (#439). Las privadas conservan su clave por reserva: cada detalle privado
-        // tiene una sola asignación.
+        // La clave identifica la ASIGNACIÓN: un vuelo con dos combis tiene dos asignaciones, y
+        // excluir el vuelo entero marcaba como libres naves y choferes que ya están en él (#439).
         clave: asignacion.privateReservationId
-          ? `privada:${asignacion.privateReservationId}`
-          : `vuelo:${asignacion.flightId}:${asignacion.vehicleId}`,
+          ? `privada:${asignacion.id}`
+          : `vuelo:${asignacion.flightId}:${asignacion.id}`,
         vehicleIds: [asignacion.vehicleId],
         driverIds: asignacion.driverId ? [asignacion.driverId] : [],
         desde: ventana.startsAt,

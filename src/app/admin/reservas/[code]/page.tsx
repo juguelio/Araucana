@@ -1,3 +1,4 @@
+import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { PrivateTransferEdit } from "../../aeropuerto/reservar/private-edit";
 import { opcionesDeNave } from "../../aeropuerto/combi-modal";
 import { prisma } from "@/lib/db/prisma";
@@ -90,7 +91,7 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const paid = payment?.status === "APPROVED" && !disability;
   const cancelled = reservation.status === "CANCELLED";
   const privateFleet = airport?.isPrivate && !cancelled ? await Promise.all([
-    opcionesDeNave(), prisma.airportVehicleAssignment.findUnique({ where: { privateReservationId: reservation.id }, select: { vehicleId: true } })
+    opcionesDeNave(), prisma.airportVehicleAssignment.findMany({ where: { privateReservationId: reservation.id }, orderBy: { createdAt: "asc" }, select: { vehicleId: true, vehicle: { select: { name: true } } } })
   ]) : null;
   const pending = reservation.status === "PENDING_PAYMENT";
   const canRecordPayment = canRegisterManualPayment(reservation.status, reservation.totalCents, payment);
@@ -372,8 +373,12 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
       {airport?.isPrivate && airport.privateStops && (
         <section className="plain-card admin-section">
           <h2>Traslado privado · paradas y nave</h2>
-          {privateFleet ? <PrivateTransferEdit code={reservation.code} initialStops={airport.privateStops}
-            initialVehicle={privateFleet[1]?.vehicleId ?? ""} vehicles={privateFleet[0]} />
+          {privateFleet ? <>
+            {privateFleet[1].length > 1 && <p>Naves exclusivas · {privateFleet[1].map(a => a.vehicle.name).join(" / ")}</p>}
+            <PrivateTransferEdit code={reservation.code} initialStops={airport.privateStops}
+            initialVehicle={privateFleet[1].length > 1 ? null : privateFleet[1][0]?.vehicleId ?? ""} vehicles={privateFleet[0]} />
+            {airport.flight && <Link className="ghost-button" href={`/admin/aeropuerto?date=${argentinaDateKey(airport.flight.scheduledAt)}#vuelo-${airport.flightId}`}>Administrar naves y choferes</Link>}
+          </>
             : <p>{airport.pickupAddress}</p>}
         </section>
       )}

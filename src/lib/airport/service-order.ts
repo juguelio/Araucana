@@ -423,6 +423,34 @@ export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: Servi
   return { porNave, sinNave };
 }
 
+/** Respeta las paradas privadas y sólo divide una parada si no entra entera en una nave. */
+function repartirParadasPrivadas(paradas: ServiceOrderPassenger[], naves: ServiceOrderVehicle[]) {
+  const porNave = new Map<string, ServiceOrderPassenger[]>();
+  const sinNave: ServiceOrderPassenger[] = [];
+  const unidades = naves.map(nave => {
+    const pasajeros: ServiceOrderPassenger[] = [];
+    porNave.set(nave.assignmentId, pasajeros);
+    return { disponibles: nave.seats, pasajeros };
+  });
+  for (const parada of paradas) {
+    let restantes = parada.seats;
+    while (restantes > 0) {
+      const unidad = unidades.find(u => u.disponibles >= restantes) ?? unidades.find(u => u.disponibles > 0);
+      const seats = unidad ? Math.min(restantes, unidad.disponibles) : restantes;
+      const fila = restantes === parada.seats ? { ...parada, seats }
+        : { ...parada, seats, amountCents: 0, payment: "Incluido", paymentMethod: null };
+      if (unidad) {
+        unidad.pasajeros.push(fila);
+        unidad.disponibles -= seats;
+      } else {
+        sinNave.push(fila);
+      }
+      restantes -= seats;
+    }
+  }
+  return { porNave, sinNave };
+}
+
 /**
  * Agrupa las reservas del día en una orden por vuelo —o por nave, si el vuelo sale con más de una—, en
  * el orden en que los atiende la camioneta: primero la recorrida de las partidas y después los arribos.
@@ -529,13 +557,14 @@ export function buildServiceOrderBlocks(
       manualOrder: passengers.some((pasajero) => pasajero.routePosition !== null)
     });
 
-    if (vehicles.length <= 1) {
+    if (!vehicles.length || (vehicles.length === 1 && !grupo.privateOrderId)) {
       ordenes.push(orden(vehicles[0] ?? null, recorrida));
       continue;
     }
 
     // Cada nave hace su propia recorrida: el reparto es por zona y después se ordena la de cada una.
-    const { porNave, sinNave } = repartirEnNaves(recorrida, vehicles);
+    const { porNave, sinNave } = grupo.privateOrderId
+      ? repartirParadasPrivadas(recorrida, vehicles) : repartirEnNaves(recorrida, vehicles);
     for (const nave of vehicles) {
       const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? [], grupo.direction, oficina);
       if (pasajeros.length || incluirVacias) ordenes.push(orden(nave, pasajeros));
@@ -557,10 +586,11 @@ export const lugaresDeLaOrden = (block: ServiceOrderBlock) => lugaresDe(block.pa
  * por nave, la asignación de esa nave o `sin-nave`. `null` en `vehicle` = el vuelo entero.
  */
 export function referenciaDeLaOrden(block: ServiceOrderBlock) {
-  return {
-    flight: block.flightId,
-    vehicle: block.privateOrderId ? `privada-${block.privateOrderId}` : block.vehicleCount > 1 || block.scopedVehicle ? (block.vehicle?.assignmentId ?? SIN_NAVE) : null
-  };
+  if (block.privateOrderId) {
+    const pendiente = block.vehicleCount ? `pendiente-${block.privateOrderId}` : `privada-${block.privateOrderId}`;
+    return { flight: block.flightId, vehicle: block.vehicle?.assignmentId ?? pendiente };
+  }
+  return { flight: block.flightId, vehicle: block.vehicleCount > 1 || block.scopedVehicle ? (block.vehicle?.assignmentId ?? SIN_NAVE) : null };
 }
 
 /**
@@ -576,7 +606,7 @@ export function ordenesDelVuelo(blocks: ServiceOrderBlock[], flightId: string | 
 /** Deja sólo la orden de esa nave; sin nave pedida devuelve todas. */
 export function filtrarPorNave(blocks: ServiceOrderBlock[], vehicle: string | null) {
   if (!vehicle) return blocks;
-  return blocks.filter(block => referenciaDeLaOrden(block).vehicle === vehicle || block.vehicle?.vehicleId === vehicle || block.vehicle?.assignmentId === vehicle);
+  return blocks.filter(block => (block.privateOrderId && vehicle === `privada-${block.privateOrderId}`) || referenciaDeLaOrden(block).vehicle === vehicle || block.vehicle?.vehicleId === vehicle || block.vehicle?.assignmentId === vehicle);
 }
 
 /** «Sprinter 1910 · Juan»: la nave y el chofer, para el rótulo y el nombre del archivo. */
@@ -1061,5 +1091,5 @@ export async function buildServiceOrderWorkbook(
 /** ¿Esta orden es una de las elegidas en la hoja del chofer? (`vehicle` null = la única del vuelo, o todas). */
 export function esOrdenElegida(block: ServiceOrderBlock, ordenes: Array<{ flight: string; vehicle: string | null }>) {
   const ref = referenciaDeLaOrden(block);
-  return ordenes.some((orden) => block.flightIds.includes(orden.flight) && (orden.vehicle === null || ref.vehicle === orden.vehicle));
+  return ordenes.some((orden) => block.flightIds.includes(orden.flight) && (orden.vehicle === null || ref.vehicle === orden.vehicle || (block.privateOrderId && orden.vehicle === `privada-${block.privateOrderId}`)));
 }

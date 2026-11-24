@@ -49,16 +49,16 @@ test("«sin combi asignada» abre el modal, busca la nave y la asigna; después 
 
   await tarjeta.getByRole("button", { name: `Asignar combi al ${vuelo.number}` }).click();
   const modal = page.getByRole("dialog", { name: `Combi del ${vuelo.number}` });
-  await modal.getByLabel(`Buscar nave para ${vuelo.number}`).fill(naves.buscada.internal);
-  await expect(modal.getByRole("radiogroup", { name: `Naves para ${vuelo.number}` }).getByRole("radio")).toHaveCount(1);
+  await modal.getByRole("searchbox", { name: `Nave para vuelo ${vuelo.number}` }).fill(naves.buscada.internal);
+  await expect(modal.getByRole("radiogroup", { name: `Nave para vuelo ${vuelo.number}` }).getByRole("radio")).toHaveCount(1);
   await expect(modal).toContainText("15 lugares para aeropuerto");
   await modal.getByRole("radio", { name: new RegExp(naves.buscada.name) }).check();
   // El chofer se busca igual que la nave: se escribe y queda una sola opción además de «Sin chofer».
-  await modal.getByLabel(`Buscar chofer para ${vuelo.number}`).fill(choferes.ramon);
-  await expect(modal.getByRole("radiogroup", { name: `Choferes para ${vuelo.number}` }).getByRole("radio")).toHaveCount(2);
+  await modal.getByRole("searchbox", { name: `Chofer para vuelo ${vuelo.number}` }).fill(choferes.ramon);
+  await expect(modal.getByRole("radiogroup", { name: `Chofer para vuelo ${vuelo.number}` }).getByRole("radio")).toHaveCount(1);
   await modal.getByRole("radio", { name: new RegExp(choferes.ramon) }).check();
   await page.screenshot({ path: "/tmp/araucana-combi-modal.png" });
-  await modal.getByRole("button", { name: "Asignar nave" }).click();
+  await modal.getByRole("button", { name: "Asignar", exact: true }).click();
 
   await expect(page.getByText("Combi asignada al vuelo.")).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -91,7 +91,7 @@ test("el mismo chofer en dos combis del vuelo avisa y sólo se guarda al confirm
   await tarjeta.getByRole("button", { name: `Asignar combi al ${doble.number}` }).click();
   await modal.getByRole("radio", { name: new RegExp(naves.buscada.name) }).check();
   await modal.getByRole("radio", { name: new RegExp(choferes.ramon) }).check();
-  await modal.getByRole("button", { name: "Asignar nave" }).click();
+  await modal.getByRole("button", { name: "Asignar", exact: true }).click();
   await expect(page.getByText("Combi asignada al vuelo.")).toBeVisible();
 
   await tarjeta.getByRole("button", { name: `Cambiar combi del ${doble.number}` }).click();

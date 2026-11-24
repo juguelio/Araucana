@@ -113,7 +113,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   const compartidas = vuelo.assignments.filter(a => !a.privateReservationId);
   const privadas = vuelo.reservations.filter(r => r.flightId === vuelo.id && r.isPrivate && r.reservation.status !== "CANCELLED");
   const gruposPrivados = privadas.map(r => ({
-    detalle: r, asignacion: vuelo.assignments.find(a => a.privateReservationId === r.reservationId)
+    detalle: r, asignaciones: vuelo.assignments.filter(a => a.privateReservationId === r.reservationId)
   }));
   const ocupados = pasajerosOcupados(vuelo.reservations.filter(r => !r.isPrivate).map(r => r.reservation));
   const capacidad = capacidadDeVuelo(compartidas.map((a) => ({ seats: a.vehicle.seats.length })));
@@ -132,9 +132,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   const ventana = airportServiceWindow({ ...vuelo, status: vuelo.status ?? undefined });
   const propios = vuelo.assignments
     .filter((asignacion) => asignacion.flightId !== vuelo.id)
-    .map((asignacion) => asignacion.privateReservationId
-      ? `privada:${asignacion.privateReservationId}`
-      : `vuelo:${asignacion.flightId}:${asignacion.vehicleId}`);
+    .map((asignacion) => (asignacion.privateReservationId ? `privada:${asignacion.id}` : `vuelo:${asignacion.flightId}:${asignacion.id}`));
   const tramo = { desde: ventana.startsAt, hasta: ventana.endsAt };
   const ocupacionNaves = ocupacionEnVentana(ocupacion, "nave", tramo, propios);
   const ocupacionChoferes = ocupacionEnVentana(ocupacion, "chofer", tramo, propios);
@@ -143,7 +141,8 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   function estado(a?: VueloConCombis["assignments"][number]) {
     return a ? `${tituloDeNave(a.vehicle)} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}` : "Sin nave asignada";
   }
-  const resumenPublico = compartidas.length ? compartidas.map(estado).join(" / ") : estado();
+  const resumen = (asignaciones: VueloConCombis["assignments"]) => asignaciones.length ? asignaciones.map(estado).join(" / ") : estado();
+  const resumenPublico = resumen(compartidas);
   const selectorPublico = (
     <>
       {compartidas.length ? (
@@ -174,6 +173,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
           ))}
         </div>
       ) : null}
+      {compartidas.length > 0 && <h4>Agregar nave pública</h4>}
       <FleetAssignmentForm action={assignVehicleAction}>
         <input type="hidden" name="flightId" value={vuelo.id} />
         {volver}
@@ -194,16 +194,16 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
 
   return (
     <RowModal
-      key={`combi-${vuelo.id}-${resetKey}-${vuelo.assignments.map(a => a.id + (a.driverId ?? "")).join("/")}`}
+      key={`combi-${vuelo.id}-${resetKey}-${vuelo.assignments.map(a => a.id + a.vehicleId + (a.driverId ?? "")).join("/")}`}
       trigger={gruposPrivados.length ? <>
         <span><strong>Pública</strong> · {resumenPublico}</span>
-        {gruposPrivados.map(({ detalle, asignacion }) => <span key={detalle.id}>
-          <strong>Privada{gruposPrivados.length > 1 ? ` · ${detalle.reservation.shortCode}` : ""}</strong> · {estado(asignacion)}
+        {gruposPrivados.map(({ detalle, asignaciones }) => <span key={detalle.id}>
+          <strong>Privada{gruposPrivados.length > 1 ? ` · ${detalle.reservation.shortCode}` : ""}</strong> · {resumen(asignaciones)}
         </span>)}
       </> : trigger}
       triggerLabel={gruposPrivados.length ? [
         `Asignar naves y choferes del ${vuelo.number}`, `Pública · ${resumenPublico}`,
-        ...gruposPrivados.map(({ detalle, asignacion }) => `Privada ${detalle.reservation.shortCode} · ${estado(asignacion)}`)
+        ...gruposPrivados.map(({ detalle, asignaciones }) => `Privada ${detalle.reservation.shortCode} · ${resumen(asignaciones)}`)
       ].join(". ") : triggerLabel}
       triggerClassName={gruposPrivados.length ? `${triggerClassName} aero-flota-mixta` : triggerClassName}
       modalClassName="asignar-flota-modal aero-combi-modal"
@@ -226,30 +226,42 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
           «Separar» en el vuelo.
         </p>
       ) : null}
-      {gruposPrivados.map(({ detalle, asignacion }) => {
-        const clave = `privada:${detalle.reservationId}`;
+      {gruposPrivados.map(({ detalle, asignaciones }) => {
         const etiqueta = `Privada · ${detalle.reservation.shortCode}`;
-        const disponibles = naves.filter(n => n.id === asignacion?.vehicleId || (
-          (n.seats ?? 0) >= detalle.reservation.passengerCount && !vuelo.assignments.some(a => a.vehicleId === n.id)
-        ));
-        return <details key={detalle.id} className="aero-tipo-traslado">
-          <summary><strong>{etiqueta}</strong><span>{estado(asignacion)} · {detalle.reservation.passengerCount} pax</span></summary>
-          <FleetAssignmentForm action={assignVehicleAction}>
+        const lugares = asignaciones.reduce((total, a) => total + butacasParaAeropuerto(a.vehicle.seats.length), 0);
+        const pendientes = Math.max(0, detalle.reservation.passengerCount - lugares);
+        function selector(asignacion?: VueloConCombis["assignments"][number]) {
+          const excluir = asignacion ? [`privada:${asignacion.id}`] : [];
+          const disponibles = naves.filter(n => n.id === asignacion?.vehicleId ||
+            ((n.seats ?? 0) > 0 && !vuelo.assignments.some(a => a.vehicleId === n.id)));
+          return <FleetAssignmentForm action={assignVehicleAction}>
             <input type="hidden" name="flightId" value={vuelo.id} />
             <input type="hidden" name="privateReservationId" value={detalle.reservationId} />
             <input type="hidden" name="assignmentId" value={asignacion?.id ?? ""} />
+            <input type="hidden" name="previousVehicleId" value={asignacion?.vehicleId ?? ""} />
             <input type="hidden" name="previousDriverId" value={asignacion?.driverId ?? ""} />
             {volver}
-            <SelectorNaveYChofer servicio={etiqueta} naves={disponibles} choferes={choferesCon(asignacion?.driver ?? null)}
+            <SelectorNaveYChofer servicio={asignacion ? `${etiqueta} · ${tituloDeNave(asignacion.vehicle)}` : etiqueta}
+              naves={disponibles} choferes={choferesCon(asignacion?.driver ?? null)}
               naveActual={asignacion?.vehicleId} choferActual={asignacion?.driverId ?? ""}
-              ocupacionNaves={ocupacionEnVentana(ocupacion, "nave", tramo, [clave])}
-              ocupacionChoferes={ocupacionEnVentana(ocupacion, "chofer", tramo, [clave])}
-              seatsLabel="lugares para aeropuerto" boton="Guardar asignación privada" />
-          </FleetAssignmentForm>
-          {asignacion && <form action={removeAssignmentAction}>
-            <input type="hidden" name="id" value={asignacion.id} />{volver}
-            <button className="ghost-button" type="submit">Quitar nave privada</button>
-          </form>}
+              ocupacionNaves={ocupacionEnVentana(ocupacion, "nave", tramo, excluir)}
+              ocupacionChoferes={ocupacionEnVentana(ocupacion, "chofer", tramo, excluir)}
+              seatsLabel="lugares para aeropuerto" boton={asignacion ? "Guardar cambios" : "Agregar nave privada"} />
+          </FleetAssignmentForm>;
+        }
+        return <details key={detalle.id} className="aero-tipo-traslado">
+          <summary><strong>{etiqueta}</strong><span>{resumen(asignaciones)} · {detalle.reservation.passengerCount} pax</span></summary>
+          {pendientes > 0 && <p>Falta asignar lugar para {pendientes} {pendientes === 1 ? "pasajero" : "pasajeros"}.</p>}
+          {asignaciones.map(a => <details className="aero-editar-nave" key={a.id}>
+            <summary>Editar {estado(a)}</summary>
+            {selector(a)}
+            <form action={removeAssignmentAction}>
+              <input type="hidden" name="id" value={a.id} />{volver}
+              <button className="ghost-button" type="submit">Quitar nave privada</button>
+            </form>
+          </details>)}
+          <h4>Agregar nave privada</h4>
+          {selector()}
         </details>;
       })}
       {gruposPrivados.length ? <section className="aero-tipo-traslado" aria-label="Traslado público">

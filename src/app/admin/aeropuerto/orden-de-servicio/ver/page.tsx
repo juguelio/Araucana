@@ -133,7 +133,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     return (
       <>
       {block.privateOrderId ? (
-        <Link className="ghost-button no-print" href={`/admin/reservas/${codes[0]}`}>Administrar nave privada</Link>
+        <Link className="ghost-button no-print" href={`/admin/aeropuerto?date=${date}#vuelo-${block.flightId}`}>Administrar naves y choferes</Link>
       ) : vuelo ? (
         <div className="no-print orden-asignar">
           <CombiDelVueloModal

@@ -11,7 +11,7 @@ export function PrivateStopsFields({ stops, onChange, vehicles, vehicleId, onVeh
   onChange: (stops: PrivateStop[]) => void;
   vehicles: PrivateVehicleOption[];
   vehicleId: string;
-  onVehicle: (id: string) => void;
+  onVehicle?: (id: string) => void;
 }) {
   const total = privatePassengerCount(stops);
   function update(index: number, change: Partial<PrivateStop>) {
@@ -33,11 +33,11 @@ export function PrivateStopsFields({ stops, onChange, vehicles, vehicleId, onVeh
     ))}
     <button className="ghost-button" type="button" disabled={total >= 24} onClick={() => onChange([...stops, { destination: "", passengers: 1 }])}>Agregar parada</button>
     <p>Total del grupo · {total} {total === 1 ? "pasajero" : "pasajeros"}</p>
-    <label>Nave exclusiva
+    {onVehicle && <label>Nave exclusiva
       <select aria-label="Nave exclusiva" value={vehicleId} onChange={event => onVehicle(event.target.value)}>
         <option value="">Pendiente de asignación</option>
         {vehicles.filter(v => v.seats >= total || v.id === vehicleId).map(v => <option key={v.id} value={v.id}>{v.name} · {v.seats} lugares</option>)}
       </select>
-    </label>
+    </label>}
   </>;
 }

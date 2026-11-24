@@ -148,3 +148,19 @@ it("mantiene dos reservas privadas pendientes separadas en una recorrida compart
   expect(group.totalCents).toBe(100000);
   expect(orders.find(o => !o.privateOrderId)?.passengers.map(p => p.code)).toEqual(["Ana", "Beto"]);
 });
+
+it("reparte una parada privada entre naves y conserva un solo cobro y un enlace por chofer", () => {
+  const vehicles = ["a1", "a2"].map(id => ({ ...nave(id, id), seats: 2 }));
+  const orders = buildServiceOrderBlocks([reserva("Grupo", { ...ar, vehicles }, {
+    privateOrderId: "r1", privateStops: [{ destination: "Traful", passengers: 3 }, { destination: "Junín", passengers: 2 }], passengerCount: 5
+  })]);
+  expect(orders.map(o => o.passengers.map(p => [p.lodging, p.seats]))).toEqual([
+    [["Traful", 2]], [["Traful", 1], ["Junín", 1]], [["Junín", 1]]
+  ]);
+  expect(orders.map(o => o.totalCents)).toEqual([100000, 0, 0]);
+  for (const [index, ref] of ["a1", "a2", "pendiente-r1"].entries()) {
+    expect(filtrarPorNave(orders, ref)).toEqual([orders[index]]);
+    expect(orders.filter(o => esOrdenElegida(o, [{ flight: ar.id, vehicle: ref }]))).toEqual([orders[index]]);
+  }
+  expect(filtrarPorNave(orders, "privada-r1")).toEqual(orders);
+});

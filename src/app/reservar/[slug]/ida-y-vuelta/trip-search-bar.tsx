@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { PrivateAirportChoiceContext } from "../private-airport-context";
 import { tramoDeVuelo } from "@/lib/airport/airports";
 import { airlineName } from "@/lib/airport/airlines";
 import { AirlineBadge } from "@/components/airline-badge";
@@ -187,6 +188,7 @@ export function TripSearchBar({
 }) {
   const t = (es: string, en: string, pt: string) => locale === "en" ? en : locale === "pt" ? pt : es;
   const id = useId();
+  const privateChoice = useContext(PrivateAirportChoiceContext);
   const raiz = useRef<HTMLDivElement>(null);
   const [abierto, setAbierto] = useState<Campo | null>(abrirLaVuelta && tramos.length > 1 ? tramos[1].sentido : null);
   /** El primer día de la tira de cada tramo: se corre de a una semana con las flechas. */
@@ -546,6 +548,7 @@ export function TripSearchBar({
           ) : null}
           {campoLugar("hacia")}
         </div>
+        {privateChoice}
         {/* Siempre dos fechas, mitad y mitad: ida y vuelta, o la ida y la vuelta para agregar. */}
         <div className="trip-search-dates">
           {tramos.map((tramo, indice) => campoTramo(tramo, indice === 1 ? quitarVueltaHref : undefined))}

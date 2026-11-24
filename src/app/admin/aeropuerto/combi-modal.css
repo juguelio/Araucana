@@ -23,3 +23,7 @@
   display: grid; flex-basis: 100%; gap: 4px; padding: 7px 10px; text-align: left;
   white-space: normal; overflow-wrap: anywhere; border-radius: 10px;
 }
+
+.aero-tipo-traslado h4 { margin: 12px 0 4px; }
+.aero-editar-nave { margin-block: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.aero-editar-nave[open] > form { margin-top: 8px; }

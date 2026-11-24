@@ -15,3 +15,5 @@ export const PrivateAirportContext = createContext<{
   place: string;
   renderForm: (search: ReactNode, legs: PrivateAirportLeg[], flightError: string) => ReactNode;
 } | null>(null);
+
+export const PrivateAirportChoiceContext = createContext<ReactNode>(null);
