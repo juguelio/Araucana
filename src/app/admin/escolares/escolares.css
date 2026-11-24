@@ -47,6 +47,9 @@
 .cn-semana-servicio strong { font-size: 12px; line-height: 1.25; }
 .cn-semana-servicio span { color: var(--ink-muted); font-size: 11px; }
 .cn-semana-servicio .pill { justify-self: start; font-size: 10px; }
+.school-assign-trigger { cursor: pointer; font-family: inherit; background: transparent; }
+.school-assign-trigger:hover { border-color: var(--primary); color: var(--primary); }
+.school-assign-trigger-pendiente { color: var(--accent); border-color: var(--accent); }
 .cn-semana-agregar { color: var(--primary); font-size: 11px; font-weight: 800; text-decoration: none; }
 .cn-semana-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 2px; }
 .cn-semana-pie-top { margin-top: 0; padding-top: 0; }

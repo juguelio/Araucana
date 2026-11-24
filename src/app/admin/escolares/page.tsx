@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { ConcesionesNav } from "@/components/concesiones-nav";
 import { ConcesionesVistaNav } from "@/components/concesiones-vista-nav";
+import { AsignarRecursosConcesion } from "./asignar-recursos";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { dateOnly } from "@/lib/special-trips/data";
@@ -23,13 +24,24 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
   const day = dateOnly(params.fecha);
   if (!day) redirect(`/admin/escolares/semana${tipo ? `?tipo=${tipo}` : ""}`);
   const date = day.toISOString().slice(0, 10);
-  const [runs, days] = await Promise.all([
+  const [runs, days, naves, choferes] = await Promise.all([
     prisma.schoolRun.findMany({ where: { serviceDate: day, ...(tipo ? { kind: tipo } : {}) }, orderBy: [{ routeName: "asc" }, { id: "asc" }],
       include: { driver: { select: { name: true, email: true } }, vehicle: { select: { name: true } } } }),
     prisma.schoolRun.groupBy({ by: ["serviceDate"], where: { serviceDate: {
       gte: new Date(+day - 7 * 86400000), lte: new Date(+day + 7 * 86400000)
-    }, ...(tipo ? { kind: tipo } : {}) }, orderBy: { serviceDate: "asc" } })
+    }, ...(tipo ? { kind: tipo } : {}) }, orderBy: { serviceDate: "asc" } }),
+    prisma.vehicle.findMany({
+      where: { isActive: true, kind: { not: "UTILITARIO" } },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, internalNumber: true, licensePlate: true }
+    }),
+    prisma.user.findMany({
+      where: { role: "DRIVER", isActive: true },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      select: { id: true, name: true, email: true }
+    })
   ]);
+  const returnTo = `/admin/escolares?fecha=${date}${tipo ? `&tipo=${tipo}` : ""}`;
   return <AdminShell title="Concesiones" eyebrow="Servicios recurrentes" role={user.role} notice={params.aviso}
     action={<div className="inline-actions"><Link className="ghost-button" href="/admin/escolares/importar">Importar planilla</Link><Link className="button" href={`/admin/escolares/nuevo?fecha=${date}${tipo ? `&tipo=${tipo}` : ""}`}>Nuevo servicio</Link></div>}>
     <ConcesionesNav actual={tipo ?? "todos"} fecha={date} />
@@ -50,7 +62,20 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
             <td><Link className="table-link" href={`/admin/escolares/${run.id}`}>{run.routeName}</Link></td>
             <td><span className="pill">{etiquetaDeConcesion(run.kind)}</span></td>
             <td>{run.shift}</td><td>{run.driver?.name ?? run.driver?.email ?? "Sin asignar"}</td><td>{run.vehicle?.name ?? "Sin asignar"}</td>
-            <td><span className="pill">{run.review || !run.driverId || !run.vehicleId ? "Revisar" : "Asignado"}</span></td>
+            <td><AsignarRecursosConcesion
+              id={run.id}
+              titulo={run.routeName}
+              subtitulo={run.shift}
+              fecha={date}
+              revision={run.revision}
+              returnTo={returnTo}
+              naves={naves}
+              choferes={choferes.map((chofer) => ({ id: chofer.id, label: chofer.name?.trim() || chofer.email, email: chofer.email }))}
+              naveActual={run.vehicleId ?? ""}
+              choferActual={run.driverId ?? ""}
+              trigger={run.review || !run.driverId || !run.vehicleId ? "Revisar" : "Asignado"}
+              triggerClassName={`pill school-assign-trigger${run.review || !run.driverId || !run.vehicleId ? " school-assign-trigger-pendiente" : ""}`}
+            /></td>
           </tr>)}</tbody></table>
       </div>}
     </section>
