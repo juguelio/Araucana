@@ -48,6 +48,9 @@ export type SalidaDeTerminal = {
   vendible: boolean;
   estado: string;
   estadoLabel: string;
+  /** Salida y llegada, para ver qué naves y choferes están libres en ese tramo. */
+  salidaAt: Date;
+  llegadaAt: Date;
 };
 
 const ESTADOS: Record<string, string> = {
@@ -98,7 +101,9 @@ export function salidasDeTerminal(rows: AdminScheduleRowDto[], now = new Date())
         libres: row.availableSeats,
         vendible: ventaAbierta(row.status, new Date(row.departureAt), now),
         estado: row.status,
-        estadoLabel: estadoLabel(row.status)
+        estadoLabel: estadoLabel(row.status),
+        salidaAt: new Date(row.departureAt),
+        llegadaAt: new Date(row.arrivalAt)
       };
     })
     .sort((a, b) => a.hora.localeCompare(b.hora));

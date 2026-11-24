@@ -4,8 +4,13 @@ import { prisma } from "@/lib/db/prisma";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { RowModal } from "../reservas/row-modal";
 import { assignVehicleAction, removeAssignmentAction } from "./actions";
-import { ChoferBuscador, type ChoferElegible } from "./chofer-buscador";
-import { NaveBuscador, type NaveElegible } from "./nave-buscador";
+import { SelectorNaveYChofer, type ChoferOpcion } from "@/components/asignar-flota/selector-nave-chofer";
+import { tituloDeNave } from "@/lib/fleet/titulo-de-nave";
+import { airportServiceWindow } from "@/lib/airport/service-window";
+import { ocupacionEnVentana, type Ocupacion } from "@/lib/fleet/ocupacion";
+import type { NaveElegible } from "./nave-buscador";
+
+type ChoferElegible = ChoferOpcion;
 import { NAVES_STEP_FIELD, ORDER_RETURN_FIELD } from "./return-to-order";
 import "./aeropuerto.css";
 import "./combi-modal.css";
@@ -85,7 +90,7 @@ export function vueloDeLaRecorrida(vuelo: VueloConCombis, companeros: VueloConCo
   return { ...vuelo, assignments, reservations: [...vuelo.reservations, ...companeros.flatMap((otro) => otro.reservations)] };
 }
 
-export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLabel, triggerClassName, resetKey, volverAOrden, recorrida = [], paso }: {
+export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLabel, triggerClassName, resetKey, volverAOrden, recorrida = [], paso, ocupacion = [] }: {
   vuelo: VueloConCombis;
   naves: NaveElegible[];
   choferes: ChoferElegible[];
@@ -102,6 +107,8 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
    * o cambian naves. `listoHref` cierra el paso (vuelve al tablero sin el modal).
    */
   paso?: { listoHref: string };
+  /** Lo que ocupa naves y choferes ese día (`cargarOcupacionDelDia`), para marcar quién está libre. */
+  ocupacion?: Ocupacion[];
 }) {
   const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
   const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
@@ -114,6 +121,14 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
     ? <input type="hidden" name={ORDER_RETURN_FIELD} value={volverAOrden} />
     : paso ? <input type="hidden" name={NAVES_STEP_FIELD} value={vuelo.id} /> : null;
   const vuelos = [vuelo.number, ...recorrida].join(" + ");
+  // El tramo del vuelo (recorrida o reparto) y quién está en otro servicio en ese tramo. El propio
+  // vuelo y los de su recorrida no cuentan como cruce.
+  const ventana = airportServiceWindow({ ...vuelo, status: vuelo.status ?? undefined });
+  const propios = [`vuelo:${vuelo.id}`, ...vuelo.assignments.map((a) => `vuelo:${a.flightId}`)];
+  const tramo = { desde: ventana.startsAt, hasta: ventana.endsAt };
+  const ocupacionNaves = ocupacionEnVentana(ocupacion, "nave", tramo, propios);
+  const ocupacionChoferes = ocupacionEnVentana(ocupacion, "chofer", tramo, propios);
+  const faltan = Math.max(0, ocupados - capacidad);
 
   return (
     <RowModal
@@ -121,7 +136,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       trigger={trigger}
       triggerLabel={triggerLabel}
       triggerClassName={triggerClassName}
-      modalClassName="aero-combi-modal"
+      modalClassName="asignar-flota-modal aero-combi-modal"
       defaultOpen={Boolean(paso)}
       eyebrow={paso ? "Paso 2 de 2 · Naves y choferes" : `${vuelo.direction === "ARRIVAL" ? "Arribo" : "Partida"} ${hhmm.format(vuelo.scheduledAt)}`}
       title={recorrida.length ? `Combis de la recorrida ${vuelos}` : `Combi del ${vuelo.number}`}
@@ -143,10 +158,12 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       ) : null}
       {vuelo.assignments.length ? (
         <div className="aero-combi-asignadas">
-          <strong>Asignadas</strong>
+          <strong>Ahora</strong>
           {vuelo.assignments.map((a) => (
             <div key={a.id} className="aero-combi-asignada">
-              <span>{a.vehicle.name}{a.privateReservationId ? " · privada" : ""} · {butacasParaAeropuerto(a.vehicle.seats.length)} lugares · {a.driver ? `chofer ${nombreDeChofer(a.driver)}` : "sin chofer"}</span>
+              <span>
+                <strong>{tituloDeNave(a.vehicle)}</strong>{a.privateReservationId ? " · privada" : ""} · {butacasParaAeropuerto(a.vehicle.seats.length)} lugares · {a.driver ? `chofer ${nombreDeChofer(a.driver)}` : "sin chofer"}
+              </span>
               {/* El chofer de una combi ya asignada se cambia acá mismo: avisa si está ocupado en otra salida. */}
               <FleetAssignmentForm action={assignVehicleAction}>
                 <input type="hidden" name="flightId" value={a.privateReservationId ? a.flightId : vuelo.id} />
@@ -170,12 +187,17 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       <FleetAssignmentForm action={assignVehicleAction}>
         <input type="hidden" name="flightId" value={vuelo.id} />
         {volver}
-        {/* Nave a la izquierda y chofer a la derecha, con el mismo buscador (en el celular, uno abajo del otro). */}
-        <div className="aero-combi-columnas">
-          <NaveBuscador flightNumber={vuelo.number} naves={naves.filter((nave) => !vuelo.assignments.some((a) => a.vehicle.id === nave.id))} />
-          <ChoferBuscador flightNumber={vuelo.number} choferes={choferes} />
-        </div>
-        <button className="button" type="submit">{vuelo.assignments.length ? "Sumar nave" : "Asignar nave"}</button>
+        {/* El mismo selector que Servicio público y Naves en vivo: libre u ocupada a la hora del vuelo. */}
+        <SelectorNaveYChofer
+          servicio={`vuelo ${vuelos}`}
+          naves={naves.filter((nave) => !vuelo.assignments.some((a) => a.vehicle.id === nave.id))}
+          choferes={choferes}
+          ocupacionNaves={ocupacionNaves}
+          ocupacionChoferes={ocupacionChoferes}
+          lugaresQueFaltan={vuelo.assignments.length ? faltan || null : ocupados || null}
+          seatsLabel="lugares para aeropuerto"
+          boton={vuelo.assignments.length ? "Sumar nave" : "Asignar"}
+        />
       </FleetAssignmentForm>
       {paso ? (
         <div className="form-actions">
