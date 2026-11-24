@@ -23,6 +23,11 @@ it("abre la ficha desde el listado y la edición desde la ficha", async () => {
   const list = renderToStaticMarkup(await SchoolsPage({ searchParams: Promise.resolve({ fecha: "2026-11-24" }) }));
   expect(list).toContain('href="/admin/escolares/esc-7">Primaria Quila Quina');
   expect(list).not.toContain('name="driverId"');
+  // El día se agrupa por horario y muestra lo que hay que mirar.
+  expect(list).toContain(">Mañana</h2>");
+  expect(list).toContain("Confirmar horario");
+  expect(list).toContain("Entrada norte");
+  expect(list).toContain('aria-label="Días de esta semana"');
   const detail = renderToStaticMarkup(await SchoolDetail({ params: Promise.resolve({ id: fixture.id }), searchParams: Promise.resolve({}) }));
   expect(detail).toContain('href="/admin/escolares/esc-7/editar"');
   expect(detail).toContain("Entrada norte");
