@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { PrivateAirportContext } from "./private-airport-context";
+import { useContext, useMemo, useRef, useState } from "react";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { detalleDeLaVuelta, hrefConViaje } from "./airport-trip-options";
 import { TripSearchBar, type TramoDeLaBarra, type Sentido } from "./ida-y-vuelta/trip-search-bar";
@@ -26,6 +27,7 @@ export type FlightOption = {
   source?: string;
   available: number;
   bookable: boolean;
+  privateBookable?: boolean;
   reason: string | null;
 };
 
@@ -38,6 +40,8 @@ type SearchProps = {
 
 export function useAirportSearch({ slug, fares, initialDirection, initialDate, initialFlights, initialFlightId,
   fromAdmin, lugaresExtra, roundTripHref, locale }: SearchProps, setError: (message: string) => void) {
+  const privada = useContext(PrivateAirportContext);
+  const esPrivada = Boolean(privada);
   const [date, setDate] = useState(initialDate);
   const [flights, setFlights] = useState<FlightOption[]>(initialFlights ?? []);
   const [sentido, setSentido] = useState<"ARRIVAL" | "DEPARTURE">(
@@ -79,8 +83,8 @@ export function useAirportSearch({ slug, fares, initialDirection, initialDate, i
   }
 
   const { reservables } = useMemo(
-    () => separarVuelosDelSelector(flights, sentido),
-    [flights, sentido]
+    () => separarVuelosDelSelector(flights, sentido, esPrivada),
+    [flights, sentido, esPrivada]
   );
   const selected = useMemo(() => flights.find((f) => f.id === selectedId) ?? null, [flights, selectedId]);
 
@@ -88,7 +92,7 @@ export function useAirportSearch({ slug, fares, initialDirection, initialDate, i
     sentido,
     // Igual que el primer casillero del ida y vuelta: «Ida · Llegada» / «Ida · Salida».
     etapa: "Ida",
-    titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : "Salida desde San Martín",
+    titulo: sentido === "ARRIVAL" ? "Llegada a Chapelco" : esPrivada ? "Salida desde Chapelco" : "Salida desde San Martín",
     pregunta: sentido === "ARRIVAL"
       ? "¿Qué día aterriza en Chapelco y en qué vuelo?"
       : "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
@@ -102,9 +106,9 @@ export function useAirportSearch({ slug, fares, initialDirection, initialDate, i
   function searchBar(onDirection?: () => void, onSelect?: () => void) {
     const detalle = detalleDeLaVuelta(sentido, fares);
     return (
-      <TripSearchBar locale={locale} tramos={[tramoDeLaBarra]} routeSlug={slug} lugaresExtra={lugaresExtra}
+      <TripSearchBar locale={locale} tramos={[tramoDeLaBarra]} routeSlug={slug} lugaresExtra={esPrivada ? undefined : lugaresExtra} privatePlace={privada?.place}
         onAbrirVuelos={() => { if (!loaded.current) void cargarVuelos(date); }}
-        onPedirOrden={(nuevo) => {
+        onPedirOrden={esPrivada && !fares[sentido === "ARRIVAL" ? "DEPARTURE" : "ARRIVAL"] ? undefined : (nuevo) => {
           if (nuevo === sentido || !fares[nuevo]) return;
           setSentido(nuevo);
           setSelectedId("");
@@ -114,7 +118,7 @@ export function useAirportSearch({ slug, fares, initialDirection, initialDate, i
         onFecha={(_, fecha) => { setDate(fecha); setSelectedId(""); void cargarVuelos(fecha); }}
         onVuelo={(_, id) => { setSelectedId(id); setError(""); onSelect?.(); }}
         agregarVuelta={detalle === null ? undefined : {
-          href: hrefConViaje(roundTripHref, {date, sentido, vuelo: selectedId || undefined}) + "&abrir=vuelta", detalle
+          href: hrefConViaje(roundTripHref, {date, sentido, vuelo: selectedId || undefined}) + "&abrir=vuelta", detalle: esPrivada ? undefined : detalle
         }}
       />
     );

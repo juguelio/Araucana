@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { PrivateAirportContext } from "../private-airport-context";
+import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
+import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { hrefConViaje } from "../airport-trip-options";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -46,6 +48,7 @@ type FlightOption = {
   source?: string;
   available: number;
   bookable: boolean;
+  privateBookable?: boolean;
   reason: string | null;
 };
 
@@ -152,10 +155,6 @@ function formatShortCode(code: string) {
 }
 
 /** Las opciones de un sentido que hoy se pueden reservar. */
-function reservablesDe(vuelos: FlightOption[], direction: "ARRIVAL" | "DEPARTURE") {
-  return vuelos.filter((vuelo) => vuelo.direction === direction && vuelo.bookable);
-}
-
 function descripcionVuelo(vuelo: FlightOption) {
   const partes = [vuelo.number, hhmm(vuelo.estimatedAt ?? vuelo.scheduledAt)];
   if (vuelo.origin) partes.push(vuelo.origin);
@@ -169,6 +168,8 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
    * Cuál de los dos tramos va primero en el calendario. `ARRIVAL` = llego a San Martín y después
    * me voy (CPC → SMA, SMA → CPC); `DEPARTURE` = me voy y después vuelvo (SMA → CPC, CPC → SMA).
    */
+  const privateCheckout = useContext(PrivateAirportContext);
+  const flightRequests = useRef({ ARRIVAL: 0, DEPARTURE: 0 });
   const [orden, setOrden] = useState<"ARRIVAL" | "DEPARTURE">(initialOrder);
   // El vuelo que ya traía la reserva de un tramo queda elegido como primer tramo, si sigue en la lista.
   const vueloQueVino = initialFlights.find((vuelo) => vuelo.id === initialFirstFlightId && vuelo.direction === initialOrder)?.id ?? "";
@@ -221,10 +222,10 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     claveDeIdempotencia.current = "";
   }, [orden, llegadaId, vueltaId, fechaLlegada, fechaVuelta]);
 
-  const llegada = useMemo(() => vuelosLlegada.find((v) => v.id === llegadaId) ?? null, [vuelosLlegada, llegadaId]);
-  const vuelta = useMemo(() => vuelosVuelta.find((v) => v.id === vueltaId) ?? null, [vuelosVuelta, vueltaId]);
-  const opcionesLlegada = reservablesDe(vuelosLlegada, "ARRIVAL");
-  const opcionesVuelta = reservablesDe(vuelosVuelta, "DEPARTURE");
+  const opcionesLlegada = separarVuelosDelSelector(vuelosLlegada, "ARRIVAL", Boolean(privateCheckout)).reservables;
+  const opcionesVuelta = separarVuelosDelSelector(vuelosVuelta, "DEPARTURE", Boolean(privateCheckout)).reservables;
+  const llegada = opcionesLlegada.find(vuelo => vuelo.id === llegadaId) ?? null;
+  const vuelta = opcionesVuelta.find(vuelo => vuelo.id === vueltaId) ?? null;
   /**
    * Los dos tramos en el orden que eligió el pasajero. El segundo lleva `minimo` con la fecha del
    * primero: el que va después no puede ser anterior en el calendario.
@@ -275,7 +276,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   };
   const bloqueSalida = {
     sentido: "DEPARTURE" as const,
-    titulo: "Salida desde San Martín",
+    titulo: privateCheckout ? "Salida desde Chapelco" : "Salida desde San Martín",
     ayuda: "El vuelo con el que te vas.",
     pregunta: "¿Qué día se va y en qué vuelo? Lo buscamos antes para llegar a tiempo.",
     fecha: fechaVuelta,
@@ -454,14 +455,18 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
   async function cargarVuelos(fecha: string, sentido: "ARRIVAL" | "DEPARTURE") {
     const setCargando = sentido === "ARRIVAL" ? setCargandoLlegada : setCargandoVuelta;
     const setVuelos = sentido === "ARRIVAL" ? setVuelosLlegada : setVuelosVuelta;
+    const request = ++flightRequests.current[sentido];
+    setVuelos([]);
     setCargando(true);
     setError("");
     try {
       const res = await fetch(`/api/v1/airport/flights?slug=${encodeURIComponent(route.slug)}&date=${fecha}`);
       const data = await res.json();
+      if (request !== flightRequests.current[sentido]) return;
       setVuelos(res.ok ? data.flights ?? [] : []);
       if (!res.ok) setError(data?.error?.message ?? "No pudimos traer los vuelos de ese día.");
     } catch {
+      if (request !== flightRequests.current[sentido]) return;
       setVuelos([]);
       setError("No pudimos traer los vuelos de ese día. Probá de nuevo.");
     }
@@ -668,6 +673,59 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
     );
   }
 
+  const searchBar = (
+    <TripSearchBar locale={locale}
+      orden={orden}
+      lugaresExtra={privateCheckout ? undefined : lugaresExtra}
+      privatePlace={privateCheckout?.place}
+      abrirLaVuelta={abrirLaVuelta}
+      tramos={bloquesDelViaje.map((bloque, i): TramoDeLaBarra => ({
+        sentido: bloque.sentido,
+        etapa: i === 0 ? "Ida" : "Vuelta",
+        titulo: bloque.titulo,
+        pregunta: bloque.pregunta,
+        fecha: bloque.fecha,
+        // En la web no se reserva para días que ya pasaron; el panel puede cargar atrasados.
+        minimo: bloque.minimo || (fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10)),
+        opciones: bloque.opciones,
+        elegido: bloque.elegido,
+        cargando: bloque.cargando
+      })) as [TramoDeLaBarra, TramoDeLaBarra]}
+      routeSlug={route.slug}
+      confirmarCambio={confirmarCambio}
+      onPedirOrden={pedirOrden}
+      onConfirmarCambio={cambiarOrden}
+      onCancelarCambio={() => setConfirmarCambio(false)}
+      onFecha={(sentido, fecha) => {
+        if (sentido === "ARRIVAL") { setFechaLlegada(fecha); setLlegadaId(""); }
+        else { setFechaVuelta(fecha); setVueltaId(""); }
+        void cargarVuelos(fecha, sentido);
+      }}
+      onVuelo={(sentido, vueloId) => {
+        if (sentido === "ARRIVAL") setLlegadaId(vueloId);
+        else setVueltaId(vueloId);
+        setError("");
+      }}
+      // La cruz de la vuelta vuelve a la reserva de un tramo con el primer tramo ya elegido (18-nov).
+      quitarVueltaHref={hrefConViaje(
+        singleHrefs?.[orden] ?? `/reservar/${route.slug}?sentido=${orden}`,
+        {
+          date: orden === "ARRIVAL" ? fechaLlegada : fechaVuelta,
+          sentido: orden,
+          vuelo: (orden === "ARRIVAL" ? llegadaId : vueltaId) || undefined
+        }
+      )}
+    />
+  );
+
+  if (privateCheckout) {
+    return privateCheckout.renderForm(searchBar, bloquesDelViaje.map(bloque => ({
+      date: bloque.fecha, direction: bloque.sentido,
+      flight: bloque.opciones.find(vuelo => vuelo.id === bloque.elegido) ?? null,
+      clearFlight: () => bloque.setElegido("")
+    })), error);
+  }
+
   return (
     <form className="checkout-layout" onSubmit={handleSubmit} noValidate>
       <div className="checkout-main">
@@ -700,47 +758,7 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
 
               {/* Barra al estilo de los buscadores de vuelos (pedido de Jugue, 17-nov: «como en Kiwi»):
                   cada campo abre su panel con los lugares, o con los días y los vuelos para tocar. */}
-              <TripSearchBar locale={locale}
-                orden={orden}
-                lugaresExtra={lugaresExtra}
-                abrirLaVuelta={abrirLaVuelta}
-                tramos={bloquesDelViaje.map((bloque, i): TramoDeLaBarra => ({
-                  sentido: bloque.sentido,
-                  etapa: i === 0 ? "Ida" : "Vuelta",
-                  titulo: bloque.titulo,
-                  pregunta: bloque.pregunta,
-                  fecha: bloque.fecha,
-                  // En la web no se reserva para días que ya pasaron; el panel puede cargar atrasados.
-                  minimo: bloque.minimo || (fromAdmin ? "" : new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10)),
-                  opciones: bloque.opciones,
-                  elegido: bloque.elegido,
-                  cargando: bloque.cargando
-                })) as [TramoDeLaBarra, TramoDeLaBarra]}
-                routeSlug={route.slug}
-                confirmarCambio={confirmarCambio}
-                onPedirOrden={pedirOrden}
-                onConfirmarCambio={cambiarOrden}
-                onCancelarCambio={() => setConfirmarCambio(false)}
-                onFecha={(sentido, fecha) => {
-                  if (sentido === "ARRIVAL") { setFechaLlegada(fecha); setLlegadaId(""); }
-                  else { setFechaVuelta(fecha); setVueltaId(""); }
-                  void cargarVuelos(fecha, sentido);
-                }}
-                onVuelo={(sentido, vueloId) => {
-                  if (sentido === "ARRIVAL") setLlegadaId(vueloId);
-                  else setVueltaId(vueloId);
-                  setError("");
-                }}
-                // La cruz de la vuelta vuelve a la reserva de un tramo con el primer tramo ya elegido (18-nov).
-                quitarVueltaHref={hrefConViaje(
-                  singleHrefs?.[orden] ?? `/reservar/${route.slug}?sentido=${orden}`,
-                  {
-                    date: orden === "ARRIVAL" ? fechaLlegada : fechaVuelta,
-                    sentido: orden,
-                    vuelo: (orden === "ARRIVAL" ? llegadaId : vueltaId) || undefined
-                  }
-                )}
-              />
+              {searchBar}
               <p className="trip-search-hint"><strong>{fraseOrden}.</strong></p>
               {/* Con el vuelo de salida elegido, a qué hora pasa la camioneta (#206): 2 h 30 antes. */}
               {(() => {

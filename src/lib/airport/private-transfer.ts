@@ -10,6 +10,7 @@ export type PrivateStop = z.infer<typeof privateStopsSchema>[number];
 
 export const privateTransferSchema = z.object({
   stops: privateStopsSchema,
+  flightId: z.string().min(1).optional(),
   totalCents: reservationPriceCents,
   vehicleId: z.string().min(1).optional()
 });

@@ -12,7 +12,7 @@
   align-items: end;
   gap: .75rem;
 }
-.private-transfer-fields button, .private-leg button { justify-self: start; }
+.private-transfer-fields > button, .private-leg button { justify-self: start; }
 @media (max-width: 650px) {
   .private-stop { grid-template-columns: 1fr; }
 }

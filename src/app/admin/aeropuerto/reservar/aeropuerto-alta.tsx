@@ -43,8 +43,7 @@ export async function AeropuertoAlta({ date, tramos, sentido, vuelo, abrir, luga
   const initialDirection = preferredDirection && fares[preferredDirection] ? preferredDirection : fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE";
 
   return (
-    <AirportTransferChoice slug={route.slug} fares={fares} initialDate={initialDate} initialFlights={flights}
-      initialFlightId={vueloElegido} roundTrip={idaYVuelta} vehicles={vehicles} initialDirection={initialDirection}>
+    <AirportTransferChoice slug={route.slug} fares={fares} vehicles={vehicles}>
       {idaYVuelta ? (
         <RoundTripCheckoutForm
           fromAdmin

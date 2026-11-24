@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { aeropuertoLabel, tramoDeVuelo } from "@/lib/airport/airports";
+import { PrivateAirportContext } from "./private-airport-context";
 import { useAirportSearch, type FlightOption } from "./airport-search";
 import { statusLabel } from "@/lib/airport/flights";
 import { AIRPORT_PICKUP_COPY, airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
@@ -175,6 +176,7 @@ function formatPrice(cents: number, currency: string) {
 }
 
 export function AirportCheckoutForm({ route, fares, initialDirection, initialDate, initialFlights, coverage, extras, officePickup = null, fromAdmin = false, roundTripHref, startAtFlights = false, initialFlightId, lugaresExtra, locale }: AirportCheckoutFormProps) {
+  const privateCheckout = useContext(PrivateAirportContext);
   const router = useRouter();
   const [fullFareCount, setFullFareCount] = useState(1);
   const [customPrice, setCustomPrice] = useState("");
@@ -523,6 +525,12 @@ export function AirportCheckoutForm({ route, fares, initialDirection, initialDat
       setError("No pudimos crear la reserva. Probá de nuevo.");
       setIsSubmitting(false);
     }
+  }
+
+  if (privateCheckout) {
+    return privateCheckout.renderForm(searchBar(), [{
+      date, direction: sentido, flight: selected?.privateBookable ? selected : null, clearFlight: () => setSelectedId("")
+    }], error);
   }
 
   return (

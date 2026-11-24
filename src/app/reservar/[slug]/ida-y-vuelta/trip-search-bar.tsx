@@ -147,13 +147,14 @@ export type LugarDeOtroServicio = { nombre: string; detalle: string; href: strin
 export function TripSearchBar({
   orden, tramos, routeSlug, confirmarCambio = false,
   onPedirOrden, onConfirmarCambio, onCancelarCambio, onFecha, onVuelo, agregarVuelta, quitarVueltaHref, lugaresExtra,
-  onAbrirVuelos, locale = "es", abrirLaVuelta = false
+  onAbrirVuelos, privatePlace, locale = "es", abrirLaVuelta = false
 }: {
   /** El sentido del viaje: define Desde/Hacia. Sin esto (un solo tramo) sale del único tramo. */
   orden?: Orden;
   /** Los tramos en el orden del viaje: uno (reserva simple) o dos (ida y vuelta). */
   tramos: TramoDeLaBarra[];
   routeSlug: string;
+  privatePlace?: string;
   locale?: "es" | "en" | "pt";
   /** Pedir un orden: si cambia y ya hay vuelos elegidos, el formulario pregunta antes. */
   onPedirOrden?: (orden: Orden) => void;
@@ -214,6 +215,7 @@ export function TripSearchBar({
    * Desde/Hacia se editan si el formulario deja cambiar el sentido (`onPedirOrden`). Desde el 18-nov
    * la reserva de un tramo también: es el mismo recuadro que el ida y vuelta, con las mismas flechas.
    */
+  const lugares = privatePlace ? { ...LUGARES, SMA: { nombre: privatePlace, detalle: "Paradas del traslado privado" } } : LUGARES;
   const lugaresFijos = !onPedirOrden && !lugaresExtra;
 
   // Se cierra con Escape o tocando fuera de la barra, como cualquier menú.
@@ -291,7 +293,7 @@ export function TripSearchBar({
         <span className="trip-search-label">{campo === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}</span>
         <span className="trip-search-chip">
           {lugar === "CPC" ? <IconoAvion /> : <IconoPin />}
-          {LUGARES[lugar].nombre}
+          {lugares[lugar].nombre}
         </span>
       </>
     );
@@ -380,11 +382,13 @@ export function TripSearchBar({
 
   function panelLugar(campo: "desde" | "hacia") {
     const actual = campo === "desde" ? desde : hacia;
+    const otro = campo === "desde" ? hacia : desde;
+    const opciones = privatePlace && onPedirOrden ? [actual, otro] : lugaresDelPanel(otro);
     return (
       <>
         <p className="trip-search-panel-title">{campo === "desde" ? t("¿Desde dónde sale?", "Where are you leaving from?", "De onde você sai?") : t("¿Adónde va?", "Where are you going?", "Para onde você vai?")}</p>
         <div className="trip-search-places" role="radiogroup" aria-label={campo === "desde" ? t("Desde", "From", "Origem") : t("Hacia", "To", "Destino")}>
-          {lugaresDelPanel(campo === "desde" ? hacia : desde).map((lugar) => (
+          {opciones.map((lugar) => (
             <button
               key={lugar}
               type="button"
@@ -395,8 +399,8 @@ export function TripSearchBar({
             >
               <span className="trip-search-option-icon">{lugar === "CPC" ? <IconoAvion /> : <IconoPin />}</span>
               <span className="trip-search-option-text">
-                <b>{LUGARES[lugar].nombre}</b>
-                <small>{LUGARES[lugar].detalle}</small>
+                <b>{lugares[lugar].nombre}</b>
+                <small>{lugares[lugar].detalle}</small>
               </span>
               {actual === lugar ? <span className="trip-search-tick" aria-hidden="true">✓</span> : null}
             </button>
@@ -480,7 +484,7 @@ export function TripSearchBar({
           <p className="trip-search-empty" role="status">Buscando vuelos…</p>
         ) : tramo.opciones.length === 0 ? (
           <p className="trip-search-empty">
-            {tramos.length === 1
+            {tramos.length === 1 || privatePlace
               ? "No hay vuelos para reservar ese día. Probá otro día."
               : <>
                   No hay vuelos para reservar ese día. Probá otro día, o si su vuelo no figura, reservá ese tramo solo desde{" "}
@@ -510,7 +514,7 @@ export function TripSearchBar({
                     {detalle ? <small>{detalle}</small> : null}
                   </span>
                   <span className="trip-search-flight-seats">
-                    {elegido ? "✓ Elegido" : `${vuelo.available} ${vuelo.available === 1 ? "lugar" : "lugares"}`}
+                    {elegido ? "✓ Elegido" : privatePlace ? "Elegir vuelo" : `${vuelo.available} ${vuelo.available === 1 ? "lugar" : "lugares"}`}
                   </span>
                 </button>
               );

@@ -10,17 +10,20 @@
 export type VueloDelSelector = {
   direction: "ARRIVAL" | "DEPARTURE";
   bookable: boolean;
+  privateBookable?: boolean;
 };
 
 export function separarVuelosDelSelector<T extends VueloDelSelector>(
   vuelos: readonly T[],
-  sentido: VueloDelSelector["direction"]
+  sentido: VueloDelSelector["direction"],
+  privada = false
 ): { reservables: T[]; noReservables: T[] } {
   const reservables: T[] = [];
   const noReservables: T[] = [];
   for (const vuelo of vuelos) {
     if (vuelo.direction !== sentido) continue;
-    (vuelo.bookable ? reservables : noReservables).push(vuelo);
+    const disponible = privada ? vuelo.privateBookable : vuelo.bookable;
+    (disponible ? reservables : noReservables).push(vuelo);
   }
   return { reservables, noReservables };
 }

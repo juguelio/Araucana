@@ -339,6 +339,7 @@ async function buscarVueloDelTramo(
   };
   const candidatos = await tx.flight.findMany({
     where: {
+      ...(tramo.privateTransfer?.flightId && { id: tramo.privateTransfer.flightId }),
       scheduledAt: { gte: desde, lt: hasta },
       direction: tramo.direction,
       OR: [
@@ -354,7 +355,7 @@ async function buscarVueloDelTramo(
   // Vuelo privado (charter, avión particular): si otro pasajero del mismo avión ya lo cargó
   // ese día se reutiliza su vuelo —y su cupo—; si no, se crea marcado como cargado por el
   // pasajero para que la operación lo revise.
-  if (!vuelo && privado) {
+  if (!vuelo && privado && !tramo.privateTransfer?.flightId) {
     const horario = new Date(privado.scheduledAt);
     const canonico = jetSmartCanonicalNumber(privado.number);
     const delMismoSentido = await tx.flight.findMany({
