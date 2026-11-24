@@ -4,8 +4,10 @@ import "./modulo.css";
 
 /**
  * El patrón común de los módulos de servicios (24-nov, pedido de Jugue: «que se homogeneicen… el
- * módulo base es Aeropuerto»). Aeropuerto, Servicio público, Viajes especiales y Concesiones arman
- * la pantalla con las mismas piezas, en el mismo orden y con los mismos nombres:
+ * módulo base es Aeropuerto»). Servicio público, Viajes especiales y Concesiones arman la pantalla con
+ * las mismas piezas que Aeropuerto, en el mismo orden y con los mismos nombres. Aeropuerto es el
+ * modelo y no usa estos componentes ni se toca («no toque nada de aeropuerto»): las piezas copian su
+ * marcado y sus clases.
  *
  * 1. Cabecera (`AdminShell`): rótulo «Servicios»; a la derecha los secundarios (borde) y al final el
  *    principal (relleno).
@@ -16,7 +18,7 @@ import "./modulo.css";
  * 5. `ChipsDeFiltro`: «Todos 11 · Con imprevisto 0».
  * 6. Asignar: «Asignar nave y chofer» si falta, «Cambiar nave y chofer» si ya está (`textoDeAsignar`).
  *
- * Reusa las clases de Aeropuerto (`flights-*`), que son las que se ven hoy en el módulo base.
+ * Reusa las clases de Aeropuerto (`flights-*`); lo propio del patrón va en `modulo.css`, bajo `modulo-*`.
  */
 
 export const ROTULO_DE_SERVICIOS = "Servicios";
@@ -29,7 +31,7 @@ export type OpcionDeVista = { id: string; etiqueta: string; href: string };
 
 export function SelectorDeVista({ opciones, actual }: { opciones: OpcionDeVista[]; actual: string }) {
   return (
-    <nav className="flights-filters modulo-vistas" aria-label="Vista">
+    <nav className="flights-filters modulo-filtros modulo-vistas" aria-label="Vista">
       {opciones.map((opcion) => (
         <Link key={opcion.id} href={opcion.href} data-active={opcion.id === actual} aria-current={opcion.id === actual ? "page" : undefined}>
           {opcion.etiqueta}
@@ -106,7 +108,7 @@ export type Filtro = { id: string; etiqueta: string; cuenta?: number; href: stri
 
 export function ChipsDeFiltro({ filtros, actual, etiqueta = "Filtrar" }: { filtros: Filtro[]; actual: string; etiqueta?: string }) {
   return (
-    <nav className="flights-filters" aria-label={etiqueta}>
+    <nav className="flights-filters modulo-filtros" aria-label={etiqueta}>
       {filtros.map((filtro) => (
         <Link key={filtro.id} href={filtro.href} data-active={filtro.id === actual} aria-current={filtro.id === actual ? "page" : undefined}>
           {filtro.etiqueta}{filtro.cuenta !== undefined ? <> <span>{filtro.cuenta}</span></> : null}

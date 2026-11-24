@@ -2,7 +2,6 @@ import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
 import { flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
-import { BarraDelDia, ChipsDeFiltro, Cifras, ROTULO_DE_SERVICIOS } from "@/components/modulo/modulo";
 import { DriverSheetLabel } from "@/components/driver-sheet-label";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
@@ -371,7 +370,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   return (
     <AdminShell
       title="Aeropuerto"
-      eyebrow={ROTULO_DE_SERVICIOS}
+      eyebrow="Operación"
       role={usuario.role}
       notice={params?.notice}
       action={
@@ -386,6 +385,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           >
             Hoja del día
           </Link>
+          <Link className="button" href={`/admin/reservas/nueva?servicio=aeropuerto&date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
           {/* El formulario de carga manual vive en un modal: se usa poco y ocupaba media pantalla. La `key`
               con el aviso lo cierra solo cuando el vuelo se cargó (la acción redirige con `notice`). */}
           <RowModal
@@ -402,36 +402,43 @@ export default async function AirportPage({ searchParams }: PageProps) {
               <FlightForm action={createFlightAction} />
             </div>
           </RowModal>
-          <Link className="button" href={`/admin/reservas/nueva?servicio=aeropuerto&date=${encodeURIComponent(fecha)}`}>Nueva reserva</Link>
         </div>
       }
     >
-      <BarraDelDia
-        accion="/admin/aeropuerto"
-        fecha={fecha}
-        anterior={link("", shiftDateKey(fecha, -1))}
-        siguiente={link("", shiftDateKey(fecha, 1))}
-        ocultos={{ solo: soloAlerta ? "alerta" : null }}
-      >
-        <ChipsDeFiltro
-          actual={soloAlerta ? "alerta" : "todos"}
-          filtros={[
-            { id: "todos", etiqueta: "Todos", cuenta: vuelosDelTablero.length, href: link("") },
-            { id: "alerta", etiqueta: "Con imprevisto", cuenta: imprevistos.length, href: link("&solo=alerta") }
-          ]}
-        />
-      </BarraDelDia>
+      <section className="flights-toolbar">
+        {/* Siempre las dos flechas, para ir de un día al otro sin volver a «hoy». */}
+        <form className="flights-date" method="get">
+          <Link className="ghost-button flights-dia-paso" href={link("", shiftDateKey(fecha, -1))} aria-label="Día anterior">
+            ‹ Anterior
+          </Link>
+          <label>
+            Día
+            <input type="date" name="date" defaultValue={fecha} />
+          </label>
+          {soloAlerta ? <input type="hidden" name="solo" value="alerta" /> : null}
+          <button className="button" type="submit">Ver</button>
+          <Link className="ghost-button flights-dia-paso" href={link("", shiftDateKey(fecha, 1))} aria-label="Día siguiente">
+            Siguiente ›
+          </Link>
+        </form>
+        <div className="flights-filters">
+          <a href={link("")} data-active={!soloAlerta}>
+            Todos <span>{vuelosDelTablero.length}</span>
+          </a>
+          <a href={link("&solo=alerta")} data-active={soloAlerta}>
+            Con imprevisto <span>{imprevistos.length}</span>
+          </a>
+        </div>
+      </section>
 
       {vuelosDelTablero.length > 0 ? (
-        <Cifras
-          cifras={[
-            { rotulo: "Arribos", valor: resumen.arribos },
-            { rotulo: "Partidas", valor: resumen.partidas },
-            { rotulo: "Pasajeros", valor: resumen.pasajeros },
-            { rotulo: "Con imprevisto", valor: imprevistos.length, alerta: imprevistos.length > 0 },
-            { rotulo: "Sin combi", valor: resumen.sinCombi, alerta: resumen.sinCombi > 0 }
-          ]}
-        />
+        <dl className="flights-summary" aria-label="Resumen del día">
+          <div><dt>Arribos</dt><dd>{resumen.arribos}</dd></div>
+          <div><dt>Partidas</dt><dd>{resumen.partidas}</dd></div>
+          <div><dt>Pasajeros</dt><dd>{resumen.pasajeros}</dd></div>
+          <div data-alerta={imprevistos.length > 0}><dt>Con imprevisto</dt><dd>{imprevistos.length}</dd></div>
+          <div data-alerta={resumen.sinCombi > 0}><dt>Sin combi</dt><dd>{resumen.sinCombi}</dd></div>
+        </dl>
       ) : null}
 
       <p className="muted flights-note">
