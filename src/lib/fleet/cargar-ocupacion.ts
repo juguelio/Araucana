@@ -38,7 +38,7 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
         }
       },
       select: {
-        id: true, vehicleId: true, driverId: true, flightId: true,
+        id: true, vehicleId: true, driverId: true, flightId: true, privateReservationId: true,
         flight: { select: { number: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartOverrideAt: true, status: true } }
       }
     }),
@@ -72,10 +72,13 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
     ...vuelos.map((asignacion): Ocupacion => {
       const ventana = airportServiceWindow({ ...asignacion.flight, status: asignacion.flight.status ?? undefined });
       return {
-        // La clave identifica la asignación, no el vuelo: un vuelo con dos combis tiene dos
+        // La clave identifica la ASIGNACIÓN, no el vuelo: un vuelo con dos combis tiene dos
         // asignaciones, y excluir el vuelo entero marcaba como libres naves y choferes que ya
-        // están en él (#439).
-        clave: `vuelo:${asignacion.flightId}:${asignacion.vehicleId}`,
+        // están en él (#439). Las privadas conservan su clave por reserva: cada detalle privado
+        // tiene una sola asignación.
+        clave: asignacion.privateReservationId
+          ? `privada:${asignacion.privateReservationId}`
+          : `vuelo:${asignacion.flightId}:${asignacion.vehicleId}`,
         vehicleIds: [asignacion.vehicleId],
         driverIds: asignacion.driverId ? [asignacion.driverId] : [],
         desde: ventana.startsAt,

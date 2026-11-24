@@ -138,7 +138,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
         <div className="no-print orden-asignar">
           <CombiDelVueloModal
             vuelo={vuelo}
-            naves={naves}
+            naves={naves.filter(n => !recorrida?.assignments.some(a => a.privateReservationId && a.vehicleId === n.id))}
             choferes={choferes}
             resetKey={params?.notice ?? ""}
             volverAOrden={volverAOrden}

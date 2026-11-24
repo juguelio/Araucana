@@ -169,3 +169,66 @@ test("el selector privado invierte el recorrido, cambia de día y reserva los vu
   expect(await db.reservation.findFirst({ where: { roundTripId: saved.roundTripId, airportDetails: { flightId: arrival.id } } }))
     .toMatchObject({ totalCents: 800000 });
 });
+
+test("el tablero asigna la camioneta pública y la privada con choferes distintos en un mismo vuelo", async ({ page }) => {
+  const suffix = randomUUID().slice(0, 8);
+  const day = "2032-11-25";
+  const slug = `mixto-${suffix}`;
+  const email = `${slug}@example.com`;
+  const password = `Test-${suffix}`;
+  await db.user.create({ data: { email, role: "SECRETARY", passwordHash: await bcrypt.hash(password, 4), isActive: true } });
+  const headers = await login(page.request, email, password);
+  await db.travelRoute.create({ data: { slug, from: "Aeropuerto", to: "San Martín", via: "Directo", durationMin: 60, priceCents: 1000,
+    category: "Argentina", bookingMode: "AIRPORT", specialType: "ARRIVAL", description: "Traslado", stops: [] } });
+  const flight = await db.flight.create({ data: { number: `AR${suffix}`.toUpperCase(), direction: "ARRIVAL", origin: "Aeroparque",
+    scheduledAt: new Date(`${day}T13:00:00-03:00`), source: "MANUAL" } });
+  const vans = await Promise.all(["Exclusiva", "Compartida"].map(name => db.vehicle.create({ data: { name: `${name} ${suffix}`,
+    seats: { create: Array.from({ length: 12 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } })));
+  const drivers = await Promise.all(["Juan", "Ana"].map(name => db.user.create({ data: { name: `${name} ${suffix}`,
+    email: `${name}-${suffix}@example.com`, role: "DRIVER", isActive: true } })));
+  const leg = { flightNumber: flight.number, serviceDate: day, direction: "ARRIVAL", routeSlug: slug, passengerCount: 1,
+    passenger: { firstName: "Sol", lastName: "Pérez", phone: "+5492944123456", email: "", documentType: "DNI", documentId: "" } };
+  for (const data of [{ ...leg, privateTransfer: { stops: [{ destination: "Villa Traful", passengers: 1 }], totalCents: 5000 } },
+    { ...leg, pickupPoint: [-40.157, -71.353] }]) {
+    const response = await page.request.post("/api/v1/airport/reservations?source=admin", { headers, data });
+    expect(response.ok(), await response.text()).toBe(true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/admin/aeropuerto?date=${day}`);
+  const button = page.locator(`#vuelo-${flight.id}`).getByRole("button", { name: `Asignar naves y choferes del ${flight.number}` });
+  await expect(button).toContainText("Pública · Sin nave asignada");
+  await expect(button).toContainText("Privada · Sin nave asignada");
+  await button.click();
+  const modal = page.getByRole("dialog");
+  const privateSection = modal.locator("details").filter({ hasText: "Guardar asignación privada" });
+  await privateSection.locator("summary").click();
+  await privateSection.getByRole("radio", { name: new RegExp(vans[0].name) }).check();
+  await privateSection.getByRole("radio", { name: new RegExp(drivers[0].name!) }).check();
+  await privateSection.getByRole("button", { name: "Guardar asignación privada" }).click();
+  await expect(button).toContainText(`Privada · ${vans[0].name} · ${drivers[0].name}`);
+  await expect(button).toContainText("Pública · Sin nave asignada");
+  await button.click();
+  const shared = modal.getByRole("region", { name: "Traslado público" });
+  await expect(shared.getByRole("radio", { name: new RegExp(vans[0].name) })).toHaveCount(0);
+  await shared.getByRole("radio", { name: new RegExp(vans[1].name) }).check();
+  await shared.getByRole("radio", { name: new RegExp(drivers[1].name!) }).check();
+  await shared.getByRole("button", { name: "Asignar", exact: true }).click();
+  await expect(button).toContainText(`Pública · ${vans[1].name} · ${drivers[1].name}`);
+  await expect(button).toContainText(`Privada · ${vans[0].name} · ${drivers[0].name}`);
+  await button.click();
+  await privateSection.locator("summary").click();
+  await expect(privateSection.getByRole("radio", { name: new RegExp(vans[1].name) })).toHaveCount(0);
+  // Cambiar la privada desde el mismo modal conserva la asignación pública.
+  const relevo = await db.vehicle.create({ data: { name: `Relevo ${suffix}`,
+    seats: { create: Array.from({ length: 10 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } });
+  await page.reload();
+  await button.click();
+  await privateSection.locator("summary").click();
+  await privateSection.getByRole("radio", { name: new RegExp(relevo.name) }).check();
+  await privateSection.getByRole("button", { name: "Guardar asignación privada" }).click();
+  await expect(button).toContainText(`Privada · ${relevo.name} · ${drivers[0].name}`);
+  const saved = await db.airportVehicleAssignment.findMany({ where: { flightId: flight.id } });
+  expect(saved).toHaveLength(2);
+  expect(saved.find(a => a.privateReservationId)).toMatchObject({ vehicleId: relevo.id, driverId: drivers[0].id });
+  expect(saved.find(a => !a.privateReservationId)).toMatchObject({ vehicleId: vans[1].id, driverId: drivers[1].id });
+});
