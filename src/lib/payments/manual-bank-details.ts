@@ -1,3 +1,5 @@
+import { COMPANY_CUIT } from "@/lib/company";
+
 export type ManualBankDetails = {
   holder: string;
   bank: string;
@@ -13,5 +15,5 @@ export function getManualBankDetails(env: Record<string, string | undefined> = p
   const cbu = env.MANUAL_PAYMENT_CBU?.trim() ?? "";
   const alias = env.MANUAL_PAYMENT_ALIAS?.trim() ?? "";
   if (!holder || !bank || (!cbu && !alias) || (cbu && !/^\d{22}$/.test(cbu))) return null;
-  return { holder, bank, cbu, alias, accountType: env.MANUAL_PAYMENT_ACCOUNT_TYPE?.trim() ?? "", cuit: env.MANUAL_PAYMENT_CUIT?.trim() ?? "" };
+  return { holder, bank, cbu, alias, accountType: env.MANUAL_PAYMENT_ACCOUNT_TYPE?.trim() ?? "", cuit: env.MANUAL_PAYMENT_CUIT?.trim() || COMPANY_CUIT };
 }

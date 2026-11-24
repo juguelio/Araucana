@@ -1,4 +1,5 @@
 import type { ReservationDetailDto } from "@/lib/booking/types";
+import { COMPANY_CUIT_LABEL } from "@/lib/company";
 import { formatDateTime, formatPrice, placesLabel } from "./presentation";
 
 /**
@@ -78,7 +79,7 @@ export function BoletoCard({ reservation }: { reservation: ReservationDetailDto 
           <span>Conservá este boleto durante el viaje. El número identifica la emisión y no se reutiliza.</span>
         )}
         <span>
-          CUIT 30-70959195-5 · Inicio de actividades: 1/5/06 · Imprenta Cauitar – Hab. N° 6192
+          {COMPANY_CUIT_LABEL} · Inicio de actividades: 1/5/06 · Imprenta Cauitar – Hab. N° 6192
         </span>
       </footer>
     </article>

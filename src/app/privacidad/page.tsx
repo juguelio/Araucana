@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
+import { COMPANY_CUIT } from "@/lib/company";
 
-// PENDIENTE CLIENTE: CUIT del titular (opcional en la política; hoy se publica razón social + domicilio + contacto).
 // Si más adelante se agrega analítica o publicidad en el sitio, actualizar la sección "Cookies y tecnologías"
 // y pedir consentimiento ANTES de activarla (hoy no hay ninguna tecnología no esencial).
 
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         <p className="eyebrow">La Araucana Viajes</p>
         <h1 className="section-title">Política de privacidad</h1>
         <p className="legal-updated">
-          Última actualización: 16 de octubre de 2026 · Tratamiento de datos personales conforme a la Ley 25.326 de Protección de
+          Última actualización: 24 de noviembre de 2026 · Tratamiento de datos personales conforme a la Ley 25.326 de Protección de
           Datos Personales y su decreto reglamentario.
         </p>
 
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
 
         <h2 id="responsable">1. Responsable del tratamiento</h2>
         <p>
-          <strong>La Araucana Viajes E.V. y T.</strong> · Mariano Moreno 829, C.P. 8370, San Martín de los Andes, Provincia del
+          <strong>La Araucana Viajes E.V. y T.</strong> · CUIT {COMPANY_CUIT} · Mariano Moreno 829, C.P. 8370, San Martín de los Andes, Provincia del
           Neuquén, Argentina · <a href="tel:+542972420285">02972 420285</a> ·{" "}
           <a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a> ·{" "}
           <a href="https://wa.me/5492944649049">WhatsApp</a>. Es quien decide cómo y para qué se tratan los datos personales que se
@@ -260,7 +260,7 @@ export default function PrivacyPage() {
 
         <h2 id="contacto">13. Contacto</h2>
         <p>
-          La Araucana Viajes E.V. y T. · Mariano Moreno 829, C.P. 8370, San Martín de los Andes, Neuquén, Argentina. Consultas sobre
+          La Araucana Viajes E.V. y T. · CUIT {COMPANY_CUIT} · Mariano Moreno 829, C.P. 8370, San Martín de los Andes, Neuquén, Argentina. Consultas sobre
           datos personales: <a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a> ·{" "}
           <a href="tel:+542972420285">02972 420285</a> · <a href="https://wa.me/5492944649049">WhatsApp</a>. Ver también los{" "}
           <Link href="/terminos">términos y condiciones</Link>.

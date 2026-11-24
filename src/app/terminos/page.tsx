@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
+import { COMPANY_CUIT } from "@/lib/company";
 
 // PENDIENTE CLIENTE (no publicar números inventados; definir con Iván y completar acá):
 // 1) tolerancia de espera por servicio (traslados y excursiones),
 // 2) escala de retención por cancelación del pasajero y plazo de devolución,
-// 3) política de equipaje / bultos y excedentes,
-// 4) CUIT del titular (opcional: la razón social y el domicilio ya están en la política de privacidad).
+// 3) política de equipaje / bultos y excedentes.
 
 export const metadata: Metadata = {
   title: "Términos y condiciones | La Araucana Viajes",
@@ -25,8 +25,8 @@ export default function TermsPage() {
         <p className="eyebrow">La Araucana Viajes</p>
         <h1 className="section-title">Términos y condiciones</h1>
         <p className="legal-updated">
-          Última actualización: 16 de octubre de 2026 · Servicios de traslado, excursiones y viajes prestados por La Araucana Viajes
-          E.V. y T. desde San Martín de los Andes, Provincia del Neuquén, Argentina.
+          Última actualización: 24 de noviembre de 2026 · Servicios de traslado, excursiones y viajes prestados por La Araucana Viajes
+          E.V. y T., CUIT {COMPANY_CUIT}, con domicilio en San Martín de los Andes, Provincia del Neuquén, Argentina.
         </p>
 
         <div className="legal-note">
@@ -267,7 +267,7 @@ export default function TermsPage() {
 
         <h2 id="contacto">15. Contacto</h2>
         <p>
-          La Araucana Viajes E.V. y T. · Mariano Moreno 829, C.P. 8370, San Martín de los Andes, Neuquén, Argentina ·{" "}
+          La Araucana Viajes E.V. y T. · CUIT {COMPANY_CUIT} · Mariano Moreno 829, C.P. 8370, San Martín de los Andes, Neuquén, Argentina ·{" "}
           <a href="tel:+542972420285">02972 420285</a> · <a href="mailto:info@araucana.com.ar">info@araucana.com.ar</a> ·{" "}
           <a href="https://wa.me/5492944649049">WhatsApp</a>. Consultas sobre estas condiciones y reclamos: esos mismos canales.
         </p>
