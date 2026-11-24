@@ -239,8 +239,9 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                             ) : null}
                             <AsignarUnidad
                               servicioId={`salida-${salida.id}`}
-                              titulo={`${salida.recorrido} · ${salida.hora}`}
-                              subtitulo={`${salida.desde} → ${salida.hacia}`}
+                              eyebrow={`Salida ${salida.hora}`}
+                              titulo={salida.recorrido}
+                              subtitulo={`${salida.ocupados} ${salida.ocupados === 1 ? "pasajero" : "pasajeros"} · ${salida.vehicleId ? salida.nave : "sin nave asignada"}`}
                               fecha={fecha}
                               naves={opciones.naves}
                               choferes={opciones.choferes}
