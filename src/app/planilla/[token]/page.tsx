@@ -3,7 +3,15 @@ import { SiteFooter } from "@/components/site-footer";
 import { getCountryOptions } from "@/lib/booking/nationality-countries";
 import { parseTripLegs } from "@/lib/departure-sheets/applicability";
 import { getDepartureSheetByToken } from "@/lib/departure-sheets/repository";
-import { departureSheetCopy, formatServiceDay, isDepartureSheetKind, type DepartureSheetKind } from "@/lib/departure-sheets/types";
+import {
+  departureSheetCopy,
+  documentTypeLabels,
+  formatServiceDay,
+  isDepartureSheetKind,
+  passengerFullName,
+  type DepartureSheetKind,
+  type DocumentType
+} from "@/lib/departure-sheets/types";
 import { PlanillaForm } from "./form";
 import "./planilla.css";
 
@@ -31,6 +39,7 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
   const destino =
     legs.map((leg) => leg.destination || leg.description).filter(Boolean).join(" · ") ||
     trip.destinationSearch.replaceAll("\n", " · ");
+  const maskDocument = (value: string) => value.length > 3 ? `${"•".repeat(Math.min(6, value.length - 3))}${value.slice(-3)}` : "•••";
 
   return (
     <>
@@ -61,6 +70,35 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
           <p>{copy.passengerIntro}</p>
           <p className="muted">{copy.passengerNote}</p>
         </section>
+
+        {sheet.passengers.length > 0 ? (
+          <section className="planilla-lista" aria-labelledby="pasajeros-cargados">
+            <div className="planilla-lista-head">
+              <div>
+                <p className="eyebrow">Planilla</p>
+                <h2 id="pasajeros-cargados">Pasajeros cargados</h2>
+              </div>
+              <span className="pill">{sheet.passengers.length}</span>
+            </div>
+            <ol className="planilla-pasajeros">
+              {sheet.passengers.map((passenger) => (
+                <li key={passenger.id}>
+                  <span className="planilla-pasajero-num">{passenger.position}</span>
+                  <div>
+                    <strong>{passengerFullName(passenger)}</strong>
+                    <span>
+                      {documentTypeLabels[passenger.documentType as DocumentType] ?? passenger.documentType}{" "}
+                      {maskDocument(passenger.documentNumber)} · {passenger.nationality}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+            <p className="muted planilla-lista-nota">
+              Si ves tus datos repetidos o con un error, volvé a cargarlos con el mismo documento: se actualizan.
+            </p>
+          </section>
+        ) : null}
 
         {sheet.isOpen ? (
           <PlanillaForm token={sheet.token} kind={kind} countries={getCountryOptions()} />
