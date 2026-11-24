@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DriverSheetLabel } from "@/components/driver-sheet-label";
 import { claveDeOrden, hojaDeOrdenesHref, type OrdenElegida } from "@/lib/airport/flight-selection";
 import { RowModal } from "../reservas/row-modal";
 
@@ -40,7 +41,7 @@ export function HojaDelChoferModal({ date, flightId, flightNumber, ordenes }: {
 
   return (
     <RowModal
-      trigger="Hoja del chofer"
+      trigger={<DriverSheetLabel />}
       triggerLabel={`Hoja del chofer del ${flightNumber}`}
       triggerClassName="ghost-button"
       modalClassName="aero-coordinar-modal"

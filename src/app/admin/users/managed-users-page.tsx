@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { DriverSheetLabel } from "@/components/driver-sheet-label";
 import { getManagedUserRoleName, type ManagedUserRole } from "@/lib/admin/users";
 import { formatCurrency } from "@/lib/admin/salary";
 import { canDeleteManagedUser, canSeeSalary, managedUsersBasePath } from "@/lib/admin/driver-access";
@@ -171,7 +172,7 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
                 <div className="table-actions">
                   {esChoferes && (
                     <Link className="ghost-button" href={`/admin/choferes/${user.id}/ordenes?imprimir=1`} prefetch={false}>
-                      Imprimir hoja de hoy
+                      <DriverSheetLabel />
                     </Link>
                   )}
                   <Link className="ghost-button" href={`${user.role === "DRIVER" ? "/admin/choferes" : basePath}/${user.id}`}>Editar</Link>
