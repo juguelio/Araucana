@@ -63,7 +63,8 @@ export function AsignarUnidad({
   defaultVehicleId = "",
   defaultDriverId = "",
   assignmentId = "",
-  page = 1
+  page = 1,
+  returnTo = ""
 }: {
   servicioId: string;
   titulo: string;
@@ -78,6 +79,7 @@ export function AsignarUnidad({
   defaultDriverId?: string;
   assignmentId?: string;
   page?: number;
+  returnTo?: string;
 }) {
   return (
     <RowModal
@@ -92,6 +94,7 @@ export function AsignarUnidad({
         <input type="hidden" name="servicioId" value={servicioId} />
         <input type="hidden" name="fecha" value={fecha} />
         <input type="hidden" name="vista" value={vista} />
+        {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
         {assignmentId ? <input type="hidden" name="assignmentId" value={assignmentId} /> : null}
         {page > 1 ? <input type="hidden" name="page" value={page} /> : null}
 

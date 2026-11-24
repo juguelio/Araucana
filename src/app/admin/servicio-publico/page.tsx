@@ -1,7 +1,7 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { ServicePublicNav } from "@/components/service-public-nav";
-import { ServicioPublicoVistaNav } from "@/components/servicio-publico-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
@@ -12,14 +12,14 @@ import { isDateKey, shiftDateKey } from "@/lib/operations/day-board";
 import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
 import { lunesDe } from "@/lib/school-runs/week";
 import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, terminalDe, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
-import { DriverPicker } from "./driver-picker";
+import { AsignarUnidad, opcionesParaAsignar } from "../naves/en-vivo/asignar-unidad";
 import "./servicio-publico.css";
 
 export const metadata = { title: "Servicio público · La Araucana" };
 export const dynamic = "force-dynamic";
 
 type ServicioPublicoPageProps = {
-  searchParams?: Promise<{ fecha?: string; terminal?: string }>;
+  searchParams?: Promise<{ fecha?: string; terminal?: string; vista?: string; ok?: string; error?: string }>;
 };
 
 const mesFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -55,16 +55,18 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const fecha = isDateKey(params.fecha) ? params.fecha : hoy;
   const filtro = esTerminal(params.terminal) ? params.terminal : null;
 
+  // El landing de Servicio público es la semana: el día queda como detalle de una salida.
+  if (params.vista !== "dia") {
+    const query = new URLSearchParams({ semana: lunesDe(fecha) });
+    if (filtro) query.set("terminal", filtro);
+    redirect(`/admin/servicio-publico/semana?${query.toString()}`);
+  }
+
   const mesInicio = `${fecha.slice(0, 7)}-01`;
   const [anio, mes] = fecha.slice(0, 7).split("-").map(Number);
   const mesSiguiente = mes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
-  const [rows, drivers, mesRows] = await Promise.all([
+  const [rows, mesRows, opciones] = await Promise.all([
     listAdminSchedules({ date: fecha, activeRoutesOnly: true }),
-    prisma.user.findMany({
-      where: { role: "DRIVER", isActive: true },
-      select: { id: true, name: true, email: true },
-      orderBy: [{ name: "asc" }, { email: "asc" }]
-    }),
     prisma.schedule.findMany({
       where: {
         departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
@@ -78,24 +80,14 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
         driver: { select: { id: true, name: true, email: true } },
         route: { select: { from: true } }
       }
-    })
+    }),
+    opcionesParaAsignar()
   ]);
   const salidas = salidasDeTerminal(rows);
   const todosLosGrupos = agruparPorTerminal(salidas, rows);
   const grupos = todosLosGrupos.filter((grupo) => (filtro ? grupo.clave === filtro : grupo.salidas.length > 0));
   const terminalesVacias = !filtro ? todosLosGrupos.filter((grupo) => grupo.salidas.length === 0) : [];
   const resumen = resumenDeSalidas(grupos.flatMap((grupo) => grupo.salidas));
-  const idsVisibles = new Set(grupos.flatMap((grupo) => grupo.salidas.map((salida) => salida.id)));
-  const choferesDelDia = resumenPorChofer(
-    rows
-      .filter((row) => idsVisibles.has(row.id) && row.status !== "CANCELLED")
-      .map((row) => ({
-        driverId: row.driverId ?? null,
-        driverName: row.driverName ?? null,
-        departureAt: new Date(row.departureAt),
-        arrivalAt: new Date(row.arrivalAt)
-      }))
-  );
   const resumenMes = resumenPorChofer(
     mesRows
       .filter((row) => terminalDe(row.route.from))
@@ -111,10 +103,10 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
     const busqueda = new URLSearchParams();
     const nuevaFecha = cambios.fecha ?? fecha;
     const nuevaTerminal = cambios.terminal === undefined ? filtro : cambios.terminal;
-    if (nuevaFecha !== hoy) busqueda.set("fecha", nuevaFecha);
+    busqueda.set("vista", "dia");
+    busqueda.set("fecha", nuevaFecha);
     if (nuevaTerminal) busqueda.set("terminal", nuevaTerminal);
-    const query = busqueda.toString();
-    return `/admin/servicio-publico${query ? `?${query}` : ""}`;
+    return `/admin/servicio-publico?${busqueda.toString()}`;
   };
 
   return (
@@ -122,15 +114,15 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
       title="Servicio público"
       eyebrow="Terminales"
       role={user.role}
+      notice={params.ok ?? params.error}
       action={
         <div className="form-actions">
-          <Link className="ghost-button" href={`/admin/salidas-del-dia?date=${fecha}`}>Salidas del día</Link>
+          <Link className="ghost-button" href={`/admin/servicio-publico/semana?${new URLSearchParams({ semana: lunesDe(fecha), ...(filtro ? { terminal: filtro } : {}) }).toString()}`}>Volver a la semana</Link>
           <Link className="button" href="/admin/reservas/nueva">Vender pasaje</Link>
         </div>
       }
     >
       <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
-      <ServicioPublicoVistaNav actual="dia" fecha={fecha} semana={lunesDe(fecha)} terminal={filtro} />
       <div className="sp-board">
         <section className="plain-card sp-controles" aria-label="Fecha y terminal">
           <div className="sp-fecha">
@@ -146,6 +138,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           <form className="sp-buscar-fecha" action="/admin/servicio-publico" method="get">
             <label htmlFor="fecha">Ir a una fecha</label>
             <input id="fecha" name="fecha" type="date" defaultValue={fecha} />
+            <input type="hidden" name="vista" value="dia" />
             {filtro ? <input type="hidden" name="terminal" value={filtro} /> : null}
             <button className="ghost-button" type="submit">Ver</button>
           </form>
@@ -181,32 +174,6 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           <div><span>Salidas</span><strong>{resumen.salidas}</strong></div>
           <div><span>Pasajeros anotados</span><strong>{resumen.pasajeros}</strong></div>
           <div><span>Lugares libres</span><strong>{resumen.libres}</strong></div>
-        </section>
-
-        <section className="plain-card sp-personal">
-          <header className="sp-grupo-head">
-            <div>
-              <p className="eyebrow">Personal</p>
-              <h2>Choferes del día</h2>
-            </div>
-            <span className="sp-grupo-total">
-              {choferesDelDia.length} {choferesDelDia.length === 1 ? "chofer" : "choferes"} con salidas
-            </span>
-          </header>
-          {choferesDelDia.length ? (
-            <ul className="sp-choferes-lista">
-              {choferesDelDia.map((chofer) => (
-                <li key={chofer.driverId}>
-                  <Link className="sp-chofer-nombre" href={`/admin/choferes/${chofer.driverId}`}>{chofer.driverName}</Link>
-                  <span>{chofer.salidas} {chofer.salidas === 1 ? "salida" : "salidas"}</span>
-                  <span className="sp-chofer-horario">{chofer.primerHora} a {chofer.ultimaHora}</span>
-                  <strong>{formatoHoras(chofer.horas)}</strong>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="sp-vacio">Todavía no hay choferes asignados a las salidas de este día.</p>
-          )}
         </section>
 
         <details className="plain-card sp-liquidacion" open={resumenMes.length === 0}>
@@ -292,12 +259,18 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                             {salida.driverId && salida.driverName ? (
                               <Link className="sp-chofer-actual" href={`/admin/choferes/${salida.driverId}`}>{salida.driverName}</Link>
                             ) : null}
-                            <DriverPicker
-                              scheduleId={salida.id}
-                              driverId={salida.driverId}
-                              drivers={drivers}
+                            <AsignarUnidad
+                              servicioId={`salida-${salida.id}`}
+                              titulo={`${salida.recorrido} · ${salida.hora}`}
+                              subtitulo={`${salida.desde} → ${salida.hacia}`}
                               fecha={fecha}
-                              terminal={filtro}
+                              naves={opciones.naves}
+                              choferes={opciones.choferes}
+                              defaultVehicleId={salida.vehicleId}
+                              defaultDriverId={salida.driverId ?? ""}
+                              trigger={salida.driverId ? "Cambiar nave y chofer" : "Asignar nave y chofer"}
+                              triggerClassName="sp-asignar"
+                              returnTo={href({})}
                             />
                           </td>
                           <td data-label="Ocupación">

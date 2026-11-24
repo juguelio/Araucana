@@ -153,6 +153,22 @@ describe("asignarUnidadAction: asignar desde Naves en vivo sin salir del mapa", 
     expect(updateSchedule).toHaveBeenCalledWith({ where: { id: "sch_1" }, data: { vehicleId: "veh-2", driverId: "drv-2" } });
   });
 
+  it("salida desde Servicio público: vuelve a la boletería del día, no a Naves en vivo", async () => {
+    await expect(
+      asignarUnidadAction(
+        form({
+          servicioId: "salida-sch_1",
+          vehicleId: "veh-2",
+          driverId: "drv-2",
+          fecha: "2026-11-24",
+          returnTo: "/admin/servicio-publico?vista=dia&fecha=2026-11-24"
+        })
+      )
+    ).rejects.toThrow("/admin/servicio-publico?vista=dia&fecha=2026-11-24&ok=Nave+y+chofer+asignados+a+la+salida.");
+
+    expect(updateSchedule).toHaveBeenCalledWith({ where: { id: "sch_1" }, data: { vehicleId: "veh-2", driverId: "drv-2" } });
+  });
+
   it("salida: cambia nave y chofer de la salida del día", async () => {
     await expect(
       asignarUnidadAction(form({ servicioId: "salida-sch_1", vehicleId: "veh-2", driverId: "drv-2", fecha: "2026-11-21" }))

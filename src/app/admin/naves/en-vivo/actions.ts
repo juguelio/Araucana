@@ -41,7 +41,12 @@ export async function asignarUnidadAction(formData: FormData) {
   const vista: "en-vivo" | "servicios" = formData.get("vista") === "servicios" ? "servicios" : "en-vivo";
   const assignmentId = String(formData.get("assignmentId") ?? "") || null;
   const page = String(formData.get("page") ?? "");
+  const returnTo = String(formData.get("returnTo") ?? "");
   function responder(clave: "ok" | "error", mensaje: string): never {
+    if (returnTo.startsWith("/admin/servicio-publico")) {
+      const params = new URLSearchParams({ [clave]: mensaje });
+      redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}${params.toString()}`);
+    }
     return volver(fecha, clave, mensaje, vista, page);
   }
 

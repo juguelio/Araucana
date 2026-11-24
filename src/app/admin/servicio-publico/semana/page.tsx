@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { ServicePublicNav } from "@/components/service-public-nav";
-import { ServicioPublicoVistaNav } from "@/components/servicio-publico-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
@@ -50,7 +49,7 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
     return `/admin/servicio-publico/semana?${query.toString()}`;
   };
   const hrefDia = (dia: string) => {
-    const query = new URLSearchParams({ fecha: dia });
+    const query = new URLSearchParams({ vista: "dia", fecha: dia });
     if (filtro) query.set("terminal", filtro);
     return `/admin/servicio-publico?${query.toString()}`;
   };
@@ -68,7 +67,6 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
       }
     >
       <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
-      <ServicioPublicoVistaNav actual="semana" fecha={semana} semana={semana} terminal={filtro} />
 
       <div className="sp-semana-nav">
         <Link className="ghost-button" href={hrefSemana(sumarDias(semana, -7))}>‹ Semana anterior</Link>
