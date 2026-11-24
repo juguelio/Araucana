@@ -58,7 +58,12 @@ export function AsignarUnidad({
   naves,
   choferes,
   triggerClassName = "srv-asignar",
-  trigger = "Asignar nave"
+  trigger = "Asignar nave",
+  vista = "en-vivo",
+  defaultVehicleId = "",
+  defaultDriverId = "",
+  assignmentId = "",
+  page = 1
 }: {
   servicioId: string;
   titulo: string;
@@ -68,23 +73,31 @@ export function AsignarUnidad({
   choferes: ChoferParaAsignar[];
   triggerClassName?: string;
   trigger?: string;
+  vista?: "en-vivo" | "servicios";
+  defaultVehicleId?: string;
+  defaultDriverId?: string;
+  assignmentId?: string;
+  page?: number;
 }) {
   return (
     <RowModal
       trigger={trigger}
       triggerLabel={`${trigger}: ${titulo}`}
       triggerClassName={triggerClassName}
-      eyebrow="Asignar nave y chofer"
+      eyebrow={defaultVehicleId ? "Cambiar nave y chofer" : "Asignar nave y chofer"}
       title={titulo}
       subtitle={subtitulo}
     >
       <form className="reservas-modal-form" action={asignarUnidadAction}>
         <input type="hidden" name="servicioId" value={servicioId} />
         <input type="hidden" name="fecha" value={fecha} />
+        <input type="hidden" name="vista" value={vista} />
+        {assignmentId ? <input type="hidden" name="assignmentId" value={assignmentId} /> : null}
+        {page > 1 ? <input type="hidden" name="page" value={page} /> : null}
 
         <label>
           Nave
-          <select name="vehicleId" required defaultValue="">
+          <select name="vehicleId" required defaultValue={defaultVehicleId}>
             <option value="" disabled>
               Elegí la nave
             </option>
@@ -98,7 +111,7 @@ export function AsignarUnidad({
 
         <label>
           Chofer (opcional)
-          <select name="driverId" defaultValue="">
+          <select name="driverId" defaultValue={defaultDriverId}>
             <option value="">Sin chofer asignado</option>
             {choferes.map((chofer) => (
               <option key={chofer.id} value={chofer.id}>
