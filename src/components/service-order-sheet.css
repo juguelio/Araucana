@@ -136,7 +136,6 @@
 
 .orden-solo-papel { display: var(--orden-papel-inline, none); }
 td.orden-solo-papel { display: var(--orden-papel-celda, none); }
-.orden-forma-pago-opcion.orden-solo-papel { display: var(--orden-papel-flex, none); }
 .orden-forma-pago abbr { text-decoration: none; }
 
 .orden-tabla th[data-columna="Pasajero"] { width: var(--orden-ancho-pasajero, auto); }
@@ -196,7 +195,6 @@ td.orden-solo-papel { display: var(--orden-papel-celda, none); }
   .orden {
     --orden-papel-inline: inline;
     --orden-papel-celda: table-cell;
-    --orden-papel-flex: flex;
     --orden-ancho-pasajero: 27%;
     --orden-ancho-lugar: 38%;
     --orden-ancho-cantidad: 4%;

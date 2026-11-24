@@ -32,7 +32,6 @@
   border-radius: 0;
   --orden-papel-inline: inline;
   --orden-papel-celda: table-cell;
-  --orden-papel-flex: flex;
   --orden-ancho-pasajero: 27%;
   --orden-ancho-lugar: 38%;
   --orden-ancho-cantidad: 4%;
