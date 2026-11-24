@@ -16,3 +16,7 @@
 @media (max-width: 650px) {
   .private-stop { grid-template-columns: 1fr; }
 }
+
+@container (width > 860px) {
+  .trip-search-private { grid-row: 2; grid-column: 1; }
+}

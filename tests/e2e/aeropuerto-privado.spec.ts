@@ -133,6 +133,16 @@ test("el selector privado invierte el recorrido, cambia de día y reserva los vu
   await login(page.request, email, password);
   await page.goto(`/admin/reservas/nueva?servicio=aeropuerto&sentido=ARRIVAL&date=${day}`);
   const privada = page.getByRole("checkbox", { name: /Privada · nave exclusiva/ });
+  const lugares = page.locator(".trip-search-places-row");
+  async function comprobarUbicacion() {
+    const [fila, opcion] = await Promise.all([lugares.boundingBox(), privada.boundingBox()]);
+    expect(fila && opcion && opcion.y >= fila.y + fila.height).toBe(true);
+    await expect(page.locator(".trip-search-places-row + label").getByRole("checkbox")).toHaveCount(1);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await comprobarUbicacion();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await comprobarUbicacion();
   await privada.check();
   await page.getByLabel("Parada 1", { exact: true }).fill("Villa Traful");
   await page.getByRole("button", { name: /Invertir: cambiar desde y hacia/ }).click();
@@ -144,6 +154,7 @@ test("el selector privado invierte el recorrido, cambia de día y reserva los vu
   await expect(page.locator('[data-campo="DEPARTURE"]')).toContainText(departure.number);
   await page.getByRole("link", { name: /Agregar vuelta/ }).click();
   await expect(privada).toBeChecked();
+  await comprobarUbicacion();
   await expect(page.locator('[data-campo="DEPARTURE"]')).toContainText(departure.number);
   const inbound = page.locator('[data-campo="ARRIVAL"]');
   await expect(inbound).toHaveAttribute("aria-expanded", "true");
