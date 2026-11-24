@@ -37,11 +37,6 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
   const salidasSemana = salidasPorDia.flat();
   const visibles = filtro ? salidasSemana.filter((salida) => terminalDe(salida.desde) === filtro) : salidasSemana;
   const resumen = resumenDeSalidas(visibles);
-  const cuentaPorTerminal = new Map<TerminalClave, number>(TERMINALES.map((terminal) => [terminal.clave, 0]));
-  for (const salida of salidasSemana) {
-    const clave = terminalDe(salida.desde);
-    if (clave) cuentaPorTerminal.set(clave, (cuentaPorTerminal.get(clave) ?? 0) + 1);
-  }
   const hrefSemana = (inicio: string, terminal: TerminalClave | null = filtro) => {
     const query = new URLSearchParams();
     query.set("semana", inicio);
@@ -75,24 +70,6 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
         {semana !== lunesDe(hoy) ? <Link className="ghost-button" href={hrefSemana(lunesDe(hoy))}>Esta semana</Link> : null}
         <span className="muted">{resumen.salidas} {resumen.salidas === 1 ? "salida" : "salidas"}</span>
       </div>
-
-      <nav className="sp-terminales" aria-label="Terminal">
-        <Link className="sp-terminal" data-activa={!filtro ? "si" : undefined} href={hrefSemana(semana, null)}>
-          <span>Todas las terminales</span>
-          <strong>{salidasSemana.length}</strong>
-        </Link>
-        {TERMINALES.map((terminal) => (
-          <Link
-            key={terminal.clave}
-            className="sp-terminal"
-            data-activa={filtro === terminal.clave ? "si" : undefined}
-            href={hrefSemana(semana, terminal.clave)}
-          >
-            <span>{terminal.nombre}</span>
-            <strong>{cuentaPorTerminal.get(terminal.clave) ?? 0}</strong>
-          </Link>
-        ))}
-      </nav>
 
       <section className="sp-resumen" aria-label="Resumen de la semana">
         <div><span>Salidas</span><strong>{resumen.salidas}</strong></div>
