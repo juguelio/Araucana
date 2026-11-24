@@ -31,7 +31,7 @@ export const initialPassenger: PassengerForm = {
   firstName: "",
   lastName: "",
   email: "",
-  phoneCountryCode: "",
+  phoneCountryCode: "+54",
   phone: "",
   documentType: "DNI",
   documentId: "",
@@ -226,36 +226,7 @@ export function PassengerFields({ passenger, fieldErrors, disabled = false, opti
           </span>
         ) : null}
       </label>
-      <div className="phone-field-row">
-        <PhoneCountryPicker value={passenger.phoneCountryCode} onChange={(value) => onChange("phoneCountryCode", value)}
-          disabled={disabled} required={!internationalPhoneInput(passenger.phone)} error={fieldErrors.phoneCountryCode} />
-        <label>
-          Telefono
-          <input
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel-national"
-            value={passenger.phone}
-            onChange={(event) => {
-              const value = event.target.value;
-              onChange("phone", value);
-              const complete = internationalPhoneInput(value);
-              const code = complete ? dialCodeForInternationalPhone(normalizePassengerPhone(complete) ?? "") : "";
-              if (code && code !== passenger.phoneCountryCode) onChange("phoneCountryCode", code);
-            }}
-            disabled={disabled}
-            aria-invalid={Boolean(fieldErrors.phone)}
-            aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
-            required
-          />
-          {fieldErrors.phone ? (
-            <span className="field-error" id="phone-error">
-              {fieldErrors.phone}
-            </span>
-          ) : null}
-        </label>
-      </div>
+      <PassengerPhoneFields passenger={passenger} fieldErrors={fieldErrors} disabled={disabled} onChange={onChange} />
       <label>
         Tipo de documento
         <select
@@ -387,5 +358,44 @@ export function QuantityPicker({ label, value, min = 1, max, disabled = false, h
       </span>
       {help ? <small className="quantity-help">{help}</small> : null}
     </label>
+  );
+}
+
+type PassengerPhoneFieldsProps = Pick<PassengerFieldsProps, "fieldErrors" | "disabled" | "onChange"> & {
+  passenger: Pick<PassengerForm, "phone" | "phoneCountryCode">;
+};
+
+export function PassengerPhoneFields({ passenger, fieldErrors, disabled, onChange }: PassengerPhoneFieldsProps) {
+  return (
+    <div className="phone-field-row">
+      <PhoneCountryPicker value={passenger.phoneCountryCode} onChange={(value) => onChange("phoneCountryCode", value)}
+        disabled={disabled} required={!internationalPhoneInput(passenger.phone)} error={fieldErrors.phoneCountryCode} />
+      <label>
+        Telefono
+        <input
+          name="phone"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          value={passenger.phone}
+          onChange={(event) => {
+            const value = event.target.value;
+            onChange("phone", value);
+            const complete = internationalPhoneInput(value);
+            const code = complete ? dialCodeForInternationalPhone(normalizePassengerPhone(complete) ?? "") : "";
+            if (code && code !== passenger.phoneCountryCode) onChange("phoneCountryCode", code);
+          }}
+          disabled={disabled}
+          aria-invalid={Boolean(fieldErrors.phone)}
+          aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
+          required
+        />
+        {fieldErrors.phone ? (
+          <span className="field-error" id="phone-error">
+            {fieldErrors.phone}
+          </span>
+        ) : null}
+      </label>
+    </div>
   );
 }

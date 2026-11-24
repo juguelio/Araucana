@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import type { PublicRouteDto } from "@/lib/booking/types";
 import type { ChapelcoAvailabilityDto } from "@/lib/chapelco/types";
 import { chapelcoAscentSlots, type ChapelcoAscentSlot } from "@/lib/chapelco/constants";
-import { buildPassengerPayload, validateCheckoutPassenger } from "./checkout-form";
+import { buildPassengerPayload, initialPassenger, PassengerPhoneFields, validateCheckoutPassenger, type PassengerForm } from "./passenger-fields";
 import { fareCounts, reservationTotalCents } from "@/lib/booking/passenger-fares";
-import { PhoneCountryPicker } from "@/components/phone-country-picker";
 import { createChapelcoReservationAction } from "./chapelco-actions";
 import { FormErrorSummary, useFocusFirstError } from "@/components/form-errors";
 
@@ -32,36 +31,12 @@ type ChapelcoCheckoutFormProps = {
   initialAvailability: ChapelcoAvailabilityDto;
 };
 
-type PassengerForm = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneCountryCode: string;
-  phone: string;
-  documentType: string;
-  documentId: string;
-  nationality: string;
-};
-
 type FieldErrors = Partial<
   Record<
     keyof PassengerForm | "serviceDate" | "ascentSlot" | "passengerCount" | "pickupName" | "pickupAddress" | "pickupLatitude" | "pickupLongitude",
     string
   >
 >;
-
-const initialPassenger: PassengerForm = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phoneCountryCode: "",
-  phone: "",
-  documentType: "DNI",
-  documentId: "",
-  nationality: ""
-};
-
-// Misma lista (todos los países) que el resto de los formularios de reserva.
 
 function todayInputValue() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -331,15 +306,7 @@ export function ChapelcoCheckoutForm({ route, initialAvailability }: ChapelcoChe
               <input type="email" value={passenger.email} onChange={(event) => updatePassenger("email", event.target.value)} disabled={isSubmitting} />
               {fieldError(fieldErrors, "email")}
             </label>
-            <div className="phone-field-row">
-              <PhoneCountryPicker value={passenger.phoneCountryCode} onChange={(value) => updatePassenger("phoneCountryCode", value)}
-                disabled={isSubmitting} error={fieldErrors.phoneCountryCode} />
-              <label>
-                Telefono
-                <input type="tel" autoComplete="tel-national" value={passenger.phone} onChange={(event) => updatePassenger("phone", event.target.value)} disabled={isSubmitting} />
-                {fieldError(fieldErrors, "phone")}
-              </label>
-            </div>
+            <PassengerPhoneFields passenger={passenger} fieldErrors={fieldErrors} disabled={isSubmitting} onChange={updatePassenger} />
             <label>
               Tipo documento
               <select value={passenger.documentType} onChange={(event) => updatePassenger("documentType", event.target.value)}>

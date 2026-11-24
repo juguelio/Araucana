@@ -764,7 +764,12 @@ svg {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: minmax(150px, 0.45fr) minmax(0, 1fr);
+  align-items: start;
   gap: 12px;
+}
+
+.phone-field-row > label {
+  min-width: 0;
 }
 
 .nationality-combobox {
@@ -815,6 +820,10 @@ svg {
 
 .checkout-fields label:last-child {
   grid-column: 1 / -1;
+}
+
+.checkout-fields .phone-field-row > label {
+  grid-column: auto;
 }
 
 .chapelco-slot-grid {
@@ -2063,7 +2072,8 @@ svg {
   }
 
   .phone-field-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 8px;
   }
 }
 
