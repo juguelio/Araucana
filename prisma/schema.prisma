@@ -407,7 +407,7 @@ model AirportReservationDetails {
 }
 
 model AirportVehicleAssignment {
-  privateReservationId String? @unique
+  privateReservationId String?
   privateReservation Reservation? @relation(fields: [privateReservationId], references: [id], onDelete: Cascade)
   id        String   @id @default(cuid())
   flightId  String
@@ -422,6 +422,7 @@ model AirportVehicleAssignment {
   updatedAt DateTime @updatedAt
   passengers AirportReservationDetails[]
 
+  @@index([privateReservationId])
   @@unique([flightId, vehicleId])
   @@index([flightId])
 }
@@ -563,7 +564,7 @@ model Reservation {
   ticket      Ticket?
   serviceTicket ServiceTicket?
   chapelcoDetails ChapelcoReservationDetails?
-  privateAirportVehicle AirportVehicleAssignment?
+  privateAirportVehicles AirportVehicleAssignment[]
   airportDetails  AirportReservationDetails?
   chapelcoStops ChapelcoManifestStop[]
   // Identidad al momento del alta, conservada aunque cambie o se elimine la cuenta.

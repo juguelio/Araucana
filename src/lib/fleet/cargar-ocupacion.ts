@@ -72,7 +72,7 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
     ...vuelos.map((asignacion): Ocupacion => {
       const ventana = airportServiceWindow({ ...asignacion.flight, status: asignacion.flight.status ?? undefined });
       return {
-        clave: asignacion.privateReservationId ? `privada:${asignacion.privateReservationId}` : `vuelo:${asignacion.flightId}`,
+        clave: asignacion.privateReservationId ? `privada:${asignacion.id}` : `vuelo:${asignacion.flightId}`,
         vehicleIds: [asignacion.vehicleId],
         driverIds: asignacion.driverId ? [asignacion.driverId] : [],
         desde: ventana.startsAt,

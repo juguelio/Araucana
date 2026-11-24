@@ -48,8 +48,8 @@ test("cinco pasajeros en tres alojamientos con una orden privada y una nave asig
   await page.getByRole("button", { name: "Crear reserva privada" }).click();
   await expect(page).toHaveURL(/\/admin\/reservas\/ARC-/);
   const code = page.url().split("/").pop()!;
-  const saved = await db.reservation.findUniqueOrThrow({ where: { code }, include: { payment: true, privateAirportVehicle: true, airportDetails: true } });
-  expect(saved).toMatchObject({ passengerCount: 5, totalCents: 10000000, privateAirportVehicle: null, payment: { amountCents: 10000000 }, airportDetails: { isPrivate: true } });
+  const saved = await db.reservation.findUniqueOrThrow({ where: { code }, include: { payment: true, privateAirportVehicles: true, airportDetails: true } });
+  expect(saved).toMatchObject({ passengerCount: 5, totalCents: 10000000, privateAirportVehicles: [], payment: { amountCents: 10000000 }, airportDetails: { isPrivate: true } });
   await expect(page.locator("body")).toContainText("Traslado privado · paradas y nave");
   await page.getByLabel("Nave exclusiva", { exact: true }).selectOption(vehicle.id);
   await page.getByRole("button", { name: "Guardar paradas y nave" }).click();
@@ -170,7 +170,7 @@ test("el selector privado invierte el recorrido, cambia de día y reserva los vu
     .toMatchObject({ totalCents: 800000 });
 });
 
-test("el tablero asigna la camioneta pública y la privada con choferes distintos en un mismo vuelo", async ({ page }) => {
+test("el tablero suma dos naves privadas y dos públicas con sus choferes en el mismo vuelo", async ({ page }) => {
   const suffix = randomUUID().slice(0, 8);
   const day = "2032-11-25";
   const slug = `mixto-${suffix}`;
@@ -182,13 +182,13 @@ test("el tablero asigna la camioneta pública y la privada con choferes distinto
     category: "Argentina", bookingMode: "AIRPORT", specialType: "ARRIVAL", description: "Traslado", stops: [] } });
   const flight = await db.flight.create({ data: { number: `AR${suffix}`.toUpperCase(), direction: "ARRIVAL", origin: "Aeroparque",
     scheduledAt: new Date(`${day}T13:00:00-03:00`), source: "MANUAL" } });
-  const vans = await Promise.all(["Exclusiva", "Compartida"].map(name => db.vehicle.create({ data: { name: `${name} ${suffix}`,
+  const vans = await Promise.all(["Exclusiva", "Compartida", "Privada adicional", "Pública adicional"].map(name => db.vehicle.create({ data: { name: `${name} ${suffix}`,
     seats: { create: Array.from({ length: 12 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } })));
-  const drivers = await Promise.all(["Juan", "Ana"].map(name => db.user.create({ data: { name: `${name} ${suffix}`,
+  const drivers = await Promise.all(["Juan", "Ana", "Eva", "Leo"].map(name => db.user.create({ data: { name: `${name} ${suffix}`,
     email: `${name}-${suffix}@example.com`, role: "DRIVER", isActive: true } })));
   const leg = { flightNumber: flight.number, serviceDate: day, direction: "ARRIVAL", routeSlug: slug, passengerCount: 1,
     passenger: { firstName: "Sol", lastName: "Pérez", phone: "+5492944123456", email: "", documentType: "DNI", documentId: "" } };
-  for (const data of [{ ...leg, privateTransfer: { stops: [{ destination: "Villa Traful", passengers: 1 }], totalCents: 5000 } },
+  for (const data of [{ ...leg, passengerCount: 10, privateTransfer: { stops: [{ destination: "Villa Traful", passengers: 10 }], totalCents: 5000 } },
     { ...leg, pickupPoint: [-40.157, -71.353] }]) {
     const response = await page.request.post("/api/v1/airport/reservations?source=admin", { headers, data });
     expect(response.ok(), await response.text()).toBe(true);
@@ -200,11 +200,11 @@ test("el tablero asigna la camioneta pública y la privada con choferes distinto
   await expect(button).toContainText("Privada · Sin nave asignada");
   await button.click();
   const modal = page.getByRole("dialog");
-  const privateSection = modal.locator("details").filter({ hasText: "Guardar asignación privada" });
-  await privateSection.locator("summary").click();
+  const privateSection = modal.locator("details.aero-tipo-traslado");
+  await privateSection.locator(":scope > summary").click();
   await privateSection.getByRole("radio", { name: new RegExp(vans[0].name) }).check();
   await privateSection.getByRole("radio", { name: new RegExp(drivers[0].name!) }).check();
-  await privateSection.getByRole("button", { name: "Guardar asignación privada" }).click();
+  await privateSection.getByRole("button", { name: "Agregar nave privada" }).click();
   await expect(button).toContainText(`Privada · ${vans[0].name} · ${drivers[0].name}`);
   await expect(button).toContainText("Pública · Sin nave asignada");
   await button.click();
@@ -216,19 +216,57 @@ test("el tablero asigna la camioneta pública y la privada con choferes distinto
   await expect(button).toContainText(`Pública · ${vans[1].name} · ${drivers[1].name}`);
   await expect(button).toContainText(`Privada · ${vans[0].name} · ${drivers[0].name}`);
   await button.click();
-  await privateSection.locator("summary").click();
+  await privateSection.locator(":scope > summary").click();
   await expect(privateSection.getByRole("radio", { name: new RegExp(vans[1].name) })).toHaveCount(0);
+  await expect(privateSection).toContainText("Falta asignar lugar para 2 pasajeros");
+  await privateSection.getByRole("radio", { name: new RegExp(vans[2].name) }).check();
+  await privateSection.getByRole("radio", { name: new RegExp(drivers[2].name!) }).check();
+  await privateSection.getByRole("button", { name: "Agregar nave privada" }).click();
+  await expect(button).toContainText(`${vans[2].name} · ${drivers[2].name}`);
+  await button.click();
+  await shared.getByRole("radio", { name: new RegExp(vans[3].name) }).check();
+  await shared.getByRole("radio", { name: new RegExp(drivers[3].name!) }).check();
+  await shared.getByRole("button", { name: "Sumar nave" }).click();
+  await expect(button).toContainText(`${vans[3].name} · ${drivers[3].name}`);
+
   // Cambiar la privada desde el mismo modal conserva la asignación pública.
   const relevo = await db.vehicle.create({ data: { name: `Relevo ${suffix}`,
     seats: { create: Array.from({ length: 10 }, (_, i) => ({ number: String(i + 1), row: i + 1, column: 1 })) } } });
   await page.reload();
   await button.click();
-  await privateSection.locator("summary").click();
-  await privateSection.getByRole("radio", { name: new RegExp(relevo.name) }).check();
-  await privateSection.getByRole("button", { name: "Guardar asignación privada" }).click();
-  await expect(button).toContainText(`Privada · ${relevo.name} · ${drivers[0].name}`);
+  await privateSection.locator(":scope > summary").click();
+  const original = await db.airportVehicleAssignment.findUniqueOrThrow({ where: { flightId_vehicleId: { flightId: flight.id, vehicleId: vans[0].id } } });
+  const editar = privateSection.locator("details").filter({ has: page.locator("summary", { hasText: vans[0].name }) });
+  await editar.locator("summary").click();
+  await editar.getByRole("radio", { name: new RegExp(relevo.name) }).check();
+  await editar.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(button).toContainText(`${relevo.name} · ${drivers[0].name}`);
   const saved = await db.airportVehicleAssignment.findMany({ where: { flightId: flight.id } });
-  expect(saved).toHaveLength(2);
-  expect(saved.find(a => a.privateReservationId)).toMatchObject({ vehicleId: relevo.id, driverId: drivers[0].id });
-  expect(saved.find(a => !a.privateReservationId)).toMatchObject({ vehicleId: vans[1].id, driverId: drivers[1].id });
+  expect(saved).toHaveLength(4);
+  const privateIds = saved.filter(a => a.privateReservationId);
+  expect(privateIds).toHaveLength(2);
+  expect(privateIds[0].privateReservationId).toEqual(privateIds[1].privateReservationId);
+  expect(privateIds).toEqual(expect.arrayContaining([
+    expect.objectContaining({ vehicleId: vans[2].id, driverId: drivers[2].id }),
+    expect.objectContaining({ id: original.id, vehicleId: relevo.id, driverId: drivers[0].id })
+  ]));
+  expect(saved.filter(a => !a.privateReservationId)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ vehicleId: vans[1].id, driverId: drivers[1].id }),
+    expect.objectContaining({ vehicleId: vans[3].id, driverId: drivers[3].id })
+  ]));
+  const reserva = await db.reservation.findUniqueOrThrow({ where: { id: original.privateReservationId! } });
+  await page.goto(`/admin/reservas/${reserva.code}`);
+  await page.getByLabel("Parada 1", { exact: true }).fill("Hotel del Lago");
+  await page.getByRole("button", { name: "Guardar paradas", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Traslado privado actualizado" })).toBeVisible();
+  expect(await db.airportVehicleAssignment.count({ where: { privateReservationId: reserva.id } })).toBe(2);
+  await page.getByRole("link", { name: "Administrar naves y choferes" }).click();
+  await button.click();
+  await privateSection.locator(":scope > summary").click();
+  const quitar = privateSection.locator("details").filter({ has: page.locator("summary", { hasText: vans[2].name }) });
+  await quitar.locator("summary").click();
+  await quitar.getByRole("button", { name: "Quitar nave privada" }).click();
+  await expect(button).not.toContainText(vans[2].name);
+  await expect(button).toContainText(relevo.name);
+  expect(await db.airportVehicleAssignment.count({ where: { flightId: flight.id } })).toBe(3);
 });

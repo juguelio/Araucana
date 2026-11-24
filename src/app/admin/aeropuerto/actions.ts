@@ -255,14 +255,16 @@ async function guardarCombiPrivada(tx: Prisma.TransactionClient, actor: Awaited<
   form: FormData, reservationId: string, vehicleId: string, driverId: string | null) {
   const detalle = await tx.airportReservationDetails.findUnique({
     where: { reservationId },
-    include: { flight: true, reservation: { select: { passengerCount: true, status: true, shortCode: true, privateAirportVehicle: true } } }
+    include: { flight: true, reservation: { select: { status: true, shortCode: true, privateAirportVehicles: true } } }
   });
   const flight = detalle?.flight;
   if (!detalle?.isPrivate || !flight || flight.id !== value(form, "flightId") || detalle.reservation.status === "CANCELLED") {
     return { error: "La reserva privada ya no está activa en este vuelo." };
   }
-  const anterior = detalle.reservation.privateAirportVehicle;
-  if ((anterior?.id ?? "") !== value(form, "assignmentId") || (anterior?.driverId ?? "") !== value(form, "previousDriverId")) {
+  const assignmentId = value(form, "assignmentId");
+  const anterior = detalle.reservation.privateAirportVehicles.find(a => a.id === assignmentId);
+  if ((anterior?.id ?? "") !== assignmentId || (anterior?.driverId ?? "") !== value(form, "previousDriverId") ||
+      (form.has("previousVehicleId") && (anterior?.vehicleId ?? "") !== value(form, "previousVehicleId"))) {
     return { error: "La asignación privada cambió. Actualizá el tablero antes de guardar." };
   }
   if (driverId && driverId !== anterior?.driverId &&
@@ -280,8 +282,7 @@ async function guardarCombiPrivada(tx: Prisma.TransactionClient, actor: Awaited<
   if (anterior?.vehicleId === vehicleId) {
     asignacion = await tx.airportVehicleAssignment.update({ where: { id: anterior.id }, data: { driverId } });
   } else {
-    if (anterior) await tx.airportVehicleAssignment.delete({ where: { id: anterior.id } });
-    asignacion = await assignPrivateVehicle(tx, reservationId, flight, detalle.reservation.passengerCount, vehicleId, driverId);
+    asignacion = await assignPrivateVehicle(tx, reservationId, flight, 1, vehicleId, driverId, anterior?.id);
   }
   await recordAcceptance(tx, "AIRPORT", asignacion.id, actor.id, conflicts);
   const message = `Asignación privada guardada para ${detalle.reservation.shortCode}.`;
