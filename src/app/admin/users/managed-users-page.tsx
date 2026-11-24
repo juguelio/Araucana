@@ -6,6 +6,8 @@ import { formatCurrency } from "@/lib/admin/salary";
 import { canDeleteManagedUser, canSeeSalary, managedUsersBasePath } from "@/lib/admin/driver-access";
 import { getCurrentAdminOrRedirect, getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
+import { driversWithServiceOrders } from "@/lib/driver/service-orders";
+import { localDateKey } from "@/lib/operations/day-board";
 import { EXPIRY_LABELS, LICENSE_SCOPES, expiryDaysLabel, expiryStatus, formatExpiryDay, todayInArgentina, worstStatus, type ExpiryStatus, type LicenseScope } from "@/lib/admin/driver-documents";
 import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
@@ -95,6 +97,9 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
     defecto: () => 0
   });
   const pagina = paginar(ordenadas, leerPagina(params.page), POR_PAGINA);
+  const conHojaDeHoy = esChoferes
+    ? await driversWithServiceOrders(pagina.items.map(({ id }) => id), localDateKey(new Date()))
+    : null;
   const encabezado = (etiqueta: string, columna: Columna) => (
     <EncabezadoOrdenable etiqueta={etiqueta} columna={columna} orden={orden} base={base} params={params} />
   );
@@ -170,7 +175,7 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
               <td><span className={`status-pill ${user.isActive ? "active" : "inactive"}`}>{user.isActive ? "Activo" : user.role === "USER" ? "Pendiente" : "Inactivo"}</span></td>
               <td>
                 <div className="table-actions">
-                  {esChoferes && (
+                  {conHojaDeHoy?.has(user.id) && (
                     <Link className="ghost-button" href={`/admin/choferes/${user.id}/ordenes?imprimir=1`} prefetch={false}>
                       <DriverSheetLabel />
                     </Link>

@@ -12,7 +12,7 @@ import "./service-order-sheet.css";
  * La planilla del chofer de una salida de ruta como documento (issue #136): misma hoja de estilos,
  * mismas columnas y mismo pie que la orden de servicio y la planilla de excursiones.
  */
-export function RouteSheetDocument({ sheet }: { sheet: RouteSheet }) {
+export function RouteSheetDocument({ sheet, assignment }: { sheet: RouteSheet; assignment?: string }) {
   return (
     <article className="orden">
       <header className="orden-cabecera">
@@ -20,6 +20,7 @@ export function RouteSheetDocument({ sheet }: { sheet: RouteSheet }) {
           <p className="orden-marca">La Araucana viajes S.R.L.</p>
           <h1 className="orden-titulo">PLANILLA DEL CHOFER</h1>
           <p className="orden-subtitulo">{sheet.routeLabel} · Nave {sheet.vehicle}</p>
+          {assignment && <p className="orden-subtitulo">{assignment}</p>}
         </div>
         <div className="orden-fecha">
           <span>Fecha</span>
@@ -29,7 +30,10 @@ export function RouteSheetDocument({ sheet }: { sheet: RouteSheet }) {
       </header>
 
       {sheet.passengers.length === 0 ? (
-        <p className="orden-vacia">Esta salida todavía no tiene pasajeros confirmados.</p>
+        <section className="orden-bloque">
+          <h2 className="orden-bloque-titulo">{sheet.heading}</h2>
+          <p className="orden-vacia">Esta salida todavía no tiene pasajeros confirmados.</p>
+        </section>
       ) : (
         <section className="orden-bloque">
           <h2 className="orden-bloque-titulo">{sheet.heading}</h2>

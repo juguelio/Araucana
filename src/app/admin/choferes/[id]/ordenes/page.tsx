@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { ImprimirTodas } from "@/components/imprimir-todas";
+import { RouteSheetDocument } from "@/components/route-sheet";
 import { CabeceraOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { fechaDeLaOrden } from "@/lib/airport/service-order";
 import { getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
@@ -107,13 +108,15 @@ export default async function DriverOrdersPage({ params, searchParams }: {
           <div className="driver-orders-documents">
             {orders.map((order) => (
               <div className="driver-orders-document" key={`${order.type}-${order.id}`}>
-                {order.type === "airport"
-                  ? <ServiceOrderSheet date={date} blocks={[order.block]} variante="chofer" mostrarResumen={false} />
-                  : <SpecialOrderSheet order={order} driver={driverName} date={date} />}
+                {order.type === "airport" && <ServiceOrderSheet date={date} blocks={[order.block]} variante="chofer" mostrarResumen={false} />}
+                {order.type === "special" && <SpecialOrderSheet order={order} driver={driverName} date={date} />}
+                {order.type === "route" && (
+                  <RouteSheetDocument sheet={order.sheet} assignment={`${driverName} · Nave asignada: ${order.vehicles.join(" + ")}`} />
+                )}
               </div>
             ))}
           </div>
-        ) : <p className="plain-card admin-section">No hay órdenes de Aeropuerto ni de Viajes especiales para este chofer en la fecha elegida.</p>}
+        ) : <p className="plain-card admin-section">No hay servicios asignados a este chofer en la fecha elegida.</p>}
       </div>
     </AdminShell>
   );
