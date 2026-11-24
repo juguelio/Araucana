@@ -148,28 +148,6 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           <p className="sp-aviso">Día pasado: el tablero es sólo consulta y las ventas están cerradas.</p>
         ) : null}
 
-        <nav className="sp-terminales" aria-label="Terminal">
-          <Link className="sp-terminal" data-activa={!filtro ? "si" : undefined} href={href({ terminal: null })}>
-            <span>Todas las terminales</span>
-            <strong>{resumenDeSalidas(salidas).salidas}</strong>
-          </Link>
-          {TERMINALES.map((terminal) => {
-            const grupo = agruparPorTerminal(salidas, rows).find((item) => item.clave === terminal.clave);
-            const cantidad = grupo?.salidas.length ?? 0;
-            return (
-              <Link
-                key={terminal.clave}
-                className="sp-terminal"
-                data-activa={filtro === terminal.clave ? "si" : undefined}
-                href={href({ terminal: terminal.clave })}
-              >
-                <span>{terminal.nombre}</span>
-                <strong>{cantidad}</strong>
-              </Link>
-            );
-          })}
-        </nav>
-
         <section className="sp-resumen" aria-label="Resumen del día">
           <div><span>Salidas</span><strong>{resumen.salidas}</strong></div>
           <div><span>Pasajeros anotados</span><strong>{resumen.pasajeros}</strong></div>
