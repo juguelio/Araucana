@@ -11,7 +11,7 @@ import {
   tituloDelTotal,
   type ServiceOrderBlock
 } from "@/lib/airport/service-order";
-import { CeldaDeLaOrden } from "./service-order-cells";
+import { CeldaDeLaOrden, CeldaPieDeLaOrden } from "./service-order-cells";
 import { FormaDePagoEditable } from "./forma-de-pago-editable";
 import "./service-order-sheet.css";
 
@@ -101,7 +101,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", mostrarRes
               <thead>
                 <tr>
                   {SERVICE_ORDER_COLUMNS.map((columna) => (
-                    <th key={columna}>{columna}</th>
+                    <th key={columna} data-columna={columna}>{columna}</th>
                   ))}
                   {conAcciones ? <th className="orden-acciones no-print">Acción</th> : null}
                 </tr>
@@ -130,12 +130,12 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", mostrarRes
               )}
               <tfoot>
                 <tr>
-                  <td colSpan={5}>
+                  <CeldaPieDeLaOrden colSpan={5}>
                     <div className="orden-pasajeros">
                       <span>Pasajeros IN <strong>{block.direction === "ARRIVAL" ? pasajeros : 0}</strong></span>
                       <span>Pasajeros OUT <strong>{block.direction === "DEPARTURE" ? pasajeros : 0}</strong></span>
                     </div>
-                  </td>
+                  </CeldaPieDeLaOrden>
                   <td colSpan={3}>{tituloDelTotal(block)} · {plata(block.totalCents, currency)}</td>
                   {conAcciones ? <td className="no-print" /> : null}
                 </tr>

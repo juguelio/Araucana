@@ -1,5 +1,25 @@
+import type { ReactNode } from "react";
 import { whatsappLink } from "@/lib/airport/route-order";
 import { FormaDePagoOrden } from "./forma-de-pago-orden";
+
+export function CeldaPieDeLaOrden({ colSpan, children }: { colSpan: number; children: ReactNode }) {
+  return (
+    <>
+      <td colSpan={colSpan} className="no-print">{children}</td>
+      <td colSpan={colSpan - 2} className="orden-solo-papel">{children}</td>
+    </>
+  );
+}
+
+function alojamientoParaImprimir(lugar: string) {
+  return lugar.split(" · ")
+    .map((detalle) => detalle.split(",")
+      .map((parte) => parte.trim().replace(/(?:^|[–-]\s*|(?<=\d)\s+)san mart[ií]n de los andes$/i, "").trim())
+      .filter(Boolean)
+      .join(", "))
+    .filter((parte, indice, partes) => parte && partes.indexOf(parte) === indice)
+    .join(" · ");
+}
 
 /**
  * Contenido de una celda de la orden de servicio. Lo comparten la hoja de sólo lectura y la recorrida
@@ -11,6 +31,12 @@ import { FormaDePagoOrden } from "./forma-de-pago-orden";
 export function CeldaDeLaOrden({ celda, columna }: { celda: string; columna: string }) {
   if (columna === "Forma de pago") return <FormaDePagoOrden metodo={celda} />;
   if (!celda) return <span className="orden-vacio">—</span>;
+  if (columna === "Alojamiento") {
+    const corto = alojamientoParaImprimir(celda);
+    if (corto !== celda) {
+      return <><span className="no-print">{celda}</span><span className="orden-solo-papel">{corto || "—"}</span></>;
+    }
+  }
   if (columna !== "Contacto") return <>{celda}</>;
   const whatsapp = whatsappLink(celda);
   if (!whatsapp) return <>{celda}</>;

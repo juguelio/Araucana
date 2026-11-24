@@ -5,6 +5,7 @@ import {
   type ExcursionSheetBlock
 } from "@/lib/excursions/sheet";
 import { fechaDeLaOrden, plata } from "@/lib/airport/service-order";
+import { CeldaPieDeLaOrden } from "./service-order-cells";
 import "./service-order-sheet.css";
 
 type ExcursionSheetProps = {
@@ -49,7 +50,7 @@ export function ExcursionSheet({ date, blocks, variante = "panel" }: ExcursionSh
               <thead>
                 <tr>
                   {EXCURSION_SHEET_COLUMNS.map((columna) => (
-                    <th key={columna}>{columna}</th>
+                    <th key={columna} data-columna={columna}>{columna}</th>
                   ))}
                   {conAcciones ? <th className="orden-acciones no-print">Acción</th> : null}
                 </tr>
@@ -72,7 +73,7 @@ export function ExcursionSheet({ date, blocks, variante = "panel" }: ExcursionSh
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={EXCURSION_SHEET_COLUMNS.length - 2}>Total {block.excursionName}</td>
+                  <CeldaPieDeLaOrden colSpan={EXCURSION_SHEET_COLUMNS.length - 2}>Total {block.excursionName}</CeldaPieDeLaOrden>
                   <td>{plata(block.totalCents, currency)}</td>
                   <td />
                   {conAcciones ? <td className="no-print" /> : null}
@@ -92,7 +93,7 @@ export function ExcursionSheet({ date, blocks, variante = "panel" }: ExcursionSh
         </footer>
       ) : null}
 
-      <p className="orden-pie">
+      <p className="orden-pie no-print">
         «Derivado por» es la agencia o voucher que originó la venta; si se vendió directo, va vacío. Cobrar / Pagado es el
         estado del pago.
       </p>

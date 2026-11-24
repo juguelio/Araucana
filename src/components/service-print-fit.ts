@@ -1,6 +1,6 @@
 // A4 apaisado con margen de 8 mm. El ancho y el alto dejan margen también para Carta.
 const PRINT_WIDTH = "260mm";
-const PRINT_HEIGHT = "188mm";
+const PRINT_HEIGHT = "184mm";
 
 export function prepareServicePrint(root: HTMLElement) {
   const prepared: Array<{ page: HTMLElement; content: HTMLElement }> = [];

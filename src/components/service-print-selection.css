@@ -24,7 +24,22 @@
 .service-print-measure { position: fixed; top: 0; left: -20000px; visibility: hidden; }
 .service-print-paper { display: flow-root; box-sizing: border-box; }
 .service-print-paper .no-print { display: none !important; }
-.service-print-paper .orden { max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; }
+.service-print-paper .orden {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  --orden-papel-inline: inline;
+  --orden-papel-celda: table-cell;
+  --orden-papel-flex: flex;
+  --orden-ancho-pasajero: 27%;
+  --orden-ancho-lugar: 38%;
+  --orden-ancho-cantidad: 4%;
+  --orden-ancho-pago: 10%;
+  --orden-ancho-contacto: 12%;
+  --orden-ancho-metodo: 9%;
+}
 .service-print-paper .orden-bloque { margin: 0; }
 .service-print-paper .orden-cabecera {
   display: flex;
@@ -50,22 +65,21 @@
   line-height: 1.15;
   overflow-wrap: anywhere;
 }
-.service-print-paper .orden-tabla td::before { display: none; }
+.service-print-paper .orden-tabla td::before,
+.service-print-paper .orden-tabla [data-columna="DNI"],
+.service-print-paper .orden-tabla [data-columna="Derivado por"] { display: none; }
+.service-print-paper .orden-tabla tbody td:is([data-columna="Pasajero"], [data-columna="Alojamiento"], [data-columna="Parada"]) {
+  font-size: 13px;
+  font-weight: 600;
+}
 .service-print-paper .orden-tabla thead th { font-size: 9px; }
 .service-print-paper .orden-tabla tfoot td { padding-top: 4px; }
 .service-print-paper .orden-forma-pago-impresa { display: inline; }
 .service-print-paper .orden-whatsapp-boton { display: none; }
-.service-print-paper .orden-forma-pago { display: flex; flex-wrap: wrap; min-width: 0; gap: 2px 5px; font-size: 9px; }
-.service-print-paper .orden-forma-pago-casillero { width: 10px; height: 10px; font-size: 9px; }
+.service-print-paper .orden-forma-pago { display: flex; flex-wrap: wrap; min-width: 0; gap: 2px 4px; font-size: 8px; }
+.service-print-paper .orden-forma-pago-opcion { gap: 2px; }
+.service-print-paper .orden-forma-pago-casillero { width: 9px; height: 9px; font-size: 8px; }
 .service-print-paper .orden-tabla tbody tr { border: 0; padding: 0; margin: 0; }
-.service-print-paper .orden-tabla th:nth-child(1) { width: 15%; }
-.service-print-paper .orden-tabla th:nth-child(2) { width: 4%; }
-.service-print-paper .orden-tabla th:nth-child(3) { width: 7%; }
-.service-print-paper .orden-tabla th:nth-child(4) { width: 32%; }
-.service-print-paper .orden-tabla th:nth-child(5) { width: 9%; }
-.service-print-paper .orden-tabla th:nth-child(6) { width: 9%; }
-.service-print-paper .orden-tabla th:nth-child(7) { width: 11%; }
-.service-print-paper .orden-tabla th:nth-child(8) { width: 13%; }
 .service-print-paper .driver-orders-document + .driver-orders-document { margin-top: 3mm; }
 .service-print-paper .driver-orders-document + .driver-orders-document :is(.orden-marca, .orden-titulo, .orden-fecha) { display: none; }
 .service-print-paper .orden-pie { display: none; }

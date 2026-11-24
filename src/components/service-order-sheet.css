@@ -134,6 +134,20 @@
 .orden-forma-pago-editor small { font-size: 10px; white-space: normal; }
 .orden-forma-pago-impresa { display: none; }
 
+.orden-solo-papel { display: var(--orden-papel-inline, none); }
+td.orden-solo-papel { display: var(--orden-papel-celda, none); }
+.orden-forma-pago-opcion.orden-solo-papel { display: var(--orden-papel-flex, none); }
+.orden-forma-pago abbr { text-decoration: none; }
+
+.orden-tabla th[data-columna="Pasajero"] { width: var(--orden-ancho-pasajero, auto); }
+.orden-tabla th[data-columna="Alojamiento"],
+.orden-tabla th[data-columna="Parada"] { width: var(--orden-ancho-lugar, auto); }
+.orden-tabla th[data-columna="Cant"] { width: var(--orden-ancho-cantidad, auto); }
+.orden-tabla th[data-columna="Pago"] { width: var(--orden-ancho-pago, auto); }
+.orden-tabla th[data-columna="Contacto"] { width: var(--orden-ancho-contacto, auto); }
+.orden-tabla th[data-columna="Forma de pago"] { width: var(--orden-ancho-metodo, auto); }
+
+
 .orden-acciones {
   width: 1%;
   white-space: nowrap;
@@ -179,6 +193,17 @@
 
 /* Papel: sólo la orden. El menú del panel, los botones y la columna de acciones no se imprimen. */
 @media print {
+  .orden {
+    --orden-papel-inline: inline;
+    --orden-papel-celda: table-cell;
+    --orden-papel-flex: flex;
+    --orden-ancho-pasajero: 27%;
+    --orden-ancho-lugar: 38%;
+    --orden-ancho-cantidad: 4%;
+    --orden-ancho-pago: 10%;
+    --orden-ancho-contacto: 12%;
+    --orden-ancho-metodo: 9%;
+  }
   .orden-forma-pago-impresa { display: inline; }
   @page {
     size: A4 landscape;
@@ -261,6 +286,9 @@
     display: table-header-group;
   }
 
+  .orden-tabla [data-columna="DNI"],
+  .orden-tabla [data-columna="Derivado por"] { display: none; }
+
   .orden-tabla {
     table-layout: fixed;
   }
@@ -269,14 +297,6 @@
     zoom: 0.9;
   }
 
-  .orden-tabla th:nth-child(1) { width: 15%; }
-  .orden-tabla th:nth-child(2) { width: 4%; }
-  .orden-tabla th:nth-child(3) { width: 7%; }
-  .orden-tabla th:nth-child(4) { width: 32%; }
-  .orden-tabla th:nth-child(5) { width: 9%; }
-  .orden-tabla th:nth-child(6) { width: 9%; }
-  .orden-tabla th:nth-child(7) { width: 11%; }
-  .orden-tabla th:nth-child(8) { width: 13%; }
 
   .orden-tabla tfoot {
     display: table-row-group;
@@ -294,17 +314,25 @@
     overflow-wrap: anywhere;
   }
 
+  .orden-tabla tbody td:is([data-columna="Pasajero"], [data-columna="Alojamiento"], [data-columna="Parada"]) {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
   .orden-forma-pago {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 8px;
-    font-size: 9px;
+    min-width: 0;
+    gap: 2px 4px;
+    font-size: 8px;
   }
 
+  .orden-forma-pago-opcion { gap: 2px; }
+
   .orden-forma-pago-casillero {
-    width: 11px;
-    height: 11px;
-    font-size: 10px;
+    width: 9px;
+    height: 9px;
+    font-size: 8px;
   }
 
   .orden-tabla tfoot td { padding-top: 4px; }

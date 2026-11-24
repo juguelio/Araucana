@@ -5,7 +5,7 @@ import {
   type RouteSheet
 } from "@/lib/driver/route-sheet";
 import { fechaDeLaOrden, plata } from "@/lib/airport/service-order";
-import { CeldaDeLaOrden } from "./service-order-cells";
+import { CeldaDeLaOrden, CeldaPieDeLaOrden } from "./service-order-cells";
 import "./service-order-sheet.css";
 
 /**
@@ -41,7 +41,7 @@ export function RouteSheetDocument({ sheet, assignment }: { sheet: RouteSheet; a
             <thead>
               <tr>
                 {ROUTE_SHEET_COLUMNS.map((columna) => (
-                  <th key={columna}>{columna}</th>
+                  <th key={columna} data-columna={columna}>{columna}</th>
                 ))}
               </tr>
             </thead>
@@ -58,9 +58,9 @@ export function RouteSheetDocument({ sheet, assignment }: { sheet: RouteSheet; a
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={ROUTE_SHEET_COLUMNS.length - 2}>
+                <CeldaPieDeLaOrden colSpan={ROUTE_SHEET_COLUMNS.length - 2}>
                   Total {sheet.routeLabel} · {sheet.totalSeats} pasajero(s)
-                </td>
+                </CeldaPieDeLaOrden>
                 <td>{plata(sheet.totalCents, sheet.currency)}</td>
                 <td />
               </tr>
@@ -78,7 +78,7 @@ export function RouteSheetDocument({ sheet, assignment }: { sheet: RouteSheet; a
         </footer>
       ) : null}
 
-      <p className="orden-pie">{ROUTE_SHEET_FOOTNOTE}</p>
+      <p className="orden-pie no-print">{ROUTE_SHEET_FOOTNOTE}</p>
     </article>
   );
 }
