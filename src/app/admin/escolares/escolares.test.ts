@@ -12,7 +12,7 @@ const fixture = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/auth/admin", () => ({ getCurrentReservationsUserOrRedirect: async () => ({ role: "SECRETARY" }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/admin/escolares", notFound: () => { throw Error("404"); } }));
-vi.mock("./actions", () => ({ saveSchoolRun: vi.fn() }));
+vi.mock("./actions", () => ({ saveSchoolRun: vi.fn(), assignSchoolRunResources: vi.fn() }));
 vi.mock("@/lib/db/prisma", () => ({ prisma: {
   schoolRun: { findMany: async () => [fixture], findUnique: async () => fixture, groupBy: async () => [] },
   user: { findMany: async () => [{ id: "ch-5", ...fixture.driver }] },
@@ -36,6 +36,7 @@ it("muestra la planilla semanal con los servicios del día", async () => {
   expect(week).toContain('href="/admin/escolares?fecha=2026-11-23"');
   expect(week.match(/cn-semana-ver-dia/g)).toHaveLength(7);
   expect(week).toContain('href="/admin/escolares?fecha=2026-11-24"');
+  expect(week).toContain("fecha=2026-11-24&amp;tipo=escuela");
   expect(week.match(/cn-semana-dia/g)).toHaveLength(7);
 });
 

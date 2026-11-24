@@ -162,7 +162,7 @@ export function SelectorNaveYChofer({
   const [chofer, setChofer] = useState(choferActual);
   const naveElegida = naves.find((opcion) => opcion.id === nave);
   const choferElegido = choferes.find((opcion) => opcion.id === chofer);
-  const sinCambios = nave === naveActual && chofer === choferActual && Boolean(naveActual);
+  const sinCambios = Boolean(naveActual) && (!conChofer || Boolean(choferActual)) && nave === naveActual && (!conChofer || chofer === choferActual);
 
   return (
     <div className="flota-selector">

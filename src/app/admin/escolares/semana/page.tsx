@@ -66,8 +66,8 @@ export default async function WeekPage({ searchParams }: {
   };
   const hrefNuevo = (fecha: string) =>
     `/admin/escolares/nuevo?fecha=${fecha}${tipo ? `&tipo=${tipo}` : ""}`;
-  const hrefDia = (fecha: string) =>
-    `/admin/escolares?fecha=${fecha}${tipo ? `&tipo=${tipo}` : ""}`;
+  const hrefDia = (fecha: string, kind?: string) =>
+    `/admin/escolares?fecha=${fecha}${kind ? `&tipo=${kind}` : tipo ? `&tipo=${tipo}` : ""}`;
 
   return (
     <AdminShell title="Concesiones" eyebrow="Semana" role={user.role} notice={params.aviso}
@@ -107,7 +107,7 @@ export default async function WeekPage({ searchParams }: {
                     {dias.map((dia) => (
                       <td key={dia} data-hoy={dia === hoy || undefined}>
                         {(chofer.dias.get(dia) ?? []).map((run) => (
-                          <Link key={run.id} className="cn-chofer-servicio" href={hrefDia(dia)}>
+                          <Link key={run.id} className="cn-chofer-servicio" href={hrefDia(dia, run.kind)}>
                             <strong>{run.routeName}</strong>
                             <span>{run.shift} · {run.vehicle?.name ?? "Sin nave"}</span>
                           </Link>
@@ -141,7 +141,7 @@ export default async function WeekPage({ searchParams }: {
                   <p className="muted">{delDia.length ? `${delDia.length} ${delDia.length === 1 ? "servicio" : "servicios"}` : "Sin servicios"}</p>
                   <div className="cn-semana-lista">
                     {delDia.map((run) => (
-                      <Link key={run.id} className="cn-semana-servicio" href={hrefDia(dia)} title={diaLargo.format(fecha)}>
+                      <Link key={run.id} className="cn-semana-servicio" href={hrefDia(dia, run.kind)} title={diaLargo.format(fecha)}>
                         <strong>{run.routeName}</strong>
                         <span>{run.shift}{run.companion ? ` · ${run.companion}` : ""}</span>
                         <span className="pill">{etiquetaDeConcesion(run.kind)}</span>
