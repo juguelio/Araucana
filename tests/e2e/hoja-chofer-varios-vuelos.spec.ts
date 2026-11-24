@@ -184,7 +184,7 @@ test("el panel abre las órdenes de la nave o las del chofer cuando cambia de na
   try {
     await db.airportVehicleAssignment.updateMany({ where: turnos, data: { driverId: driver.id } });
     await page.goto(`/admin?date=${day}`);
-    await page.getByRole("button", { name: "Equipo del día" }).click();
+    await page.getByRole("button", { name: "Asignar equipo" }).click();
     await page.getByRole("button", { name: new RegExp(recorrida[0].nave) }).click();
     await page.getByRole("link", { name: "Órdenes de aeropuerto" }).click();
     const blocks = page.locator("section.orden-bloque");

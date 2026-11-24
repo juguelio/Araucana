@@ -29,12 +29,12 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
   try {
     expect((await page.request.post("/api/v1/auth/login", { data: { email: admin.email, password: tag } })).status()).toBe(200);
     await page.goto("/admin?date=" + day);
-    const priority = page.getByRole("complementary", { name: "Prioridad operativa" });
+    const priority = page.locator(".plan-service-fold > summary").filter({ hasText: "Revisar primero" });
     await expect(priority).toContainText(school.routeName);
-    await priority.getByRole("link", { name: "Resolver en la jornada" }).click();
+    await priority.click();
     await expect(page.locator(".plan-service-fold[open]")).toContainText(school.routeName);
-    await page.getByText("Atajos", { exact: true }).click();
-    await page.getByRole("link", { name: "Boletería de servicio público" }).click();
+    await page.getByRole("button", { name: /Menú/ }).click();
+    await page.getByRole("link", { name: "Servicio público", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Servicio público", exact: true })).toBeVisible();
     await expect(page.getByLabel("Ir a una fecha")).toHaveValue(day);
     await page.goto("/admin?date=" + day + "&vista=semana");
@@ -83,6 +83,7 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
     await page.goto("/admin?" + new URLSearchParams({ date: day, vista: "flota", recurso: vehicle.id }));
     await expect(driver.locator("summary")).toContainText("Faltan 500 km");
     await expect(driver.getByRole("link", { name: "Service y kilometraje" })).toHaveAttribute("href", "/admin/naves/" + vehicle.id + "/service#service-km");
+    await page.getByRole("button", { name: /Menú/ }).click();
     await page.getByRole("link", { name: "Vencimientos a 30 días" }).click();
     const documents = page.getByRole("region", { name: "Vencimientos de flota y choferes" });
     const inspection = documents.getByRole("row").filter({ hasText: vehicle.name });

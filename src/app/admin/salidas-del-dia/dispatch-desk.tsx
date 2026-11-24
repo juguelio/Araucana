@@ -51,8 +51,8 @@ export function ServiceDisclosure({ panel, summary, children, serviceKey, initia
   </details>;
 }
 
-export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, actions, shortcuts, children }: {
-  dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: DispatchAssignment[]; actions: ReactNode; shortcuts: ReactNode; children: ReactNode;
+export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, actions, heading, filters, children }: {
+  dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: DispatchAssignment[]; actions: ReactNode; heading: ReactNode; filters: ReactNode; children: ReactNode;
 }) {
   const [showTeam, setShowTeam] = useState(false);
   useEffect(() => {
@@ -76,9 +76,10 @@ export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, a
   const orderDates = [...new Set(agenda.filter(a => a.area === "AEROPUERTO").map(a => a.orderDate ?? dateKey))];
   return <Desk.Provider value={{ panel, dragging }}>
     {panel && <div className="plan-toolbar">
+      {heading}
+      {filters}
+      <button type="button" className="plan-team-trigger" aria-expanded={showTeam} aria-controls="plan-team" onClick={toggleTeam}>Asignar equipo</button>
       {actions}
-      <button type="button" className="plan-team-trigger" aria-expanded={showTeam} aria-controls="plan-team" onClick={toggleTeam}>Equipo del día</button>
-      {shortcuts}
     </div>}
     <div className={panel && !showTeam ? "desk-layout plan-wide" : "desk-layout"}>
       <aside hidden={panel && !showTeam} id="plan-team" className="desk-resources" aria-label="Recursos de la jornada">

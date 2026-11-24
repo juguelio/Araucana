@@ -1,5 +1,6 @@
 import { AdminToast } from "@/app/admin/form-ui";
 import { roleCanAccess, type AppRole } from "@/lib/auth/roles";
+import Link from "next/link";
 import { AdminNav } from "./admin-nav";
 import { BrandMark } from "./brand-mark";
 
@@ -9,6 +10,7 @@ type AdminShellProps = {
   eyebrow?: string;
   action?: React.ReactNode;
   notice?: string;
+  compactMenu?: { context: string; tools: React.ReactNode; hrefs: Record<string, string>; footer: React.ReactNode };
   role?: AppRole;
 };
 
@@ -37,13 +39,26 @@ const links: Array<{ href: string; label: string; roles: AppRole[] }> = [
   { href: "/", label: "Web publica", roles: ["ADMIN", "SECRETARY"] }
 ];
 
-export function AdminShell({ children, title, eyebrow = "Operacion", action, notice, role = "ADMIN" }: AdminShellProps) {
+export function AdminShell({ children, title, eyebrow = "Operacion", action, notice, compactMenu, role = "ADMIN" }: AdminShellProps) {
   // `roleCanAccess` y no `includes`: el super administrador ve todo lo del administrador.
   const visibleLinks = links.filter((link) => roleCanAccess(role, link.roles));
 
   return (
-    <main className="admin-layout">
-      <aside className="admin-sidebar">
+    <main className={compactMenu ? "admin-layout panel-shell" : "admin-layout"}>
+      {compactMenu ? <header className="panel-masthead">
+        <div className="panel-mast-inner">
+          <Link href={compactMenu.hrefs["/admin"]} className="panel-brand"><BrandMark size={30} />Araucana</Link>
+          <div key={compactMenu.context}>
+            <button className="panel-menu-trigger" popoverTarget="panel-menu"><span aria-hidden="true">☰</span> Menú</button>
+            <div id="panel-menu" className="panel-menu-pop" popover="auto">
+              <nav aria-label="Planificación">{compactMenu.tools}</nav>
+              <nav aria-label="Módulos de administración">{visibleLinks.filter(link => link.href !== "/admin").map(link =>
+                <Link key={link.href} href={compactMenu.hrefs[link.href] ?? link.href}>{link.label}</Link>)}</nav>
+              {compactMenu.footer}
+            </div>
+          </div>
+        </div>
+      </header> : <aside className="admin-sidebar">
         <div className="brand-lockup">
           <BrandMark color="#1F5B4F" size={36} />
           <div>
@@ -52,7 +67,7 @@ export function AdminShell({ children, title, eyebrow = "Operacion", action, not
           </div>
         </div>
         <AdminNav links={visibleLinks.map(({ href, label }) => ({ href, label }))} />
-      </aside>
+      </aside>}
       <section className="admin-main">
         <div className="admin-top">
           <div>

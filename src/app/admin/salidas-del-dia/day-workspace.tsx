@@ -101,8 +101,6 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const dayHref = (key: string) => path + "?" + new URLSearchParams({ date: key,
     ...(view !== "jornada" ? { vista: view } : {}), ...(view === "flota" && params?.tipo === "chofer" ? { tipo: "chofer", ...(params?.avisos === "pendientes" ? { avisos: "pendientes" } : {}) } : {}), ...(onlyMissing ? { falta: "1" } : {})
   });
-  const usedVehicles = new Set(assignments.flatMap(a => a.vehicleId ? [a.vehicleId] : []));
-  const usedDrivers = new Set(assignments.flatMap(a => [a.driverId, a.coDriverId].filter(Boolean)));
 
   const commercialQueues = new URLSearchParams({ date: dateKey, vista: "reservas" });
   if (pendingPayments && !pendingTrips) commercialQueues.set("payment", "pending-payment");
@@ -122,7 +120,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               data-sigue={row.continuing || undefined}
               data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
             >
-              <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} issues={issues.get(row.key)} />}>
+              <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} priority={row.key === firstPending?.key} issues={issues.get(row.key)} />}>
+              {panel && row.school && row.detail && <p className="plan-detail">{row.detail}</p>}
               {panel && issues.has(row.key) && <ul className="console-issues">{issues.get(row.key)!.map(message => <li key={message}>{message}</li>)}</ul>}
               {panel ? <div className="plan-detail-links">
                 {serviceReservationScope(row) && <Link href={"/admin?" + new URLSearchParams({ date: row.flightDate ?? dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
@@ -213,14 +212,25 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
 
   return (
     <AdminShell
-      title={panel ? "Panel de operaciones" : "Salidas del día"}
+      title={panel ? dayTitle(dateKey, today) : "Salidas del día"}
+      compactMenu={panel ? {
+        context: [view, dateKey, onlyMissing, params?.tipo, params?.avisos].join("/"),
+        hrefs: { "/admin": path + "?date=" + dateKey, "/admin/servicio-publico": "/admin/servicio-publico?fecha=" + dateKey,
+          "/admin/chapelco": "/admin/chapelco?date=" + dateKey, "/admin/aeropuerto": "/admin/aeropuerto?date=" + dateKey,
+          "/admin/salidas-del-dia": "/admin/salidas-del-dia?date=" + dateKey, "/admin/escolares": "/admin/escolares?fecha=" + dateKey },
+        tools: <><Link href={path + "?date=" + dateKey + "&falta=1"}>Pendientes ({pendingRows.length})</Link>
+          <Link href={path + "?date=" + shiftDateKey(today, 1) + "&vista=flota&tipo=chofer&avisos=pendientes"}>Avisar a los choferes de mañana</Link>
+          <Link href={path + "?date=" + dateKey + "&vista=vencimientos"}>Vencimientos a 30 días</Link>
+          <Link href="/admin?vista=comercial">Cobros y comprobantes</Link></>,
+        footer: <LogoutButton label="Cerrar sesión" />
+      } : undefined}
       eyebrow="Operación"
       role={user.role}
       action={
         <nav className="sd-days" aria-label="Elegir el día">
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, -1))} aria-label="Día anterior">‹</Link>
-          <Link className={`ghost-button${dateKey === today ? " is-active" : ""}`} href={dayHref(today)}>Hoy</Link>
-          <Link className={`ghost-button${dateKey === shiftDateKey(today, 1) ? " is-active" : ""}`} href={dayHref(shiftDateKey(today, 1))}>Mañana</Link>
+          {(!panel || dateKey !== today) && <Link className={`ghost-button${dateKey === today ? " is-active" : ""}`} href={dayHref(today)}>Hoy</Link>}
+          {!panel && <Link className={`ghost-button${dateKey === shiftDateKey(today, 1) ? " is-active" : ""}`} href={dayHref(shiftDateKey(today, 1))}>Mañana</Link>}
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, 1))} aria-label="Día siguiente">›</Link>
           {panel ? <details className="plan-calendar">
             <summary>Elegir fecha</summary>
@@ -232,25 +242,15 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       {params?.notice ? <p className="admin-notice" role="status">{params.notice}</p> : null}
 
       {panel ? <section className="plan-heading">
-        <div>
-          <h2>{dayTitle(dateKey, today)}</h2>
-          <p>{board.summary.services} {board.summary.services === 1 ? "servicio" : "servicios"} · {board.summary.passengers} {board.summary.passengers === 1 ? "pasajero" : "pasajeros"}</p>
-        </div>
-        <Link className="button console-book" href={"/admin/reservas/nueva?date=" + dateKey}>Nueva reserva</Link>
-        <nav className="console-tabs" aria-label="Consola de administración">
-          <Link aria-current={view === "jornada" && !onlyMissing ? "page" : undefined} href={path + "?date=" + dateKey}><span>Jornada</span><strong>{board.summary.services}</strong><small>{board.summary.services === 1 ? "servicio" : "servicios"}</small></Link>
-          <Link aria-current={onlyMissing ? "page" : undefined} data-alert={pendingRows.length > 0 || undefined} href={path + "?date=" + dateKey + "&falta=1"}><span>Pendientes</span><strong>{pendingRows.length}</strong><small>{pendingRows.length === 1 ? "servicio a revisar" : "servicios a revisar"}</small></Link>
-          <Link aria-current={view === "flota" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=flota"}><span>Flota y choferes</span><strong>{usedVehicles.size}</strong><small>{usedVehicles.size === 1 ? "nave" : "naves"} · {usedDrivers.size} {usedDrivers.size === 1 ? "chofer asignado" : "choferes asignados"}</small></Link>
-          <Link aria-current={view === "reservas" ? "page" : undefined} href={path + "?" + commercialQueues}>
-            <span>Reservas y cobros</span><strong>{pendingPayments + pendingTrips}</strong>
-            <small>{[pendingPayments > 0 && chargeLabel, pendingTrips > 0 && tripLabel].filter(Boolean).join(" · ") || "Sin cobros ni viajes por confirmar"}</small>
+        <nav className="panel-views" aria-label="Vistas del panel">
+          <Link aria-current={view === "jornada" ? "page" : undefined} href={path + "?date=" + dateKey}>Jornada</Link>
+          <Link aria-current={view === "semana" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=semana"}>Semana</Link>
+          <Link aria-current={view === "flota" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=flota"}>Equipo</Link>
+          <Link aria-current={view === "reservas" ? "page" : undefined} href={path + "?" + commercialQueues}>Reservas
+            {pendingPayments + pendingTrips > 0 && <><span className="panel-count">{pendingPayments + pendingTrips}</span><span className="sr-only">{[pendingPayments > 0 && chargeLabel, pendingTrips > 0 && tripLabel].filter(Boolean).join(" · ")}</span></>}
           </Link>
         </nav>
-        <nav className="ops-planning" aria-label="Planificación">
-          <Link aria-current={view === "semana" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=semana"}>Trabajo semanal</Link>
-          <Link href={path + "?date=" + shiftDateKey(today,1) + "&vista=flota&tipo=chofer&avisos=pendientes"}>Avisar a los choferes de mañana</Link>
-          <Link aria-current={view === "vencimientos" ? "page" : undefined} href={path + "?date=" + dateKey + "&vista=vencimientos"}>Vencimientos a 30 días</Link>
-        </nav>
+        <Link className="button console-book" href={"/admin/reservas/nueva?date=" + dateKey}>Nueva reserva</Link>
       </section> : (
       <section className="sd-head">
         <div>
@@ -279,7 +279,11 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
             <Link href={path + "?date=" + dateKey + "&vista=reservas"}>Todas las reservas del día</Link></nav>
         </header>}
         {(!params?.servicio || (selectedService && scope)) && <ReservationWorkspace service={selectedService && scope ? { key: selectedService.key, where: scope } : undefined} panel role={user.role} params={{ date: dateKey, q: search, payment: params?.payment, page: params?.page, pageSize: params?.pageSize, orden: params?.orden, dir: params?.dir }} />}
-      </section> : <DispatchDesk key={dateKey} dateKey={dateKey} panel={panel} vehicles={vehicleOptions} drivers={driverOptions} assignments={assignments} actions={
+      </section> : <DispatchDesk key={dateKey} dateKey={dateKey} panel={panel} vehicles={vehicleOptions} drivers={driverOptions} assignments={assignments}
+        heading={<div className="plan-section-name"><h2>{onlyMissing ? "Servicios pendientes" : "Servicios del día"}</h2>
+          <p>{board.summary.services} {board.summary.services === 1 ? "servicio" : "servicios"} · {board.summary.passengers} {board.summary.passengers === 1 ? "pasajero" : "pasajeros"}
+            {onlyMissing ? <Link href={path + "?date=" + dateKey}>Ver todos</Link> : pendingRows.length > 0 && <Link className="plan-pending" href={path + "?date=" + dateKey + "&falta=1"}>{pendingRows.length} {pendingRows.length === 1 ? "pendiente" : "pendientes"}</Link>}
+          </p></div>} actions={
       <details name={panel ? "panel-menu" : undefined} className="plain-card sd-add">
         <summary>
           <strong>{panel ? "Agregar servicio" : "Agregar al día"}</strong>
@@ -328,25 +332,8 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           </div>
         </div>
       </details>
-      } shortcuts={panel && <details name="panel-menu" className="plan-shortcuts">
-        <summary>Atajos</summary>
-        <nav aria-label="Atajos de operación">
-          <Link href={`/admin/reservas/nueva?date=${dateKey}`}>Nueva reserva</Link>
-          <Link href={`/admin/servicio-publico?fecha=${dateKey}`}>Boletería de servicio público</Link>
-          <Link href={`/admin/reservas/nueva?servicio=aeropuerto&date=${dateKey}`}>Reserva de aeropuerto</Link>
-          <Link href={`/admin/aeropuerto?date=${dateKey}`}>Vuelos del día</Link>
-          <Link href={`/admin/chapelco?date=${dateKey}`}>Cerro del día</Link>
-          <Link href="/admin?vista=comercial">Cobros y comprobantes</Link>
-          <LogoutButton />
-        </nav>
-      </details>}>
-      {panel && firstPending && <aside className="dispatch-priority" aria-label="Prioridad operativa">
-        <div><small>Revisar primero</small><strong>{firstPending.title}</strong>
-          <span>{issues.get(firstPending.key)?.slice(0, 2).join(" · ")}{firstPending.passengers > 0 && " · " + firstPending.passengers + (firstPending.passengers === 1 ? " pasajero" : " pasajeros")}</span></div>
-        <Link className="ghost-button" href={panelServiceHref(dateKey, firstPending.key)}>Resolver en la jornada</Link>
-      </aside>}
-      {panel && <section className="console-agenda-head">
-        <h3>{onlyMissing ? "Servicios que requieren atención" : "Servicios de la jornada"}</h3>
+      } filters={panel && <details name="panel-menu" className="plan-filter-menu" open={!!(area || search) || undefined}>
+        <summary>Filtrar</summary>
         <form action="/admin" className="console-filters">
           <input type="hidden" name="date" value={dateKey} />{onlyMissing && <input type="hidden" name="falta" value="1" />}
           <label>Buscar servicio<input name="q" type="search" defaultValue={search} placeholder="Servicio, nave o chofer" maxLength={100} /></label>
@@ -355,7 +342,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
           </select></label><button className="ghost-button">Filtrar</button>
           {(area || search) && <Link href={dayHref(dateKey)}>Limpiar</Link>}
         </form>
-      </section>}
+      </details>}>
       {rows.length === 0 ? (
         <p className="plain-card sd-empty">
           {area || search ? "No hay servicios que coincidan con el filtro." : onlyMissing
@@ -388,16 +375,16 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   );
 }
 
-function ServiceSummary({ row, issues = [] }: { row: BoardRow; issues?: string[] }) {
+function ServiceSummary({ row, priority, issues = [] }: { row: BoardRow; priority: boolean; issues?: string[] }) {
   const first = row.units[0];
   const count = row.units.length;
   return <>
-    <span className="plan-time"><strong>{row.at ? hourFormat.format(row.at) : row.timeText ?? "—"}</strong><small>{row.atLabel}</small></span>
+    <span className="plan-time"><strong>{row.at ? hourFormat.format(row.at) : row.timeText ?? "—"}</strong>{!row.school && <small>{row.atLabel}</small>}</span>
     <span className="plan-service">
       <small>{AREA_LABEL[row.area]}{row.inactiveRoute && " · Inactiva"}</small>
       <strong>{row.title}</strong>
-      {row.detail && row.area !== "RUTA" && <span className="plan-detail">{row.detail}</span>}
-      {(issues.length > 0 || row.status) && <span className="plan-alert">{issues[0] ?? row.status}{issues.length > 1 && " · +" + (issues.length - 1)}</span>}
+      {row.detail && !row.school && row.area !== "RUTA" && <span className="plan-detail">{row.detail}</span>}
+      {(issues.length > 0 || row.status) && <span className="plan-alert" data-priority={priority || undefined}>{priority && "Revisar primero · "}{issues.slice(0, 2).join(" · ") || row.status}</span>}
     </span>
     <span className="plan-crew">
       <strong>{count > 1 ? `${count} naves asignadas` : first?.vehicleName ?? "Sin asignar"}</strong>

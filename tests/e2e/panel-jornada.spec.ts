@@ -37,7 +37,7 @@ test("la misma nave y chofer cubren aeropuerto, cerro y ruta desde el panel", as
     await page.goto("/admin?date=" + day);
     const airportRow = page.locator('.sd-row[data-area="AEROPUERTO"]');
     await expect(airportRow.locator("select:visible")).toHaveCount(0);
-    await page.getByRole("button", { name: "Equipo del día" }).click();
+    await page.getByRole("button", { name: "Asignar equipo" }).click();
     await abrirServicio(airportRow);
     const vehiclePicker = airportRow.getByLabel("Combi para sumar al vuelo");
     for (const [index, extra] of extras.entries()) {
@@ -66,7 +66,7 @@ test("la misma nave y chofer cubren aeropuerto, cerro y ruta desde el panel", as
       await expect.poll(async () => area === "AEROPUERTO" ? db.airportVehicleAssignment.count({where:{flightId:flight.id,driverId:driver}}) : area === "CHAPELCO" ? db.chapelcoVehicleDuty.count({where:{vehicleId:vehicle,driverId:driver}}) : db.schedule.count({where:{routeId:regular.id,driverId:driver}})).toBe(1);
     }
     await page.reload();
-    await expect(page.getByRole("button", { name: "Equipo del día" })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("button", { name: "Asignar equipo" })).toHaveAttribute("aria-expanded", "true");
     await page.getByRole("button", { name: "Choferes", exact: true }).click();
     await page.getByRole("button", { name: driverName }).click();
     await expect(page.locator(".desk-agenda a").filter({ has: page.locator("strong") })).toHaveCount(3);
@@ -101,8 +101,9 @@ test("cuatro naves en la ida y dos en la vuelta de una ruta se gestionan por sep
   try {
     expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
     await page.goto("/admin?date=" + date);
-    await expect(page.locator(".plan-heading")).toContainText("0 servicios");
+    await expect(page.locator(".plan-section-name")).toContainText("0 servicios");
     await expect(page.getByText("Ver la programación del día (2)")).toBeVisible();
+    await page.getByRole("button", { name: /Menú/ }).click();
     await page.getByRole("link", { name: /Pendientes/ }).click();
     await expect(page.locator(".sd-programmed")).toHaveCount(0);
     await page.getByRole("link", { name: /^Jornada/ }).click();
