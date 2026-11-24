@@ -176,7 +176,7 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
               <td>
                 <div className="table-actions">
                   {conHojaDeHoy?.has(user.id) && (
-                    <Link className="ghost-button" href={`/admin/choferes/${user.id}/ordenes?imprimir=1`} prefetch={false}>
+                    <Link className="ghost-button" href={`/admin/choferes/${user.id}/ordenes`} prefetch={false}>
                       <DriverSheetLabel />
                     </Link>
                   )}
