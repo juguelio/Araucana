@@ -233,12 +233,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </span>
         </div>
 
-        {privadas.map(r => {
-          const nave = v.assignments.find(a => a.privateReservationId === r.reservationId)?.vehicle.name;
-          return <Link key={r.id} className="table-link" href={`/admin/reservas/${r.reservation.code}`}>
-            Privada · {r.reservation.passenger.lastName} · {r.reservation.passengerCount} pax · {nave ?? "Asignar nave"}
-          </Link>;
-        })}
+        {privadas.map(r => (
+          <Link key={r.id} className="table-link" href={`/admin/reservas/${r.reservation.code}`}>
+            Privada · {r.reservation.passenger.lastName} · {r.reservation.passengerCount} pax
+          </Link>
+        ))}
         {evidenceWarning ? <p className="error" role="status">{evidenceWarning}</p> : null}
         {/* Antes, según qué botones tenía el vuelo, «Gestionar vuelo» quedaba en un renglón aparte y
             las tarjetas de una misma columna salían de distinto alto. Ahora todas tienen la misma forma:

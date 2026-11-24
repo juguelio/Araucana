@@ -126,7 +126,9 @@ export async function driverConflicts(
         driverId,
         // La combi que se guarda no choca consigo misma, ni con los vuelos que hace en la misma vuelta.
         ...(excludeAirport ? { NOT: { flightId: excludeAirport.flightId, vehicleId: excludeAirport.vehicleId } } : {}),
-        ...(excludeAirport?.sameTrip?.length ? { flightId: { notIn: excludeAirport.sameTrip } } : {}),
+        ...(excludeAirport?.sameTrip?.length ? { AND: { NOT: {
+          flightId: { in: excludeAirport.sameTrip }, privateReservationId: null, vehicleId: excludeAirport.vehicleId
+        } } } : {}),
         flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }] }
       },
       include: { flight: true }

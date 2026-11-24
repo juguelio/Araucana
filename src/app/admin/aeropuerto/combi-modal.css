@@ -12,3 +12,14 @@
 .aero-combi-asignada select { min-height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font: inherit; font-weight: 400; }
 /* Buscador de naves a la izquierda y de choferes a la derecha; en pantallas angostas, apilados. */
 .aero-combi-columnas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; align-items: start; }
+
+.aero-tipo-traslado { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.aero-tipo-traslado summary { cursor: pointer; }
+.aero-tipo-traslado summary span { display: block; margin-top: 4px; }
+.aero-tipo-traslado h3, .aero-tipo-traslado p { margin: 0; }
+.aero-tipo-traslado[open] > form { margin-top: 12px; }
+.aero-tablero .flight-info:has(.aero-flota-mixta) { flex-wrap: wrap; white-space: normal; }
+.aero-tablero .flight-info > .aero-flota-mixta {
+  display: grid; flex-basis: 100%; gap: 4px; padding: 7px 10px; text-align: left;
+  white-space: normal; overflow-wrap: anywhere; border-radius: 10px;
+}

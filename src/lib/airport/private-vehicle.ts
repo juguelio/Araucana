@@ -22,7 +22,7 @@ export async function airportVehicleBusy(tx: Prisma.TransactionClient, vehicleId
   });
 }
 
-export async function assignPrivateVehicle(tx: Prisma.TransactionClient, reservationId: string, flight: FlightRun, passengers: number, vehicleId: string) {
+export async function assignPrivateVehicle(tx: Prisma.TransactionClient, reservationId: string, flight: FlightRun, passengers: number, vehicleId: string, driverId: string | null = null) {
   await lockFleet(tx, [vehicleId]);
   const vehicle = await tx.vehicle.findFirst({
     where: { id: vehicleId, isActive: true, kind: { not: "UTILITARIO" } },
@@ -35,5 +35,5 @@ export async function assignPrivateVehicle(tx: Prisma.TransactionClient, reserva
       (await specialConflicts(tx, { vehicleId, ...airportServiceWindow(flight) })).length) {
     throw new BookingError("PRIVATE_VEHICLE_UNAVAILABLE", "La nave ya está asignada a otro servicio. Elegí otra o dejá la asignación pendiente.");
   }
-  await tx.airportVehicleAssignment.create({ data: { vehicleId, flightId: flight.id, privateReservationId: reservationId } });
+  return tx.airportVehicleAssignment.create({ data: { vehicleId, driverId, flightId: flight.id, privateReservationId: reservationId } });
 }
