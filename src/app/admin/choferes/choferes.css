@@ -1,0 +1,363 @@
+/* === Choferes: tablero del día (rediseño del 24-nov) ===
+   Antes: la planilla de cuentas (nombre, email, DNI, vencimientos). Ahora: el día de cada chofer en una
+   línea de 05 a 24 h, con color por área, las naves que maneja y un gesto para asignarle una nave por
+   el día. Arriba, lo que falta resolver (servicios sin chofer). Mismo lenguaje que el tablero de Naves. */
+
+/* Colores por área (los mismos en la línea y en el modal). */
+.choferes-lista, .jornada-form {
+  --area-publico: #1f5b4f;
+  --area-aeropuerto: #0d3b52;
+  --area-especial: #a05438;
+  --area-chapelco: #6b7a6e;
+}
+
+/* --- Día: ‹ sábado 28 de noviembre › --- */
+.choferes-dia { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 16px; }
+.choferes-dia-flecha {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 22px;
+  line-height: 1;
+  text-decoration: none;
+}
+.choferes-dia-flecha:hover { border-color: var(--primary); color: var(--primary); }
+.choferes-dia-flecha:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choferes-dia-texto { display: grid; min-width: 0; }
+.choferes-dia-texto strong { font-family: var(--display); font-size: 24px; line-height: 1.1; }
+.choferes-dia-texto strong::first-letter { text-transform: uppercase; }
+.choferes-dia-texto span { color: var(--ink-muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.choferes-dia-elegir { display: flex; gap: 6px; margin-left: auto; }
+.choferes-dia-elegir input {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+}
+
+/* --- Cuatro cifras que llevan a su vista --- */
+.choferes-cifras { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.choferes-cifra {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+}
+.choferes-cifra:hover { border-color: var(--line-strong); }
+.choferes-cifra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choferes-cifra strong { font-family: var(--display); font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.choferes-cifra span { color: var(--ink-muted); font-size: 13px; font-weight: 700; }
+.choferes-cifra[data-alerta] { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.choferes-cifra[data-alerta] strong { color: var(--accent-deep); }
+
+/* --- Lo que falta resolver --- */
+.choferes-sin-chofer {
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-left: 4px solid var(--accent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+.choferes-sin-chofer h2 { margin: 0 0 8px; color: var(--accent-deep); font-size: 14px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.choferes-sin-chofer ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.choferes-sin-chofer li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.choferes-sin-chofer li:first-child { border-top: 0; }
+.choferes-sin-chofer li > div { display: grid; gap: 2px; min-width: 0; }
+.choferes-sin-chofer li span { color: var(--ink-soft); font-size: 13px; }
+.choferes-asignar { flex: 0 0 auto; white-space: nowrap; }
+
+/* --- Búsqueda y pestañas (mismo patrón que Naves) --- */
+.choferes-buscar { display: flex; gap: 8px; margin-bottom: 12px; }
+.choferes-buscar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+.choferes-buscar input:focus-visible, .choferes-dia-elegir input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.choferes-pestanas { display: flex; gap: 6px; max-width: 100%; margin-bottom: 14px; overflow-x: auto; scrollbar-width: none; }
+.choferes-pestanas::-webkit-scrollbar { display: none; }
+.choferes-pestana {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.choferes-pestana:hover { border-color: var(--line-strong); color: var(--ink); }
+.choferes-pestana:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.choferes-pestana[aria-current="page"] { border-color: var(--primary); background: var(--primary); color: #fff; }
+.choferes-pestana-cuenta { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: rgba(24, 59, 50, .08); font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+.choferes-pestana[data-alerta] .choferes-pestana-cuenta { background: var(--accent); color: #fff; }
+.choferes-pestana[aria-current="page"] .choferes-pestana-cuenta { background: rgba(255, 255, 255, .22); color: #fff; }
+
+/* --- Cada chofer: quién · línea del día · naves y acciones --- */
+.choferes-regla, .chofer {
+  display: grid;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr) 176px;
+  column-gap: 18px;
+}
+.choferes-regla { position: sticky; top: 0; z-index: 2; padding: 6px 16px 4px; background: var(--bg); }
+.choferes-regla-horas { position: relative; height: 16px; }
+.choferes-regla-horas span {
+  position: absolute;
+  transform: translateX(-50%);
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.choferes-lista { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.chofer {
+  grid-template-areas: "quien linea acciones" "quien naves acciones";
+  row-gap: 8px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.chofer[data-inactivo] { opacity: .65; }
+.chofer-quien { grid-area: quien; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 12px; min-width: 0; }
+.chofer-avatar {
+  display: grid;
+  grid-row: span 2;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+.chofer-avatar[data-tono="ok"] { background: var(--primary-soft); color: var(--primary-deep); }
+.chofer-avatar[data-tono="curso"] { background: var(--primary); color: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
+.chofer-nombre { display: grid; gap: 2px; min-width: 0; }
+.chofer-nombre a { overflow: hidden; color: var(--ink); font-size: 16px; font-weight: 800; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.chofer-nombre a:hover { color: var(--primary); text-decoration: underline; }
+.chofer-estado { overflow: hidden; color: var(--ink-soft); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.chofer-estado b[data-tono="curso"] { color: var(--primary); }
+.chofer-papeles {
+  grid-column: 2;
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.chofer-papeles[data-estado="EXPIRING"] { background: #f4e3c4; color: #7a4f0e; }
+.chofer-papeles[data-estado="EXPIRED"], .chofer-papeles[data-estado="MISSING"] { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--accent-deep); }
+
+/* La línea del día: 05 a 24 h, un bloque por servicio, coloreado por área. */
+.chofer-linea {
+  grid-area: linea;
+  position: relative;
+  height: 34px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 19 - 1px), rgba(26, 37, 34, .05) calc(100% / 19 - 1px), rgba(26, 37, 34, .05) calc(100% / 19)), #f6f0e3;
+}
+.chofer-linea-marca { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line-strong); }
+.chofer-linea-ahora { position: absolute; top: -4px; bottom: -4px; z-index: 1; width: 2px; border-radius: 2px; background: var(--accent); }
+.chofer-bloque {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  min-width: 6px;
+  overflow: hidden;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--area-publico);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.chofer-bloque[data-area="AEROPUERTO"] { background: var(--area-aeropuerto); }
+.chofer-bloque[data-area="VIAJE_ESPECIAL"] { background: var(--area-especial); }
+.chofer-bloque[data-area="CHAPELCO"] { background: repeating-linear-gradient(135deg, var(--area-chapelco) 0 6px, color-mix(in srgb, var(--area-chapelco) 80%, #fff) 6px 12px); }
+.chofer-bloque[data-ahora] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.chofer-bloque:hover { filter: brightness(1.15); }
+.chofer-bloque:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.chofer-pie { display: contents; }
+.chofer-naves { grid-area: naves; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 26px; }
+.chofer-nave {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: #fffaf1;
+  font-size: 12px;
+  font-weight: 800;
+}
+.chofer-nave small { padding: 0 6px; border-radius: 999px; background: rgba(24, 59, 50, .08); font-size: 11px; }
+.chofer-nave[data-gps]::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: #2f9e6b; box-shadow: 0 0 0 3px rgba(47, 158, 107, .2); }
+.chofer-senal { color: var(--ink-muted); font-size: 12px; font-weight: 700; }
+.chofer-acciones { grid-area: acciones; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+
+.choferes-vacio { padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--ink-soft); text-align: center; }
+.choferes-vacio a { color: var(--primary); font-weight: 700; }
+
+/* --- Modal «Asignar nave / chofer por el día» --- */
+.reservas-modal.jornada-modal { width: min(640px, 100%); }
+.jornada-pasos { display: grid; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.jornada-paso { display: grid; gap: 8px; min-width: 0; }
+.jornada-paso h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.jornada-paso h3 span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 12px; letter-spacing: 0; }
+.jornada-buscar {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fffaf1;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+}
+.jornada-buscar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jornada-opciones { display: grid; gap: 4px; max-height: min(44vh, 360px); margin: 0; padding: 2px 4px 2px 0; overflow-y: auto; list-style: none; }
+.jornada-opcion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.jornada-opcion:not(:has(.jornada-avatar)) { grid-template-columns: minmax(0, 1fr) auto; }
+.jornada-opcion:hover { border-color: var(--primary); }
+.jornada-opcion:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.jornada-opcion small { grid-column: 1; color: var(--ink-muted); font-size: 12px; }
+.jornada-opcion-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; grid-column: 2; grid-row: 1 / span 2; }
+.jornada-opcion:has(.jornada-avatar) .jornada-opcion-chips { grid-column: 2; grid-row: 2; justify-content: flex-start; }
+.jornada-opcion-chips em { padding: 2px 8px; border-radius: 999px; background: rgba(24, 59, 50, .07); color: var(--ink-soft); font-size: 11px; font-style: normal; font-weight: 800; }
+.jornada-opcion-chips em[data-tono="alerta"] { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent-deep); }
+.jornada-opcion-chips em[data-tono="ok"] { background: var(--primary-soft); color: var(--primary-deep); }
+.jornada-opcion-chips em[data-tono="calmo"] { color: var(--ink-muted); }
+.jornada-avatar { display: grid; grid-row: span 2; place-items: center; width: 34px; height: 34px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-deep); font-size: 12px; font-weight: 800; }
+.jornada-elegido { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 10px 12px; border: 1px solid var(--primary); border-radius: 10px; background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.jornada-cambiar { border: 0; background: none; color: var(--primary); font: inherit; font-size: 13px; font-weight: 800; text-decoration: underline; cursor: pointer; }
+
+.jornada-servicios { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.jornada-servicio {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--area-publico);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+[data-area="AEROPUERTO"] > .jornada-servicio { border-left-color: var(--area-aeropuerto); }
+[data-area="VIAJE_ESPECIAL"] > .jornada-servicio { border-left-color: var(--area-especial); }
+[data-area="CHAPELCO"] > .jornada-servicio { border-left-color: var(--area-chapelco); }
+.jornada-servicio:has(input:checked) { border-color: var(--primary); border-left-color: inherit; background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
+.jornada-servicio[data-bloqueado] { cursor: not-allowed; opacity: .6; }
+.jornada-servicio input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); }
+.jornada-servicio-hora { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.jornada-servicio-texto { display: grid; gap: 1px; min-width: 0; }
+.jornada-servicio-texto strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.jornada-servicio-texto small { color: var(--ink-muted); font-size: 12px; }
+.jornada-servicio-aviso { grid-column: 3; justify-self: start; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent-deep); font-size: 11px; font-style: normal; font-weight: 800; }
+
+.jornada-pie {
+  position: sticky;
+  bottom: -1px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0 2px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 14px;
+  font-weight: 700;
+}
+.jornada-pie small { color: var(--accent-deep); }
+
+/* --- Tablet y teléfono --- */
+@media (max-width: 1080px) {
+  .choferes-regla { display: none; }
+  .chofer {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "quien acciones" "linea linea" "naves naves";
+  }
+  /* Sin la regla de arriba, cada línea lleva sus horas debajo. */
+  .chofer-linea { margin-bottom: 14px; }
+  .chofer-linea-marca::after {
+    content: attr(data-hora);
+    position: absolute;
+    top: calc(100% + 2px);
+    transform: translateX(-50%);
+    color: var(--ink-muted);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 700;
+  }
+}
+@media (max-width: 640px) {
+  .choferes-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .choferes-cifra { padding: 12px; }
+  .choferes-cifra strong { font-size: 26px; }
+  .choferes-dia-texto strong { font-size: 20px; }
+  .choferes-dia-elegir { width: 100%; margin-left: 0; }
+  .choferes-dia-elegir input { flex: 1 1 auto; min-width: 0; }
+  .choferes-sin-chofer li { flex-direction: column; align-items: stretch; }
+  .choferes-sin-chofer .choferes-asignar { width: 100%; }
+  .chofer { padding: 12px; }
+  .chofer-acciones .choferes-asignar { padding-inline: 10px; }
+  .chofer-quien { grid-template-columns: auto minmax(0, 1fr); }
+  .jornada-servicio { grid-template-columns: auto minmax(0, 1fr); }
+  .jornada-servicio-hora { grid-column: 2; }
+  .jornada-servicio-texto, .jornada-servicio-aviso { grid-column: 2; }
+}
