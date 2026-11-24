@@ -162,6 +162,30 @@ describe("administración de reservas", () => {
     });
   });
 
+  it("no borra una reserva con boleto numerado: el número emitido no se reutiliza (#381)", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "SEATED", shortCode: "2WGS-TTT7" });
+    tx.serviceTicket.findUnique.mockResolvedValue({ id: "boleto-3", displayNumber: "W003", status: "EMITIDO" });
+
+    await expect(manageReservation(code, { operation: "delete" })).rejects.toMatchObject({
+      code: "TICKET_LOCKED",
+      message: expect.stringContaining("W003")
+    });
+
+    // Un boleto ya anulado tampoco se puede perder: su número sigue en la serie.
+    tx.serviceTicket.findUnique.mockResolvedValue({ id: "boleto-3", displayNumber: "W003", status: "ANULADO" });
+    await expect(manageReservation(code, { operation: "delete" })).rejects.toMatchObject({ code: "TICKET_LOCKED" });
+
+    expect(tx.reservation.delete).not.toHaveBeenCalled();
+    expect(tx.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it("borra una reserva del servicio público que todavía no emitió boleto", async () => {
+    tx.reservation.findUnique.mockResolvedValue({ ...pending, bookingMode: "SEATED", shortCode: "2WGS-TTT7" });
+    tx.serviceTicket.findUnique.mockResolvedValue(null);
+    await manageReservation(code, { operation: "delete" });
+    expect(tx.reservation.delete).toHaveBeenCalledWith({ where: { id: pending.id } });
+  });
+
   it("exige el motivo de la cancelación y registra quién la canceló (#108)", async () => {
     expect(reservationManagementSchema.safeParse({ operation: "cancel", reason: "  " }).success).toBe(false);
     expect(reservationManagementSchema.safeParse({ operation: "cancel" }).success).toBe(false);
