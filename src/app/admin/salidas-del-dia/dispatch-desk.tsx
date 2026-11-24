@@ -8,11 +8,12 @@ import type { Option } from "./crew-form";
 type Kind = "driverId" | "vehicleId";
 type Resource = { kind: Kind; id: string };
 const ServiceKey = createContext("");
-const Desk = createContext<{ panel: boolean; dragging: Resource | null }>({ panel: false, dragging: null });
+const Desk = createContext<{ panel: boolean; dragging: Resource | null; week?: string; people?: boolean }>({ panel: false, dragging: null });
 const clock = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Salta", hourCycle: "h23", hour: "2-digit", minute: "2-digit" });
 export function OriginField() {
   const key = useContext(ServiceKey);
-  return useContext(Desk).panel ? <><input type="hidden" name="panelOrigin" value="panel" />{key && <input type="hidden" name="panelService" value={key} />}</> : null;
+  const desk = useContext(Desk);
+  return desk.panel ? <><input type="hidden" name="panelOrigin" value="panel" />{desk.week && <input type="hidden" name="panelWeek" value={desk.week} />}{desk.week && desk.people && <input type="hidden" name="panelGroup" value="chofer" />}{key && <input type="hidden" name="panelService" value={key} />}</> : null;
 }
 export function DropSelect(props: SelectHTMLAttributes<HTMLSelectElement>) {
   const { dragging } = useContext(Desk);
@@ -51,8 +52,8 @@ export function ServiceDisclosure({ panel, summary, children, serviceKey, initia
   </details>;
 }
 
-export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, actions, heading, filters, children }: {
-  dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: DispatchAssignment[]; actions: ReactNode; heading: ReactNode; filters: ReactNode; children: ReactNode;
+export function DispatchDesk({ week, people, dateKey, panel, vehicles, drivers, assignments, actions, heading, filters, children }: {
+  week?: string; people?: boolean; dateKey: string; panel: boolean; vehicles: Option[]; drivers: Option[]; assignments: DispatchAssignment[]; actions: ReactNode; heading: ReactNode; filters: ReactNode; children: ReactNode;
 }) {
   const [showTeam, setShowTeam] = useState(false);
   useEffect(() => {
@@ -74,7 +75,7 @@ export function DispatchDesk({ dateKey, panel, vehicles, drivers, assignments, a
   const agenda = selected ? assignments.filter(a => a[selected.kind] === selected.id || (selected.kind === "driverId" && a.coDriverId === selected.id))
     .sort((a,b) => (a.start ?? Infinity) - (b.start ?? Infinity)) : [];
   const orderDates = [...new Set(agenda.filter(a => a.area === "AEROPUERTO").map(a => a.orderDate ?? dateKey))];
-  return <Desk.Provider value={{ panel, dragging }}>
+  return <Desk.Provider value={{ panel, dragging, week, people }}>
     {panel && <div className="plan-toolbar">
       {heading}
       {filters}

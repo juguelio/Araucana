@@ -25,6 +25,11 @@ export function redirectToBoard(dateKey: string, notice: string, form?: FormData
   const href = boardHref(dateKey, notice);
   if (form?.get("panelOrigin") !== "panel") redirect(href);
   const query = new URLSearchParams({ date: dateKey, notice });
+  const week = form.get("panelWeek");
+  if (typeof week === "string" && isDateKey(week)) {
+    query.set("semana", week);
+    if (form.get("panelGroup") === "chofer") query.set("tipo", "chofer");
+  }
   const service = form.get("panelService");
   if (typeof service === "string" && service.length <= 200 && service) query.set("servicio", service);
   redirect("/admin?" + query.toString() + (query.has("servicio") ? "#servicio-" + encodeURIComponent(String(service)) : ""));

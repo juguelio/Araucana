@@ -261,3 +261,35 @@ body:has(.plan-heading) .site-header { display: none; }
 .panel-finder h3 { font-size: 13px; color: var(--ink-soft); margin: 15px 0 4px; }
 .panel-finder a { display: block; padding: 9px 4px; border-bottom: 1px solid var(--line); }
 .panel-finder a:hover, .panel-finder a:focus-visible { background: var(--primary-soft); }
+
+.week-planner { margin-top: 20px; }
+.week-tools, .week-tools nav, .week-days { display: flex; align-items: center; }
+.week-tools { justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.week-tools h2 { margin: 0; font-size: 21px; }
+.week-tools nav { background: var(--surface); padding: 3px; border: 1px solid var(--line); border-radius: 8px; }
+.week-tools nav a { padding: 6px 10px; border-radius: 5px; font-size: 14px; }
+.week-tools [aria-current] { color: white; background: var(--primary-deep); }
+.week-board { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.week-board table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+.week-board th, .week-board td { border: 1px solid var(--line); padding: 6px; vertical-align: top; text-align: left; overflow-wrap: anywhere; }
+.week-board th { font-size: 14px; background: #edf2ee; }
+.week-board thead th { text-transform: capitalize; }
+.week-board thead small { display: block; font-weight: 400; text-transform: none; }
+.week-board th[data-today=true] { box-shadow: inset 0 3px var(--primary); }
+.week-job { display: grid; gap: 3px; margin-bottom: 4px; padding: 7px; border-left: 3px solid var(--primary); background: #eef4f0; border-radius: 4px; font-size: 13px; }
+.week-job small, .week-job span { font-size: 11px; color: var(--ink-soft); }
+.week-job em { color: #874214; font-size: 12px; font-style: normal; }
+.week-job[data-alert=true] { border-color: #ae752d; background: #fcf4e7; }
+.week-job:hover, .week-job:focus-visible { outline: 1px solid var(--primary); }
+.week-programs { margin: 12px 0; }
+.week-programs a { display: inline-block; margin: 8px; text-decoration: underline; }
+.week-days, .week-mobile-empty { display: none; }
+@media (max-width: 850px) {
+  .week-days { display: flex; gap: 3px; margin-bottom: 10px; }
+  .week-days a { flex: 1; text-align: center; padding: 6px 0; background: var(--surface); border-radius: 5px; }
+  .week-days strong { display: block; }
+  .week-days [aria-current] { background: var(--primary-deep); color: white; }
+  .week-board [data-selected=false], .week-board tr[data-active=false] { display: none; }
+  .week-board th:first-child { width: 27%; }
+  .week-mobile-empty { display: block; }
+}
