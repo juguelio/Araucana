@@ -37,6 +37,7 @@ const salida = (over: Partial<RouteSheetInput> = {}): RouteSheetInput => ({
   departureAt: new Date("2026-11-20T12:00:00.000Z"),
   arrivalAt: new Date("2026-11-20T14:30:00.000Z"),
   status: "OPEN",
+  driver: { name: "Marcos Díaz", email: "marcos@example.com" },
   route: {
     from: "San Martín de los Andes",
     to: "Villa La Angostura",
@@ -61,6 +62,20 @@ describe("planilla del chofer de una salida (issue #136)", () => {
     );
     expect(sheet.vehicle).toBe("Sprinter 1 (AF123BC)");
     expect(sheet.passengers).toHaveLength(1);
+  });
+
+  it("la hoja dice qué chofer tiene asignado la salida", () => {
+    const sheet = buildRouteSheet(salida());
+
+    expect(sheet.driver).toBe("Marcos Díaz");
+  });
+
+  it("si el chofer no tiene nombre cargado, usa el email; sin chofer no inventa uno", () => {
+    const sinNombre = buildRouteSheet(salida({ driver: { name: " ", email: "chofer@example.com" } }));
+    const sinChofer = buildRouteSheet(salida({ driver: null }));
+
+    expect(sinNombre.driver).toBe("chofer@example.com");
+    expect(sinChofer.driver).toBeNull();
   });
 
   it("imprime el lugar tal cual cuando no es una localidad con terminal", () => {
@@ -200,6 +215,16 @@ describe("planilla del chofer de una salida (issue #136)", () => {
       text: telefono,
       hyperlink: "https://wa.me/5492944123456"
     });
+  });
+
+  it("el Excel también lleva el chofer asignado a la salida", async () => {
+    const buffer = await buildRouteSheetWorkbook(buildRouteSheet(salida()), {
+      generatedAt: new Date("2026-11-14T12:00:00.000Z")
+    });
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+
+    expect(workbook.worksheets[0].getCell("A4").value).toContain("Chofer Marcos Díaz");
   });
 
   it("un número incompleto no genera link", () => {

@@ -20,6 +20,7 @@ export function RouteSheetDocument({ sheet, assignment }: { sheet: RouteSheet; a
           <p className="orden-marca">La Araucana viajes S.R.L.</p>
           <h1 className="orden-titulo">PLANILLA DEL CHOFER</h1>
           <p className="orden-subtitulo">{sheet.routeLabel} · Nave {sheet.vehicle}</p>
+          {sheet.driver && <p className="orden-subtitulo">Chofer: {sheet.driver}</p>}
           {assignment && <p className="orden-subtitulo">{assignment}</p>}
         </div>
         <div className="orden-fecha">

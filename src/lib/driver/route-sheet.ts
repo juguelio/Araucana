@@ -54,6 +54,7 @@ export type RouteSheetInput = {
   departureAt: Date;
   arrivalAt: Date;
   status: string;
+  driver: { name: string | null; email: string } | null;
   route: { from: string; to: string; via: string; stops: unknown };
   vehicle: { name: string; licensePlate: string | null };
   reservations: RouteSheetReservationInput[];
@@ -83,6 +84,7 @@ export type RouteSheet = {
   heading: string;
   departureAt: Date;
   arrivalAt: Date;
+  driver: string | null;
   vehicle: string;
   passengers: RouteSheetPassenger[];
   totalCents: number;
@@ -191,6 +193,9 @@ export function buildRouteSheet(input: RouteSheetInput): RouteSheet {
   // (Hua Hum, Yuco, un domicilio), así que no inventa un punto de encuentro.
   const routeLabel = `${lugarDeTerminal(input.route.from)} → ${lugarDeTerminal(input.route.to)}`;
   const routeShortLabel = `${input.route.from} → ${input.route.to}`;
+  // La hoja que se le entrega al chofer tiene que decir a quién está asignada: sin eso, dos salidas
+  // de la misma ruta y hora son papeles indistinguibles.
+  const driver = input.driver ? input.driver.name?.trim() || input.driver.email : null;
 
   return {
     scheduleId: input.scheduleId,
@@ -200,6 +205,7 @@ export function buildRouteSheet(input: RouteSheetInput): RouteSheet {
     heading: `${routeLabel} · sale ${horaEnSalta(input.departureAt)} · llega ${horaEnSalta(input.arrivalAt)}`,
     departureAt: input.departureAt,
     arrivalAt: input.arrivalAt,
+    driver,
     vehicle: input.vehicle.licensePlate
       ? `${input.vehicle.name} (${input.vehicle.licensePlate})`
       : input.vehicle.name,
@@ -261,7 +267,7 @@ export async function buildRouteSheetWorkbook(
 
   page.mergeCells("A4:G4");
   const subtitulo = page.getCell("A4");
-  subtitulo.value = `PLANILLA DEL CHOFER · ${fechaDeLaOrden(sheet.date)}`;
+  subtitulo.value = `PLANILLA DEL CHOFER · ${fechaDeLaOrden(sheet.date)}${sheet.driver ? ` · Chofer ${sheet.driver}` : ""}`;
   subtitulo.font = { bold: true, size: 12 };
   subtitulo.alignment = { vertical: "middle" };
 
