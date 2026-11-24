@@ -1,4 +1,7 @@
+import { ChoferBuscador, type ChoferElegible } from "@/app/admin/aeropuerto/chofer-buscador";
+import { NaveBuscador, type NaveElegible } from "@/app/admin/aeropuerto/nave-buscador";
 import { RowModal } from "@/app/admin/reservas/row-modal";
+import "./asignar-unidad.css";
 import { prisma } from "@/lib/db/prisma";
 import { asignarUnidadAction } from "./actions";
 
@@ -16,7 +19,7 @@ export type NaveParaAsignar = {
   seats: number;
 };
 
-export type ChoferParaAsignar = { id: string; label: string };
+export type ChoferParaAsignar = ChoferElegible;
 
 /** Naves de pasajeros activas (sin utilitarios) y choferes activos, igual que el modal del aeropuerto. */
 export async function opcionesParaAsignar(): Promise<{ naves: NaveParaAsignar[]; choferes: ChoferParaAsignar[] }> {
@@ -41,13 +44,8 @@ export async function opcionesParaAsignar(): Promise<{ naves: NaveParaAsignar[];
       licensePlate: nave.licensePlate,
       seats: nave._count.seats
     })),
-    choferes: choferes.map((chofer) => ({ id: chofer.id, label: chofer.name?.trim() || chofer.email }))
+    choferes: choferes.map((chofer) => ({ id: chofer.id, label: chofer.name?.trim() || chofer.email, email: chofer.email }))
   };
-}
-
-function nombreDeNave(nave: NaveParaAsignar) {
-  const base = nave.internalNumber ? `Interno ${nave.internalNumber} · ${nave.name}` : nave.name;
-  return nave.licensePlate ? `${base} (${nave.licensePlate})` : base;
 }
 
 export function AsignarUnidad({
@@ -58,6 +56,7 @@ export function AsignarUnidad({
   naves,
   choferes,
   triggerClassName = "srv-asignar",
+  eyebrow,
   trigger = "Asignar nave",
   vista = "en-vivo",
   defaultVehicleId = "",
@@ -73,6 +72,7 @@ export function AsignarUnidad({
   naves: NaveParaAsignar[];
   choferes: ChoferParaAsignar[];
   triggerClassName?: string;
+  eyebrow?: string;
   trigger?: string;
   vista?: "en-vivo" | "servicios";
   defaultVehicleId?: string;
@@ -86,7 +86,8 @@ export function AsignarUnidad({
       trigger={trigger}
       triggerLabel={`${trigger}: ${titulo}`}
       triggerClassName={triggerClassName}
-      eyebrow={defaultVehicleId ? "Cambiar nave y chofer" : "Asignar nave y chofer"}
+      modalClassName="asignar-unidad-modal"
+      eyebrow={eyebrow ?? (defaultVehicleId ? "Cambiar nave y chofer" : "Asignar nave y chofer")}
       title={titulo}
       subtitle={subtitulo}
     >
@@ -98,31 +99,10 @@ export function AsignarUnidad({
         {assignmentId ? <input type="hidden" name="assignmentId" value={assignmentId} /> : null}
         {page > 1 ? <input type="hidden" name="page" value={page} /> : null}
 
-        <label>
-          Nave
-          <select name="vehicleId" required defaultValue={defaultVehicleId}>
-            <option value="" disabled>
-              Elegí la nave
-            </option>
-            {naves.map((nave) => (
-              <option key={nave.id} value={nave.id}>
-                {nombreDeNave(nave)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Chofer (opcional)
-          <select name="driverId" defaultValue={defaultDriverId}>
-            <option value="">Sin chofer asignado</option>
-            {choferes.map((chofer) => (
-              <option key={chofer.id} value={chofer.id}>
-                {chofer.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="asignar-unidad-columnas">
+          <NaveBuscador naves={naves} flightNumber={titulo} defaultId={defaultVehicleId} seatsLabel="lugares" />
+          <ChoferBuscador choferes={choferes} flightNumber={titulo} defaultId={defaultDriverId} />
+        </div>
 
         <p className="muted">
           Se guarda en el servicio, no en la ficha de la nave: el tablero del día y la hoja del chofer lo ven al
@@ -130,7 +110,7 @@ export function AsignarUnidad({
         </p>
 
         <button className="button" type="submit">
-          Asignar
+          Asignar nave
         </button>
       </form>
     </RowModal>
