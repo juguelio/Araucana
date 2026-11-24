@@ -126,7 +126,7 @@ export async function importarPlanilla(form: FormData) {
     prisma.vehicle.findMany({ where: { isActive: true }, select: { id: true, name: true, internalNumber: true } }),
     prisma.schoolRun.findMany({
       where: { serviceDate: { gte: new Date(Math.min(...entradas.map((e) => +e.serviceDate))), lte: new Date(Math.max(...entradas.map((e) => +e.serviceDate))) } },
-      select: { serviceDate: true, routeName: true, shift: true, driverId: true, companion: true, source: true }
+      select: { id: true, serviceDate: true, routeName: true, shift: true, driverId: true, vehicleId: true, companion: true, source: true }
     })
   ]);
   // Se acepta el nombre completo y el primer nombre («Juan» → «Juan Muñoz»), pero sólo si no es ambiguo.
@@ -162,10 +162,17 @@ export async function importarPlanilla(form: FormData) {
   }
   // Las filas viejas guardan `driver`/`companion` y el turno normalizado; las nuevas, `driver1`/`driver2`.
   // La clave tolera las dos formas para que reimportar la planilla no vuelva a crear lo que ya está (#407).
-  const existentesPorClave = new Set(existentes.flatMap((run) => clavesDeServicioGuardado(run, {
-    idPorNombre: (nombre) => porNombre.get(normalizarNombre(nombre)) ?? null,
-    nombrePorId: (id) => nombrePorId.get(id) ?? null
-  })));
+  const existentePorClave = new Map<string, { id: string; vehicleId: string | null }>();
+  for (const run of existentes) {
+    for (const clave of clavesDeServicioGuardado(run, {
+      idPorNombre: (nombre) => porNombre.get(normalizarNombre(nombre)) ?? null,
+      nombrePorId: (id) => nombrePorId.get(id) ?? null
+    })) {
+      if (!existentePorClave.has(clave)) existentePorClave.set(clave, { id: run.id, vehicleId: run.vehicleId });
+    }
+  }
+  const vistas = new Set(existentePorClave.keys());
+  const asignarNave: { id: string; vehicleId: string }[] = [];
   const nuevas = entradas.flatMap((entrada) => {
     const driverId = porNombre.get(normalizarNombre(entrada.driver1)) ?? null;
     const vehicleId = entrada.vehicle ? navePorNombre.get(normalizarNombre(entrada.vehicle)) ?? null : null;
@@ -176,8 +183,14 @@ export async function importarPlanilla(form: FormData) {
       chofer1: { id: driverId, nombre: entrada.driver1 },
       chofer2: { nombre: entrada.driver2 }
     });
-    if (claves.some((clave) => existentesPorClave.has(clave))) return [];
-    for (const clave of claves) existentesPorClave.add(clave);
+    const claveExistente = claves.find((clave) => existentePorClave.has(clave));
+    if (claveExistente) {
+      const existente = existentePorClave.get(claveExistente)!;
+      if (!existente.vehicleId && vehicleId) asignarNave.push({ id: existente.id, vehicleId });
+      return [];
+    }
+    if (claves.some((clave) => vistas.has(clave))) return [];
+    for (const clave of claves) vistas.add(clave);
     const revisar = [
       entrada.driver1 && !driverId ? `Chofer de planilla: ${entrada.driver1}` : "",
       entrada.driver2 ? `Segunda persona: ${entrada.driver2}` : "",
@@ -202,8 +215,11 @@ export async function importarPlanilla(form: FormData) {
   if (nuevas.length) {
     await prisma.schoolRun.createMany({ data: nuevas });
   }
+  for (const { id, vehicleId } of asignarNave) {
+    await prisma.schoolRun.updateMany({ where: { id, vehicleId: null }, data: { vehicleId } });
+  }
   revalidatePath("/admin/escolares");
   revalidatePath("/admin/escolares/semana");
-  const mensaje = `Importados ${nuevas.length} servicios de Concesiones. Omitidos ${omitidas.vuelos} vuelos y ${omitidas.novedades} francos/licencias. Los choferes sin usuario quedaron para revisar.`;
+  const mensaje = `Importados ${nuevas.length} servicios de Concesiones.${asignarNave.length ? ` Asigné la nave en ${asignarNave.length} servicios ya cargados.` : ""} Omitidos ${omitidas.vuelos} vuelos y ${omitidas.novedades} francos/licencias. Los choferes o naves sin coincidencia quedaron para revisar.`;
   redirect("/admin/escolares/semana?aviso=" + encodeURIComponent(mensaje));
 }
