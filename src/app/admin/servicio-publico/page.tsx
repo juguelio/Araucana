@@ -13,6 +13,8 @@ import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
 import { lunesDe } from "@/lib/school-runs/week";
 import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, terminalDe, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
 import { AsignarUnidad, opcionesParaAsignar } from "../naves/en-vivo/asignar-unidad";
+import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
+import { ocupacionEnVentana } from "@/lib/fleet/ocupacion";
 import "./servicio-publico.css";
 
 export const metadata = { title: "Servicio público · La Araucana" };
@@ -65,7 +67,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const mesInicio = `${fecha.slice(0, 7)}-01`;
   const [anio, mes] = fecha.slice(0, 7).split("-").map(Number);
   const mesSiguiente = mes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
-  const [rows, mesRows, opciones] = await Promise.all([
+  const [rows, mesRows, opciones, ocupacionDelDia] = await Promise.all([
     listAdminSchedules({ date: fecha, activeRoutesOnly: true }),
     prisma.schedule.findMany({
       where: {
@@ -81,7 +83,9 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
         route: { select: { from: true } }
       }
     }),
-    opcionesParaAsignar()
+    opcionesParaAsignar(),
+    // Qué naves y choferes están en otro servicio ese día, para marcarlos en el modal de asignar.
+    cargarOcupacionDelDia(fecha)
   ]);
   const salidas = salidasDeTerminal(rows);
   const todosLosGrupos = agruparPorTerminal(salidas, rows);
@@ -247,6 +251,9 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                               choferes={opciones.choferes}
                               defaultVehicleId={salida.vehicleId}
                               defaultDriverId={salida.driverId ?? ""}
+                              ocupacionNaves={ocupacionEnVentana(ocupacionDelDia, "nave", { desde: salida.salidaAt, hasta: salida.llegadaAt }, [`salida:${salida.id}`])}
+                              ocupacionChoferes={ocupacionEnVentana(ocupacionDelDia, "chofer", { desde: salida.salidaAt, hasta: salida.llegadaAt }, [`salida:${salida.id}`])}
+                              lugaresQueFaltan={salida.ocupados || null}
                               trigger={salida.driverId ? "Cambiar nave y chofer" : "Asignar nave y chofer"}
                               triggerClassName="sp-asignar"
                               returnTo={href({})}

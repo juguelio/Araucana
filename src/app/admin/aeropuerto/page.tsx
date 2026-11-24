@@ -1,3 +1,4 @@
+import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
 import { flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
@@ -86,7 +87,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
   });
 
   // Naves y choferes para el modal de la combi (los mismos que en la orden de servicio).
-  const { naves, choferes } = await opcionesDeCombi();
+  const [{ naves, choferes }, ocupacion] = await Promise.all([
+    opcionesDeCombi(),
+    // Qué naves y choferes están en otro servicio ese día, para marcarlos en el modal de la combi.
+    cargarOcupacionDelDia(fecha)
+  ]);
 
   // En un día con vuelos confirmados, una proyeccion es un vuelo fantasma: no entra al tablero y, si
   // tiene reservas encima, se avisa abajo como reserva a reasignar. En un día sin ningún vuelo
@@ -223,6 +228,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             naves={naves}
             choferes={choferes}
             resetKey={params?.notice ?? ""}
+            ocupacion={ocupacion}
             recorrida={companeros(v).map((otro) => otro.number)}
             paso={!pasado && params?.naves === v.id ? { listoHref: `/admin/aeropuerto?date=${fecha}` } : undefined}
             trigger={

@@ -1,7 +1,7 @@
-import { ChoferBuscador, type ChoferElegible } from "@/app/admin/aeropuerto/chofer-buscador";
-import { NaveBuscador, type NaveElegible } from "@/app/admin/aeropuerto/nave-buscador";
+import { SelectorNaveYChofer, type ChoferOpcion } from "@/components/asignar-flota/selector-nave-chofer";
+import { tituloDeNave } from "@/lib/fleet/titulo-de-nave";
 import { RowModal } from "@/app/admin/reservas/row-modal";
-import "./asignar-unidad.css";
+import type { EstadoDeOpcion } from "@/lib/fleet/ocupacion";
 import { prisma } from "@/lib/db/prisma";
 import { asignarUnidadAction } from "./actions";
 
@@ -19,7 +19,7 @@ export type NaveParaAsignar = {
   seats: number;
 };
 
-export type ChoferParaAsignar = ChoferElegible;
+export type ChoferParaAsignar = ChoferOpcion;
 
 /** Naves de pasajeros activas (sin utilitarios) y choferes activos, igual que el modal del aeropuerto. */
 export async function opcionesParaAsignar(): Promise<{ naves: NaveParaAsignar[]; choferes: ChoferParaAsignar[] }> {
@@ -63,7 +63,10 @@ export function AsignarUnidad({
   defaultDriverId = "",
   assignmentId = "",
   page = 1,
-  returnTo = ""
+  returnTo = "",
+  ocupacionNaves,
+  ocupacionChoferes,
+  lugaresQueFaltan = null
 }: {
   servicioId: string;
   titulo: string;
@@ -80,18 +83,31 @@ export function AsignarUnidad({
   assignmentId?: string;
   page?: number;
   returnTo?: string;
+  /** Qué naves y choferes están en otro servicio a esa hora (`ocupacionEnVentana`). */
+  ocupacionNaves?: Record<string, EstadoDeOpcion>;
+  ocupacionChoferes?: Record<string, EstadoDeOpcion>;
+  /** Pasajeros del servicio: una nave con menos lugares se marca «no alcanza». */
+  lugaresQueFaltan?: number | null;
 }) {
+  const naveActual = naves.find((nave) => nave.id === defaultVehicleId);
+  const choferActual = choferes.find((chofer) => chofer.id === defaultDriverId);
   return (
     <RowModal
       trigger={trigger}
       triggerLabel={`${trigger}: ${titulo}`}
       triggerClassName={triggerClassName}
-      modalClassName="asignar-unidad-modal"
+      modalClassName="asignar-flota-modal"
       eyebrow={eyebrow ?? (defaultVehicleId ? "Cambiar nave y chofer" : "Asignar nave y chofer")}
       title={titulo}
       subtitle={subtitulo}
     >
-      <form className="reservas-modal-form" action={asignarUnidadAction}>
+      {defaultVehicleId ? (
+        <p className="asignar-flota-ahora">
+          <span>Ahora: <strong>{naveActual ? tituloDeNave(naveActual) : "otra nave"}</strong></span>
+          <span>Chofer: <strong>{choferActual ? choferActual.label : "sin chofer"}</strong></span>
+        </p>
+      ) : null}
+      <form className="asignar-flota-form" action={asignarUnidadAction}>
         <input type="hidden" name="servicioId" value={servicioId} />
         <input type="hidden" name="fecha" value={fecha} />
         <input type="hidden" name="vista" value={vista} />
@@ -99,19 +115,17 @@ export function AsignarUnidad({
         {assignmentId ? <input type="hidden" name="assignmentId" value={assignmentId} /> : null}
         {page > 1 ? <input type="hidden" name="page" value={page} /> : null}
 
-        <div className="asignar-unidad-columnas">
-          <NaveBuscador naves={naves} flightNumber={titulo} defaultId={defaultVehicleId} seatsLabel="lugares" />
-          <ChoferBuscador choferes={choferes} flightNumber={titulo} defaultId={defaultDriverId} />
-        </div>
-
-        <p className="muted">
-          Se guarda en el servicio, no en la ficha de la nave: el tablero del día y la hoja del chofer lo ven al
-          instante. Si la unidad ya está tomada a esa hora, te lo dice antes de guardar.
-        </p>
-
-        <button className="button" type="submit">
-          Asignar nave
-        </button>
+        <SelectorNaveYChofer
+          servicio={`${eyebrow ?? ""} ${titulo}`.trim()}
+          naves={naves}
+          choferes={choferes}
+          ocupacionNaves={ocupacionNaves}
+          ocupacionChoferes={ocupacionChoferes}
+          naveActual={defaultVehicleId}
+          choferActual={defaultDriverId}
+          lugaresQueFaltan={lugaresQueFaltan}
+          boton={defaultVehicleId ? "Guardar cambios" : "Asignar"}
+        />
       </form>
     </RowModal>
   );

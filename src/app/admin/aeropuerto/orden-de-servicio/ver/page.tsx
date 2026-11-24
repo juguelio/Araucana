@@ -1,3 +1,4 @@
+import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -83,9 +84,11 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
   // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
   const flightIds = [...new Set(blocks.flatMap((block) => block.flightIds))];
-  const [vuelos, { naves, choferes }] = await Promise.all([
+  const [vuelos, { naves, choferes }, ocupacion] = await Promise.all([
     prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
-    opcionesDeCombi()
+    opcionesDeCombi(),
+    // Qué naves y choferes están en otro servicio ese día, para marcarlos en el modal.
+    cargarOcupacionDelDia(date)
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
   const volverAOrden = new URLSearchParams({
@@ -132,6 +135,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
             choferes={choferes}
             resetKey={params?.notice ?? ""}
             volverAOrden={volverAOrden}
+            ocupacion={ocupacion}
             recorrida={otros.map((otro) => otro.number)}
             trigger={propias.length
               ? `Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
