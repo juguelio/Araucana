@@ -14,9 +14,11 @@ describe("PassengerFields: nacionalidad opcional", () => {
     expect(campo).not.toContain("required");
   });
 
-  it("sin nacionalidad el pasajero se puede mandar", () => {
-    const completo = { ...initialPassenger, firstName: "Ana", lastName: "Prueba", email: "ana@example.com", phoneCountryCode: "+54", phone: "2972412345", documentId: "30111222" };
+  it("usa el prefijo argentino inicial para guardar un teléfono local sin nacionalidad", () => {
+    expect(html).toMatch(/<option value="\+54" selected="">/);
+    const completo = { ...initialPassenger, firstName: "Ana", lastName: "Prueba", email: "ana@example.com", phone: "2972412345", documentId: "30111222" };
     expect(validateCheckoutPassenger(completo)).toEqual({});
+    expect(buildPassengerPayload(completo).phone).toBe("+542972412345");
   });
 });
 

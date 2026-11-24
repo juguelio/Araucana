@@ -55,6 +55,7 @@ export function dispatchReview(rows: BoardRow[], assignments: DispatchAssignment
   }
 
   // Comparar sólo tramos del mismo recurso. Dos tramos contiguos son compatibles.
+  const related = new Map<string, Map<string, string>>();
   const byResource = new Map<string, DispatchAssignment[]>();
   for (const item of assignments) {
     if (item.start === null || item.cancelled) continue;
@@ -74,6 +75,13 @@ export function dispatchReview(rows: BoardRow[], assignments: DispatchAssignment
         const next = items[j];
         if (next.start !== first.start && next.start! >= (first.end ?? first.start!)) break;
         if (!assignmentsOverlap(first, next)) continue;
+        if (first.rowKey !== next.rowKey) {
+          for (const [from, to] of [[first, next], [next, first]]) {
+            const services = related.get(from.rowKey) ?? new Map<string, string>();
+            services.set(to.rowKey, to.title);
+            related.set(from.rowKey, services);
+          }
+        }
         const name = resource.startsWith("nave/") ? first.vehicleName : resource === "chofer/" + first.coDriverId ? first.coDriverName : first.driverName;
         add(first.rowKey, "cruce", "Cruce de " + name + " con " + next.title, "Cruce de horario");
         add(next.rowKey, "cruce", "Cruce de " + name + " con " + first.title, "Cruce de horario");
@@ -98,7 +106,7 @@ export function dispatchReview(rows: BoardRow[], assignments: DispatchAssignment
   };
   const pending = rows.filter(row => issues.has(row.key)).sort((a,b) =>
     rank(a) - rank(b) || (a.at?.getTime() ?? Infinity) - (b.at?.getTime() ?? Infinity) || b.passengers - a.passengers);
-  return { messages, summaries, pending };
+  return { messages, summaries, pending, related };
 }
 
 export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>) {

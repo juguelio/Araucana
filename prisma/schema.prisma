@@ -630,7 +630,8 @@ model ServiceTicket {
   seriesId      String
   seriesRow     TicketSeries @relation(fields: [seriesId], references: [id], onDelete: Restrict)
   reservationId String       @unique
-  reservation   Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  /// `Restrict` a propósito (#381): borrar la reserva no puede llevarse el número emitido.
+  reservation   Reservation  @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   /// EMITIDO | ANULADO
   status        String       @default("EMITIDO")
   issuedAt      DateTime     @default(now())

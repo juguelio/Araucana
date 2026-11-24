@@ -19,7 +19,7 @@ const normalizar = (texto: string) =>
  * Lista de naves con buscador para el modal de la combi del vuelo: se escribe el nombre, el interno o
  * la patente y se elige con un toque. Va dentro del formulario de asignación (`vehicleId`).
  */
-export function NaveBuscador({ naves, flightNumber, defaultId = "", optional = false }: { naves: NaveElegible[]; flightNumber: string; defaultId?: string; optional?: boolean }) {
+export function NaveBuscador({ naves, flightNumber, defaultId = "", optional = false, seatsLabel = "lugares para aeropuerto" }: { naves: NaveElegible[]; flightNumber: string; defaultId?: string; optional?: boolean; seatsLabel?: string }) {
   const [busqueda, setBusqueda] = useState("");
   const [selected, setSelected] = useState(defaultId);
   const termino = normalizar(busqueda);
@@ -59,7 +59,7 @@ export function NaveBuscador({ naves, flightNumber, defaultId = "", optional = f
                     nave.internalNumber ? `Int. ${nave.internalNumber}` : null,
                     nave.licensePlate,
                     /* Una unidad sin plano no vende nada: decir «0 lugares» parece un cupo lleno. */
-                    nave.seats == null ? null : nave.seats > 0 ? `${nave.seats} lugares para aeropuerto` : "sin butacas cargadas"
+                    nave.seats == null ? null : nave.seats > 0 ? `${nave.seats} ${seatsLabel}` : "sin butacas cargadas"
                   ]
                     .filter(Boolean)
                     .join(" · ")}

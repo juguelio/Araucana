@@ -106,3 +106,95 @@
     justify-self: stretch;
   }
 }
+
+/* Lista de pasajeros ya cargados: que se vean todos, no sólo el último. */
+.planilla-lista {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.planilla-lista-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.planilla-lista-head .eyebrow {
+  margin: 0 0 2px;
+}
+
+.planilla-lista-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.planilla-pasajeros {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.planilla-pasajeros li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.planilla-pasajero-num {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.planilla-pasajeros li div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.planilla-pasajeros strong {
+  color: var(--primary-deep);
+  font-size: 15px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.planilla-pasajeros li div span {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
+.planilla-lista-nota {
+  margin: 0;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .planilla-lista {
+    padding: 16px;
+  }
+
+  .planilla-pasajeros li {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
+  }
+}

@@ -252,3 +252,12 @@ body:has(.plan-heading) .site-header { display: none; }
   .panel-shell .plan-calendar .sd-date { left: auto; right: 0; }
   .panel-shell .plan-service-fold > summary { grid-template-areas: "time service arrow" ". crew crew" ". load load"; }
 }
+
+.panel-task-actions, .panel-finder header { display: flex; gap: 8px; align-items: center; }
+.panel-finder { width: min(480px, 92vw); max-height: 75vh; overflow: auto; padding: 20px; border: 1px solid var(--line); border-radius: 12px; margin: auto; background: var(--surface); color: var(--ink); }
+.panel-finder::backdrop { background: #102b2590; }
+.panel-finder header { justify-content: space-between; margin-bottom: 14px; }
+.panel-finder input { width: 100%; }
+.panel-finder h3 { font-size: 13px; color: var(--ink-soft); margin: 15px 0 4px; }
+.panel-finder a { display: block; padding: 9px 4px; border-bottom: 1px solid var(--line); }
+.panel-finder a:hover, .panel-finder a:focus-visible { background: var(--primary-soft); }

@@ -20,6 +20,8 @@ export type UnidadDeServicio = {
   internalNumber: string | null;
   driverId: string | null;
   driverName: string | null;
+  /** Para aeropuerto: id de la asignación, para poder cambiarla sin crear otra. */
+  assignmentId?: string | null;
 };
 
 export type ServicioDelDia = {

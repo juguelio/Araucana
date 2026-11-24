@@ -50,6 +50,7 @@ export async function submitDeparturePassengerAction(
 
   try {
     const result = await submitDepartureSheetPassenger(token, parsed.data);
+    revalidatePath(`/planilla/${sheet.token}`);
     revalidatePath(`/admin/planillas/${sheet.id}`);
     revalidatePath("/admin/planillas");
 

@@ -45,7 +45,8 @@ export async function fleetConflicts(
   tx: Prisma.TransactionClient,
   interval: Interval,
   excludeTrip?: string,
-  excludeSchedule?: string
+  excludeSchedule?: string,
+  excludeAirportAssignment?: string
 ) {
   const { vehicleId, startsAt, endsAt } = interval;
   const first = localInput(startsAt).slice(0, 10);
@@ -70,7 +71,11 @@ export async function fleetConflicts(
       include: { operationDay: true }
     }),
     tx.airportVehicleAssignment.findMany({
-      where: { vehicleId, flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }] } },
+      where: {
+        vehicleId,
+        ...(excludeAirportAssignment ? { id: { not: excludeAirportAssignment } } : {}),
+        flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }] }
+      },
       include: { flight: true }
     })
   ]);

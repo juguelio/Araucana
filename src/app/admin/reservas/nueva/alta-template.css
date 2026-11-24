@@ -41,7 +41,11 @@
 .alta-parada[aria-checked="true"] { border-color: var(--primary); background: #eaf3ee; box-shadow: inset 0 0 0 1px var(--primary); }
 .alta-parada:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
-.alta-pasajeros .salida-pie { margin: 0; padding: 0; border: 0; background: none; }
+.alta-cantidades { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; align-items: start; }
+.alta-cantidades .quantity-field { grid-template-rows: minmax(2.5em, auto) auto; }
+.alta-cantidades .quantity-label { align-self: end; }
+.alta-cantidades .quantity-picker { max-width: 100%; }
+.alta-cantidades .quantity-picker[aria-invalid="true"] { border-color: var(--accent); }
 .alta-nota { margin: 0; font-size: 13px; }
 
 .alta-template .checkout-summary .alta-cancelar { justify-self: center; }

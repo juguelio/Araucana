@@ -14,6 +14,9 @@ it("admite turnos sucesivos y marca los dos servicios cuando se pisan", () => {
   const issues = dispatchIssues([], [first, { ...next, start: 10 }], new Map());
   expect(issues.get("cerro")).toEqual(["Cruce de Bus con ruta", "Cruce de Ana con ruta"]);
   expect(issues.get("ruta")).toHaveLength(2);
+  const { related } = dispatchReview([], [first, { ...next, start: 10 }], new Map());
+  expect([...related.get("cerro")!]).toEqual([["ruta", "ruta"]]);
+  expect([...related.get("ruta")!]).toEqual([["cerro", "cerro"]]);
 });
 
 it("una recorrida compartida sólo admite el mismo chofer simultáneo en la misma nave", () => {

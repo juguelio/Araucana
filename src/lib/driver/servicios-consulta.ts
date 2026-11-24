@@ -63,6 +63,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         estimatedAt: true,
         assignments: {
           select: {
+            id: true,
             vehicle: { select: { id: true, name: true, internalNumber: true } },
             driver: { select: { id: true, name: true } }
           }
@@ -190,7 +191,8 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         vehicleName: assignment.vehicle.name,
         internalNumber: assignment.vehicle.internalNumber ?? null,
         driverId: assignment.driver?.id ?? null,
-        driverName: assignment.driver?.name ?? null
+        driverName: assignment.driver?.name ?? null,
+        assignmentId: assignment.id
       })),
       pasajeros: flight.reservations.reduce((total, detalle) => total + (detalle.reservation?.passengerCount ?? 0), 0),
       href: `/admin/aeropuerto?date=${dateKey}`

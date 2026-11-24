@@ -182,7 +182,7 @@
   transform: rotate(-2deg);
 }
 
-/* === Copia imprimible: los tres cuerpos del boleto físico === */
+/* === Vista imprimible del boleto === */
 .boleto-hoja {
   display: grid;
   gap: 16px;
@@ -202,32 +202,12 @@
   max-width: 52ch;
 }
 
-.boleto-copias {
-  display: grid;
-  gap: 14px;
-}
-
-.boleto-copia .boleto {
+.boleto-hoja > .boleto {
   margin: 0;
   box-shadow: none;
 }
 
-.boleto-copia-etiqueta {
-  margin: 0 0 6px;
-  color: #6f695b;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.boleto-corte {
-  margin: 0 0 10px;
-  border: 0;
-  border-top: 1px dashed #b8b09d;
-}
-
-@media (max-width: 760px) {
+@media screen and (max-width: 760px) {
   .boleto-datos {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -252,42 +232,27 @@
     margin: 10mm;
   }
 
-  .no-print,
-  header.site-header,
-  .site-footer,
-  .admin-sidebar,
-  .admin-top {
+  .boleto-hoja .no-print,
+  body:has(.boleto-hoja) :is(header.site-header, .site-footer) {
     display: none !important;
   }
 
-  body {
+  body:has(.boleto-hoja) {
     background: #fff;
   }
 
   .boleto-hoja {
     max-width: none;
     gap: 0;
-    padding: 0 !important;
+    margin: 0;
+    padding: 0;
   }
 
-  .boleto-copias {
-    gap: 5mm;
-  }
-
-  .boleto-copia {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-
-  .boleto {
+  .boleto-hoja > .boleto {
     break-inside: avoid;
     page-break-inside: avoid;
     border-color: #9d9789;
     box-shadow: none;
-  }
-
-  .boleto-corte {
-    border-top-color: #9d9789;
   }
 
   .boleto-cabecera {
@@ -342,10 +307,5 @@
   .boleto-pie {
     padding: 7px 16px 8px;
     font-size: 8.5px;
-  }
-
-  .boleto-copia-etiqueta {
-    margin-bottom: 3px;
-    font-size: 8px;
   }
 }

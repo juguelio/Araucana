@@ -726,3 +726,20 @@ button.flota-fila:hover, button.flota-fila:focus-visible { background: #f1efe7; 
   border: 1px solid #f3c2bd;
   color: #8a1c15;
 }
+
+/* Paginación de «Servicios del día»: el mismo paginador del resto del panel. */
+.srv-paginacion { margin: 8px 0; }
+.srv-paginacion .pagination { margin: 0; }
+
+/* Cambiar nave/chofer de un servicio ya asignado sin salir de la lista. */
+.srv-cambiar {
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.srv-cambiar:hover { border-color: var(--primary); color: var(--primary); background: rgba(24,59,50,.06); }
+.srv-ancla { scroll-margin-top: 20px; }

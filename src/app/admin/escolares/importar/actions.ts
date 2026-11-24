@@ -7,6 +7,7 @@ import ExcelJS from "exceljs";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { normalizarTipoDeConcesion, type SchoolRunKind } from "@/lib/school-runs/kinds";
+import { clavesDeServicio, clavesDeServicioGuardado, normalizarNombre } from "@/lib/school-runs/import-key";
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const MAX_ROWS = 3000;
@@ -48,10 +49,6 @@ function horario(value: unknown) {
     return `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
   }
   return texto(value) || "Sin horario";
-}
-
-function normalizarNombre(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function tipoDeFila(routeName: string): SchoolRunKind | null {
@@ -124,11 +121,12 @@ export async function importarPlanilla(form: FormData) {
     redirect("/admin/escolares/importar?aviso=" + encodeURIComponent("La planilla no tiene recorridos de Concesiones para importar."));
   }
 
-  const [drivers, existentes] = await Promise.all([
+  const [drivers, vehicles, existentes] = await Promise.all([
     prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, select: { id: true, name: true, email: true } }),
+    prisma.vehicle.findMany({ where: { isActive: true }, select: { id: true, name: true, internalNumber: true } }),
     prisma.schoolRun.findMany({
       where: { serviceDate: { gte: new Date(Math.min(...entradas.map((e) => +e.serviceDate))), lte: new Date(Math.max(...entradas.map((e) => +e.serviceDate))) } },
-      select: { serviceDate: true, routeName: true, shift: true, driverId: true, source: true }
+      select: { id: true, serviceDate: true, routeName: true, shift: true, driverId: true, vehicleId: true, companion: true, source: true }
     })
   ]);
   // Se acepta el nombre completo y el primer nombre («Juan» → «Juan Muñoz»), pero sólo si no es ambiguo.
@@ -146,21 +144,57 @@ export async function importarPlanilla(form: FormData) {
   for (const [clave, ids] of candidatos) {
     if (ids.size === 1) porNombre.set(clave, [...ids][0]);
   }
-  const claveDe = (run: (typeof existentes)[number]) => {
-    const source = run.source && typeof run.source === "object" && !Array.isArray(run.source) ? run.source as Record<string, unknown> : {};
-    const raw1 = normalizarNombre(String(source.driver1 ?? ""));
-    const raw2 = normalizarNombre(String(source.driver2 ?? ""));
-    return `${run.serviceDate.toISOString().slice(0, 10)}|${run.routeName}|${run.shift}|${raw1 || run.driverId || ""}|${raw2}`;
-  };
-  const existentesPorClave = new Set(existentes.map(claveDe));
+  const nombrePorId = new Map(drivers.map((driver) => [driver.id, driver.name ?? ""] as const));
+  // La columna F de la planilla es el número interno o el nombre de la nave, no un monto.
+  const navesPorClave = new Map<string, Set<string>>();
+  for (const vehicle of vehicles) {
+    for (const clave of [vehicle.name, vehicle.internalNumber].filter(Boolean)) {
+      const normalizada = normalizarNombre(clave!);
+      if (!normalizada) continue;
+      const ids = navesPorClave.get(normalizada) ?? new Set<string>();
+      ids.add(vehicle.id);
+      navesPorClave.set(normalizada, ids);
+    }
+  }
+  const navePorNombre = new Map<string, string>();
+  for (const [clave, ids] of navesPorClave) {
+    if (ids.size === 1) navePorNombre.set(clave, [...ids][0]);
+  }
+  // Las filas viejas guardan `driver`/`companion` y el turno normalizado; las nuevas, `driver1`/`driver2`.
+  // La clave tolera las dos formas para que reimportar la planilla no vuelva a crear lo que ya está (#407).
+  const existentePorClave = new Map<string, { id: string; vehicleId: string | null }>();
+  for (const run of existentes) {
+    for (const clave of clavesDeServicioGuardado(run, {
+      idPorNombre: (nombre) => porNombre.get(normalizarNombre(nombre)) ?? null,
+      nombrePorId: (id) => nombrePorId.get(id) ?? null
+    })) {
+      if (!existentePorClave.has(clave)) existentePorClave.set(clave, { id: run.id, vehicleId: run.vehicleId });
+    }
+  }
+  const vistas = new Set(existentePorClave.keys());
+  const asignarNave: { id: string; vehicleId: string }[] = [];
   const nuevas = entradas.flatMap((entrada) => {
     const driverId = porNombre.get(normalizarNombre(entrada.driver1)) ?? null;
-    const clave = `${entrada.serviceDate.toISOString().slice(0, 10)}|${entrada.routeName}|${entrada.shift}|${normalizarNombre(entrada.driver1)}|${normalizarNombre(entrada.driver2)}`;
-    if (existentesPorClave.has(clave)) return [];
-    existentesPorClave.add(clave);
+    const vehicleId = entrada.vehicle ? navePorNombre.get(normalizarNombre(entrada.vehicle)) ?? null : null;
+    const claves = clavesDeServicio({
+      serviceDate: entrada.serviceDate,
+      routeName: entrada.routeName,
+      shift: entrada.shift,
+      chofer1: { id: driverId, nombre: entrada.driver1 },
+      chofer2: { nombre: entrada.driver2 }
+    });
+    const claveExistente = claves.find((clave) => existentePorClave.has(clave));
+    if (claveExistente) {
+      const existente = existentePorClave.get(claveExistente)!;
+      if (!existente.vehicleId && vehicleId) asignarNave.push({ id: existente.id, vehicleId });
+      return [];
+    }
+    if (claves.some((clave) => vistas.has(clave))) return [];
+    for (const clave of claves) vistas.add(clave);
     const revisar = [
       entrada.driver1 && !driverId ? `Chofer de planilla: ${entrada.driver1}` : "",
       entrada.driver2 ? `Segunda persona: ${entrada.driver2}` : "",
+      entrada.vehicle && !vehicleId ? `Nave de planilla: ${entrada.vehicle}` : "",
       entrada.status
     ].filter(Boolean).join(" · ");
     return [{
@@ -170,7 +204,7 @@ export async function importarPlanilla(form: FormData) {
       routeName: entrada.routeName,
       shift: entrada.shift,
       driverId,
-      vehicleId: null,
+      vehicleId,
       companion: entrada.driver2 || null,
       notes: `Importado de ${entrada.sheet}, fila ${entrada.row}.`,
       review: revisar || null,
@@ -181,10 +215,13 @@ export async function importarPlanilla(form: FormData) {
   if (nuevas.length) {
     await prisma.schoolRun.createMany({ data: nuevas });
   }
+  for (const { id, vehicleId } of asignarNave) {
+    await prisma.schoolRun.updateMany({ where: { id, vehicleId: null }, data: { vehicleId } });
+  }
   revalidatePath("/admin");
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath("/admin/escolares");
   revalidatePath("/admin/escolares/semana");
-  const mensaje = `Importados ${nuevas.length} servicios de Concesiones. Omitidos ${omitidas.vuelos} vuelos y ${omitidas.novedades} francos/licencias. Los choferes sin usuario quedaron para revisar.`;
+  const mensaje = `Importados ${nuevas.length} servicios de Concesiones.${asignarNave.length ? ` Asigné la nave en ${asignarNave.length} servicios ya cargados.` : ""} Omitidos ${omitidas.vuelos} vuelos y ${omitidas.novedades} francos/licencias. Los choferes o naves sin coincidencia quedaron para revisar.`;
   redirect("/admin/escolares/semana?aviso=" + encodeURIComponent(mensaje));
 }

@@ -7,6 +7,7 @@ const revalidatePath = vi.fn();
 const fleetConflicts = vi.fn();
 const updateSchedule = vi.fn();
 const createAssignment = vi.fn();
+const updateAssignment = vi.fn();
 const findSchedule = vi.fn();
 const findFlight = vi.fn();
 const findVehicle = vi.fn();
@@ -35,7 +36,10 @@ vi.mock("@/lib/db/prisma", () => ({
           findUnique: (...args: unknown[]) => findSchedule(...args),
           update: (...args: unknown[]) => updateSchedule(...args)
         },
-        airportVehicleAssignment: { create: (...args: unknown[]) => createAssignment(...args) }
+        airportVehicleAssignment: {
+          create: (...args: unknown[]) => createAssignment(...args),
+          updateMany: (...args: unknown[]) => updateAssignment(...args)
+        }
       })
   }
 }));
@@ -73,6 +77,7 @@ describe("asignarUnidadAction: asignar desde Naves en vivo sin salir del mapa", 
   beforeEach(() => {
     redirectMock.mockClear();
     createAssignment.mockReset().mockResolvedValue({ id: "asg_1" });
+    updateAssignment.mockReset().mockResolvedValue({ count: 1 });
     fleetConflicts.mockReset().mockResolvedValue([]);
     updateSchedule.mockReset().mockResolvedValue({});
     findSchedule.mockReset().mockResolvedValue(salida);
@@ -91,6 +96,30 @@ describe("asignarUnidadAction: asignar desde Naves en vivo sin salir del mapa", 
       data: { flightId: "fl_9", vehicleId: "veh-9", driverId: "drv-1", createdBy: "admin-1" }
     });
     expect(recordEntityAudit).toHaveBeenCalled();
+  });
+
+  it("vuelo existente: cambia la combi en la misma asignación y vuelve a Servicios del día", async () => {
+    await expect(
+      asignarUnidadAction(
+        form({
+          servicioId: "vuelo-fl_9",
+          vehicleId: "veh-9",
+          driverId: "drv-1",
+          fecha: "2026-11-21",
+          vista: "servicios",
+          assignmentId: "asg_1"
+        })
+      )
+    ).rejects.toThrow(
+      "/admin/naves/en-vivo?vista=servicios&fecha=2026-11-21&ok=Combi+Sprinter+3+reasignada+al+vuelo+JA3051."
+    );
+
+    expect(updateAssignment).toHaveBeenCalledWith({
+      where: { id: "asg_1", flightId: "fl_9" },
+      data: { vehicleId: "veh-9", driverId: "drv-1" }
+    });
+    expect(fleetConflicts).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, undefined, "asg_1");
+    expect(createAssignment).not.toHaveBeenCalled();
   });
 
   it("vuelo en recorrida: manda al tablero del aeropuerto con el modal de ese vuelo, sin partir el grupo", async () => {
@@ -114,6 +143,30 @@ describe("asignarUnidadAction: asignar desde Naves en vivo sin salir del mapa", 
     ).rejects.toThrow("error=Conflicto%3A+Vuelo+AR+1838");
 
     expect(createAssignment).not.toHaveBeenCalled();
+  });
+
+  it("salida desde Servicios del día: vuelve a la misma vista", async () => {
+    await expect(
+      asignarUnidadAction(form({ servicioId: "salida-sch_1", vehicleId: "veh-2", driverId: "drv-2", fecha: "2026-11-21", vista: "servicios", page: "2" }))
+    ).rejects.toThrow("/admin/naves/en-vivo?vista=servicios&fecha=2026-11-21&page=2&ok=Nave+y+chofer+asignados+a+la+salida.");
+
+    expect(updateSchedule).toHaveBeenCalledWith({ where: { id: "sch_1" }, data: { vehicleId: "veh-2", driverId: "drv-2" } });
+  });
+
+  it("salida desde Servicio público: vuelve a la boletería del día, no a Naves en vivo", async () => {
+    await expect(
+      asignarUnidadAction(
+        form({
+          servicioId: "salida-sch_1",
+          vehicleId: "veh-2",
+          driverId: "drv-2",
+          fecha: "2026-11-24",
+          returnTo: "/admin/servicio-publico?vista=dia&fecha=2026-11-24"
+        })
+      )
+    ).rejects.toThrow("/admin/servicio-publico?vista=dia&fecha=2026-11-24&ok=Nave+y+chofer+asignados+a+la+salida.");
+
+    expect(updateSchedule).toHaveBeenCalledWith({ where: { id: "sch_1" }, data: { vehicleId: "veh-2", driverId: "drv-2" } });
   });
 
   it("salida: cambia nave y chofer de la salida del día", async () => {

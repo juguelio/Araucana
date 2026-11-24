@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { ServicePublicNav } from "@/components/service-public-nav";
-import { ServicioPublicoVistaNav } from "@/components/servicio-publico-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
@@ -38,11 +37,6 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
   const salidasSemana = salidasPorDia.flat();
   const visibles = filtro ? salidasSemana.filter((salida) => terminalDe(salida.desde) === filtro) : salidasSemana;
   const resumen = resumenDeSalidas(visibles);
-  const cuentaPorTerminal = new Map<TerminalClave, number>(TERMINALES.map((terminal) => [terminal.clave, 0]));
-  for (const salida of salidasSemana) {
-    const clave = terminalDe(salida.desde);
-    if (clave) cuentaPorTerminal.set(clave, (cuentaPorTerminal.get(clave) ?? 0) + 1);
-  }
   const hrefSemana = (inicio: string, terminal: TerminalClave | null = filtro) => {
     const query = new URLSearchParams();
     query.set("semana", inicio);
@@ -50,7 +44,7 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
     return `/admin/servicio-publico/semana?${query.toString()}`;
   };
   const hrefDia = (dia: string) => {
-    const query = new URLSearchParams({ fecha: dia });
+    const query = new URLSearchParams({ vista: "dia", fecha: dia });
     if (filtro) query.set("terminal", filtro);
     return `/admin/servicio-publico?${query.toString()}`;
   };
@@ -68,7 +62,6 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
       }
     >
       <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
-      <ServicioPublicoVistaNav actual="semana" fecha={semana} semana={semana} terminal={filtro} />
 
       <div className="sp-semana-nav">
         <Link className="ghost-button" href={hrefSemana(sumarDias(semana, -7))}>‹ Semana anterior</Link>
@@ -77,24 +70,6 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
         {semana !== lunesDe(hoy) ? <Link className="ghost-button" href={hrefSemana(lunesDe(hoy))}>Esta semana</Link> : null}
         <span className="muted">{resumen.salidas} {resumen.salidas === 1 ? "salida" : "salidas"}</span>
       </div>
-
-      <nav className="sp-terminales" aria-label="Terminal">
-        <Link className="sp-terminal" data-activa={!filtro ? "si" : undefined} href={hrefSemana(semana, null)}>
-          <span>Todas las terminales</span>
-          <strong>{salidasSemana.length}</strong>
-        </Link>
-        {TERMINALES.map((terminal) => (
-          <Link
-            key={terminal.clave}
-            className="sp-terminal"
-            data-activa={filtro === terminal.clave ? "si" : undefined}
-            href={hrefSemana(semana, terminal.clave)}
-          >
-            <span>{terminal.nombre}</span>
-            <strong>{cuentaPorTerminal.get(terminal.clave) ?? 0}</strong>
-          </Link>
-        ))}
-      </nav>
 
       <section className="sp-resumen" aria-label="Resumen de la semana">
         <div><span>Salidas</span><strong>{resumen.salidas}</strong></div>

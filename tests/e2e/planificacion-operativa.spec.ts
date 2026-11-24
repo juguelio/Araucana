@@ -46,6 +46,13 @@ test("planifica una semana, reparte los avisos y conserva los reemplazos por fec
     await filter.click();
     await page.getByRole("link", { name: "Limpiar", exact: true }).click();
     await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/admin?date=" + day + "&vista=reservas");
+    await page.getByRole("button", { name: "Buscar o actuar" }).click();
+    const finder = page.getByRole("dialog", { name: "Buscar o actuar" });
+    await finder.getByRole("searchbox").fill(school.routeName);
+    await finder.getByRole("link", { name: new RegExp(school.routeName) }).click();
+    await expect(page.locator(".plan-service-fold[open]")).toContainText(school.routeName);
+    await page.goto("/admin?date=" + day);
     const priority = page.locator(".plan-service-fold > summary").filter({ hasText: "Revisar primero" });
     await expect(priority).toContainText(school.routeName);
     await priority.click();

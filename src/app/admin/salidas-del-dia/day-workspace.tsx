@@ -1,3 +1,6 @@
+import { PanelFinder } from "./panel-finder";
+import { Paginador } from "@/components/admin-list/paginador";
+import { paginarNaves } from "@/lib/vehicles/fleet-table";
 import { CHAPELCO_BOOKING_MODE } from "@/lib/chapelco/constants";
 import { terminalDe } from "@/lib/public-service/board";
 import { Deadlines } from "./deadlines";
@@ -28,7 +31,7 @@ import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
 import "./panel-jornada.css";
 
-export type DayParams = ReservationParams & { falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string; avisos?: string; filtro?: string };
+export type DayParams = ReservationParams & { programadas?: string; ppage?: string; falta?: string; vista?: string; servicio?: string; area?: string; tipo?: string; libres?: string; recurso?: string; avisos?: string; filtro?: string };
 
 const hourFormat = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 const dayFormat = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -45,7 +48,17 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const today = localDateKey(new Date());
   const dateKey = isDateKey(params?.date) ? params.date : today;
   const view = panel && (params?.vista === "reservas" || params?.vista === "flota" || params?.vista === "semana" || params?.vista === "vencimientos") ? params.vista : "jornada";
-  const onlyMissing = view === "jornada" && params?.falta === "1";
+  const falta: "nave" | "chofer" | "sobrecupo" | "todo" | null =
+    params?.falta === "nave" || params?.falta === "chofer" || params?.falta === "sobrecupo"
+      ? params.falta
+      : params?.falta === "1" || params?.falta === "todo"
+        ? "todo"
+        : null;
+  const onlyMissing = view === "jornada" && falta !== null;
+  const page = Math.max(1, Number.parseInt(String(params?.page ?? ""), 10) || 1);
+  const programmedPage = Math.max(1, Number.parseInt(String(params?.ppage ?? ""), 10) || 1);
+  const programmedOpen = params?.programadas === "1";
+
   const area = panel && params?.area && Object.hasOwn(AREA_LABEL, params.area) ? params.area : "";
   const search = panel ? (params?.q ?? "").trim().slice(0, 100) : "";
   const { to } = dayRange(dateKey);
@@ -89,17 +102,56 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
   const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
-  const { messages: issues, summaries, pending } = dispatchReview(board.rows, assignments, vehicleDamages, dateKey === today ? Date.now() : undefined);
+  const { messages: issues, summaries, pending, related } = dispatchReview(board.rows, assignments, vehicleDamages, dateKey === today ? Date.now() : undefined);
   const pendingRows = panel ? pending : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const matchRow = (row: BoardRow) => (!area || row.area === area) && (!search || normalize([
     row.title, AREA_LABEL[row.area], row.school && personName(row.school.driver), ...row.units.flatMap(unit => [unit.vehicleName, unit.driverName, unit.coDriverName])
   ].join(" ")).includes(normalize(search)));
-  const rows = (onlyMissing ? pendingRows : serviceRows).filter(matchRow);
+  const rows = (onlyMissing ? pendingRows : serviceRows).filter(matchRow).filter(row => falta === "nave" ? row.missingVehicle : falta === "chofer" ? row.missingDriver : falta === "sobrecupo" ? row.overbooked : true);
   const programs = programmedRows.filter(matchRow);
+  const servicesPage = paginarNaves(rows, page, 6);
+  const programmedPageData = paginarNaves(programs, programmedPage, 6);
+  const listHref = (destino: number) => {
+    const query = new URLSearchParams({ date: dateKey });
+    if (falta) query.set("falta", falta);
+    if (destino > 1) query.set("page", String(destino));
+    return `/admin/salidas-del-dia?${query.toString()}#salidas`;
+  };
+  const programmedHref = (destino: number) => {
+    const query = new URLSearchParams({ date: dateKey, programadas: "1" });
+    if (destino > 1) query.set("ppage", String(destino));
+    return `/admin/salidas-del-dia?${query.toString()}#programacion`;
+  };
+  const servicesPaginator = (
+    <div className="sd-paginacion">
+      <Paginador
+        page={servicesPage.page}
+        totalPages={servicesPage.totalPages}
+        total={servicesPage.total}
+        desde={servicesPage.desde}
+        hasta={servicesPage.hasta}
+        hrefPagina={listHref}
+        etiqueta="servicios del día"
+      />
+    </div>
+  );
+  const programmedPaginator = (
+    <div className="sd-paginacion">
+      <Paginador
+        page={programmedPageData.page}
+        totalPages={programmedPageData.totalPages}
+        total={programmedPageData.total}
+        desde={programmedPageData.desde}
+        hasta={programmedPageData.hasta}
+        hrefPagina={programmedHref}
+        etiqueta="programación"
+      />
+    </div>
+  );
   const firstPending = !onlyMissing && !area && !search && !params?.servicio ? pendingRows[0] : undefined;
   const dayHref = (key: string) => path + "?" + new URLSearchParams({ date: key,
-    ...(view !== "jornada" ? { vista: view } : {}), ...(view === "flota" && params?.tipo === "chofer" ? { tipo: "chofer", ...(params?.avisos === "pendientes" ? { avisos: "pendientes" } : {}) } : {}), ...(onlyMissing ? { falta: "1" } : {})
+    ...(view !== "jornada" ? { vista: view } : {}), ...(view === "flota" && params?.tipo === "chofer" ? { tipo: "chofer", ...(params?.avisos === "pendientes" ? { avisos: "pendientes" } : {}) } : {}), ...(onlyMissing ? { falta: falta! } : {})
   });
 
   const commercialQueues = new URLSearchParams({ date: dateKey, vista: "reservas" });
@@ -123,10 +175,13 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} priority={row.key === firstPending?.key} alert={summaries.get(row.key) ?? row.status} />}>
               {panel && row.school && row.detail && <p className="plan-detail">{row.detail}</p>}
               {panel && issues.has(row.key) && <ul className="console-issues">{issues.get(row.key)!.map(message => <li key={message}>{message}</li>)}</ul>}
+              {panel && related.has(row.key) && <nav className="plan-detail-links" aria-label="Servicios en conflicto">
+                {[...related.get(row.key)!].map(([key, title]) => <Link key={key} href={panelServiceHref(dateKey, key)}>Revisar {title}</Link>)}
+              </nav>}
               {panel ? <div className="plan-detail-links">
                 {serviceReservationScope(row) && <Link href={"/admin?" + new URLSearchParams({ date: row.flightDate ?? dateKey, vista: "reservas", servicio: row.key })}>Pasajeros y cobros</Link>}
                 {row.area === "AEROPUERTO" && <Link href={{ pathname: "/admin/aeropuerto/orden-de-servicio/ver", query: { date: row.flightDate ?? dateKey, flight: row.serviceId, desde: "panel" } }}>Orden de servicio</Link>}
-                {row.routeId && terminalByRoute.get(row.routeId) && <Link href={{ pathname: "/admin/servicio-publico", query: { fecha: dateKey, terminal: terminalByRoute.get(row.routeId) } }}>Boletería de la terminal</Link>}
+                {row.routeId && terminalByRoute.get(row.routeId) && <Link href={{ pathname: "/admin/servicio-publico", query: { vista: "dia", fecha: dateKey, terminal: terminalByRoute.get(row.routeId) } }}>Boletería de la terminal</Link>}
                 <Link href={row.href}>Ver servicio</Link>
                 {row.editHref !== row.href && <Link href={row.editHref}>Editar servicio</Link>}
               </div> : <>
@@ -215,7 +270,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       title={panel ? dayTitle(dateKey, today) : "Salidas del día"}
       compactMenu={panel ? {
         context: [view, dateKey, onlyMissing, params?.tipo, params?.avisos].join("/"),
-        hrefs: { "/admin": path + "?date=" + dateKey, "/admin/servicio-publico": "/admin/servicio-publico?fecha=" + dateKey,
+        hrefs: { "/admin": path + "?date=" + dateKey, "/admin/servicio-publico": "/admin/servicio-publico?vista=dia&fecha=" + dateKey,
           "/admin/chapelco": "/admin/chapelco?date=" + dateKey, "/admin/aeropuerto": "/admin/aeropuerto?date=" + dateKey,
           "/admin/salidas-del-dia": "/admin/salidas-del-dia?date=" + dateKey, "/admin/escolares": "/admin/escolares?fecha=" + dateKey },
         tools: <><Link href={path + "?date=" + dateKey + "&falta=1"}>Pendientes ({pendingRows.length})</Link>
@@ -250,21 +305,51 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
             {pendingPayments + pendingTrips > 0 && <><span className="panel-count">{pendingPayments + pendingTrips}</span><span className="sr-only">{[pendingPayments > 0 && chargeLabel, pendingTrips > 0 && tripLabel].filter(Boolean).join(" · ")}</span></>}
           </Link>
         </nav>
-        <Link className="button console-book" href={"/admin/reservas/nueva?date=" + dateKey}>Nueva reserva</Link>
+        <div className="panel-task-actions"><PanelFinder key={dateKey} entries={[
+          { group: "Tareas", label: "Revisar servicios pendientes", href: path + "?date=" + dateKey + "&falta=1" },
+          { group: "Tareas", label: "Buscar naves sin servicios asignados", href: path + "?date=" + dateKey + "&vista=flota&libres=1" },
+          { group: "Tareas", label: "Avisar a los choferes del día", href: path + "?date=" + dateKey + "&vista=flota&tipo=chofer&avisos=pendientes" },
+          { group: "Tareas", label: "Abrir boletería del día", href: "/admin/servicio-publico?vista=dia&fecha=" + dateKey },
+          { group: "Tareas", label: "Planificar concesiones por chofer", href: "/admin/escolares/semana?vista=chofer&semana=" + dateKey },
+          { group: "Tareas", label: "Revisar cobros pendientes", href: path + "?vista=reservas&payment=pending-payment&date=" + dateKey },
+          ...board.rows.map(r => ({ group: "Servicios", label: [r.at && hourFormat.format(r.at), r.title, summaries.get(r.key)].filter(Boolean).join(" · "), href: panelServiceHref(dateKey,r.key) })),
+          ...vehicleOptions.map(v => ({ group: "Naves", label: v.label, href: path + "?" + new URLSearchParams({date:dateKey,vista:"flota",recurso:v.id}) })),
+          ...driverOptions.map(d => ({ group: "Choferes", label: d.label, href: path + "?" + new URLSearchParams({date:dateKey,vista:"flota",tipo:"chofer",recurso:d.id}) }))
+        ]} /><Link className="button console-book" href={"/admin/reservas/nueva?date=" + dateKey}>Nueva reserva</Link></div>
       </section> : (
       <section className="sd-head">
         <div>
           <h2>{dayTitle(dateKey, today)}</h2>
           <p className="muted">Todos los servicios del día con su nave y su chofer: rutas, aeropuerto, Chapelco, escolares y viajes especiales, por la hora en que sale la unidad.</p>
         </div>
-        <dl className="sd-summary">
-          <div><dt>Servicios</dt><dd>{board.summary.services}</dd></div>
-          <div><dt>Pasajeros</dt><dd>{board.summary.passengers}</dd></div>
-          <div data-alerta={board.summary.missingVehicle > 0 || undefined}><dt>Sin nave</dt><dd>{board.summary.missingVehicle}</dd></div>
-          <div data-alerta={board.summary.missingDriver > 0 || undefined}><dt>Sin chofer</dt><dd>{board.summary.missingDriver}</dd></div>
-          <div data-alerta={board.summary.overbooked > 0 || undefined}><dt>Sobrecupo</dt><dd>{board.summary.overbooked}</dd></div>
-          {board.summary.programmed > 0 ? <div><dt>Programadas</dt><dd>{board.summary.programmed}</dd></div> : null}
-        </dl>
+        <div className="sd-summary">
+          <Link className="sd-stat" href={`/admin/salidas-del-dia?date=${dateKey}`} aria-label="Ver todos los servicios del día">
+            <span className="sd-stat-label">Servicios</span>
+            <strong className="sd-stat-value">{board.summary.services}</strong>
+          </Link>
+          <Link className="sd-stat" href={`/admin/reservas?date=${dateKey}&until=${dateKey}`} aria-label="Gestionar las reservas y pasajeros del día">
+            <span className="sd-stat-label">Pasajeros</span>
+            <strong className="sd-stat-value">{board.summary.passengers}</strong>
+          </Link>
+          <Link className="sd-stat" data-alerta={board.summary.missingVehicle > 0 || undefined} data-activo={falta === "nave" || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&falta=nave#salidas`} aria-label="Ver servicios sin nave">
+            <span className="sd-stat-label">Sin nave</span>
+            <strong className="sd-stat-value">{board.summary.missingVehicle}</strong>
+          </Link>
+          <Link className="sd-stat" data-alerta={board.summary.missingDriver > 0 || undefined} data-activo={falta === "chofer" || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&falta=chofer#salidas`} aria-label="Ver servicios sin chofer">
+            <span className="sd-stat-label">Sin chofer</span>
+            <strong className="sd-stat-value">{board.summary.missingDriver}</strong>
+          </Link>
+          <Link className="sd-stat" data-alerta={board.summary.overbooked > 0 || undefined} data-activo={falta === "sobrecupo" || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&falta=sobrecupo#salidas`} aria-label="Ver servicios con sobrecupo">
+            <span className="sd-stat-label">Sobrecupo</span>
+            <strong className="sd-stat-value">{board.summary.overbooked}</strong>
+          </Link>
+          {board.summary.programmed > 0 ? (
+            <Link className="sd-stat" data-activo={programmedOpen || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&programadas=1#programacion`} aria-label="Ver la programación del día">
+              <span className="sd-stat-label">Programadas</span>
+              <strong className="sd-stat-value">{board.summary.programmed}</strong>
+            </Link>
+          ) : null}
+        </div>
         <div className="sd-filter">
           <Link className={`pill${!onlyMissing ? " is-active" : ""}`} href={`${path}?date=${dateKey}`}>Todos</Link>
           <Link className={`pill${onlyMissing ? " is-active" : ""}`} href={`${path}?date=${dateKey}&falta=1`}>Sólo lo que falta asignar</Link>
@@ -354,16 +439,19 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
       ) : (
         <div className={panel ? "plan-sheet" : undefined}>
           {panel && <div className="plan-columns" aria-hidden="true"><span>Hora</span><span>Servicio</span><span>Equipo asignado</span><span>Pasajeros</span><span /></div>}
-          <ol className="sd-list">{rows.map(renderRow)}</ol>
+          <div id="salidas" />{!panel && servicesPage.totalPages > 1 && servicesPaginator}
+          <ol className="sd-list">{(panel ? rows : servicesPage.items).map(renderRow)}</ol>
+          {!panel && servicesPage.totalPages > 1 && servicesPaginator}
         </div>
       )}
       {programs.length > 0 && !onlyMissing ? (
-        <details id="programacion" open={programs.some(r => r.key === params?.servicio) || undefined} className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
+        <details id="programacion" open={programmedOpen || programmedPageData.page > 1 || programs.some(r => r.key === params?.servicio) || undefined} className={panel ? "plain-card sd-programmed plan-sheet" : "plain-card sd-programmed"}>
           <summary>
             <strong>Ver la programación del día ({programs.length})</strong>
             <span className="muted">Salidas que todavía no tienen pasajeros.</span>
           </summary>
-          <ol className="sd-list sd-programmed-list">{programs.map(renderRow)}</ol>
+          {!panel && programmedPageData.totalPages > 1 && programmedPaginator}
+          <ol className="sd-list sd-programmed-list">{(panel ? programs : programmedPageData.items).map(renderRow)}</ol>
         </details>
       ) : null}
 
