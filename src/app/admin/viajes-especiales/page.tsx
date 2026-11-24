@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { NavesPendientes } from "./naves-pendientes";
 import type { Prisma } from "@prisma/client";
 import { AdminShell } from "@/components/admin-shell";
@@ -14,9 +15,10 @@ import {
 import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
 import { leerOrden, type OrdenDeListado } from "@/lib/admin/list-order";
+import { specialTripsPath as base, specialTripsViewFor, specialTripsViewHref } from "./view";
+import { SpecialTripsViewTabs } from "./view-tabs";
 import "./listado.css";
 
-const base = "/admin/viajes-especiales";
 const porPagina = 50;
 const claves = ["vista", "mes", "q", "estado", "nave", "semana", "pagina", "orden", "dir"] as const;
 
@@ -60,8 +62,11 @@ function duration(start: Date, end: Date) {
 }
 
 export default async function SpecialTripsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
-  const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
+  if (specialTripsViewFor((key) => params[key]) === "calendario") {
+    redirect(specialTripsViewHref("calendario", (key) => params[key]));
+  }
+  const user = await getCurrentReservationsUserOrRedirect();
   const value = (key: string) => typeof params[key] === "string" ? params[key].trim() : "";
   const hoy = dateOnly(localInput(new Date()).slice(0, 10))!;
   const vista: Vista = vistaDe(value("vista"));
@@ -129,13 +134,12 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   const n = conteos[0] ?? { hoy: 0, semana: 0, pendientes: 0, sinnave: 0, total: 0 };
   const numeros: Partial<Record<Vista, number>> = { hoy: n.hoy, semana: n.semana, pendientes: n.pendientes, sinNave: n.sinnave, todos: n.total };
   const url = (changes: Partial<Record<typeof claves[number], string>>) => {
-    const query = new URLSearchParams();
+    const query = new URLSearchParams({ modo: "listado" });
     for (const key of claves) {
       const selected = changes[key] ?? value(key);
       if (selected && !(key === "vista" && selected === "proximos")) query.set(key, selected);
     }
-    const s = query.toString();
-    return s ? `${base}?${s}` : base;
+    return `${base}?${query}`;
   };
   const desde = count ? (page - 1) * porPagina + 1 : 0;
   const hasta = Math.min(page * porPagina, count);
@@ -144,13 +148,14 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
   const porMes = orden.columna === "fecha";
   const grupos = porMes ? agruparPorMes(trips) : [{ clave: "todos", fecha: hoy, items: trips }];
   const encabezado = (columna: Columna) => (
-    <EncabezadoOrdenable etiqueta={ETIQUETAS[columna]} columna={columna} orden={orden} base={base} params={params} clavePagina="pagina" />
+    <EncabezadoOrdenable etiqueta={ETIQUETAS[columna]} columna={columna} orden={orden} base={base} params={{ ...params, modo: "listado" }} clavePagina="pagina" />
   );
 
   return <AdminShell title="Viajes especiales" role={user.role} action={<div className="inline-actions">
     <Link href={`${base}/importar`} className="ghost-button">Importar historial</Link>
     <Link href={`${base}/nuevo`} className="button">Nuevo viaje</Link>
   </div>}>
+    <SpecialTripsViewTabs active="listado" />
     <section className="plain-card admin-section">
       <ul className="vesp-vistas" aria-label="Vistas rápidas">
         {(Object.keys(vistas) as Vista[]).map((v) => <li key={v}>
@@ -166,7 +171,9 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
         Filtros{q || status || vehicleId || mes ? <span className="vesp-filtros-activos">activos</span> : null}
       </label>
       <form method="get" className="admin-form-grid vesp-filtros">
+        <input type="hidden" name="modo" value="listado" />
         <input type="hidden" name="vista" value={vista} />
+        {value("semana") && <input type="hidden" name="semana" value={value("semana")} />}
         {/* Filtrar no pierde un orden elegido a mano; sin él, manda el sentido de la vista. */}
         {ordenElegido && <OrdenOculto orden={orden} />}
         {mes && <input type="hidden" name="mes" value={mes} />}
@@ -240,6 +247,7 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
           <Link href={url({ semana: weekKey(7) })}>Semana siguiente →</Link>
         </div>
         <form method="get" className="inline-actions">
+          <input type="hidden" name="modo" value="listado" />
           <label>Empezar la semana el <input type="date" name="semana" defaultValue={weekKey(0)} required /></label>
           {claves.filter((k) => k !== "semana" && k !== "pagina").map((key) => <input key={key} type="hidden" name={key} value={value(key)} />)}
           <button className="ghost-button">Ver semana</button>

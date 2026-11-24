@@ -2,6 +2,7 @@ import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
 import { flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { DriverSheetLabel } from "@/components/driver-sheet-label";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
 import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
@@ -513,7 +514,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                   </ol>
                   <div className="aero-jornada-acciones">
                     <a className="button" href={hojaDeOrdenesHref(fecha, jornada.tramos.map((tramo) => tramo.orden))} target="_blank" rel="noreferrer">
-                      {new Set(jornada.tramos.map((tramo) => tramo.direction)).size > 1 ? "Hoja IN/OUT" : "Hoja del chofer"}
+                      <DriverSheetLabel>{new Set(jornada.tramos.map((tramo) => tramo.direction)).size > 1 ? "Hoja IN/OUT" : "Hoja del chofer"}</DriverSheetLabel>
                     </a>
                     {arribos.length ? (
                       <FleetAssignmentForm action={assignVehicleAction}>

@@ -43,9 +43,10 @@ type ManagedUserFormProps = {
   backHref?: string;
   /** Documentación del chofer, si ya la tiene. */
   driverDocuments?: DriverDocumentsFormData | null;
+  driverEdit?: boolean;
 };
 
-export function ManagedUserForm({ action, user, canAssignSuperAdmin = false, fixedRole, showSalary = true, backHref, driverDocuments }: ManagedUserFormProps) {
+export function ManagedUserForm({ action, user, canAssignSuperAdmin = false, fixedRole, showSalary = true, backHref, driverDocuments, driverEdit = false }: ManagedUserFormProps) {
   // Si la cuenta ya es de un super administrador el rol se muestra igual, para no cambiarlo sin querer.
   const roles = managedUserRoles.filter((role) => role !== "SUPERADMIN" || canAssignSuperAdmin || user?.role === "SUPERADMIN");
   const [state, formAction, pending] = useActionState(action, initialAdminFormState);
@@ -64,6 +65,7 @@ export function ManagedUserForm({ action, user, canAssignSuperAdmin = false, fix
     }}>
       <AdminFormAlert state={state} />
       {!creando && <input type="hidden" name="id" value={user.id} />}
+      {driverEdit && <input type="hidden" name="driverEdit" value="1" />}
       <label>
         Nombre
         <input name="name" defaultValue={user?.name ?? ""} aria-invalid={Boolean(errors.name)} aria-describedby={errors.name ? "name-error" : undefined} />
@@ -126,13 +128,13 @@ export function ManagedUserForm({ action, user, canAssignSuperAdmin = false, fix
           <FieldError id="role-error" message={errors.role} />
         </label>
       )}
-      <label>
+      {!driverEdit && <label>
         Estado
         <select name="isActive" defaultValue={user ? (user.isActive ? "true" : "false") : "true"}>
           <option value="false">Inactivo o pendiente</option>
           <option value="true">Activo</option>
         </select>
-      </label>
+      </label>}
       {showSalary && (
         <label>
           Sueldo mensual (solo Secretaría o Chofer)

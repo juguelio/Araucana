@@ -1,0 +1,8 @@
+.driver-sheet-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.driver-sheet-label svg { flex: none; }

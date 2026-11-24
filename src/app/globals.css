@@ -1186,6 +1186,25 @@ svg {
   color: var(--primary-deep);
 }
 
+/* Menú en grupos (24-nov): Operación, Servicios, Ventas, Administración, y la web pública al pie.
+   Los enlaces son un poco más bajos que antes para que los 16 entren sin scroll en una laptop. */
+.admin-sidebar nav { gap: 14px; margin-top: 18px; }
+.admin-nav-grupo { display: grid; gap: 2px; }
+.admin-nav-grupo a { padding: 8px 14px; }
+.admin-nav-titulo {
+  padding: 0 14px 4px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.admin-nav-grupo[data-pie] { padding-top: 12px; border-top: 1px solid var(--line); }
+/* `position: relative`: el texto para lectores de pantalla («se abre en otra pestaña») es absoluto y,
+   sin esto, se ubicaba respecto de la tira del celular y la ensanchaba (la página se iba a 1628 px). */
+.admin-sidebar a.admin-nav-externo { position: relative; color: var(--ink-muted); font-size: 14px; }
+.admin-sidebar a.admin-nav-externo:hover { color: var(--primary-deep); }
+
 .admin-main {
   padding: 32px;
 }
@@ -2683,6 +2702,12 @@ a.wizard-option { text-decoration: none; }
   .admin-nav-step[data-dir="atras"] { left: -2px; }
   .admin-nav-step[data-dir="adelante"] { right: -2px; }
   .admin-sidebar a[aria-current="page"] { border-color: var(--primary); }
+  /* En la tira del celular los grupos se aplanan: sin títulos, con un poco más de aire entre grupos. */
+  .admin-nav-grupo { display: contents; }
+  .admin-nav-titulo { display: none; }
+  .admin-nav-grupo + .admin-nav-grupo > a:first-of-type { margin-left: 10px; }
+  .admin-nav-grupo[data-pie] { padding-top: 0; border-top: 0; }
+  .admin-nav-grupo a { padding: 8px 13px; }
   .admin-top { flex-direction: column; gap: 12px; margin-bottom: 20px; }
   .admin-top .section-title { font-size: clamp(30px, 9vw, 42px); }
   .admin-top .form-actions { width: 100%; }

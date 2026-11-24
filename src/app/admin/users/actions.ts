@@ -48,8 +48,13 @@ function reportError(error: unknown) {
   return errorState(error instanceof Error ? error.message : "No pudimos guardar la cuenta.");
 }
 
-function notice(message: string, actorRole: string): never {
-  redirect(`${managedUsersBasePath(actorRole)}?notice=${encodeURIComponent(message)}`);
+function notice(message: string, actorRole: string, path = managedUsersBasePath(actorRole)): never {
+  redirect(`${path}?notice=${encodeURIComponent(message)}`);
+}
+
+function driverEditPath(formData: FormData, id: string) {
+  if (value(formData, "driverEdit") !== "1") return undefined;
+  return id ? `/admin/choferes/${encodeURIComponent(id)}` : "/admin/choferes";
 }
 
 function refreshUsers() {
@@ -149,13 +154,14 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
   const name = value(formData, "name");
   const passwordValue = formData.get("password");
   const password = typeof passwordValue === "string" ? passwordValue : "";
-  const isActive = value(formData, "isActive") === "true";
+  const driverEdit = Boolean(driverEditPath(formData, id));
+  const requestedActive = value(formData, "isActive") === "true";
   const verSueldo = canSeeSalary(actor.role);
 
   if (!id || !isManagedUserRole(roleInput)) return errorState("Revisa los datos de la cuenta.");
   const role: ManagedUserRole = roleInput;
   if (!canAssignRole(actor, role)) return errorState(SUPERADMIN_ROLE_MESSAGE, { role: SUPERADMIN_ROLE_MESSAGE });
-  if (id === actor.id && (!isAdminRole(role) || !isActive)) {
+  if (id === actor.id && (!isAdminRole(role) || !requestedActive)) {
     return errorState("No podés quitarte el rol de administrador ni desactivar tu propia cuenta.");
   }
 
@@ -168,7 +174,8 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
       if (!before) throw new Error("La cuenta ya no existe.");
       if (!canManageAccount(actor, before)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
       // La secretaría sólo abre fichas de chofer: el id de una cuenta de administración en la URL no alcanza.
-      if (!canManageManagedUser(actor.role, before.role)) throw new Error("Esa cuenta no es de un chofer.");
+      if ((driverEdit && before.role !== "DRIVER") || !canManageManagedUser(actor.role, before.role)) throw new Error("Esa cuenta no es de un chofer.");
+      const isActive = driverEdit ? before.isActive : requestedActive;
       await ensureAdminRemains(tx, id, role, isActive);
       // Si el actor no ve el sueldo, el campo no viaja en el formulario: se conserva el que ya tenía.
       const monthlySalaryCents = verSueldo
@@ -212,21 +219,22 @@ export async function updateManagedUserAction(_state: AdminFormState, formData: 
   }
 
   refreshUsers();
-  notice("Cuenta actualizada.", actor.role);
+  notice("Cuenta actualizada.", actor.role, driverEdit ? "/admin/choferes" : undefined);
 }
 
 export async function setManagedUserActiveAction(formData: FormData) {
   const actor = await getCurrentDriverManagerOrRedirect();
   const id = value(formData, "id");
+  const editPath = driverEditPath(formData, id);
   const isActive = value(formData, "isActive") === "true";
-  if (actor.id === id && !isActive) notice("No podés desactivar tu propia cuenta.", actor.role);
+  if (actor.id === id && !isActive) notice("No podés desactivar tu propia cuenta.", actor.role, editPath);
   try {
     await prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id }, select: { email: true, role: true, isActive: true } });
       if (!target) throw new Error("La cuenta ya no existe.");
       if (!canManageAccount(actor, target)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
       // La secretaría activa y desactiva choferes: es parte de armar el día. Otras cuentas, no.
-      if (!canManageManagedUser(actor.role, target.role)) throw new Error("Esa cuenta no es de un chofer.");
+      if ((editPath && target.role !== "DRIVER") || !canManageManagedUser(actor.role, target.role)) throw new Error("Esa cuenta no es de un chofer.");
       const role = isManagedUserRole(target.role) ? target.role : "USER";
       await ensureAdminRemains(tx, id, role, isActive);
       await tx.user.update({ where: { id }, data: { isActive } });
@@ -240,22 +248,25 @@ export async function setManagedUserActiveAction(formData: FormData) {
       }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
-    notice(error instanceof Error ? error.message : "No pudimos cambiar el estado.", actor.role);
+    notice(error instanceof Error ? error.message : "No pudimos cambiar el estado.", actor.role, editPath);
   }
   refreshUsers();
-  notice(isActive ? "Cuenta activada." : "Cuenta desactivada.", actor.role);
+  if (editPath) revalidatePath(editPath);
+  notice(isActive ? "Cuenta activada." : "Cuenta desactivada.", actor.role, editPath);
 }
 
 export async function deleteManagedUserAction(formData: FormData) {
   const actor = await getCurrentAdminOrRedirect();
   const id = value(formData, "id");
-  if (!id || actor.id === id) notice("No podés eliminar tu propia cuenta.", actor.role);
+  const editPath = driverEditPath(formData, id);
+  if (!id || actor.id === id) notice("No podés eliminar tu propia cuenta.", actor.role, editPath);
 
   try {
     await prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({ where: { id }, select: auditedUserFields });
       if (!target) throw new Error("La cuenta ya no existe.");
       if (!canManageAccount(actor, target)) throw new Error(PROTECTED_ACCOUNT_MESSAGE);
+      if (editPath && target.role !== "DRIVER") throw new Error("Esa cuenta no es de un chofer.");
       await ensureAdminRemains(tx, id, null, false);
       await tx.user.delete({ where: { id } });
       await recordAudit(tx, {
@@ -265,9 +276,9 @@ export async function deleteManagedUserAction(formData: FormData) {
       });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   } catch (error) {
-    notice(error instanceof Error ? error.message : "No pudimos eliminar la cuenta.", actor.role);
+    notice(error instanceof Error ? error.message : "No pudimos eliminar la cuenta.", actor.role, editPath);
   }
 
   refreshUsers();
-  notice("Cuenta eliminada y acceso revocado.", actor.role);
+  notice("Cuenta eliminada y acceso revocado.", actor.role, editPath ? "/admin/choferes" : undefined);
 }

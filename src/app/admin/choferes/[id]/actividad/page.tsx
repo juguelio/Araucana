@@ -56,7 +56,8 @@ export default async function DriverActivityPage({ params, searchParams }: {
     <AdminShell role={actor.role} title={driver.name || driver.email} eyebrow="Actividad del chofer"
       action={<div className="inline-actions">
         <Link className="ghost-button" href="/admin/choferes">Volver a choferes</Link>
-        <Link className="button" href={driverHref}>Editar chofer</Link>
+        <Link className="ghost-button" href={driverHref}>Editar chofer</Link>
+        <Link className="button" href={`${driverHref}/ordenes`} prefetch={false}>Órdenes de servicio</Link>
       </div>}
     >
       <p className="inline-actions">
