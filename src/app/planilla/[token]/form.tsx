@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { documentTypeLabels, documentTypes, sexLabels, sexOptions } from "@/lib/departure-sheets/types";
 import { submitDeparturePassengerAction } from "./actions";
 import { initialSubmitState } from "./state";
@@ -24,6 +25,11 @@ type PlanillaFormProps = {
 
 export function PlanillaForm({ token, kind, countries, prefill }: PlanillaFormProps) {
   const [state, formAction, pending] = useActionState(submitDeparturePassengerAction, initialSubmitState);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state.status === "ok") router.refresh();
+  }, [state.status, router]);
   const asksResidence = kind === "PROVINCIA";
   const knownDocumentType = documentTypes.includes(prefill?.documentType as (typeof documentTypes)[number])
     ? prefill?.documentType
