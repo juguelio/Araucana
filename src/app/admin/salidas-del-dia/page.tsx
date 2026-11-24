@@ -9,6 +9,8 @@ import { airportPickupStart } from "@/lib/airport/pickup-start";
 import { VUELOS_QUE_NO_SE_OFRECEN } from "@/lib/airport/offered-flights";
 import { CHAPELCO_BOOKING_MODE, chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { buildDayBoard, dayRange, isDateKey, localDateKey, shiftDateKey, type BoardArea, type BoardRow, type BoardUnit } from "@/lib/operations/day-board";
+import { Paginador } from "@/components/admin-list/paginador";
+import { paginarNaves } from "@/lib/vehicles/fleet-table";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { assignVehicleAction, removeAssignmentAction } from "../aeropuerto/actions";
 import { assignChapelcoVehicle, releaseChapelcoVehicle } from "../chapelco/actions";
@@ -18,10 +20,13 @@ import { ScheduleCrewForm, type Option } from "./crew-form";
 import { BOARD_RETURN_FIELD, BOARD_RETURN_VALUE } from "./return-to";
 import "./salidas-del-dia.css";
 
-type PageProps = { searchParams?: Promise<{ date?: string; falta?: string; notice?: string }> };
+type PageProps = {
+  searchParams?: Promise<{ date?: string; falta?: string; page?: string; programadas?: string; ppage?: string; notice?: string }>;
+};
 
 const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial" };
 const ACTIVE_RESERVATION = { notIn: ["CANCELLED"] };
+const PAGE_SIZE = 6;
 
 const hourFormat = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 const dayFormat = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -42,7 +47,16 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const today = localDateKey(new Date());
   const dateKey = isDateKey(params?.date) ? params.date : today;
-  const onlyMissing = params?.falta === "1";
+  const falta: "nave" | "chofer" | "sobrecupo" | "todo" | null =
+    params?.falta === "nave" || params?.falta === "chofer" || params?.falta === "sobrecupo"
+      ? params.falta
+      : params?.falta === "1" || params?.falta === "todo"
+        ? "todo"
+        : null;
+  const onlyMissing = falta !== null;
+  const page = Math.max(1, Number.parseInt(String(params?.page ?? ""), 10) || 1);
+  const programmedPage = Math.max(1, Number.parseInt(String(params?.ppage ?? ""), 10) || 1);
+  const programmedOpen = params?.programadas === "1";
   const { from, to } = dayRange(dateKey);
   const serviceDate = new Date(`${dateKey}T00:00:00.000Z`);
 
@@ -169,12 +183,58 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
   // Servicios reales primero; la programación sin demanda va aparte y colapsada (issue #258).
   const serviceRows = board.rows.filter((row) => !row.programmed);
   const programmedRows = board.rows.filter((row) => row.programmed);
-  const rows = onlyMissing ? serviceRows.filter((row) => row.missingVehicle || row.missingDriver || row.overbooked) : serviceRows;
+  const rows = falta
+    ? serviceRows.filter((row) =>
+        falta === "nave" ? row.missingVehicle
+        : falta === "chofer" ? row.missingDriver
+        : falta === "sobrecupo" ? row.overbooked
+        : row.missingVehicle || row.missingDriver || row.overbooked
+      )
+    : serviceRows;
+  const servicesPage = paginarNaves(rows, page, PAGE_SIZE);
+  const programmedPageData = paginarNaves(programmedRows, programmedPage, PAGE_SIZE);
   const emptyMessage = onlyMissing && serviceRows.length
-    ? "Todo lo del día tiene nave y chofer."
+    ? "No hay servicios con ese faltante para este día."
     : programmedRows.length
       ? "No hay servicios con pasajeros para este día: abajo está la programación."
       : "No hay servicios cargados para este día.";
+  const listHref = (destino: number) => {
+    const query = new URLSearchParams({ date: dateKey });
+    if (falta) query.set("falta", falta);
+    if (destino > 1) query.set("page", String(destino));
+    return `/admin/salidas-del-dia?${query.toString()}#salidas`;
+  };
+  const programmedHref = (destino: number) => {
+    const query = new URLSearchParams({ date: dateKey, programadas: "1" });
+    if (destino > 1) query.set("ppage", String(destino));
+    return `/admin/salidas-del-dia?${query.toString()}#programacion`;
+  };
+  const servicesPaginator = (
+    <div className="sd-paginacion">
+      <Paginador
+        page={servicesPage.page}
+        totalPages={servicesPage.totalPages}
+        total={servicesPage.total}
+        desde={servicesPage.desde}
+        hasta={servicesPage.hasta}
+        hrefPagina={listHref}
+        etiqueta="servicios del día"
+      />
+    </div>
+  );
+  const programmedPaginator = (
+    <div className="sd-paginacion">
+      <Paginador
+        page={programmedPageData.page}
+        totalPages={programmedPageData.totalPages}
+        total={programmedPageData.total}
+        desde={programmedPageData.desde}
+        hasta={programmedPageData.hasta}
+        hrefPagina={programmedHref}
+        etiqueta="programación"
+      />
+    </div>
+  );
   const vehicleOptions: Option[] = vehicles.map((vehicle) => ({
     id: vehicle.id,
     label: `${vehicle.name}${vehicle.internalNumber ? ` · Int. ${vehicle.internalNumber}` : ""} · ${seatsOf(vehicle)} lug.`
@@ -184,7 +244,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
   const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
-  const dayHref = (key: string) => `/admin/salidas-del-dia?date=${key}${onlyMissing ? "&falta=1" : ""}`;
+  const dayHref = (key: string) => `/admin/salidas-del-dia?date=${key}${falta ? `&falta=${falta}` : ""}`;
 
   const renderRow = (row: BoardRow) => (
     <li
@@ -209,9 +269,12 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
         </p>
         <h3><Link href={row.href}>{row.title}</Link></h3>
         {row.detail ? <p className="muted">{row.detail}</p> : null}
-        {row.area !== "RUTA" ? (
-          <p className="sd-links"><Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link></p>
-        ) : null}
+        <p className="sd-links">
+          <Link className="sd-gestionar" href={row.href}>Gestionar</Link>
+          {row.area !== "RUTA" ? (
+            <Link href={row.editHref}>{row.area === "CHAPELCO" ? "Ver el día" : "Editar"}</Link>
+          ) : null}
+        </p>
       </div>
 
       <div className="sd-pax">
@@ -250,7 +313,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
           <Link className="ghost-button" href={dayHref(shiftDateKey(dateKey, 1))} aria-label="Día siguiente">›</Link>
           <form className="sd-date" action="/admin/salidas-del-dia">
             <input type="date" name="date" defaultValue={dateKey} aria-label="Fecha" />
-            {onlyMissing ? <input type="hidden" name="falta" value="1" /> : null}
+            {falta ? <input type="hidden" name="falta" value={falta} /> : null}
             <button className="ghost-button" type="submit">Ver</button>
           </form>
         </nav>
@@ -263,17 +326,37 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
           <h2>{dayTitle(dateKey, today)}</h2>
           <p className="muted">Todos los servicios del día con su nave y su chofer: rutas, aeropuerto, Chapelco y viajes especiales, por la hora en que sale la unidad.</p>
         </div>
-        <dl className="sd-summary">
-          <div><dt>Servicios</dt><dd>{board.summary.services}</dd></div>
-          <div><dt>Pasajeros</dt><dd>{board.summary.passengers}</dd></div>
-          <div data-alerta={board.summary.missingVehicle > 0 || undefined}><dt>Sin nave</dt><dd>{board.summary.missingVehicle}</dd></div>
-          <div data-alerta={board.summary.missingDriver > 0 || undefined}><dt>Sin chofer</dt><dd>{board.summary.missingDriver}</dd></div>
-          <div data-alerta={board.summary.overbooked > 0 || undefined}><dt>Sobrecupo</dt><dd>{board.summary.overbooked}</dd></div>
-          {board.summary.programmed > 0 ? <div><dt>Programadas</dt><dd>{board.summary.programmed}</dd></div> : null}
-        </dl>
+        <div className="sd-summary">
+          <Link className="sd-stat" href={`/admin/salidas-del-dia?date=${dateKey}`} aria-label="Ver todos los servicios del día">
+            <span className="sd-stat-label">Servicios</span>
+            <strong className="sd-stat-value">{board.summary.services}</strong>
+          </Link>
+          <Link className="sd-stat" href={`/admin/reservas?date=${dateKey}&until=${dateKey}`} aria-label="Gestionar las reservas y pasajeros del día">
+            <span className="sd-stat-label">Pasajeros</span>
+            <strong className="sd-stat-value">{board.summary.passengers}</strong>
+          </Link>
+          <Link className="sd-stat" data-alerta={board.summary.missingVehicle > 0 || undefined} data-activo={falta === "nave" || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&falta=nave#salidas`} aria-label="Ver servicios sin nave">
+            <span className="sd-stat-label">Sin nave</span>
+            <strong className="sd-stat-value">{board.summary.missingVehicle}</strong>
+          </Link>
+          <Link className="sd-stat" data-alerta={board.summary.missingDriver > 0 || undefined} data-activo={falta === "chofer" || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&falta=chofer#salidas`} aria-label="Ver servicios sin chofer">
+            <span className="sd-stat-label">Sin chofer</span>
+            <strong className="sd-stat-value">{board.summary.missingDriver}</strong>
+          </Link>
+          <Link className="sd-stat" data-alerta={board.summary.overbooked > 0 || undefined} data-activo={falta === "sobrecupo" || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&falta=sobrecupo#salidas`} aria-label="Ver servicios con sobrecupo">
+            <span className="sd-stat-label">Sobrecupo</span>
+            <strong className="sd-stat-value">{board.summary.overbooked}</strong>
+          </Link>
+          {board.summary.programmed > 0 ? (
+            <Link className="sd-stat" data-activo={programmedOpen || undefined} href={`/admin/salidas-del-dia?date=${dateKey}&programadas=1#programacion`} aria-label="Ver la programación del día">
+              <span className="sd-stat-label">Programadas</span>
+              <strong className="sd-stat-value">{board.summary.programmed}</strong>
+            </Link>
+          ) : null}
+        </div>
         <div className="sd-filter">
-          <Link className={`pill${!onlyMissing ? " is-active" : ""}`} href={`/admin/salidas-del-dia?date=${dateKey}`}>Todos</Link>
-          <Link className={`pill${onlyMissing ? " is-active" : ""}`} href={`/admin/salidas-del-dia?date=${dateKey}&falta=1`}>Sólo lo que falta asignar</Link>
+          <Link className={`pill${!falta ? " is-active" : ""}`} href={`/admin/salidas-del-dia?date=${dateKey}`}>Todos</Link>
+          <Link className={`pill${falta ? " is-active" : ""}`} href={`/admin/salidas-del-dia?date=${dateKey}&falta=todo`}>Sólo lo que falta asignar</Link>
         </div>
       </section>
 
@@ -325,28 +408,28 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       </details>
 
       {rows.length === 0 ? (
-        <p className="plain-card sd-empty">
-          {onlyMissing && board.rows.length ? "Todo lo del día tiene nave y chofer." : "No hay servicios cargados para este día."}
-        </p>
-      ) : (
-        <ol className="sd-list">
-          {rows.length === 0 ? (
         <p className="plain-card sd-empty">{emptyMessage}</p>
       ) : (
-        <ol className="sd-list">{rows.map(renderRow)}</ol>
+        <>
+          <div id="salidas" className="sd-ancla" />
+          {servicesPage.totalPages > 1 ? servicesPaginator : null}
+          <ol className="sd-list">{servicesPage.items.map(renderRow)}</ol>
+          {servicesPage.totalPages > 1 ? servicesPaginator : null}
+        </>
       )}
 
-      {programmedRows.length && !onlyMissing ? (
-        <details className="plain-card sd-programmed">
+      {programmedRows.length > 0 && !falta ? (
+        <details className="plain-card sd-programmed" open={programmedOpen || programmedPageData.page > 1 ? true : undefined}>
+          <div id="programacion" className="sd-ancla" />
           <summary>
             <strong>Ver la programación del día ({programmedRows.length})</strong>
             <span className="muted">salidas programadas sin pasajeros: no son un servicio hasta que tengan reservas</span>
           </summary>
-          <ol className="sd-list sd-programmed-list">{programmedRows.map(renderRow)}</ol>
+          {programmedPageData.totalPages > 1 ? programmedPaginator : null}
+          <ol className="sd-list sd-programmed-list">{programmedPageData.items.map(renderRow)}</ol>
+          {programmedPageData.totalPages > 1 ? programmedPaginator : null}
         </details>
       ) : null}
-        </ol>
-      )}
 
       {driverOptions.length === 0 ? (
         <p className="muted sd-footnote">No hay choferes activos: se cargan en <Link href="/admin/choferes">Choferes</Link>.</p>
