@@ -11,6 +11,11 @@ export function CeldaPieDeLaOrden({ colSpan, children }: { colSpan: number; chil
   );
 }
 
+export function PagoDeLaOrden({ estado }: { estado: string }) {
+  if (!estado.startsWith("Pagado ")) return estado || <span className="orden-vacio">—</span>;
+  return <>Pagado<span className="no-print">{estado.slice("Pagado".length)}</span></>;
+}
+
 function alojamientoParaImprimir(lugar: string) {
   return lugar.split(" · ")
     .map((detalle) => detalle.split(",")
@@ -29,6 +34,7 @@ function alojamientoParaImprimir(lugar: string) {
  * un toque (pedido del cliente); el resto de las celdas es texto. El número se muestra igual que se cargó, sin normalizar a la vista.
  */
 export function CeldaDeLaOrden({ celda, columna }: { celda: string; columna: string }) {
+  if (columna === "Pago") return <PagoDeLaOrden estado={celda} />;
   if (columna === "Forma de pago") return <FormaDePagoOrden metodo={celda} />;
   if (!celda) return <span className="orden-vacio">—</span>;
   if (columna === "Alojamiento") {

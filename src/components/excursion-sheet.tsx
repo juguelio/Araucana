@@ -5,7 +5,7 @@ import {
   type ExcursionSheetBlock
 } from "@/lib/excursions/sheet";
 import { fechaDeLaOrden, plata } from "@/lib/airport/service-order";
-import { CeldaPieDeLaOrden } from "./service-order-cells";
+import { CeldaPieDeLaOrden, PagoDeLaOrden } from "./service-order-cells";
 import "./service-order-sheet.css";
 
 type ExcursionSheetProps = {
@@ -60,7 +60,9 @@ export function ExcursionSheet({ date, blocks, variante = "panel" }: ExcursionSh
                   <tr key={pasajero.code}>
                     {excursionSheetRow(pasajero).map((celda, indice) => (
                       <td key={`${pasajero.code}-${indice}`} data-columna={EXCURSION_SHEET_COLUMNS[indice]}>
-                        {celda || <span className="orden-vacio">—</span>}
+                        {EXCURSION_SHEET_COLUMNS[indice] === "Pago"
+                          ? <PagoDeLaOrden estado={celda} />
+                          : celda || <span className="orden-vacio">—</span>}
                       </td>
                     ))}
                     {conAcciones ? (
