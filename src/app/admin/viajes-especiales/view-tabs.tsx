@@ -1,23 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { specialTripsViewHref, type SpecialTripsView } from "./view";
+import { SelectorDeVista, vistasDeModulo } from "@/components/modulo/modulo";
+import { argentinaDateKey } from "@/lib/booking/admin-filters";
+import { specialTripsPath, specialTripsViewHref, type SpecialTripsView } from "./view";
 
-const tabs = { calendario: "Calendario semanal", listado: "Listado" } as const;
-
-export function SpecialTripsViewTabs({ active }: { active: SpecialTripsView | "dia" }) {
+/**
+ * Semana · Día · Listado: el selector común de los módulos de servicios (24-nov), en el mismo lugar
+ * que en Servicio público y Concesiones. La semana y el listado conservan los filtros.
+ */
+export function SpecialTripsViewTabs({ active, fecha }: { active: SpecialTripsView | "dia"; fecha?: string }) {
   const params = useSearchParams();
+  const get = (key: string) => params.get(key);
+  const semana = specialTripsViewHref("calendario", get);
+  const dia = `${specialTripsPath}/dia?fecha=${fecha ?? argentinaDateKey()}`;
   return (
-    <nav className="vesp-vistas" aria-label="Vistas de viajes especiales">
-      {active === "dia" ? <span className="dia-chip activo" aria-current="page">Día</span> : null}
-      {(Object.keys(tabs) as SpecialTripsView[]).map((view) => view === active ? (
-        <span key={view} className="dia-chip activo" aria-current="page">{tabs[view]}</span>
-      ) : (
-        <Link key={view} className="dia-chip" href={specialTripsViewHref(view, (key) => params.get(key))}>
-          {tabs[view]}
-        </Link>
-      ))}
-    </nav>
+    <SelectorDeVista
+      actual={active === "calendario" ? "semana" : active}
+      opciones={vistasDeModulo(semana, dia, specialTripsViewHref("listado", get))}
+    />
   );
 }

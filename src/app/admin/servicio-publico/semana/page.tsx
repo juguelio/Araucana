@@ -6,7 +6,8 @@ import { roleCanAccess } from "@/lib/auth/roles";
 import { WeeklyCalendar } from "@/components/weekly-calendar/weekly-calendar";
 import { calendarWeekStart } from "@/lib/admin/weekly-calendar";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
-import { lunesDe } from "@/lib/school-runs/week";
+import { lunesDe, sumarDias } from "@/lib/school-runs/week";
+import { ROTULO_DE_SERVICIOS, SelectorDeVista, vistasDeModulo } from "@/components/modulo/modulo";
 import { leerTerminalSemanal, loadPublicServiceWeek } from "./data";
 
 export const metadata = { title: "Servicio público · Semana · La Araucana" };
@@ -26,7 +27,7 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
   return (
     <AdminShell
       title="Servicio público"
-      eyebrow="Semana"
+      eyebrow={ROTULO_DE_SERVICIOS}
       role={user.role}
       action={
         <div className="form-actions">
@@ -36,6 +37,13 @@ export default async function ServicioPublicoSemanaPage({ searchParams }: {
       }
     >
       <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
+      <SelectorDeVista
+        actual="semana"
+        opciones={vistasDeModulo(
+          `/admin/servicio-publico/semana?${new URLSearchParams({ semana, ...(filtro ? { terminal: filtro } : {}) })}`,
+          `/admin/servicio-publico?${new URLSearchParams({ vista: "dia", fecha: semana <= hoy && hoy <= sumarDias(semana, 6) ? hoy : semana, ...(filtro ? { terminal: filtro } : {}) })}`
+        )}
+      />
 
       <WeeklyCalendar key={`${semana}:${filtro ?? ""}`} start={semana} today={hoy} initial={initial} dataUrl={dataUrl}
         label="Calendario de servicio público" singular="salida" plural="salidas" empty="Sin salidas" />

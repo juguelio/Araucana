@@ -33,22 +33,27 @@ it("abre la ficha desde el listado y la edición desde la ficha", async () => {
   expect(list).toContain('data-actual="true"');
   expect(list).toContain('href="/admin/escolares?fecha=2026-11-24#servicio-esc-7"');
   expect(list).toContain('id="servicio-esc-7"');
-  expect(list).toContain(">Volver al calendario</a>");
+  // El patrón común de los módulos: rótulo, Semana · Día y la barra del día de Aeropuerto.
+  expect(list).toContain('<p class="eyebrow">Servicios</p>');
+  expect(list).toContain('href="/admin/escolares/semana?semana=2026-11-23">Semana</a>');
+  expect(list).toContain(">‹ Anterior</a>");
+  expect(list).toContain(">Importar</a>");
   const detail = renderToStaticMarkup(await SchoolDetail({ params: Promise.resolve({ id: fixture.id }), searchParams: Promise.resolve({}) }));
   expect(detail).toContain('href="/admin/escolares/esc-7/editar"');
   expect(detail).toContain("Entrada norte");
   expect(detail).not.toContain("<textarea");
 });
 
-it("muestra la planilla semanal con los servicios del día", async () => {
+it("muestra la semana en el calendario común, con los servicios del día", async () => {
   const week = renderToStaticMarkup(await WeekPage({ searchParams: Promise.resolve({ semana: "2026-11-23" }) }));
   expect(week).toContain("Primaria Quila Quina");
-  expect(week).toContain("Semana anterior");
-  expect(week).toContain('href="/admin/escolares?fecha=2026-11-23"');
-  expect(week.match(/cn-semana-ver-dia/g)).toHaveLength(7);
+  expect(week).toContain('aria-label="Semana anterior"');
+  expect(week.match(/class="weekly-calendar-day"/g)).toHaveLength(7);
+  expect(week.match(/weekly-calendar-day-link/g)).toHaveLength(7);
   expect(week).toContain('href="/admin/escolares?fecha=2026-11-24"');
-  expect(week).toContain("fecha=2026-11-24&amp;tipo=escuela");
-  expect(week.match(/cn-semana-dia/g)).toHaveLength(7);
+  // La tarjeta abre el día con su tipo y en ese servicio.
+  expect(week).toContain("fecha=2026-11-24&amp;tipo=escuela#servicio-esc-7");
+  expect(week).toContain('<p class="eyebrow">Servicios</p>');
 });
 
 it("precarga la asignación importada y todos los campos operativos", async () => {

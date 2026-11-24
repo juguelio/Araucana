@@ -1,5 +1,6 @@
 "use client";
 
+import "@/components/modulo/modulo.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FleetConflictWarning } from "../fleet-assignment-form";
@@ -8,12 +9,16 @@ import { ocupacionDelViaje } from "@/lib/special-trips/rango";
 import "./naves-pendientes.css";
 
 type Option = { id: string; name: string };
-type Props = { id: string; version: string; client: string; start: string; end: string; label: string; tone: string; vehicles: Option[]; drivers: Option[] };
+type Props = {
+  id: string; version: string; client: string; start: string; end: string; label: string; tone: string; vehicles: Option[]; drivers: Option[];
+  /** El botón común de los módulos («Asignar nave y chofer»), en vez de la pastilla de estado del listado. */
+  boton?: boolean;
+};
 
 export function NavesPendientes(props: Props) {
   const [open, setOpen] = useState(false);
   return <>
-    <button type="button" className="pill pill-estado trip-assign-trigger" data-tono={props.tone}
+    <button type="button" className={props.boton ? "ghost-button modulo-asignar" : "pill pill-estado trip-assign-trigger"} data-tono={props.boton ? undefined : props.tone}
       aria-haspopup="dialog" title="Asignar naves y choferes" onClick={() => setOpen(true)}>{props.label}</button>
     {open && <AssignmentDialog {...props} close={() => setOpen(false)} />}
   </>;

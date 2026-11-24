@@ -68,3 +68,6 @@
 /* Viajes de varios días: el rango y, abajo, «En viaje · día 2 de 5» o la cantidad de días. */
 .vesp-tabla .vesp-rango { display: block; margin-top: 2px; color: var(--ink-muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .vesp-tabla td[data-hoy="true"] .vesp-rango { color: var(--accent); }
+
+/* Lo que falta en la fila del día (patrón común, 24-nov): en el color de alerta, sin botón al lado. */
+.vesp-falta-dato { color: var(--accent-deep); font-weight: 700; }

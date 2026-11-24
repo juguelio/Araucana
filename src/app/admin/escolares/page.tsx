@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { MenuFila } from "@/components/admin-list/menu-fila";
+import { BarraDelDia, ChipsDeFiltro, Cifras, ROTULO_DE_SERVICIOS, SelectorDeVista, textoDeAsignar, vistasDeModulo } from "@/components/modulo/modulo";
 import { ConcesionesNav } from "@/components/concesiones-nav";
-import { ConcesionesVistaNav } from "@/components/concesiones-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
@@ -142,7 +142,6 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
     !buscar || sinTildes([fila.run.routeName, fila.chofer, fila.nave, fila.run.companion, fila.run.shift].filter(Boolean).join(" ")).includes(sinTildes(buscar));
   const visibles = filas.filter((fila) => pasaFiltro(fila) && pasaBusqueda(fila));
   const choferesDelDia = new Set(filas.map((f) => f.run.driverId).filter(Boolean)).size;
-  const navesDelDia = new Set(filas.map((f) => f.run.vehicleId).filter(Boolean)).size;
 
   const grupos = porChofer
     ? [...visibles.reduce((mapa, fila) => {
@@ -179,33 +178,43 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
   const fechaUtc = (dia: string) => new Date(`${dia}T12:00:00Z`);
 
   return (
-    <AdminShell title="Concesiones" eyebrow="Servicios recurrentes" role={user.role} notice={params.aviso}
-      action={<div className="inline-actions"><Link className="ghost-button" href={`/admin/escolares/semana?semana=${semana[0]}${tipo ? `&tipo=${tipo}` : ""}`}>Volver al calendario</Link><Link className="ghost-button" href="/admin/escolares/importar">Importar planilla</Link><Link className="button" href={hrefNuevo(date)}>Nuevo servicio</Link></div>}>
+    <AdminShell title="Concesiones" eyebrow={ROTULO_DE_SERVICIOS} role={user.role} notice={params.aviso}
+      action={<div className="inline-actions"><Link className="ghost-button" href="/admin/escolares/importar">Importar</Link><Link className="button" href={hrefNuevo(date)}>Nuevo servicio</Link></div>}>
       <ConcesionesNav actual={tipo ?? "todos"} fecha={date} />
-      <ConcesionesVistaNav actual="dia" tipo={tipo} fecha={date} semana={lunesDe(date)} />
+      <SelectorDeVista actual="dia" opciones={vistasDeModulo(`/admin/escolares/semana?semana=${semana[0]}${tipo ? `&tipo=${tipo}` : ""}`, enlace({}))} />
       {tipo === "personal-aeropuerto" ? <p className="muted school-kind-help">Traslado diario de personal, por ejemplo al aeropuerto. No es el tablero de vuelos de pasajeros: eso sigue en Aeropuerto.</p> : null}
 
-      <nav className="cd-dia" aria-label="Día">
-        <Link className="cd-flecha" href={enlace({ fecha: sumarDias(date, -1) })} aria-label="Día anterior">‹</Link>
-        <div className="cd-dia-texto">
-          <strong>{diaLargo.format(fechaUtc(date))}</strong>
-          <span>{date === hoy ? "Hoy" : date === sumarDias(hoy, 1) ? "Mañana" : date === sumarDias(hoy, -1) ? "Ayer" : date.split("-").reverse().join("/")}</span>
-        </div>
-        <Link className="cd-flecha" href={enlace({ fecha: sumarDias(date, 1) })} aria-label="Día siguiente">›</Link>
-        {date !== hoy ? <Link className="ghost-button" href={enlace({ fecha: hoy })}>Hoy</Link> : null}
-        <form className="cd-ir" method="get" action="/admin/escolares">
-          {tipo ? <input type="hidden" name="tipo" value={tipo} /> : null}
-          <label className="sr-only" htmlFor="cd-fecha">Ir a otro día</label>
-          <input id="cd-fecha" type="date" name="fecha" defaultValue={date} required />
-          <button className="ghost-button" type="submit">Ir</button>
-        </form>
-      </nav>
+      <BarraDelDia
+        accion="/admin/escolares"
+        nombre="fecha"
+        fecha={date}
+        anterior={enlace({ fecha: sumarDias(date, -1) })}
+        siguiente={enlace({ fecha: sumarDias(date, 1) })}
+        ocultos={{ tipo, agrupar: porChofer ? "chofer" : null }}
+      >
+        <ChipsDeFiltro
+          etiqueta="Filtrar servicios"
+          actual={filtro}
+          filtros={FILTROS_DEL_DIA.map((cual) => ({ id: cual, etiqueta: NOMBRE_FILTRO[cual], cuenta: cuentas[cual], href: enlace({ filtro: cual === "todos" ? null : cual }) }))}
+        />
+      </BarraDelDia>
 
-      <div className="cd-semana-cabeza">
-        <strong>Semana del {etiquetaDeSemana(semana[0])}</strong>
-        <Link className="ghost-button" href={enlace({ fecha: sumarDias(date, -7) })}>‹ Semana anterior</Link>
-        <Link className="ghost-button" href={enlace({ fecha: sumarDias(date, 7) })}>Semana siguiente ›</Link>
-      </div>
+      {runs.length ? (
+        <Cifras
+          cifras={[
+            { rotulo: "Servicios", valor: filas.length },
+            { rotulo: "Choferes", valor: choferesDelDia },
+            { rotulo: "Sin nave o chofer", valor: cuentas.falta, alerta: cuentas.falta > 0, href: enlace({ filtro: "falta" }) },
+            { rotulo: "Choques", valor: cuentas.choque, alerta: cuentas.choque > 0, href: enlace({ filtro: "choque" }) },
+            { rotulo: "Para revisar", valor: cuentas.revisar, href: enlace({ filtro: "revisar" }) }
+          ]}
+        />
+      ) : null}
+      <p className="muted flights-note">
+        <strong>{diaLargo.format(fechaUtc(date)).replace(/^./, (letra) => letra.toUpperCase())}</strong>{date === hoy ? " · hoy" : ""} · el <strong>borde de color</strong> marca lo que falta resolver: rojo, sin nave o sin chofer, o un choque; amarillo, para revisar.
+      </p>
+
+      <h2 className="cd-semana-titulo">Semana del {etiquetaDeSemana(semana[0])}</h2>
       <CalendarioSemana
         dias={semana}
         hoy={hoy}
@@ -218,22 +227,7 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
         etiqueta={`Calendario de la semana del ${etiquetaDeSemana(semana[0])}`}
       />
 
-      <section className="cd-cifras" aria-label="Resumen del día">
-        <div className="cd-cifra"><strong>{filas.length}</strong><span>{filas.length === 1 ? "servicio" : "servicios"}</span></div>
-        <div className="cd-cifra"><strong>{choferesDelDia}</strong><span>{choferesDelDia === 1 ? "chofer" : "choferes"} · {navesDelDia} {navesDelDia === 1 ? "nave" : "naves"}</span></div>
-        <Link className="cd-cifra" href={enlace({ filtro: "falta" })} data-alerta={cuentas.falta ? "" : undefined}><strong>{cuentas.falta}</strong><span>sin nave o sin chofer</span></Link>
-        <Link className="cd-cifra" href={enlace({ filtro: "choque" })} data-alerta={cuentas.choque ? "" : undefined}><strong>{cuentas.choque}</strong><span>{cuentas.choque === 1 ? "choque" : "choques"} de horario</span></Link>
-        <Link className="cd-cifra" href={enlace({ filtro: "revisar" })} data-aviso={cuentas.revisar ? "" : undefined}><strong>{cuentas.revisar}</strong><span>para revisar</span></Link>
-      </section>
-
       <div className="cd-herramientas">
-        <nav className="cd-filtros" aria-label="Filtrar servicios">
-          {FILTROS_DEL_DIA.map((cual) => (
-            <Link key={cual} href={enlace({ filtro: cual === "todos" ? null : cual })} aria-current={cual === filtro ? "page" : undefined} className="cd-filtro" data-alerta={cual !== "todos" && cuentas[cual] ? cual : undefined}>
-              {NOMBRE_FILTRO[cual]} <span>{cuentas[cual]}</span>
-            </Link>
-          ))}
-        </nav>
         <form className="cd-buscar" method="get" action="/admin/escolares" role="search">
           <input type="hidden" name="fecha" value={date} />
           {tipo ? <input type="hidden" name="tipo" value={tipo} /> : null}
@@ -243,10 +237,14 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
           <input id="cd-q" type="search" name="q" defaultValue={buscar} placeholder="Recorrido, chofer, nave o acompañante" />
           <button className="ghost-button" type="submit">Buscar</button>
         </form>
-        <nav className="cd-agrupar" aria-label="Agrupar">
-          <Link href={enlace({ agrupar: null })} aria-current={!porChofer ? "page" : undefined}>Por horario</Link>
-          <Link href={enlace({ agrupar: "chofer" })} aria-current={porChofer ? "page" : undefined}>Por chofer</Link>
-        </nav>
+        <ChipsDeFiltro
+          etiqueta="Agrupar"
+          actual={porChofer ? "chofer" : "horario"}
+          filtros={[
+            { id: "horario", etiqueta: "Por horario", href: enlace({ agrupar: null }) },
+            { id: "chofer", etiqueta: "Por chofer", href: enlace({ agrupar: "chofer" }) }
+          ]}
+        />
       </div>
 
       {!runs.length ? (
@@ -307,8 +305,8 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
                           choferActual={run.driverId ?? ""}
                           ocupacionNaves={ocupacion.naves}
                           ocupacionChoferes={ocupacion.choferes}
-                          trigger={estado === "falta" ? "Asignar" : "Cambiar"}
-                          triggerClassName={estado === "falta" ? "button cd-asignar" : "ghost-button cd-asignar"}
+                          trigger={textoDeAsignar(Boolean(run.vehicleId && run.driverId))}
+                          triggerClassName="ghost-button modulo-asignar"
                         />
                         <MenuFila etiqueta={`Más opciones de ${run.routeName}`}>
                           <Link href={`/admin/escolares/${run.id}`}>Ver ficha</Link>

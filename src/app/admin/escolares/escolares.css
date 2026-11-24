@@ -87,35 +87,14 @@
 
 /* === Concesiones · el día (rediseño del 24-nov) ===
    Por horario o por chofer, con lo que falta resolver arriba. Mismo lenguaje que Naves y Choferes. */
-.cd-dia { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 12px; }
-.cd-flecha {
-  display: grid; place-items: center; width: 42px; height: 42px;
-  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface);
-  color: var(--ink); font-size: 22px; line-height: 1; text-decoration: none;
-}
-.cd-flecha:hover { border-color: var(--primary); color: var(--primary); }
-.cd-flecha:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cd-dia-texto { display: grid; min-width: 0; }
-.cd-dia-texto strong { font-family: var(--display); font-size: 24px; line-height: 1.1; }
-.cd-dia-texto strong::first-letter { text-transform: uppercase; }
-.cd-dia-texto span { color: var(--ink-muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.cd-ir { display: flex; gap: 6px; margin-left: auto; }
-.cd-ir input, .cd-buscar input {
-  min-height: 40px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 10px;
-  background: #fffaf1; color: var(--ink); font: inherit;
-}
-.cd-ir input:focus-visible, .cd-buscar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* El calendario semanal arriba del día (pedido de Jugue: «mantené el calendario semanal, como en
    viajes especiales»): las siete columnas de la vista Semana, más bajas, con el día que se mira marcado
    y cada servicio en un renglón. */
-.cd-semana-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
-.cd-semana-cabeza strong { margin-right: auto; font-size: 14px; }
 .cn-semana-compacta { margin-bottom: 16px; }
 .cn-semana-compacta .cn-semana-dia { min-height: 0; gap: 6px; padding: 8px; }
 .cn-semana-compacta .cn-semana-pie { flex-wrap: wrap; gap: 2px 8px; }
 .cn-semana-compacta .cn-semana-dia > p { font-size: 12px; }
-.cd-semana-cabeza .ghost-button { min-height: 34px; padding: 0 12px; font-size: 13px; }
 .cn-semana-compacta .cn-semana-lista { max-height: 168px; overflow-y: auto; gap: 3px; scrollbar-width: thin; }
 .cn-semana-dia[data-actual] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); box-shadow: inset 0 3px 0 var(--primary), 0 0 0 1px var(--primary); }
 .cn-semana-viendo { color: var(--primary); font-size: 11px; font-weight: 800; }
@@ -127,38 +106,11 @@
 .cn-semana-renglon b { font-variant-numeric: tabular-nums; }
 .cn-semana-servicio[data-falta] { border-left: 3px solid var(--accent); }
 
-.cd-cifras { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
-.cd-cifra {
-  display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px;
-  background: var(--surface); color: var(--ink); text-decoration: none;
-}
-a.cd-cifra:hover { border-color: var(--line-strong); }
-a.cd-cifra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cd-cifra strong { font-family: var(--display); font-size: 28px; line-height: 1; font-variant-numeric: tabular-nums; }
-.cd-cifra span { color: var(--ink-muted); font-size: 13px; font-weight: 700; }
-.cd-cifra[data-alerta] { border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
-.cd-cifra[data-alerta] strong { color: var(--accent-deep); }
-.cd-cifra[data-aviso] { border-color: #e3c58f; background: #fbf3e2; }
-.cd-cifra[data-aviso] strong { color: #7a4f0e; }
 
-.cd-herramientas { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
-.cd-filtros { display: flex; gap: 6px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.cd-filtros::-webkit-scrollbar { display: none; }
-.cd-filtro, .cd-agrupar a {
-  display: inline-flex; flex: 0 0 auto; align-items: center; gap: 7px; min-height: 38px; padding: 0 14px;
-  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
-  color: var(--ink-soft); font-size: 13px; font-weight: 700; text-decoration: none; white-space: nowrap;
-}
-.cd-filtro:hover, .cd-agrupar a:hover { border-color: var(--line-strong); color: var(--ink); }
-.cd-filtro:focus-visible, .cd-agrupar a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.cd-filtro span { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: rgba(24, 59, 50, .08); font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
-.cd-filtro[data-alerta="falta"] span, .cd-filtro[data-alerta="choque"] span { background: var(--accent); color: #fff; }
-.cd-filtro[data-alerta="revisar"] span { background: #e9c27a; color: #4d3208; }
-.cd-filtro[aria-current="page"], .cd-agrupar a[aria-current="page"] { border-color: var(--primary); background: var(--primary); color: #fff; }
-.cd-filtro[aria-current="page"] span { background: rgba(255, 255, 255, .22); color: #fff; }
+.cd-herramientas { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.cd-semana-titulo { margin: 0 0 8px; font-size: 14px; }
 .cd-buscar { display: flex; flex: 1 1 260px; gap: 6px; min-width: 0; }
 .cd-buscar input { flex: 1 1 auto; min-width: 0; font-size: 15px; }
-.cd-agrupar { display: inline-flex; gap: 4px; }
 
 .cd-grupos { display: grid; gap: 18px; }
 .cd-grupo-cabeza { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 10px; padding: 6px 2px; background: var(--bg); }
@@ -203,7 +155,6 @@ a.cd-cifra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
 .cd-estado { padding: 2px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-deep); font-size: 11px; font-weight: 800; white-space: nowrap; }
 .cd-estado[data-estado="falta"], .cd-estado[data-estado="choque"] { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); color: var(--accent-deep); }
 .cd-estado[data-estado="revisar"] { background: #f4e3c4; color: #7a4f0e; }
-.cd-asignar { min-height: 36px; padding: 0 14px; font-size: 13px; white-space: nowrap; }
 .cd-avisos { grid-area: avisos; display: grid; gap: 4px; margin: 0; padding: 8px 0 0; border-top: 1px dashed var(--line); list-style: none; font-size: 13px; }
 .cd-avisos li { color: var(--ink-soft); }
 .cd-avisos li[data-tono="choque"] b { color: var(--accent-deep); }
@@ -214,25 +165,17 @@ a.cd-cifra:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px
 .cd-vacio p { margin: 0; }
 
 @media (max-width: 960px) {
-  .cd-cifras { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .cd-servicio { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "que accion" "quien quien" "avisos avisos"; }
 }
 @media (max-width: 640px) {
-  .cd-dia-texto strong { font-size: 20px; }
-  .cd-ir { width: 100%; margin-left: 0; }
-  .cd-ir input { flex: 1 1 auto; min-width: 0; }
-  .cd-semana-cabeza strong { flex-basis: 100%; }
-  .cd-semana-cabeza .ghost-button { flex: 1 1 0; justify-content: center; }
   /* En el teléfono la semana se desliza de costado, con columnas más angostas. */
   .cn-semana-compacta .cn-semana-grid { grid-template-columns: repeat(7, 148px); min-width: 0; }
   .cn-semana-compacta .cn-semana-lista { max-height: 120px; }
-  .cd-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .cd-cifra:last-child { grid-column: 1 / -1; }
-  .cd-cifra { padding: 10px 12px; }
-  .cd-cifra strong { font-size: 24px; }
   .cd-buscar { flex-basis: 100%; }
   .cd-servicio { grid-template-areas: "que que" "quien quien" "accion accion" "avisos avisos"; padding: 12px; }
   .cd-servicio-accion { justify-content: space-between; }
-  .cd-servicio-accion .cd-asignar { flex: 1 1 auto; }
+  .cd-servicio-accion .modulo-asignar { flex: 1 1 auto; justify-content: center; }
   .cd-servicio-nombre { white-space: normal; }
 }
+/* «Por día · Por chofer» arriba del calendario, a la derecha (patrón común, 24-nov). */
+.cn-agrupar { justify-content: flex-end; margin: -4px 0 10px; }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
+import { BarraDelDia, ChipsDeFiltro, Cifras, ROTULO_DE_SERVICIOS, SelectorDeVista, textoDeAsignar, vistasDeModulo } from "@/components/modulo/modulo";
 import { ServicePublicNav } from "@/components/service-public-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
@@ -38,12 +39,6 @@ function esTerminal(valor?: string): valor is TerminalClave {
   return TERMINALES.some((terminal) => terminal.clave === valor);
 }
 
-function etiquetaDia(fecha: string, hoy: string) {
-  if (fecha === hoy) return "Hoy";
-  if (fecha === shiftDateKey(hoy, 1)) return "Mañana";
-  if (fecha === shiftDateKey(hoy, -1)) return "Ayer";
-  return "Fecha elegida";
-}
 
 /**
  * Servicio público: las salidas de las terminales de San Martín de los Andes, Villa Traful y Villa
@@ -116,47 +111,58 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   return (
     <AdminShell
       title="Servicio público"
-      eyebrow="Terminales"
+      eyebrow={ROTULO_DE_SERVICIOS}
       role={user.role}
       notice={params.ok ?? params.error}
       action={
         <div className="form-actions">
-          <Link className="ghost-button" href={`/admin/servicio-publico/semana?${new URLSearchParams({ semana: lunesDe(fecha), ...(filtro ? { terminal: filtro } : {}) }).toString()}`}>Volver a la semana</Link>
+          <Link className="ghost-button" href="/admin/salidas-del-dia">Salidas del día</Link>
           <Link className="button" href="/admin/reservas/nueva">Vender pasaje</Link>
         </div>
       }
     >
       <ServicePublicNav actual="boleteria" mostrarRutas={roleCanAccess(user.role, ["ADMIN"])} />
+      <SelectorDeVista
+        actual="dia"
+        opciones={vistasDeModulo(
+          `/admin/servicio-publico/semana?${new URLSearchParams({ semana: lunesDe(fecha), ...(filtro ? { terminal: filtro } : {}) })}`,
+          href({})
+        )}
+      />
+      <BarraDelDia
+        accion="/admin/servicio-publico"
+        nombre="fecha"
+        fecha={fecha}
+        anterior={href({ fecha: shiftDateKey(fecha, -1) })}
+        siguiente={href({ fecha: shiftDateKey(fecha, 1) })}
+        ocultos={{ vista: "dia", terminal: filtro }}
+      >
+        <ChipsDeFiltro
+          etiqueta="Terminal"
+          actual={filtro ?? "todas"}
+          filtros={[
+            { id: "todas", etiqueta: "Todas", href: href({ terminal: null }) },
+            ...TERMINALES.map((terminal) => ({ id: terminal.clave, etiqueta: terminal.corto, href: href({ terminal: terminal.clave }) }))
+          ]}
+        />
+      </BarraDelDia>
       <div className="sp-board">
-        <section className="plain-card sp-controles" aria-label="Fecha y terminal">
-          <div className="sp-fecha">
-            <Link className="ghost-button" href={href({ fecha: shiftDateKey(fecha, -1) })} aria-label="Día anterior">←</Link>
-            <div>
-              <p className="eyebrow">{etiquetaDia(fecha, hoy)}</p>
-              <strong>{diaFormatter.format(new Date(`${fecha}T12:00:00-03:00`))}</strong>
-            </div>
-            <Link className="ghost-button" href={href({ fecha: shiftDateKey(fecha, 1) })} aria-label="Día siguiente">→</Link>
-            {fecha !== hoy ? <Link className="sp-hoy" href={href({ fecha: hoy })}>Volver a hoy</Link> : null}
-          </div>
-
-          <form className="sp-buscar-fecha" action="/admin/servicio-publico" method="get">
-            <label htmlFor="fecha">Ir a una fecha</label>
-            <input id="fecha" name="fecha" type="date" defaultValue={fecha} />
-            <input type="hidden" name="vista" value="dia" />
-            {filtro ? <input type="hidden" name="terminal" value={filtro} /> : null}
-            <button className="ghost-button" type="submit">Ver</button>
-          </form>
-        </section>
 
         {fecha < hoy ? (
           <p className="sp-aviso">Día pasado: el tablero es sólo consulta y las ventas están cerradas.</p>
         ) : null}
 
-        <section className="sp-resumen" aria-label="Resumen del día">
-          <div><span>Salidas</span><strong>{resumen.salidas}</strong></div>
-          <div><span>Pasajeros anotados</span><strong>{resumen.pasajeros}</strong></div>
-          <div><span>Lugares libres</span><strong>{resumen.libres}</strong></div>
-        </section>
+        <Cifras
+          cifras={[
+            { rotulo: "Salidas", valor: resumen.salidas },
+            { rotulo: "Pasajeros anotados", valor: resumen.pasajeros },
+            { rotulo: "Lugares libres", valor: resumen.libres }
+          ]}
+        />
+        <p className="muted flights-note">
+          <strong>{diaFormatter.format(new Date(`${fecha}T12:00:00-03:00`)).replace(/^./, (letra) => letra.toUpperCase())}</strong>
+          {fecha === hoy ? " · hoy" : ""} · salidas de las terminales de San Martín de los Andes, Villa Traful y Villa La Angostura.
+        </p>
 
         <details className="plain-card sp-liquidacion" open={resumenMes.length === 0}>
           <summary>
@@ -254,8 +260,8 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                               ocupacionNaves={ocupacionEnVentana(ocupacionDelDia, "nave", { desde: salida.salidaAt, hasta: salida.llegadaAt }, [`salida:${salida.id}`])}
                               ocupacionChoferes={ocupacionEnVentana(ocupacionDelDia, "chofer", { desde: salida.salidaAt, hasta: salida.llegadaAt }, [`salida:${salida.id}`])}
                               lugaresQueFaltan={salida.ocupados || null}
-                              trigger={salida.driverId ? "Cambiar nave y chofer" : "Asignar nave y chofer"}
-                              triggerClassName="sp-asignar"
+                              trigger={textoDeAsignar(Boolean(salida.vehicleId && salida.driverId))}
+                              triggerClassName="ghost-button modulo-asignar sp-asignar"
                               returnTo={href({})}
                             />
                           </td>
