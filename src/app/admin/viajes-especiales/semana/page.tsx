@@ -7,12 +7,13 @@ import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { lunesDe } from "@/lib/school-runs/week";
 import { statuses } from "@/lib/special-trips/data";
+import { specialTripsPath as base } from "../view";
+import { SpecialTripsViewTabs } from "../view-tabs";
 import { TripCalendarDate } from "./trip-calendar-date";
 import { loadSpecialTripsWeek, readTripCalendarFilters } from "./data";
+import "../listado.css";
 
 export const metadata = { title: "Viajes especiales · Calendario semanal · La Araucana" };
-
-const base = "/admin/viajes-especiales";
 
 export default async function SpecialTripsWeekPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -35,9 +36,10 @@ export default async function SpecialTripsWeekPage({ searchParams }: {
   return (
     <AdminShell title="Viajes especiales" eyebrow="Calendario semanal" role={user.role}
       action={<div className="inline-actions">
-        <Link className="ghost-button" href={`${base}${suffix}`}>Ver listado</Link>
+        <Link className="ghost-button" href={`${base}/importar`}>Importar historial</Link>
         <Link className="button" href={`${base}/nuevo`}>Nuevo viaje</Link>
       </div>}>
+      <SpecialTripsViewTabs active="calendario" />
       <form action={`${base}/semana`} className="admin-form-grid plain-card admin-section">
         <TripCalendarDate start={start} />
         <label>Cliente, destino o contacto<input name="q" type="search" defaultValue={filters.q} placeholder="Buscar…" /></label>
