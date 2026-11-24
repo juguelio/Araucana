@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type AdminNavLink = { href: string; label: string; activeFor?: string[] };
+export type AdminNavLink = { href: string; label: string; activeFor?: string[]; externo?: boolean };
+export type AdminNavGrupo = { titulo: string | null; enlaces: AdminNavLink[] };
 
 /**
- * Enlaces del panel con la sección actual marcada (`aria-current="page"`). Es un componente cliente
- * porque además de `usePathname` necesita saber si la tira horizontal sigue más allá del borde
- * (en pantallas angostas el menú es una fila deslizable y sin barra visible). Los enlaces y los
- * roles los decide `AdminShell`.
+ * Enlaces del panel con la sección actual marcada (`aria-current="page"`), en grupos con su título
+ * (24-nov). Es un componente cliente porque además de `usePathname` necesita saber si la tira
+ * horizontal sigue más allá del borde: en pantallas angostas el menú es una fila deslizable y sin
+ * barra visible, y ahí los títulos no se ven (los grupos quedan separados por una línea). Los
+ * enlaces, los grupos y los roles los decide `AdminShell`.
  */
-export function AdminNav({ links }: { links: AdminNavLink[] }) {
+export function AdminNav({ grupos }: { grupos: AdminNavGrupo[] }) {
   const pathname = usePathname() ?? "";
   const actual = (link: AdminNavLink) => {
     const prefijos = link.activeFor?.length ? link.activeFor : [link.href];
@@ -63,11 +65,31 @@ export function AdminNav({ links }: { links: AdminNavLink[] }) {
   return (
     <div className="admin-nav-row" data-izquierda={bordes.izquierda} data-derecha={bordes.derecha}>
       <div className="admin-nav-scroller" ref={scroller}>
-        <nav aria-label="Administracion">
-          {links.map((link) => (
-            <Link href={link.href} key={link.href} aria-current={actual(link) ? "page" : undefined}>
-              {link.label}
-            </Link>
+        <nav aria-label="Administración">
+          {grupos.map((grupo, indice) => (
+            <div
+              className="admin-nav-grupo"
+              key={grupo.titulo ?? `grupo-${indice}`}
+              role="group"
+              aria-labelledby={grupo.titulo ? `admin-nav-${indice}` : undefined}
+              data-pie={grupo.enlaces.every((link) => link.externo) || undefined}
+            >
+              {grupo.titulo ? (
+                <span className="admin-nav-titulo" id={`admin-nav-${indice}`}>{grupo.titulo}</span>
+              ) : null}
+              {grupo.enlaces.map((link) =>
+                link.externo ? (
+                  <a href={link.href} key={link.href} target="_blank" rel="noopener" className="admin-nav-externo">
+                    {link.label} <span aria-hidden="true">↗</span>
+                    <span className="sr-only"> (se abre en otra pestaña)</span>
+                  </a>
+                ) : (
+                  <Link href={link.href} key={link.href} aria-current={actual(link) ? "page" : undefined}>
+                    {link.label}
+                  </Link>
+                )
+              )}
+            </div>
           ))}
         </nav>
       </div>
