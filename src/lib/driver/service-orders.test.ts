@@ -91,6 +91,7 @@ it("imprime la salida de ruta del chofer adicional con su nave y el horario incl
   vi.mocked(prisma.schedule.findMany).mockResolvedValue([schedule]);
   vi.mocked(getRouteSheetInput).mockResolvedValue({
     scheduleId: "s1", departureAt, arrivalAt: new Date("2026-11-24T16:30:00Z"), status: "OPEN",
+    driver: { name: "Chofer adicional", email: "adicional@example.com" },
     route: { from: "San Martín", to: "Villa Traful", via: "", stops: [] },
     vehicle: { name: "Combi principal + Combi adicional", licensePlate: null }, reservations: []
   });

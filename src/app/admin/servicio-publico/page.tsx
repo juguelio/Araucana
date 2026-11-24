@@ -274,6 +274,9 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                               ) : (
                                 <span className="sp-no-venta">{salida.estado === "CANCELLED" ? "Cancelada" : "Venta cerrada"}</span>
                               )}
+                              <Link className="ghost-button" href={`/admin/rutas/${salida.routeId}/salidas/${salida.id}/planilla`}>
+                                Hoja del chofer
+                              </Link>
                               <Link className="ghost-button" href={`/admin/rutas/${salida.routeId}/salidas`}>
                                 Ver ruta
                               </Link>

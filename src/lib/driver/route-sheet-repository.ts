@@ -15,6 +15,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
       departureAt: true,
       arrivalAt: true,
       status: true,
+      driver: { select: { name: true, email: true } },
       route: { select: { from: true, to: true, via: true, stops: true } },
       vehicle: { select: { name: true, licensePlate: true } },
       extraUnits: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { vehicle: { select: { name: true, licensePlate: true } } } },
@@ -52,6 +53,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
     departureAt: schedule.departureAt,
     arrivalAt: schedule.arrivalAt,
     status: schedule.status,
+    driver: schedule.driver,
     route: schedule.route,
     // Con varias naves, la planilla las nombra todas («Combi 243 (AB123CD) + Sprinter 196»).
     vehicle: schedule.extraUnits.length
