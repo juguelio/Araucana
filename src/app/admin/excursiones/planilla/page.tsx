@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import { CopiarLink } from "@/components/copiar-link";
 import { linkDeLaPlanilla } from "@/lib/airport/service-order-link";
 import { AdminShell } from "@/components/admin-shell";
+import { excursionPrintDocuments } from "@/components/service-print-documents";
+import { ServicePrintSelection } from "@/components/service-print-selection";
 import { ExcursionSheet } from "@/components/excursion-sheet";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { buildExcursionSheetBlocks } from "@/lib/excursions/sheet";
@@ -64,7 +66,10 @@ export default async function PlanillaDeExcursionesPage({
       }
     >
       <CopiarLink url={linkGuia} rotulo="Link para el guía" etiquetaBoton="Copiar link del guía" ayuda="La abre sin usuario y vence al día siguiente de la excursión. Mandásela por WhatsApp." />
-      <ExcursionSheet date={date} blocks={blocks} variante="panel" />
+      <ServicePrintSelection key={JSON.stringify([date, blocks.map((block) => block.key)])}
+        documents={excursionPrintDocuments(date, blocks)}>
+        <ExcursionSheet date={date} blocks={blocks} variante="panel" />
+      </ServicePrintSelection>
     </AdminShell>
   );
 }

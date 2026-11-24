@@ -6,28 +6,6 @@
 
 .driver-orders-controls form { align-items: end; }
 .driver-orders-controls label { display: grid; gap: 6px; }
-.driver-print-options { margin: 0 0 20px; padding: 14px; min-width: 0; }
-.driver-print-options legend { font-size: 15px; font-weight: 800; padding: 0 6px; }
-.driver-print-options > p { margin: 0 0 10px; font-size: 13px; }
-.driver-print-choices { list-style: none; padding: 0; margin: 0 0 12px; }
-.driver-print-choices > li {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  align-items: center;
-  border-bottom: 1px solid var(--line);
-  padding: 8px 0;
-}
-.driver-print-choice, .driver-print-sheet-choice { display: flex; align-items: center; gap: 8px; }
-.driver-print-choice input { flex: none; }
-.driver-print-choice small { display: block; margin-top: 2px; color: var(--ink-muted); }
-.driver-print-sheet-choice select { min-width: 58px; }
-.driver-print-actions { flex-wrap: wrap; }
-.driver-print-sheet-title { font-size: 14px; margin: 0 0 6px; }
-.driver-print-sheet + .driver-print-sheet { margin-top: 20px; }
-.driver-orders-document + .driver-orders-document { margin-top: 12px; }
-
 .orden-especial-datos {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
@@ -41,20 +19,6 @@
 .orden-especial-notas { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media print {
-  .driver-print-sheet + .driver-print-sheet { break-before: page; margin-top: 0; }
-  .driver-orders-document { break-inside: avoid; }
-  .driver-orders-document + .driver-orders-document { margin-top: 3mm; }
-
-  .driver-print-sheet[data-compact="true"] .orden-cabecera {
-    margin-bottom: 1mm;
-    padding-bottom: 1mm;
-  }
-  .driver-print-sheet[data-compact="true"] .driver-orders-document + .driver-orders-document
-  :is(.orden-marca, .orden-titulo, .orden-fecha) { display: none; }
-  .driver-print-sheet[data-compact="true"] .orden-pie { display: none; }
-  .driver-print-sheet[data-compact="true"] .orden-especial-datos { margin: 5px 0; gap: 5px 14px; }
-  .driver-print-sheet[data-compact="true"] .orden-especial-tramos { margin: 4px 0; }
-
   .orden-especial-datos { font-size: 12px; }
   .orden-especial-tramos { font-size: 12px; }
 }

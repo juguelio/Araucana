@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { ImprimirTodas } from "@/components/imprimir-todas";
+import { prepareServicePrint } from "./service-print-fit";
+import "./service-print-selection.css";
 
-type PrintDocument = {
+export type ServicePrintDocument = {
   id: string;
   title: string;
   detail: string;
@@ -12,13 +15,42 @@ type PrintDocument = {
 
 type Choice = { included: boolean; sheet: number };
 
-export function DriverPrintSelection({ documents }: { documents: PrintDocument[] }) {
+export function ServicePrintSelection({ documents, children, defaultGrouped = false }: {
+  documents: ServicePrintDocument[];
+  children?: ReactNode;
+  defaultGrouped?: boolean;
+}) {
+  const hasOriginal = children != null;
+  const [printConfigured, setPrintConfigured] = useState(false);
+  const printRoot = useRef<HTMLDivElement>(null);
+  const [fitSingles, setFitSingles] = useState(false);
+  useEffect(() => {
+    let reset: (() => void) | undefined;
+    const beforePrint = () => {
+      reset?.();
+      if (document.documentElement.hasAttribute("data-imprimir-una")) return;
+      if (hasOriginal) flushSync(() => setPrintConfigured(true));
+      if (printRoot.current) reset = prepareServicePrint(printRoot.current);
+    };
+    const afterPrint = () => {
+      reset?.();
+      reset = undefined;
+      if (hasOriginal) setPrintConfigured(false);
+    };
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint", afterPrint);
+      reset?.();
+    };
+  }, [hasOriginal]);
   const [choices, setChoices] = useState<Record<string, Choice>>(() =>
-    Object.fromEntries(documents.map(({ id }, index) => [id, { included: true, sheet: index + 1 }]))
+    Object.fromEntries(documents.map(({ id }, index) => [id, { included: true, sheet: defaultGrouped ? 1 : index + 1 }]))
   );
 
   const selected = documents.filter(({ id }) => choices[id].included);
-  const groups = new Map<number, PrintDocument[]>();
+  const groups = new Map<number, ServicePrintDocument[]>();
   for (const document of selected) {
     const { sheet } = choices[document.id];
     const group = groups.get(sheet) ?? [];
@@ -46,6 +78,8 @@ export function DriverPrintSelection({ documents }: { documents: PrintDocument[]
       );
     });
   }
+
+  if (!documents.length) return children ?? null;
 
   return (
     <>
@@ -75,6 +109,10 @@ export function DriverPrintSelection({ documents }: { documents: PrintDocument[]
           ))}
         </ul>
         <div className="inline-actions driver-print-actions">
+          <label className="driver-print-choice">
+            <input type="checkbox" checked={fitSingles} onChange={(event) => setFitSingles(event.target.checked)} />
+            {documents.length > 1 ? "Ajustar también las órdenes individuales a una hoja" : "Ajustar a una hoja"}
+          </label>
           {documents.length > 1 && (
             <>
               <button className="ghost-button" type="button" disabled={selected.length === documents.length} onClick={() => markAll(true)}>Marcar todas</button>
@@ -87,16 +125,20 @@ export function DriverPrintSelection({ documents }: { documents: PrintDocument[]
             : <button className="button" type="button" disabled>Imprimir</button>}
         </div>
       </fieldset>
-      {groups.size > 0 ? (
-        <div className="driver-orders-documents">
+      {hasOriginal && <div className={printConfigured ? "service-print-original no-print" : "service-print-original"}>{children}</div>}
+      {groups.size > 0 && (!hasOriginal || printConfigured) ? (
+        <div ref={printRoot} className={hasOriginal ? "service-print-output service-print-only" : "service-print-output"}>
           {[...groups.entries()].sort(([left], [right]) => left - right).map(([sheet, group]) => (
-            <section className="driver-print-sheet" data-compact={group.length > 1} key={sheet}>
+            <section className="driver-print-sheet" data-fit-page={group.length > 1 || fitSingles}
+              data-compact={group.length > 1} key={sheet}>
               {documents.length > 1 && <h2 className="driver-print-sheet-title no-print">Hoja {sheet}</h2>}
-              {group.map(({ id, content }) => <div className="driver-orders-document" key={id}>{content}</div>)}
+              <div className="service-print-content">
+                {group.map(({ id, content }) => <div className="driver-orders-document" key={id}>{content}</div>)}
+              </div>
             </section>
           ))}
         </div>
-      ) : <p className="plain-card admin-section no-print">Marcá al menos una orden para imprimir.</p>}
+      ) : groups.size === 0 && <p className="plain-card admin-section no-print">Marcá al menos una orden para imprimir.</p>}
     </>
   );
 }

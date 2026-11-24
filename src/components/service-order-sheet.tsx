@@ -51,6 +51,12 @@ export function CabeceraOrden({ fecha, alcance, soloPantalla, subtitulo = "Trasl
   );
 }
 
+export function groupAirportPair(blocks: readonly ServiceOrderBlock[]) {
+  const [primera, segunda] = blocks;
+  return blocks.length === 2 && Boolean(primera?.vehicle) &&
+    primera.vehicle?.vehicleId === segunda?.vehicle?.vehicleId && primera.direction !== segunda.direction;
+}
+
 /**
  * La orden de servicio como documento, compartida por la pantalla del panel y el link del chofer
  * (issue #118). Sale de los mismos `blocks` que arma el .xlsx: una sola fuente para pantalla, papel y
@@ -62,9 +68,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", mostrarRes
   const currency = blocks.find((bloque) => bloque.passengers.length)?.passengers[0]?.currency ?? "ARS";
   const conAcciones = variante === "panel";
   const fecha = fechaDeLaOrden(date);
-  const [primera, segunda] = blocks;
-  const mismaHoja = blocks.length === 2 && Boolean(primera?.vehicle) &&
-    primera.vehicle?.vehicleId === segunda?.vehicle?.vehicleId && primera.direction !== segunda.direction;
+  const mismaHoja = groupAirportPair(blocks);
 
   return (
     <article className="orden" data-impresion-in-out={mismaHoja ? true : undefined}>

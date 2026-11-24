@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
-import { idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
+import { groupAirportPair, idDeLaOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { OrdenAcciones } from "@/components/orden-acciones";
 import { RecorridoEditable } from "@/components/recorrido-editable";
 import { ServiceOrderMap } from "@/components/service-order-map";
@@ -18,7 +18,8 @@ import {
 } from "@/lib/airport/service-order";
 import { linkDeLaOrden } from "@/lib/airport/service-order-link";
 import { claveDeOrden, ordenesDeLaHoja, vuelosDeLaHoja } from "@/lib/airport/flight-selection";
-import { ImprimirTodas } from "@/components/imprimir-todas";
+import { airportPrintDocuments } from "@/components/service-print-documents";
+import { ServicePrintSelection } from "@/components/service-print-selection";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { CombiDelVueloModal, INCLUDE_COMBIS_DEL_VUELO, nombreDeChofer, opcionesDeCombi, vueloDeLaRecorrida } from "../../combi-modal";
@@ -33,7 +34,7 @@ export const metadata = {
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 type VerOrdenPageProps = {
-  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; notice?: string; imprimir?: string }>;
+  searchParams?: Promise<{ date?: string; flight?: string; flights?: string; ordenes?: string; vehicle?: string; notice?: string }>;
 };
 
 /** Hoy en San Martín de los Andes, como `YYYY-MM-DD` (mismo criterio que la descarga del .xlsx). */
@@ -73,7 +74,6 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     : flightIdsPedidos.length
       ? todas.filter((block) => block.flightIds.some((id) => flightIdsPedidos.includes(id)))
       : todas;
-  const variasPedidas = flightIdsPedidos.length > 1 || ordenesPedidas.length > 1;
   const cabeceras = await headers();
   const host = cabeceras.get("x-forwarded-host") ?? cabeceras.get("host") ?? "localhost:3000";
   const protocolo =
@@ -180,27 +180,26 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       notice={params?.notice}
       action={
         <div className="form-actions no-print">
-          {/* Con varios vuelos marcados puede salir una sola orden (si la misma camioneta los hace juntos). */}
-          {blocks.length > 1 || variasPedidas ? (
-            <ImprimirTodas cantidad={blocks.length} alAbrir={variasPedidas && params?.imprimir === "1" && !params?.notice} />
-          ) : null}
           <Link className="ghost-button" href={`/admin/aeropuerto?date=${encodeURIComponent(date)}`}>Volver a aeropuerto</Link>
         </div>
       }
     >
       <p className="orden-ayuda no-print">
-        Cada orden se imprime, se descarga y se manda al chofer por separado. Arrastrá las filas (o usá las flechas)
+        Seleccioná las órdenes para imprimir. Arrastrá las filas (o usá las flechas)
         para ordenar la recorrida; si el vuelo sale con más de una nave, pasá pasajeros de una a otra arrastrándolos o
         con «Nave». Los cambios se guardan solos.
       </p>
-      <ServiceOrderSheet
-        date={date}
-        blocks={blocks}
-        variante="panel"
-        accionesDeOrden={acciones}
-        filasDeOrden={filas}
-        pieDeOrden={mapa}
-      />
+      <ServicePrintSelection key={JSON.stringify([date, blocks.map(({ key }) => key)])}
+        documents={airportPrintDocuments(date, blocks)} defaultGrouped={groupAirportPair(blocks)}>
+        <ServiceOrderSheet
+          date={date}
+          blocks={blocks}
+          variante="panel"
+          accionesDeOrden={acciones}
+          filasDeOrden={filas}
+          pieDeOrden={mapa}
+        />
+      </ServicePrintSelection>
     </AdminShell>
   );
 }

@@ -101,7 +101,7 @@ test.beforeEach(async ({ page }) => {
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
 });
 
-test("«Hoja del chofer» abre un modal para elegir los vuelos y abre sus órdenes juntas e imprime", async ({ page, context }) => {
+test("«Hoja del chofer» abre las órdenes elegidas y permite decidir cómo imprimirlas", async ({ page, context }) => {
   await page.goto(`/admin/aeropuerto?date=${day}`);
   const [, , c] = vuelos.map((vuelo) => page.locator(`#vuelo-${vuelo.id}`));
   // Ya no hay casilla «Juntar» en las tarjetas.
@@ -130,9 +130,11 @@ test("«Hoja del chofer» abre un modal para elegir los vuelos y abre sus órden
   await expect(hoja.locator("section.orden-bloque").nth(0)).toContainText(vuelos[0].number);
   await expect(hoja.locator("section.orden-bloque").nth(1)).toContainText(vuelos[2].number);
   await expect(hoja.locator("section.orden-bloque")).not.toContainText([vuelos[1].number]);
-  // El diálogo de impresión se abre solo, una vez.
+  const imprimir = hoja.getByRole("button", { name: "Imprimir las 2 órdenes" });
+  await expect(imprimir).toBeVisible();
+  expect(await hoja.evaluate(() => (window as unknown as { impresiones: number }).impresiones)).toBe(0);
+  await imprimir.click();
   await expect.poll(() => hoja.evaluate(() => (window as unknown as { impresiones: number }).impresiones)).toBe(1);
-  await expect(hoja.getByRole("button", { name: "Imprimir las 2 órdenes" })).toBeVisible();
 
   // En papel (A4 apaisado) cada orden lleva su propia cabecera en una sola hoja.
   await hoja.emulateMedia({ media: "print" });
@@ -143,6 +145,12 @@ test("«Hoja del chofer» abre un modal para elegir los vuelos y abre sus órden
   const pdf = await hoja.pdf({ preferCSSPageSize: true, printBackground: true });
   const paginas = (pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
   expect(paginas).toBe(2);
+
+  await hoja.emulateMedia({ media: "screen" });
+  await hoja.getByRole("button", { name: "Juntar seleccionadas" }).click();
+  await hoja.emulateMedia({ media: "print" });
+  const pdfJuntas = await hoja.pdf({ preferCSSPageSize: true, printBackground: true });
+  expect((pdfJuntas.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length).toBe(1);
 
   await hoja.emulateMedia({ media: "screen" });
   await hoja.locator("section.orden-bloque").nth(1).getByRole("button", { name: "Imprimir", exact: true }).click();

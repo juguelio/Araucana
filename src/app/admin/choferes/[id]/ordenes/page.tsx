@@ -9,7 +9,7 @@ import { prisma } from "@/lib/db/prisma";
 import { listDriverServiceOrders } from "@/lib/driver/service-orders";
 import { localDateKey } from "@/lib/operations/day-board";
 import { argentina, dateOnly, legSchema, localDateTime, pointsForLeg, tripContactLabel } from "@/lib/special-trips/data";
-import { DriverPrintSelection } from "./print-selection";
+import { ServicePrintSelection } from "@/components/service-print-selection";
 import "./ordenes.css";
 
 export const metadata = {
@@ -129,7 +129,7 @@ export default async function DriverOrdersPage({ params, searchParams }: {
           </form>
         </div>
         {documents.length ? (
-          <DriverPrintSelection key={JSON.stringify([driver.id, date, documents.map(({ id }) => id)])} documents={documents} />
+          <ServicePrintSelection key={JSON.stringify([driver.id, date, documents.map(({ id }) => id)])} documents={documents} />
         ) : <p className="plain-card admin-section">No hay servicios asignados a este chofer en la fecha elegida.</p>}
       </div>
     </AdminShell>
