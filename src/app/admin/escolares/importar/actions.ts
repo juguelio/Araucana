@@ -121,8 +121,9 @@ export async function importarPlanilla(form: FormData) {
     redirect("/admin/escolares/importar?aviso=" + encodeURIComponent("La planilla no tiene recorridos de Concesiones para importar."));
   }
 
-  const [drivers, existentes] = await Promise.all([
+  const [drivers, vehicles, existentes] = await Promise.all([
     prisma.user.findMany({ where: { role: "DRIVER", isActive: true }, select: { id: true, name: true, email: true } }),
+    prisma.vehicle.findMany({ where: { isActive: true }, select: { id: true, name: true, internalNumber: true } }),
     prisma.schoolRun.findMany({
       where: { serviceDate: { gte: new Date(Math.min(...entradas.map((e) => +e.serviceDate))), lte: new Date(Math.max(...entradas.map((e) => +e.serviceDate))) } },
       select: { serviceDate: true, routeName: true, shift: true, driverId: true, companion: true, source: true }
@@ -144,6 +145,21 @@ export async function importarPlanilla(form: FormData) {
     if (ids.size === 1) porNombre.set(clave, [...ids][0]);
   }
   const nombrePorId = new Map(drivers.map((driver) => [driver.id, driver.name ?? ""] as const));
+  // La columna F de la planilla es el número interno o el nombre de la nave, no un monto.
+  const navesPorClave = new Map<string, Set<string>>();
+  for (const vehicle of vehicles) {
+    for (const clave of [vehicle.name, vehicle.internalNumber].filter(Boolean)) {
+      const normalizada = normalizarNombre(clave!);
+      if (!normalizada) continue;
+      const ids = navesPorClave.get(normalizada) ?? new Set<string>();
+      ids.add(vehicle.id);
+      navesPorClave.set(normalizada, ids);
+    }
+  }
+  const navePorNombre = new Map<string, string>();
+  for (const [clave, ids] of navesPorClave) {
+    if (ids.size === 1) navePorNombre.set(clave, [...ids][0]);
+  }
   // Las filas viejas guardan `driver`/`companion` y el turno normalizado; las nuevas, `driver1`/`driver2`.
   // La clave tolera las dos formas para que reimportar la planilla no vuelva a crear lo que ya está (#407).
   const existentesPorClave = new Set(existentes.flatMap((run) => clavesDeServicioGuardado(run, {
@@ -152,6 +168,7 @@ export async function importarPlanilla(form: FormData) {
   })));
   const nuevas = entradas.flatMap((entrada) => {
     const driverId = porNombre.get(normalizarNombre(entrada.driver1)) ?? null;
+    const vehicleId = entrada.vehicle ? navePorNombre.get(normalizarNombre(entrada.vehicle)) ?? null : null;
     const claves = clavesDeServicio({
       serviceDate: entrada.serviceDate,
       routeName: entrada.routeName,
@@ -164,6 +181,7 @@ export async function importarPlanilla(form: FormData) {
     const revisar = [
       entrada.driver1 && !driverId ? `Chofer de planilla: ${entrada.driver1}` : "",
       entrada.driver2 ? `Segunda persona: ${entrada.driver2}` : "",
+      entrada.vehicle && !vehicleId ? `Nave de planilla: ${entrada.vehicle}` : "",
       entrada.status
     ].filter(Boolean).join(" · ");
     return [{
@@ -173,7 +191,7 @@ export async function importarPlanilla(form: FormData) {
       routeName: entrada.routeName,
       shift: entrada.shift,
       driverId,
-      vehicleId: null,
+      vehicleId,
       companion: entrada.driver2 || null,
       notes: `Importado de ${entrada.sheet}, fila ${entrada.row}.`,
       review: revisar || null,
