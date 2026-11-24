@@ -43,6 +43,9 @@ it("muestra un viaje que empezó la semana anterior y asigna las naves a sus dí
   }]);
   const all = await loadSpecialTripsWeek("2026-11-30", { q: "", status: "", vehicleId: "" });
   expect(all.days[0].cards[0]).toMatchObject({ kicker: "Día 2 de 3 · 00:00", details: ["Aeropuerto · Villa Traful", "Combi", "6 pasajeros"] });
+  expect(all.days[0].href).toBe("/admin/viajes-especiales/dia?fecha=2026-11-30");
+  expect(all.days[0].cards[0].href).toBe("/admin/viajes-especiales/dia?fecha=2026-11-30");
+  expect(all.days[6].href).toBe("/admin/viajes-especiales/dia?fecha=2026-12-06");
   expect(all.days[1].cards[0]).toMatchObject({ kicker: "Día 3 de 3", details: ["Aeropuerto · Villa Traful", "Sin nave asignada", "6 pasajeros"] });
   expect(all.days[2].cards).toEqual([]);
 

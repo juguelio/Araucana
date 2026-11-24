@@ -34,6 +34,8 @@ it("muestra la planilla semanal con los servicios del día", async () => {
   expect(week).toContain("Primaria Quila Quina");
   expect(week).toContain("Semana anterior");
   expect(week).toContain('href="/admin/escolares?fecha=2026-11-23"');
+  expect(week.match(/cn-semana-ver-dia/g)).toHaveLength(7);
+  expect(week).toContain('href="/admin/escolares?fecha=2026-11-24"');
   expect(week.match(/cn-semana-dia/g)).toHaveLength(7);
 });
 

@@ -22,8 +22,8 @@ export function ConcesionesVistaNav({ actual, tipo, fecha, semana }: Concesiones
   const planilla = conParametros("/admin/escolares/semana", tipo, "semana", semana);
   return (
     <nav className="cn-vista-nav" aria-label="Vista de Concesiones">
-      <Link href={dia} aria-current={actual === "dia" ? "page" : undefined}>Día</Link>
       <Link href={planilla} aria-current={actual === "semana" ? "page" : undefined}>Semana</Link>
+      <Link href={dia} aria-current={actual === "dia" ? "page" : undefined}>Día</Link>
     </nav>
   );
 }
