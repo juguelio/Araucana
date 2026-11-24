@@ -57,10 +57,10 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
   const pendingCount = users.filter((user) => !user.isActive && user.role === "USER").length;
   const activeCount = users.filter((user) => user.isActive).length;
 
-  const basePath = managedUsersBasePath(sessionUser.role);
   const verSueldo = canSeeSalary(sessionUser.role);
   const puedeBorrar = canDeleteManagedUser(sessionUser.role);
   const esChoferes = access === "drivers";
+  const basePath = esChoferes ? "/admin/choferes" : managedUsersBasePath(sessionUser.role);
   // La documentación (DNI, licencia y antecedentes) se ve en el listado de choferes.
   const verDocumentacion = esChoferes || role === "DRIVER";
   const hoy = todayInArgentina();
@@ -169,13 +169,20 @@ export async function ManagedUsersPage({ role, notice, query = "", access = "adm
               <td><span className={`status-pill ${user.isActive ? "active" : "inactive"}`}>{user.isActive ? "Activo" : user.role === "USER" ? "Pendiente" : "Inactivo"}</span></td>
               <td>
                 <div className="table-actions">
-                  <Link className="ghost-button" href={`${basePath}/${user.id}`}>Editar</Link>
-                  <form action={setManagedUserActiveAction}>
-                    <input type="hidden" name="id" value={user.id} />
-                    <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
-                    <button className="ghost-button" type="submit">{user.isActive ? "Desactivar" : "Activar"}</button>
-                  </form>
-                  {puedeBorrar && (
+                  {esChoferes && (
+                    <Link className="ghost-button" href={`/admin/choferes/${user.id}/ordenes?imprimir=1`} prefetch={false}>
+                      Imprimir hoja de hoy
+                    </Link>
+                  )}
+                  <Link className="ghost-button" href={`${user.role === "DRIVER" ? "/admin/choferes" : basePath}/${user.id}`}>Editar</Link>
+                  {user.role !== "DRIVER" && (
+                    <form action={setManagedUserActiveAction}>
+                      <input type="hidden" name="id" value={user.id} />
+                      <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
+                      <button className="ghost-button" type="submit">{user.isActive ? "Desactivar" : "Activar"}</button>
+                    </form>
+                  )}
+                  {puedeBorrar && user.role !== "DRIVER" && (
                     <form action={deleteManagedUserAction}>
                       <input type="hidden" name="id" value={user.id} />
                       <button className="danger-button" type="submit">Eliminar</button>

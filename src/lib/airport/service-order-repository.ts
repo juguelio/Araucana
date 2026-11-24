@@ -23,7 +23,8 @@ export async function vuelosDelGrupo(flightId: string): Promise<string[]> {
 
 export async function getAirportServiceOrderReservations(
   date: string,
-  flightId?: string | null
+  flightId?: string | null,
+  { soloVuelosOperativos = false } = {}
 ): Promise<ServiceOrderReservationInput[]> {
   const { desde, hasta } = rangoDelDia(date);
   const flightIds = flightId ? await vuelosDelGrupo(flightId) : null;
@@ -33,7 +34,11 @@ export async function getAirportServiceOrderReservations(
       bookingMode: "AIRPORT",
       status: { not: "CANCELLED" },
       airportDetails: {
-        is: { serviceDate: { gte: desde, lt: hasta }, ...(flightIds ? { flightId: { in: flightIds } } : {}) }
+        is: {
+          serviceDate: { gte: desde, lt: hasta },
+          ...(flightIds ? { flightId: { in: flightIds } } : {}),
+          ...(soloVuelosOperativos ? { flight: { is: { status: { notIn: ["CANCELLED", "DIVERTED"] } } } } : {})
+        }
       }
     },
     orderBy: [{ createdAt: "asc" }],

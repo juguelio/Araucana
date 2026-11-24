@@ -20,6 +20,7 @@ type ServiceOrderSheetProps = {
   blocks: ServiceOrderBlock[];
   /** `panel` agrega la columna «Acción» con el link a la ficha; `chofer` es de sólo lectura. */
   variante?: "panel" | "chofer";
+  mostrarResumen?: boolean;
   /** Botones de cada orden (imprimir, Excel, link): sólo el panel. */
   accionesDeOrden?: (block: ServiceOrderBlock) => ReactNode;
   /** Reemplaza las filas de una orden, para la recorrida editable del panel. Devuelve un `<tbody>`, o nada para usar las filas de sólo lectura. */
@@ -31,13 +32,15 @@ type ServiceOrderSheetProps = {
 /** `id` HTML de una orden: lo usa el botón de imprimir para dejar sólo esa en el papel. */
 export const idDeLaOrden = (block: ServiceOrderBlock) => `orden-${block.key.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
 
-function CabeceraOrden({ fecha, alcance, soloPantalla }: { fecha: string; alcance?: string; soloPantalla?: boolean }) {
+export function CabeceraOrden({ fecha, alcance, soloPantalla, subtitulo = "Traslados Aeropuerto Chapelco" }: {
+  fecha: string; alcance?: string; soloPantalla?: boolean; subtitulo?: string;
+}) {
   return (
     <header className={soloPantalla ? "orden-cabecera no-print" : "orden-cabecera"}>
       <div>
         <p className="orden-marca">La Araucana viajes S.R.L.</p>
         <h1 className="orden-titulo">ORDEN DE SERVICIO</h1>
-        <p className="orden-subtitulo">Traslados Aeropuerto Chapelco</p>
+        <p className="orden-subtitulo">{subtitulo}</p>
       </div>
       <div className="orden-fecha">
         <span>Fecha</span>
@@ -53,7 +56,7 @@ function CabeceraOrden({ fecha, alcance, soloPantalla }: { fecha: string; alcanc
  * (issue #118). Sale de los mismos `blocks` que arma el .xlsx: una sola fuente para pantalla, papel y
  * Excel. Cada bloque es una orden: un vuelo, o una nave del vuelo cuando sale con más de una.
  */
-export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDeOrden, filasDeOrden, pieDeOrden }: ServiceOrderSheetProps) {
+export function ServiceOrderSheet({ date, blocks, variante = "panel", mostrarResumen = true, accionesDeOrden, filasDeOrden, pieDeOrden }: ServiceOrderSheetProps) {
   const totalDelDia = blocks.reduce((suma, bloque) => suma + bloque.totalCents, 0);
   const totalPasajeros = blocks.reduce((suma, bloque) => suma + lugaresDeLaOrden(bloque), 0);
   const currency = blocks.find((bloque) => bloque.passengers.length)?.passengers[0]?.currency ?? "ARS";
@@ -140,7 +143,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
         })
       )}
 
-      {blocks.length > 0 ? (
+      {mostrarResumen && blocks.length > 0 ? (
         <footer className="orden-total no-print">
           <span>
             {totalPasajeros} pasajero(s) · {blocks.length} {blocks.length === 1 ? "orden" : "órdenes"}
@@ -149,7 +152,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
         </footer>
       ) : null}
 
-      <p className="orden-pie no-print">
+      {mostrarResumen ? <p className="orden-pie no-print">
         «Derivado por» es el origen que se cargó en la reserva (agencia o voucher); si la venta fue directa, va vacío.
         Cobrar / Pagado es el estado del pago. La forma de pago se puede cargar desde la orden o marcar a mano
         en los casilleros al imprimir. Elegirla no confirma el cobro. Las filas están en el orden de la recorrida: el que se acomodó a mano en
@@ -158,7 +161,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", accionesDe
         el orden por cercanía al aeropuerto, invertido. Al final van los pasajeros que no tienen el punto marcado en
         el mapa. Si el vuelo sale con más de una nave, hay una orden por nave. El
         botón verde «W» al lado del contacto abre el WhatsApp.
-      </p>
+      </p> : null}
     </article>
   );
 }

@@ -1,0 +1,31 @@
+.driver-orders-controls {
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.driver-orders-controls form { align-items: end; }
+.driver-orders-controls label { display: grid; gap: 6px; }
+.driver-orders-document + .driver-orders-document { margin-top: 16px; }
+
+.orden-especial-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
+  gap: 12px 20px;
+}
+
+.orden-especial-datos dt { color: var(--orden-gris); font-size: 12px; }
+.orden-especial-datos dd { margin: 2px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+.orden-especial-tramos { padding-inline-start: 24px; overflow-wrap: anywhere; }
+.orden-especial-tramos > li + li { margin-top: 8px; }
+.orden-especial-notas { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+@media print {
+  .driver-orders-document + .driver-orders-document {
+    break-before: page;
+    margin-top: 0;
+  }
+
+  .orden-especial-datos { font-size: 12px; }
+  .orden-especial-tramos { font-size: 12px; }
+}

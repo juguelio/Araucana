@@ -1,12 +1,14 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
-import { canManageManagedUser, canSeeSalary, forcedManagedRole, managedUsersBasePath } from "@/lib/admin/driver-access";
+import { canDeleteManagedUser, canManageManagedUser, canSeeSalary, forcedManagedRole, managedUsersBasePath } from "@/lib/admin/driver-access";
 import { getCurrentAdminOrRedirect, getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { toPublicRole } from "@/lib/auth/roles";
 import { isSuperAdmin } from "@/lib/auth/super-admin";
 import { prisma } from "@/lib/db/prisma";
 import { EXPIRY_LABELS, dayKey, expiryDaysLabel, expiryStatus, formatExpiryDay, todayInArgentina } from "@/lib/admin/driver-documents";
-import { createManagedUserAction, updateManagedUserAction } from "./actions";
+import { createManagedUserAction, deleteManagedUserAction, setManagedUserActiveAction, updateManagedUserAction } from "./actions";
+import { ConfirmVehicleButton } from "../naves/[id]/confirm-vehicle-button";
 import { ManagedUserForm } from "./user-form";
 import "./users.css";
 
@@ -43,7 +45,7 @@ export async function CreateManagedUserPage({ fixedRole }: { fixedRole?: "DRIVER
  * Edición de una cuenta. `driversOnly` es la ficha que abre la secretaría: sólo cuentas de chofer y
  * sin poder cambiar el rol.
  */
-export async function EditManagedUserPage({ id, driversOnly = false }: { id: string; driversOnly?: boolean }) {
+export async function EditManagedUserPage({ id, driversOnly = false, notice }: { id: string; driversOnly?: boolean; notice?: string }) {
   const actor = driversOnly ? await getCurrentDriverManagerOrRedirect() : await getCurrentAdminOrRedirect();
   const user = await prisma.user.findUnique({
     where: { id },
@@ -52,13 +54,14 @@ export async function EditManagedUserPage({ id, driversOnly = false }: { id: str
       driverProfile: { select: { documentNumber: true, cuil: true, licenseCategory: true, licenseScope: true, licenseExpiresAt: true, criminalRecordExpiresAt: true } }
     }
   });
-  if (!user) notFound();
+  if (!user || (driversOnly && user.role !== "DRIVER")) notFound();
   if (!canManageManagedUser(actor.role, user.role)) notFound();
 
   const fixedRole = driversOnly && forcedManagedRole(actor.role) === "DRIVER" ? ("DRIVER" as const) : undefined;
 
   return (
-    <AdminShell role={actor.role} title={fixedRole ? "Editar chofer" : "Editar cuenta"}>
+    <AdminShell role={actor.role} title={driversOnly ? "Editar chofer" : "Editar cuenta"} notice={notice}
+      action={driversOnly ? <Link className="ghost-button" href={`/admin/choferes/${user.id}/actividad`}>Ver actividad</Link> : undefined}>
       <section className="plain-card admin-section">
         <h2>{user.name ?? user.email}</h2>
         {user.role === "DRIVER" && !user.driverProfile ? (
@@ -84,9 +87,32 @@ export async function EditManagedUserPage({ id, driversOnly = false }: { id: str
           canAssignSuperAdmin={isSuperAdmin(actor)}
           fixedRole={fixedRole}
           showSalary={canSeeSalary(actor.role)}
-          backHref={managedUsersBasePath(actor.role)}
+          driverEdit={driversOnly}
+          backHref={driversOnly ? "/admin/choferes" : managedUsersBasePath(actor.role)}
         />
       </section>
+      {driversOnly && (
+        <section className="plain-card admin-section">
+          <h2>Acceso a la cuenta</h2>
+          <div className="inline-actions">
+            <span className={`status-pill ${user.isActive ? "active" : "inactive"}`}>{user.isActive ? "Activo" : "Inactivo"}</span>
+            <form action={setManagedUserActiveAction}>
+              <input type="hidden" name="driverEdit" value="1" />
+              <input type="hidden" name="id" value={user.id} />
+              <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
+              <button className="ghost-button" type="submit">{user.isActive ? "Desactivar" : "Activar"}</button>
+            </form>
+            {canDeleteManagedUser(actor.role) && (
+              <form action={deleteManagedUserAction}>
+                <input type="hidden" name="driverEdit" value="1" />
+                <input type="hidden" name="id" value={user.id} />
+                <ConfirmVehicleButton className="danger-button" label="Eliminar chofer"
+                  pregunta={`¿Eliminar la cuenta de ${user.name ?? user.email}? No se puede deshacer.`} />
+              </form>
+            )}
+          </div>
+        </section>
+      )}
     </AdminShell>
   );
 }
