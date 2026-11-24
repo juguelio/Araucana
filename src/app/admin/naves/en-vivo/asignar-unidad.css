@@ -1,18 +1,29 @@
 .asignar-unidad-modal {
-  width: min(880px, 100%);
+  width: min(960px, 100%);
   max-height: calc(100vh - 32px);
   overflow-y: auto;
 }
 
 .asignar-unidad-modal .reservas-modal-body {
-  margin-top: 16px;
+  margin-top: 10px;
   display: grid;
-  gap: 16px;
+  gap: 10px;
 }
 
 .asignar-unidad-columnas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 12px;
   align-items: start;
 }
+
+/* Más compacto que el modal de aeropuerto: entrar más opciones sin scrollear. */
+.asignar-unidad-modal .nave-buscador { gap: 6px; }
+.asignar-unidad-modal .nave-buscador-campo { gap: 4px; font-size: 12px; }
+.asignar-unidad-modal .nave-buscador-campo input { min-height: 38px; padding: 0 10px; }
+.asignar-unidad-modal .nave-buscador-lista { gap: 4px; max-height: 360px; }
+.asignar-unidad-modal .reservas-modal-form label.nave-buscador-opcion { display: flex; align-items: center; padding: 6px 8px; gap: 8px; border-radius: 8px; }
+.asignar-unidad-modal .nave-buscador-opcion > span { gap: 0; }
+.asignar-unidad-modal .nave-buscador-opcion strong { font-size: 14px; line-height: 1.2; }
+.asignar-unidad-modal .nave-buscador-opcion small { font-size: 11px; line-height: 1.2; }
+.asignar-unidad-modal .reservas-modal-body > .button { justify-self: start; }

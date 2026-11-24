@@ -104,11 +104,6 @@ export function AsignarUnidad({
           <ChoferBuscador choferes={choferes} flightNumber={titulo} defaultId={defaultDriverId} />
         </div>
 
-        <p className="muted">
-          Se guarda en el servicio, no en la ficha de la nave: el tablero del día y la hoja del chofer lo ven al
-          instante. Si la unidad ya está tomada a esa hora, te lo dice antes de guardar.
-        </p>
-
         <button className="button" type="submit">
           Asignar nave
         </button>
