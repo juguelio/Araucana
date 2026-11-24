@@ -48,6 +48,9 @@
 .cn-semana-servicio span { color: var(--ink-muted); font-size: 11px; }
 .cn-semana-servicio .pill { justify-self: start; font-size: 10px; }
 .cn-semana-agregar { color: var(--primary); font-size: 11px; font-weight: 800; text-decoration: none; }
+.cn-semana-pie { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 2px; }
+.cn-semana-pie-top { margin-top: 0; padding-top: 0; }
+.cn-semana-ver-dia { color: var(--primary); font-size: 11px; font-weight: 800; text-decoration: none; }
 .cn-semana-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .cn-semana-nav strong { font-size: 14px; }
 @media (max-width: 1100px) {

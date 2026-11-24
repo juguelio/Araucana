@@ -66,6 +66,8 @@ export default async function WeekPage({ searchParams }: {
   };
   const hrefNuevo = (fecha: string) =>
     `/admin/escolares/nuevo?fecha=${fecha}${tipo ? `&tipo=${tipo}` : ""}`;
+  const hrefDia = (fecha: string) =>
+    `/admin/escolares?fecha=${fecha}${tipo ? `&tipo=${tipo}` : ""}`;
 
   return (
     <AdminShell title="Concesiones" eyebrow="Semana" role={user.role} notice={params.aviso}
@@ -105,7 +107,7 @@ export default async function WeekPage({ searchParams }: {
                     {dias.map((dia) => (
                       <td key={dia} data-hoy={dia === hoy || undefined}>
                         {(chofer.dias.get(dia) ?? []).map((run) => (
-                          <Link key={run.id} className="cn-chofer-servicio" href={`/admin/escolares/${run.id}`}>
+                          <Link key={run.id} className="cn-chofer-servicio" href={hrefDia(dia)}>
                             <strong>{run.routeName}</strong>
                             <span>{run.shift} · {run.vehicle?.name ?? "Sin nave"}</span>
                           </Link>
@@ -132,10 +134,14 @@ export default async function WeekPage({ searchParams }: {
                     <strong>{fecha.getUTCDate()}</strong>
                     <small>{mesCorto.format(fecha)}</small>
                   </header>
+                  <div className="cn-semana-pie cn-semana-pie-top">
+                    <Link className="cn-semana-ver-dia" href={hrefDia(dia)}>Ver el día →</Link>
+                    <Link className="cn-semana-agregar" href={hrefNuevo(dia)}>+ Agregar</Link>
+                  </div>
                   <p className="muted">{delDia.length ? `${delDia.length} ${delDia.length === 1 ? "servicio" : "servicios"}` : "Sin servicios"}</p>
                   <div className="cn-semana-lista">
                     {delDia.map((run) => (
-                      <Link key={run.id} className="cn-semana-servicio" href={`/admin/escolares/${run.id}`} title={diaLargo.format(fecha)}>
+                      <Link key={run.id} className="cn-semana-servicio" href={hrefDia(dia)} title={diaLargo.format(fecha)}>
                         <strong>{run.routeName}</strong>
                         <span>{run.shift}{run.companion ? ` · ${run.companion}` : ""}</span>
                         <span className="pill">{etiquetaDeConcesion(run.kind)}</span>
@@ -143,7 +149,6 @@ export default async function WeekPage({ searchParams }: {
                       </Link>
                     ))}
                   </div>
-                  <Link className="cn-semana-agregar" href={hrefNuevo(dia)}>+ Agregar</Link>
                 </article>
               );
             })}

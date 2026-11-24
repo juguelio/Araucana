@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
 import { ConcesionesNav } from "@/components/concesiones-nav";
 import { ConcesionesVistaNav } from "@/components/concesiones-vista-nav";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
-import { dateOnly, localInput } from "@/lib/special-trips/data";
+import { dateOnly } from "@/lib/special-trips/data";
 import { etiquetaDeConcesion, leerTipoDeConcesion } from "@/lib/school-runs/kinds";
 import { lunesDe } from "@/lib/school-runs/week";
 import "./escolares.css";
@@ -13,12 +14,14 @@ export default async function SchoolsPage({ searchParams }: { searchParams: Prom
   const user = await getCurrentReservationsUserOrRedirect();
   const params = await searchParams;
   const tipo = leerTipoDeConcesion(params.tipo);
-  const today = dateOnly(localInput(new Date()).slice(0, 10))!;
-  const requested = dateOnly(params.fecha ?? "");
-  const next = requested ? null : await prisma.schoolRun.findFirst({
-    where: { serviceDate: { gte: today }, ...(tipo ? { kind: tipo } : {}) }, orderBy: { serviceDate: "asc" }, select: { serviceDate: true }
-  });
-  const day = requested ?? next?.serviceDate ?? today;
+  if (!params.fecha) {
+    const query = new URLSearchParams();
+    if (tipo) query.set("tipo", tipo);
+    if (params.aviso) query.set("aviso", params.aviso);
+    redirect(`/admin/escolares/semana${query.size ? `?${query}` : ""}`);
+  }
+  const day = dateOnly(params.fecha);
+  if (!day) redirect(`/admin/escolares/semana${tipo ? `?tipo=${tipo}` : ""}`);
   const date = day.toISOString().slice(0, 10);
   const [runs, days] = await Promise.all([
     prisma.schoolRun.findMany({ where: { serviceDate: day, ...(tipo ? { kind: tipo } : {}) }, orderBy: [{ routeName: "asc" }, { id: "asc" }],

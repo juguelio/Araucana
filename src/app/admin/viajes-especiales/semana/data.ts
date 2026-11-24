@@ -4,6 +4,7 @@ import { dateOnly, statuses } from "@/lib/special-trips/data";
 import { dayInterval } from "@/lib/special-trips/conflicts";
 import { diaDelViaje, whereSolapa } from "@/lib/special-trips/rango";
 import { diasDeSemana, sumarDias } from "@/lib/school-runs/week";
+import { specialTripsPath as base } from "../view";
 
 export function readTripCalendarFilters(get: (key: string) => unknown) {
   const text = (key: string) => {
@@ -48,12 +49,19 @@ export async function loadSpecialTripsWeek(start: string, { q, status, vehicleId
       }
     }
   });
+  const query = new URLSearchParams();
+  if (q) query.set("q", q);
+  if (status) query.set("estado", status);
+  if (vehicleId) query.set("nave", vehicleId);
+  const suffix = query.size ? `&${query}` : "";
+  const hrefDia = (date: string) => `${base}/dia?fecha=${date}${suffix}`;
   return {
     days: diasDeSemana(start).map((date) => {
       const day = dateOnly(date)!;
       const { startsAt, endsAt } = dayInterval(date);
       return {
         date,
+        href: hrefDia(date),
         cards: trips.flatMap((trip) => {
           const dayOfTrip = diaDelViaje(trip, day);
           if (!dayOfTrip) return [];
@@ -63,7 +71,7 @@ export async function loadSpecialTripsWeek(start: string, { q, status, vehicleId
           const hora = first && first.startsAt >= startsAt ? time.format(first.startsAt) : "";
           const progreso = dayOfTrip.total > 1 ? `Día ${dayOfTrip.numero} de ${dayOfTrip.total}` : "";
           return [{
-            id: trip.id, href: `/admin/viajes-especiales/${trip.id}`, title: trip.client,
+            id: trip.id, href: hrefDia(date), title: trip.client,
             kicker: [progreso, hora].filter(Boolean).join(" · "),
             details: [
               trip.destinationSearch.trim().replace(/\s*\n\s*/g, " · "),
