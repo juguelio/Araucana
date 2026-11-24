@@ -176,6 +176,8 @@ export type ReservationDetailDto = {
     pickupNotes?: string | null;
   } | null;
   airportDetails?: {
+    isPrivate?: boolean;
+    privateStops?: import("@/lib/airport/private-transfer").PrivateStop[];
     halfFareCount?: number;
     sportsLuggageCount?: number;
     sportsLuggageUnitCents?: number;

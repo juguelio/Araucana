@@ -51,10 +51,11 @@ type ReservationEditFormProps = {
   };
   /** Pasar a otra salida, vuelo o fecha. `undefined` en una reserva cancelada (primero se restituye). */
   service?: ServiceMove;
+  privateAirport?: boolean;
   transfer?: { address: string; point: PickupPoint | null; notes: string; name: string; airport: boolean; direction?: string; coverage: AirportCoverage };
 };
 
-export function ReservationEditForm({ action, code, passenger, transfer, financial, referredBy: initialReferredBy, counts, service }: ReservationEditFormProps) {
+export function ReservationEditForm({ action, code, passenger, privateAirport, transfer, financial, referredBy: initialReferredBy, counts, service }: ReservationEditFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [move, setMove] = useState<ServiceMoveDraft>(null);
   const [serviceIncomplete, setServiceIncomplete] = useState(false);
@@ -162,7 +163,7 @@ export function ReservationEditForm({ action, code, passenger, transfer, financi
   const needsAcknowledgement = Boolean(counts?.paymentApproved && totalChanged && !priceChanged);
   const hasChanges = changedPassenger.length > 0 || addressChanged || notesChanged || pickupNameChanged || referredByChanged
     || countChanged || minorsChanged || luggageChanged || boardingChanged || dropoffChanged || moved || priceChanged || methodChanged || referenceChanged;
-  const savePickup = canSavePickup(addressChanged, pickup, { airport: Boolean(transfer?.airport), outside });
+  const savePickup = canSavePickup(addressChanged, pickup, { airport: Boolean(privateAirport || transfer?.airport), outside });
   const priceInputError = priceChanged && !reservationPriceCents.safeParse(parseReservationPrice(total)).success
     ? reservationPriceError : undefined;
   const canSave = hasChanges && countsValid && !serviceIncomplete && !priceInputError && (!needsAcknowledgement || acknowledged) && savePickup;

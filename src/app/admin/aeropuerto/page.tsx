@@ -35,7 +35,20 @@ type PageProps = { searchParams?: Promise<{ notice?: string; date?: string; solo
 /** Lo que necesita la tarjeta del vuelo: eventos, pasajeros y combis asignadas. */
 const INCLUDE_VUELO = {
   events: { orderBy: { detectedAt: "desc" }, take: 1 },
-  ...INCLUDE_COMBIS_DEL_VUELO
+  ...INCLUDE_COMBIS_DEL_VUELO,
+  reservations: {
+    include: {
+      reservation: {
+        select: {
+          passengerCount: true,
+          status: true,
+          code: true,
+          shortCode: true,
+          passenger: { select: { firstName: true, lastName: true } }
+        }
+      }
+    }
+  }
 } satisfies Prisma.FlightInclude;
 
 type VueloDelDia = Prisma.FlightGetPayload<{ include: typeof INCLUDE_VUELO }>;
@@ -109,7 +122,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
       acc.pasajeros += ocupados;
       if (v.direction === "ARRIVAL") acc.arribos += 1;
       else acc.partidas += 1;
-      if (ocupados > 0 && v.assignments.length === 0) acc.sinCombi += 1;
+      const pendientes = v.reservations.some(r => r.reservation.status !== "CANCELLED" && (r.isPrivate
+        ? !v.assignments.some(a => a.privateReservationId === r.reservationId)
+        : !v.assignments.some(a => !a.privateReservationId)));
+      if (pendientes) acc.sinCombi += 1;
       return acc;
     },
     { arribos: 0, partidas: 0, pasajeros: 0, sinCombi: 0 }
@@ -171,8 +187,10 @@ export default async function AirportPage({ searchParams }: PageProps) {
     const evidenceWarning = flightEvidenceWarning(v, ahora);
     const alerta = needsAttention(snapshot);
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
-    const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
-    const faltanCombis = ocupados > capacidad;
+    const privadas = v.reservations.filter(r => r.isPrivate && r.reservation.status !== "CANCELLED");
+    const comunes = ocupados - privadas.reduce((total, r) => total + r.reservation.passengerCount, 0);
+    const capacidad = capacidadDeVuelo(v.assignments.filter(a => !a.privateReservationId).map((a) => ({ seats: a.vehicle.seats.length })));
+    const faltanCombis = comunes > capacidad;
     const estima = snapshot.estimatedAt && hhmm(snapshot.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(snapshot.estimatedAt) : null;
     const extra = flightSourceLabel(v.source);
     // Sin confirmación de la fuente: el vuelo ya pasó su hora y nadie dijo que aterrizó o salió.
@@ -205,11 +223,17 @@ export default async function AirportPage({ searchParams }: PageProps) {
             {sinConfirmar ? "Pasó · sin confirmar" : evidenceWarning ? "A verificar" : v.source === "ESTIMADO" ? "Sin confirmar" : v.source === "MANUAL" && v.status === "SCHEDULED" ? "Sin estado en vivo" : statusDetail(snapshot)}
           </span>
           <span className="flight-pax">
-            <strong>{ocupados}</strong>
-            <span className="muted">/{capacidad} lugares</span>
+            <strong>{comunes}</strong>
+            <span className="muted">/{capacidad} lugares{privadas.length ? " compartidos" : ""}</span>
           </span>
         </div>
 
+        {privadas.map(r => {
+          const nave = v.assignments.find(a => a.privateReservationId === r.reservationId)?.vehicle.name;
+          return <Link key={r.id} className="table-link" href={`/admin/reservas/${r.reservation.code}`}>
+            Privada · {r.reservation.passenger.lastName} · {r.reservation.passengerCount} pax · {nave ?? "Asignar nave"}
+          </Link>;
+        })}
         {evidenceWarning ? <p className="error" role="status">{evidenceWarning}</p> : null}
         {/* Antes, según qué botones tenía el vuelo, «Gestionar vuelo» quedaba en un renglón aparte y
             las tarjetas de una misma columna salían de distinto alto. Ahora todas tienen la misma forma:

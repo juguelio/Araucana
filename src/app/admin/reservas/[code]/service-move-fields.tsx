@@ -18,6 +18,7 @@ type VueloDelDia = {
   airline: string | null;
   scheduledAt: string;
   available: number;
+  privateBookable?: boolean;
   bookable: boolean;
   reason: string | null;
 };
@@ -95,7 +96,7 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
 
   const dateError = !date ? "Elegí el día del vuelo." : loadError;
   const flightError = error || (!loading && !dateError && date !== service.currentDate && !flightId
-    ? flights.some((flight) => flight.bookable) ? "Elegí un vuelo para cambiar la reserva a ese día."
+    ? flights.some((flight) => service.isPrivate ? flight.privateBookable : flight.bookable) ? "Elegí un vuelo para cambiar la reserva a ese día."
       : "No hay vuelos disponibles para ese día. Elegí otra fecha."
     : undefined);
   const elegir = (id: string, nextDate = date) => {
@@ -130,10 +131,11 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
           <option value="">{loading ? "Buscando vuelos…" : flights.length ? "Elegí un vuelo" : "No hay vuelos ese día"}</option>
           {flights.map((vuelo) => {
             const actual = vuelo.id === service.currentFlightId;
+            const disponible = service.isPrivate ? vuelo.privateBookable : vuelo.bookable;
             return (
-              <option key={vuelo.id} value={vuelo.id} disabled={!actual && !vuelo.bookable}>
+              <option key={vuelo.id} value={vuelo.id} disabled={!actual && !disponible}>
                 {vuelo.direction === "ARRIVAL" ? "Arribo" : "Salida"} {vuelo.number}{vuelo.airline ? ` (${vuelo.airline})` : ""} · {hora.format(new Date(vuelo.scheduledAt))}
-                {actual ? " (actual)" : vuelo.bookable ? ` · ${vuelo.available} libres` : ` · ${vuelo.reason ?? "no disponible"}`}
+                {actual ? " (actual)" : disponible ? (service.isPrivate ? "" : ` · ${vuelo.available} libres`) : ` · ${vuelo.reason ?? "no disponible"}`}
               </option>
             );
           })}
@@ -141,7 +143,7 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
         <FieldError id="reservation-move-error" message={flightError} />
       </label>
       <p className="reservation-edit-wide muted">
-        Si el vuelo nuevo es del otro sentido, la reserva pasa a la tarifa de ese sentido. La nave y el lugar en la recorrida se vuelven a armar en la orden de servicio.
+        {"Si el vuelo nuevo es del otro sentido, " + (service.isPrivate ? "se conserva el precio privado." : "la reserva pasa a la tarifa de ese sentido.")} La nave y el lugar en la recorrida se vuelven a armar en la orden de servicio.
       </p>
     </>
   );

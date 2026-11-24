@@ -122,3 +122,12 @@ describe("el email en el aeropuerto es opcional (#239)", () => {
     expect(createReservationSchema.safeParse({ ...salida, passenger: reserva.passenger }).success).toBe(true);
   });
 });
+
+it("valida las paradas y el precio privado sólo en administración", () => {
+  const privateTransfer = { stops: [{ destination: "Villa Traful", passengers: 5 }], totalCents: 400000 };
+  const input = { ...reserva, passengerCount: 5, privateTransfer };
+  expect(adminAirportReservationSchema.parse(input).privateTransfer).toEqual(privateTransfer);
+  expect(airportReservationSchema.parse(input)).not.toHaveProperty("privateTransfer");
+  expect(adminAirportReservationSchema.safeParse({ ...input, passengerCount: 4 }).success).toBe(false);
+  expect(adminAirportReservationSchema.safeParse({ ...input, privateTransfer: { stops: privateTransfer.stops } }).success).toBe(false);
+});

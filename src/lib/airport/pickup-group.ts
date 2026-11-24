@@ -15,9 +15,11 @@ import type { Prisma } from "@prisma/client";
  *   las naves de toda la vuelta: dos vuelos llenos con una trafic cada uno dan una orden por trafic, con
  *   gente de los dos vuelos.
  */
+export class PrivateVehicleGroupConflict extends Error {}
+
 export async function reagruparVuelos(tx: Prisma.TransactionClient, flightIds: string[], juntar: boolean) {
   const ids = [...new Set(flightIds)];
-  const actuales = await tx.flight.findMany({ where: { id: { in: ids } }, select: { id: true, pickupGroupId: true } });
+  const actuales = await tx.flight.findMany({ where: { id: { in: ids } }, select: { id: true, pickupGroupId: true, assignments: { select: { vehicleId: true, privateReservationId: true } } } });
   const gruposViejos = [...new Set(actuales.flatMap((vuelo) => (vuelo.pickupGroupId ? [vuelo.pickupGroupId] : [])))];
   const miembrosViejos = gruposViejos.length
     ? await tx.flight.findMany({ where: { pickupGroupId: { in: gruposViejos } }, select: { id: true } })
@@ -29,6 +31,14 @@ export async function reagruparVuelos(tx: Prisma.TransactionClient, flightIds: s
     miembrosViejos.length === ids.length;
   if (mismoGrupo) return { cambio: false, grupo: gruposViejos[0] };
   if (!unir && gruposViejos.length === 0) return { cambio: false, grupo: null };
+
+  if (unir) {
+    const assignments = actuales.flatMap(flight => flight.assignments);
+    const exclusivas = assignments.filter(a => a.privateReservationId);
+    if (exclusivas.some(privateRun => assignments.some(other => other !== privateRun && other.vehicleId === privateRun.vehicleId))) {
+      throw new PrivateVehicleGroupConflict("Una nave privada también está asignada a otro vuelo de esta recorrida. Cambiá la asignación antes de juntar los vuelos.");
+    }
+  }
 
   const grupo = unir ? randomUUID() : null;
   await tx.flight.updateMany({ where: { id: { in: ids } }, data: { pickupGroupId: grupo } });
@@ -65,7 +75,7 @@ export async function vuelosDeLaRecorrida(
   const grupo = await tx.flight.findMany({
     where: { pickupGroupId: flight.pickupGroupId },
     orderBy: { scheduledAt: "asc" },
-    select: { id: true, number: true, scheduledAt: true }
+    select: { id: true, number: true, scheduledAt: true, estimatedAt: true, direction: true, pickupStartOverrideAt: true, pickupGroupId: true }
   });
   return grupo.length > 1 ? grupo : solo;
 }

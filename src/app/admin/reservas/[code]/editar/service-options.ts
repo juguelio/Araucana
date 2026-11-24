@@ -22,6 +22,7 @@ export type ServiceMove =
   | {
       mode: "AIRPORT";
       routeSlug: string;
+      isPrivate?: boolean;
       currentFlightId: string | null;
       currentLabel: string;
       currentDate: string;
@@ -96,6 +97,7 @@ export async function serviceMoveFor(reservation: ReservationDto): Promise<Servi
     return {
       mode: "AIRPORT",
       routeSlug: reservation.route.slug,
+      isPrivate: detalles.isPrivate,
       currentFlightId: detalles.flightId ?? null,
       currentLabel: `${detalles.direction === "ARRIVAL" ? "Arribo" : "Salida"} ${detalles.flightNumber} · ${fechaHora.format(horario)}`,
       currentDate: diaArgentina.format(horario),

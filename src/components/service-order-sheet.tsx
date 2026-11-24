@@ -109,7 +109,7 @@ export function ServiceOrderSheet({ date, blocks, variante = "panel", mostrarRes
               {filasPropias ?? (
                 <tbody>
                   {block.passengers.map((pasajero, parada) => (
-                    <tr key={pasajero.code}>
+                    <tr key={`${pasajero.code}-${parada}`}>
                       {serviceOrderRow(pasajero).map((celda, indice) => (
                         <td key={`${pasajero.code}-${indice}`} data-columna={SERVICE_ORDER_COLUMNS[indice]}>
                           {indice === 0 ? <span className="orden-parada-numero">{parada + 1}.</span> : null}

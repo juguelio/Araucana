@@ -99,7 +99,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Las naves de cada vuelo, para pasar un pasajero de una a otra desde cualquier orden del vuelo.
   const navesPorVuelo = new Map<string, Array<{ assignmentId: string; name: string }>>();
   for (const block of blocks) {
-    if (!block.flightId || !block.vehicle || block.vehicleCount < 2) continue;
+    if (block.privateOrderId || !block.flightId || !block.vehicle || block.vehicleCount < 2) continue;
     const naves = navesPorVuelo.get(block.flightId) ?? [];
     naves.push({ assignmentId: block.vehicle.assignmentId, name: block.vehicle.name });
     navesPorVuelo.set(block.flightId, naves);
@@ -115,7 +115,12 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     // orden, que abre las combis de toda la recorrida. Cada orden es una camioneta, no un vuelo.
     const vuelosDeLaOrden = block.flightIds.flatMap((id) => vueloPorId.get(id) ?? []);
     const [principal, ...otros] = vuelosDeLaOrden;
-    const vuelo = principal ? vueloDeLaRecorrida(principal, otros) : null;
+    const recorrida = principal ? vueloDeLaRecorrida(principal, otros) : null;
+    const vuelo = recorrida && {
+      ...recorrida,
+      assignments: recorrida.assignments.filter(a => !a.privateReservationId),
+      reservations: recorrida.reservations.filter(r => !r.isPrivate)
+    };
     // La nave de esta orden; si el vuelo sale con una sola (o con ninguna), la que tenga.
     const propias = vuelo
       ? block.vehicle
@@ -124,7 +129,9 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
       : [];
     return (
       <>
-      {vuelo ? (
+      {block.privateOrderId ? (
+        <Link className="ghost-button no-print" href={`/admin/reservas/${codes[0]}`}>Administrar nave privada</Link>
+      ) : vuelo ? (
         <div className="no-print orden-asignar">
           <CombiDelVueloModal
             vuelo={vuelo}
@@ -157,7 +164,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   }
 
   function filas(block: ServiceOrderBlock) {
-    if (!block.flightId) return undefined;
+    if (!block.flightId || block.privateOrderId) return undefined;
     return (
       <RecorridoEditable
         key={block.key}

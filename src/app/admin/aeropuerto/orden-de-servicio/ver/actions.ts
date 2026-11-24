@@ -37,6 +37,7 @@ async function reservasDelVuelo(date: string, flightIds: string[], codes: string
   const detalles = await prisma.airportReservationDetails.findMany({
     where: {
       flightId: { in: flightIds },
+      isPrivate: false,
       serviceDate: { gte: desde, lt: hasta },
       reservation: { code: { in: codes }, bookingMode: "AIRPORT", status: { not: "CANCELLED" } }
     },
@@ -64,12 +65,12 @@ async function vuelosDeLaOrden(date: string, flightId: string) {
 async function naveDelVuelo(flightIds: string[], assignmentId: string | null) {
   if (!assignmentId) return { name: null, porVuelo: new Map<string, string>() };
   const asignacion = await prisma.airportVehicleAssignment.findFirst({
-    where: { id: assignmentId, flightId: { in: flightIds } },
+    where: { id: assignmentId, privateReservationId: null, flightId: { in: flightIds } },
     select: { vehicleId: true, vehicle: { select: { name: true } } }
   });
   if (!asignacion) return null;
   const deLaNave = await prisma.airportVehicleAssignment.findMany({
-    where: { vehicleId: asignacion.vehicleId, flightId: { in: flightIds } },
+    where: { privateReservationId: null, vehicleId: asignacion.vehicleId, flightId: { in: flightIds } },
     select: { id: true, flightId: true }
   });
   return { name: asignacion.vehicle.name, porVuelo: new Map(deLaNave.map((item) => [item.flightId, item.id])) };

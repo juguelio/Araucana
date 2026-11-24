@@ -19,6 +19,7 @@ import { isPaihuen, paihuenPickupTime, PAIHUEN_POINT } from "./paihuen";
  *   con una etiqueta suelta: el chofer cobra contra ese monto.
  */
 import ExcelJS from "exceljs";
+import type { PrivateStop } from "./private-transfer";
 import { airportPickupStart } from "./pickup-start";
 import { horaEfectivaDelVuelo } from "./effective-time";
 import { repartirPorZonas } from "./fleet-split";
@@ -29,6 +30,8 @@ export type ServiceOrderDirection = "ARRIVAL" | "DEPARTURE";
 
 /** Lo mínimo que necesita la hoja; no depende de Prisma para poder testearse sin base. */
 export type ServiceOrderReservationInput = {
+  privateOrderId?: string | null;
+  privateStops?: PrivateStop[];
   code: string;
   /** Quién derivó la venta (agencia, voucher). `null` cuando se vendió directo. */
   referredBy?: string | null;
@@ -110,6 +113,8 @@ export type ServiceOrderPassenger = {
 };
 
 export type ServiceOrderBlock = {
+  privateOrderId?: string | null;
+  scopedVehicle?: boolean;
   /** Vuelo + nave: una orden por nave cuando el vuelo sale con más de una. */
   key: string;
   /** Id del vuelo cargado; `null` cuando la reserva no está atada a un vuelo del sistema. En una orden
@@ -433,7 +438,7 @@ export function buildServiceOrderBlocks(
 
   for (const reserva of reservations) {
     const direction = direccionDelVuelo(reserva.flight?.direction ?? reserva.direction);
-    const flightKey = reserva.flight?.id ?? `sin-vuelo:${direction}:${reserva.flightNumber}`;
+    const flightKey = reserva.privateOrderId ? `privada:${reserva.privateOrderId}` : reserva.flight?.id ?? `sin-vuelo:${direction}:${reserva.flightNumber}`;
     const scheduledAt = reserva.flight?.scheduledAt ?? null;
     const estimatedAt = reserva.flight?.estimatedAt ?? null;
     // La hora del vuelo sale de la misma función que el corte de venta (issue #140).
@@ -485,7 +490,8 @@ export function buildServiceOrderBlocks(
       flights: reserva.flight
         ? [{ id: reserva.flight.id, number: reserva.flight.number, flightAt: vueloAt ?? operationAt, scheduledAt: scheduledAt ?? operationAt }]
         : [],
-      pickupGroupId: reserva.flight?.pickupGroupId ?? null,
+      privateOrderId: reserva.privateOrderId,
+      pickupGroupId: reserva.privateOrderId ? null : reserva.flight?.pickupGroupId ?? null,
       vehicles,
       vehicleCount: vehicles.length,
       direction,
@@ -496,7 +502,12 @@ export function buildServiceOrderBlocks(
       scheduledAt: scheduledAt ?? operationAt,
       flightAt: vueloAt ?? operationAt,
       estimatedAt,
-      passengers: [pasajero],
+      passengers: reserva.privateStops?.length ? reserva.privateStops.map((stop, index) => ({
+        ...pasajero, seats: stop.passengers, lodging: stop.destination, lodgingDetail: null, pickup: null,
+        amountCents: index === 0 ? pasajero.amountCents : 0,
+        payment: index === 0 ? pasajero.payment : "Incluido",
+        paymentMethod: index === 0 ? pasajero.paymentMethod : null
+      })) : [pasajero],
       totalCents: 0
     });
   }
@@ -533,6 +544,8 @@ export function buildServiceOrderBlocks(
   }
 
   // `sort` es estable: las naves de un mismo vuelo quedan en el orden en que se asignaron.
+  const vuelosConPrivada = new Set(ordenes.filter(order => order.privateOrderId).flatMap(order => order.flightIds));
+  for (const order of ordenes) order.scopedVehicle = order.flightIds.some(id => vuelosConPrivada.has(id));
   return ordenes.sort((a, b) => a.operationAt.getTime() - b.operationAt.getTime());
 }
 
@@ -546,7 +559,7 @@ export const lugaresDeLaOrden = (block: ServiceOrderBlock) => lugaresDe(block.pa
 export function referenciaDeLaOrden(block: ServiceOrderBlock) {
   return {
     flight: block.flightId,
-    vehicle: block.vehicleCount > 1 ? (block.vehicle?.assignmentId ?? SIN_NAVE) : null
+    vehicle: block.privateOrderId ? `privada-${block.privateOrderId}` : block.vehicleCount > 1 || block.scopedVehicle ? (block.vehicle?.assignmentId ?? SIN_NAVE) : null
   };
 }
 
@@ -563,11 +576,12 @@ export function ordenesDelVuelo(blocks: ServiceOrderBlock[], flightId: string | 
 /** Deja sólo la orden de esa nave; sin nave pedida devuelve todas. */
 export function filtrarPorNave(blocks: ServiceOrderBlock[], vehicle: string | null) {
   if (!vehicle) return blocks;
-  return blocks.filter((block) => referenciaDeLaOrden(block).vehicle === vehicle);
+  return blocks.filter(block => referenciaDeLaOrden(block).vehicle === vehicle || block.vehicle?.vehicleId === vehicle || block.vehicle?.assignmentId === vehicle);
 }
 
 /** «Sprinter 1910 · Juan»: la nave y el chofer, para el rótulo y el nombre del archivo. */
 export function naveDeLaOrden(block: ServiceOrderBlock) {
+  if (block.privateOrderId) return ["Privada", block.vehicle?.name ?? "nave pendiente", block.vehicle?.driver].filter(Boolean).join(" · ");
   if (block.vehicle) return [block.vehicle.name, block.vehicle.driver].filter(Boolean).join(" · ");
   return block.vehicleCount > 1 ? "sin nave asignada" : null;
 }

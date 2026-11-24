@@ -1,3 +1,5 @@
+import { privateDestination, type PrivateTransfer } from "./private-transfer";
+import { assignPrivateVehicle } from "./private-vehicle";
 import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
 import { flightEvidenceWarning, reliableEstimate } from "./data-quality";
 import { roundTripOrderValid } from "./round-trip-summary";
@@ -79,6 +81,7 @@ export type AirportFlightOption = {
   occupied: number;
   capacity: number;
   available: number;
+  privateBookable?: boolean;
   bookable: boolean;
   reason: string | null;
   vehicles: Array<{ id: string; name: string; seats: number; driver: string | null }>;
@@ -206,8 +209,9 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
   const delDia = vuelos.map((v) => ({ number: v.number, direction: v.direction, source: v.source }));
 
   return vuelos.map((v) => {
-    const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
-    const capacidad = capacidadDeVuelo(v.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
+    const ocupados = pasajerosOcupados(v.reservations.filter(r => !r.isPrivate).map((r) => r.reservation));
+    const compartidas = v.assignments.filter(a => !a.privateReservationId);
+    const capacidad = capacidadDeVuelo(compartidas.map((a) => ({ seats: a.vehicle.seats.length })));
     const disponible = Math.max(capacidad - ocupados, 0);
     const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes, delDia);
     return {
@@ -225,9 +229,10 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       occupied: ocupados,
       capacity: capacidad,
       available: disponible,
+      privateBookable: motivoNoReservable(v, 1, ahora, arrivalCutoffMinutes, departureCutoffMinutes, delDia) === null,
       bookable: motivo === null,
       reason: motivo,
-      vehicles: v.assignments.map((a) => ({
+      vehicles: compartidas.map((a) => ({
         id: a.id,
         name: a.vehicle.name,
         seats: butacasParaAeropuerto(a.vehicle.seats.length),
@@ -282,6 +287,7 @@ type TramoSolicitado = {
   direction: FlightDirection;
   serviceDate: string;
   privateFlight?: PrivateFlightInput;
+  privateTransfer?: PrivateTransfer;
   pickupName?: string | null;
   pickupAddress?: string | null;
   pickupPoint?: [number, number];
@@ -328,8 +334,8 @@ async function buscarVueloDelTramo(
   validarVueloPrivado(tramo);
 
   const incluirCupo = {
-    reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
-    assignments: { include: { vehicle: { include: { seats: true } } } }
+    reservations: { where: { isPrivate: false }, include: { reservation: { select: { passengerCount: true, status: true } } } },
+    assignments: { where: { privateReservationId: null }, include: { vehicle: { include: { seats: true } } } }
   };
   const candidatos = await tx.flight.findMany({
     where: {
@@ -377,7 +383,7 @@ async function buscarVueloDelTramo(
   const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
   const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
   const disponible = Math.max(capacidad - ocupados, 0);
-  const motivo = motivoNoReservable(vuelo, disponible, new Date(), corteArriboMinutos, corteSalidaMinutos);
+  const motivo = motivoNoReservable(vuelo, tramo.privateTransfer ? 1 : disponible, new Date(), corteArriboMinutos, corteSalidaMinutos);
   if (motivo) {
     throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);
   }
@@ -458,11 +464,11 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
   );
   // El recargo de zona lo decide el servidor con el punto marcado: no se toma del cliente.
   const adicionales = airportExtrasBreakdown(
-    { zoneExtra: chargesZoneExtra(tramo.pickupPoint ?? null, params.reglas.coverage), sportsLuggageCount: params.reglas.sportsLuggageCount },
+    { zoneExtra: !tramo.privateTransfer && chargesZoneExtra(tramo.pickupPoint ?? null, params.reglas.coverage), sportsLuggageCount: params.reglas.sportsLuggageCount },
     params.reglas.extras
   );
 
-  if (passengerCount > disponible) {
+  if (!tramo.privateTransfer && passengerCount > disponible) {
     throw new BookingError("CAPACITY_FULL", "No hay suficientes lugares en ese vuelo");
   }
 
@@ -477,7 +483,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
     throw new BookingError("ROUTE_NOT_FOUND", "No hay tarifa activa para ese sentido del traslado al aeropuerto.");
   }
 
-  const paihuenUnitCents = rutaDelSentido.currency === "ARS" && isPaihuen(tramo.pickupName, tramo.pickupAddress, tramo.pickupPoint) ? PAIHUEN_UNIT_CENTS : 0;
+  const paihuenUnitCents = !tramo.privateTransfer && rutaDelSentido.currency === "ARS" && isPaihuen(tramo.pickupName, tramo.pickupAddress, tramo.pickupPoint) ? PAIHUEN_UNIT_CENTS : 0;
   const fares = fareCounts(passengerCount, halfFareCount, freeFareCount);
   const reservation = await tx.reservation.create({
     data: {
@@ -491,7 +497,7 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
       passengerCount,
       bookingMode: "AIRPORT",
       status: "PENDING_PAYMENT",
-      totalCents: params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents + paihuenUnitCents * passengerCount,
+      totalCents: tramo.privateTransfer?.totalCents ?? params.overrideTotalCents ?? reservationTotalCents(rutaDelSentido.priceCents, fareCounts(passengerCount, halfFareCount, freeFareCount)) + adicionales.totalCents + paihuenUnitCents * passengerCount,
       halfFareCount: fares.half,
       freeFareCount: fares.free,
       currency: rutaDelSentido.currency,
@@ -503,8 +509,9 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
           flightId: vuelo.id,
           direction: vuelo.direction,
           serviceDate: desde,
-          pickupName: tramo.pickupName ?? null,
-          pickupAddress: tramo.pickupAddress ?? null,
+          ...(tramo.privateTransfer && { isPrivate: true, privateStops: tramo.privateTransfer.stops }),
+          pickupName: tramo.privateTransfer ? "Traslado privado" : tramo.pickupName ?? null,
+          pickupAddress: tramo.privateTransfer ? privateDestination(tramo.privateTransfer.stops) : tramo.pickupAddress ?? null,
           pickupLatitude: tramo.pickupPoint?.[0] ?? null,
           pickupLongitude: tramo.pickupPoint?.[1] ?? null,
           pickupNotes: tramo.pickupNotes ?? null,
@@ -518,6 +525,10 @@ async function crearTramo(tx: Tx, params: CrearTramoParams, resolved?: Awaited<R
     omit: omitReservationCreator,
     include: { route: true, passenger: true, airportDetails: true }
   });
+
+  if (tramo.privateTransfer?.vehicleId) {
+    await assignPrivateVehicle(tx, reservation.id, vuelo, passengerCount, tramo.privateTransfer.vehicleId);
+  }
 
   // Igual que las reservas comunes: se crea el pago pendiente (transferencia/manual) para que
   // el pasajero pueda subir el comprobante desde su link y la reserva quede a confirmar.
@@ -584,6 +595,7 @@ export async function createAirportReservation(input: AdminAirportReservationInp
             direction: parsed.direction,
             serviceDate: parsed.serviceDate,
             privateFlight: parsed.privateFlight,
+            privateTransfer: parsed.privateTransfer,
             pickupName: parsed.pickupName ?? null,
             pickupAddress: parsed.pickupAddress ?? null,
             pickupPoint: parsed.pickupPoint,

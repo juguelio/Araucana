@@ -66,7 +66,7 @@ describe("mover un pasajero de trafic en una recorrida unida", () => {
     const resultado = await moverANaveAction({ date: "2026-11-20", flightId: "f-ar", assignmentId: "t1-ar", code: "J1" });
 
     expect(resultado).toEqual({ ok: "Recorrida guardada." });
-    expect(mocks.findAssignment).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "t1-ar", flightId: { in: ["f-ar", "f-ja"] } } }));
+    expect(mocks.findAssignment).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "t1-ar", privateReservationId: null, flightId: { in: ["f-ar", "f-ja"] } } }));
     expect(mocks.updateDetail).toHaveBeenCalledWith({ where: { id: "det-J1" }, data: { routePosition: expect.any(Number), assignmentId: "t1-ar" } });
   });
 

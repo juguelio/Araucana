@@ -37,7 +37,7 @@ export default async function OrdenPublicaPage({ params }: PageProps) {
 
   const { blocks: ordenesDelDia, oficina } = await getAirportServiceOrder(payload.date, payload.flight);
   const blocks = filtrarPorNave(
-    ordenesDelVuelo(ordenesDelDia, payload.flight ?? null),
+    ordenesDelVuelo(ordenesDelDia, payload.flight ?? null).filter(order => !payload.flight || payload.vehicle || !order.privateOrderId),
     payload.flight ? (payload.vehicle ?? null) : null
   );
 

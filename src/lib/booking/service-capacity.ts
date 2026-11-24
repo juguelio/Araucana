@@ -56,12 +56,12 @@ export async function lugarEnSalida(tx: Tx, scheduleId: string, pedido: Pedido) 
 }
 
 /** Vuelo no cancelado, todavía reservable y con lugar en las naves asignadas (sin naves no hay tope). */
-export async function lugarEnVuelo(tx: Tx, flightId: string, pedido: Pedido) {
+export async function lugarEnVuelo(tx: Tx, flightId: string, pedido: Pedido, privada = false) {
   const vuelo = await tx.flight.findUnique({
     where: { id: flightId },
     include: {
-      reservations: { select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
-      assignments: { select: { vehicle: { select: { seats: { select: { id: true } } } } } }
+      reservations: { where: { isPrivate: false }, select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
+      assignments: { where: { privateReservationId: null }, select: { vehicle: { select: { seats: { select: { id: true } } } } } }
     }
   });
   if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "El vuelo ya no existe.");
@@ -81,7 +81,7 @@ export async function lugarEnVuelo(tx: Tx, flightId: string, pedido: Pedido) {
     vuelo.reservations.map((item) => item.reservation).filter((item) => item.id !== pedido.excluir)
   );
   const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
-  if (!hayLugar(capacidad, ocupados, pedido.pasajeros)) {
+  if (!privada && !hayLugar(capacidad, ocupados, pedido.pasajeros)) {
     throw new BookingError(
       "CAPACITY_FULL",
       `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y ${pedido.frase(pedido.pasajeros)}.`

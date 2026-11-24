@@ -1,0 +1,18 @@
+.private-transfer-fields {
+  display: grid;
+  gap: 1rem;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.private-transfer-fields h2, .private-transfer-fields h3, .private-leg p { margin: 0; }
+.private-stop {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(9rem, 1fr) auto;
+  align-items: end;
+  gap: .75rem;
+}
+.private-transfer-fields button, .private-leg button { justify-self: start; }
+@media (max-width: 650px) {
+  .private-stop { grid-template-columns: 1fr; }
+}

@@ -1,3 +1,4 @@
+import { privateStopsSchema } from "@/lib/airport/private-transfer";
 import { randomUUID } from "node:crypto";
 import { mismoLugar } from "./place-names";
 import { extraUnitsCountInclude, extraUnitsSeatsInclude, scheduleSeatCount, scheduleSeatPool } from "./schedule-units";
@@ -174,6 +175,8 @@ type ReservationRecord = {
     pickupNotes?: string | null;
   } | null;
   airportDetails?: {
+    isPrivate?: boolean;
+    privateStops?: unknown;
     halfFareCount?: number;
     sportsLuggageCount?: number;
     sportsLuggageUnitCents?: number;
@@ -396,6 +399,11 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
   }
 
   const route = mapRoute(routeRecord);
+  const airport = reservation.airportDetails;
+  if (airport?.isPrivate && airport.pickupAddress) {
+    if (airport.direction === "ARRIVAL") route.to = airport.pickupAddress;
+    else route.from = airport.pickupAddress;
+  }
   const departureAt =
     reservation.schedule?.departureAt ??
     reservation.airportDetails?.flight?.estimatedAt ??
@@ -497,6 +505,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
       : null,
     airportDetails: reservation.airportDetails
       ? {
+          ...(airport?.isPrivate && { isPrivate: true, privateStops: privateStopsSchema.parse(airport.privateStops) }),
           halfFareCount: reservation.airportDetails.halfFareCount ?? 0,
           sportsLuggageCount: reservation.airportDetails.sportsLuggageCount ?? 0,
           sportsLuggageUnitCents: reservation.airportDetails.sportsLuggageUnitCents ?? 0,

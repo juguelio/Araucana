@@ -1,3 +1,5 @@
+import { AirportTransferChoice } from "./private-checkout";
+import { opcionesDeNave } from "../combi-modal";
 import { AirportCheckoutForm } from "@/app/reservar/[slug]/airport-checkout-form";
 import { RoundTripCheckoutForm } from "@/app/reservar/[slug]/ida-y-vuelta/round-trip-checkout-form";
 import { loadAirportCheckoutFlights } from "@/lib/airport/checkout-flights";
@@ -32,48 +34,55 @@ export async function AeropuertoAlta({ date, tramos, sentido, vuelo, abrir, luga
   const initialDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today ? date : today;
   const fares = await getAirportFares();
   const route = fares.ARRIVAL ?? fares.DEPARTURE;
-  const checkout = route ? await Promise.all([
-    loadAirportCheckoutFlights(initialDate), getAirportCoverage(), getAirportExtras(), getAirportOfficePickup()
-  ]).then(([flights, coverage, extras, officePickup]) => ({ flights, coverage, extras, officePickup })) : null;
+  if (!route) return <p className="muted">No hay rutas de aeropuerto activas para reservar.</p>;
 
-  if (!route || !checkout) return <p className="muted">No hay rutas de aeropuerto activas para reservar.</p>;
+  const [flights, coverage, extras, officePickup, vehicles] = await Promise.all([
+    loadAirportCheckoutFlights(initialDate), getAirportCoverage(), getAirportExtras(), getAirportOfficePickup(), opcionesDeNave()
+  ]);
+  const preferredDirection = sentidoPedido ?? sentidoPorDefecto;
+  const initialDirection = preferredDirection && fares[preferredDirection] ? preferredDirection : fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE";
 
-  return idaYVuelta ? (
-    <RoundTripCheckoutForm
-      fromAdmin
-      // «Agregar vuelta» ya no pide un segundo toque: la vuelta entra con sus días abiertos.
-      abrirLaVuelta={abrir === "vuelta"}
-      lugaresExtra={lugaresExtra}
-      singleHrefs={{
-        ARRIVAL: `${ALTA_AEROPUERTO}&date=${initialDate}&sentido=ARRIVAL`,
-        DEPARTURE: `${ALTA_AEROPUERTO}&date=${initialDate}&sentido=DEPARTURE`
-      }}
-      route={route}
-      fares={fares}
-      initialDate={initialDate}
-      initialFlights={checkout.flights}
-      initialOrder={sentidoPedido ?? sentidoPorDefecto ?? "ARRIVAL"}
-      initialFirstFlightId={vueloElegido}
-      coverage={checkout.coverage}
-      extras={checkout.extras}
-      officePickup={officePickupReady(checkout.officePickup) ? checkout.officePickup : null}
-    />
-  ) : (
-    <AirportCheckoutForm
-      fromAdmin
-      lugaresExtra={lugaresExtra}
-      route={route}
-      fares={fares}
-      initialDirection={sentidoPedido ?? (sentidoPorDefecto && fares[sentidoPorDefecto] ? sentidoPorDefecto : fares.ARRIVAL ? "ARRIVAL" : "DEPARTURE")}
-      startAtFlights={Boolean(sentidoPedido)}
-      initialFlightId={vueloElegido}
-      // «Agregar vuelta» lleva al alta de ida y vuelta, con el día, el sentido y el vuelo.
-      roundTripHref={`${ALTA_AEROPUERTO}&date=${initialDate}&tramos=ida-y-vuelta`}
-      initialDate={initialDate}
-      initialFlights={checkout.flights}
-      coverage={checkout.coverage}
-      extras={checkout.extras}
-      officePickup={officePickupReady(checkout.officePickup) ? checkout.officePickup : null}
-    />
+  return (
+    <AirportTransferChoice slug={route.slug} fares={fares} initialDate={initialDate} initialFlights={flights}
+      initialFlightId={vueloElegido} roundTrip={idaYVuelta} vehicles={vehicles} initialDirection={initialDirection}>
+      {idaYVuelta ? (
+        <RoundTripCheckoutForm
+          fromAdmin
+          // «Agregar vuelta» ya no pide un segundo toque: la vuelta entra con sus días abiertos.
+          abrirLaVuelta={abrir === "vuelta"}
+          lugaresExtra={lugaresExtra}
+          singleHrefs={{
+            ARRIVAL: `${ALTA_AEROPUERTO}&date=${initialDate}&sentido=ARRIVAL`,
+            DEPARTURE: `${ALTA_AEROPUERTO}&date=${initialDate}&sentido=DEPARTURE`
+          }}
+          route={route}
+          fares={fares}
+          initialDate={initialDate}
+          initialFlights={flights}
+          initialOrder={sentidoPedido ?? sentidoPorDefecto ?? "ARRIVAL"}
+          initialFirstFlightId={vueloElegido}
+          coverage={coverage}
+          extras={extras}
+          officePickup={officePickupReady(officePickup) ? officePickup : null}
+        />
+      ) : (
+        <AirportCheckoutForm
+          fromAdmin
+          lugaresExtra={lugaresExtra}
+          route={route}
+          fares={fares}
+          initialDirection={initialDirection}
+          startAtFlights={Boolean(sentidoPedido)}
+          initialFlightId={vueloElegido}
+          // «Agregar vuelta» lleva al alta de ida y vuelta, con el día, el sentido y el vuelo.
+          roundTripHref={`${ALTA_AEROPUERTO}&date=${initialDate}&tramos=ida-y-vuelta`}
+          initialDate={initialDate}
+          initialFlights={flights}
+          coverage={coverage}
+          extras={extras}
+          officePickup={officePickupReady(officePickup) ? officePickup : null}
+        />
+      )}
+    </AirportTransferChoice>
   );
 }
