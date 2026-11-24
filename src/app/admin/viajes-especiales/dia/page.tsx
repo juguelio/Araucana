@@ -5,6 +5,7 @@ import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { prisma } from "@/lib/db/prisma";
 import { lunesDe } from "@/lib/school-runs/week";
 import { statuses } from "@/lib/special-trips/data";
+import { navesDelDia, salidaDelDia } from "@/lib/special-trips/dia";
 import { estadoDelDia, whereSolapa } from "@/lib/special-trips/rango";
 import { NavesPendientes } from "../naves-pendientes";
 import { specialTripsPath as base } from "../view";
@@ -30,9 +31,8 @@ export default async function SpecialTripDayPage({ searchParams }: {
     orderBy: [{ serviceDate: "asc" }, { client: "asc" }, { id: "asc" }],
     include: {
       assignments: {
-        where: { startsAt: { lt: siguiente }, endsAt: { gt: fecha } },
         orderBy: { startsAt: "asc" },
-        select: { startsAt: true, driverId: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
+        select: { startsAt: true, endsAt: true, driverId: true, vehicle: { select: { name: true } }, driver: { select: { name: true, email: true } } }
       }
     }
   });
@@ -59,10 +59,10 @@ export default async function SpecialTripDayPage({ searchParams }: {
               <thead><tr>{["Cliente", "Estado del día", "Destino", "Nave", "Chofer", "Pax", "Estado"].map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
               <tbody>{trips.map((trip) => {
                 const delDia = estadoDelDia(trip, fecha);
-                const naves = [...new Set(trip.assignments.map(({ vehicle }) => vehicle.name))];
+                const naves = navesDelDia(trip.assignments, clave);
                 const choferesDelDia = [...new Set(trip.assignments.flatMap(({ driver }) => driver ? [driver.name?.trim() || driver.email] : []))];
                 const sinChofer = trip.assignments.length > 0 && trip.assignments.some(({ driverId }) => !driverId);
-                const salida = trip.assignments.find(({ startsAt }) => +startsAt >= +fecha && +startsAt < +siguiente);
+                const salida = salidaDelDia(trip.assignments, clave);
                 return <tr key={trip.id}>
                   <td><Link className="table-link" href={`${base}/${trip.id}`}>{trip.client}</Link></td>
                   <td>{delDia ?? (salida ? `Sale ${hora.format(salida.startsAt)}` : "—")}</td>

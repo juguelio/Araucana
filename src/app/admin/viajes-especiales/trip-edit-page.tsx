@@ -7,7 +7,7 @@ import { prisma } from "@/lib/db/prisma";
 import { emptyLeg, legSchema, localInput, paymentSchema } from "@/lib/special-trips/data";
 import { TripForm } from "./trip-form";
 
-export async function TripEditPage({ id }: { id?: string }) {
+export async function TripEditPage({ id, initialDate }: { id?: string; initialDate?: string | null }) {
   const user = await getCurrentReservationsUserOrRedirect();
   const trip = id ? await prisma.specialTrip.findUnique({
     where: { id }, include: { assignments: { orderBy: { startsAt: "asc" } } }
@@ -28,7 +28,7 @@ export async function TripEditPage({ id }: { id?: string }) {
     <TripForm key={trip?.id ?? "new"} vehicles={vehicles} drivers={drivers.map((d) => ({ id: d.id, name: d.name ?? d.email, email: d.email }))}
       draft={{
         id: trip?.id ?? null, version: trip?.updatedAt.toISOString() ?? null, client: trip?.client ?? "",
-        serviceDate: trip?.serviceDate.toISOString().slice(0, 10) ?? localInput(new Date()).slice(0, 10),
+        serviceDate: trip?.serviceDate.toISOString().slice(0, 10) ?? initialDate ?? localInput(new Date()).slice(0, 10),
         endDate: trip?.endDate?.toISOString().slice(0, 10) ?? "",
         status: trip?.status ?? "PENDING", contact: trip?.contact, contactName: trip?.contactName,
         contactPhone: trip?.contactPhone, passengers: trip?.passengers, notes: trip?.notes,
