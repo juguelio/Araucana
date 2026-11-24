@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AdminShell } from "@/components/admin-shell";
 import { MenuFila } from "@/components/admin-list/menu-fila";
+import { Paginador } from "@/components/admin-list/paginador";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { complianceLabel, formatoFecha } from "@/lib/vehicles/compliance";
@@ -175,45 +176,35 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
     return `/admin/naves${texto ? `?${texto}` : ""}`;
   };
 
-  const numerosPagina =
-    pagina.totalPages <= 7
-      ? Array.from({ length: pagina.totalPages }, (_, indice) => indice + 1)
-      : Array.from(new Set([1, pagina.page - 1, pagina.page, pagina.page + 1, pagina.totalPages])).filter((numero) => numero >= 1 && numero <= pagina.totalPages).sort((a, b) => a - b);
-
-  const paginador = (ubicacion: string) => (
+  const hrefPagina = (numero: number) => `${urlFlota({ page: numero === 1 ? null : String(numero) })}#flota`;
+  const hrefTamano = (cantidad: number) => `${urlFlota({ porPagina: cantidad === 0 ? "todas" : String(cantidad), page: null })}#flota`;
+  const selectorPorPagina = (
+    <span className="naves-por-pagina">
+      Por página:
+      {[12, 24, 0].map((cantidad) => {
+        const activo = (cantidad === 0 && porPagina === 0) || (cantidad !== 0 && porPagina === cantidad);
+        return activo ? (
+          <strong key={cantidad}>{cantidad === 0 ? "Todas" : cantidad}</strong>
+        ) : (
+          <Link key={cantidad} href={hrefTamano(cantidad)}>
+            {cantidad === 0 ? "Todas" : cantidad}
+          </Link>
+        );
+      })}
+    </span>
+  );
+  const paginacion = (ubicacion: "arriba" | "abajo") => (
     <div className="naves-paginacion" data-ubicacion={ubicacion}>
-      <span className="naves-paginacion-cuenta">
-        {pagina.total === 0 ? "Sin unidades" : `${pagina.desde}–${pagina.hasta} de ${pagina.total}`}
-      </span>
-      <span className="naves-pagina-actual">Página {pagina.page} de {pagina.totalPages}</span>
-      {pagina.totalPages > 1 ? (
-        <nav className="naves-paginacion-nav" aria-label={`Páginas de la flota (${ubicacion})`}>
-          {pagina.page > 1 ? <Link href={urlFlota({ page: pagina.page === 2 ? null : String(pagina.page - 1) })}>‹ Anterior</Link> : <span>‹ Anterior</span>}
-          {numerosPagina.map((numero) => (
-            <Link
-              key={numero}
-              href={urlFlota({ page: numero === 1 ? null : String(numero) })}
-              aria-current={numero === pagina.page ? "page" : undefined}
-            >
-              {numero}
-            </Link>
-          ))}
-          {pagina.page < pagina.totalPages ? <Link href={urlFlota({ page: String(pagina.page + 1) })}>Siguiente ›</Link> : <span>Siguiente ›</span>}
-        </nav>
-      ) : null}
-      <span className="naves-por-pagina">
-        Por página:
-        {[12, 24, 0].map((cantidad) => {
-          const activo = (cantidad === 0 && porPagina === 0) || (cantidad !== 0 && porPagina === cantidad);
-          return activo ? (
-            <strong key={cantidad}>{cantidad === 0 ? "Todas" : cantidad}</strong>
-          ) : (
-            <Link key={cantidad} href={urlFlota({ porPagina: cantidad === 0 ? "todas" : String(cantidad), page: null })}>
-              {cantidad === 0 ? "Todas" : cantidad}
-            </Link>
-          );
-        })}
-      </span>
+      <Paginador
+        page={pagina.page}
+        totalPages={pagina.totalPages}
+        total={pagina.total}
+        desde={pagina.desde}
+        hasta={pagina.hasta}
+        hrefPagina={hrefPagina}
+        etiqueta="naves"
+      />
+      {ubicacion === "arriba" ? selectorPorPagina : null}
     </div>
   );
 
@@ -302,7 +293,8 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
         <Link className="ghost-button" href="/admin/naves">Limpiar</Link>
       </form>
 
-      {paginador("arriba")}
+      {paginacion("arriba")}
+      <div id="flota" className="naves-ancla" />
 
       {pagina.items.length === 0 ? (
         <p className="naves-vacio">No hay naves con esos filtros.</p>
@@ -469,7 +461,7 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
         </ul>
       )}
 
-      {paginador("abajo")}
+      {pagina.totalPages > 1 ? paginacion("abajo") : null}
     </AdminShell>
   );
 }
