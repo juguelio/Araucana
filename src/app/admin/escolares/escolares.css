@@ -53,3 +53,26 @@
 @media (max-width: 1100px) {
   .cn-semana-grid { grid-template-columns: repeat(7, 168px); min-width: 1232px; }
 }
+
+/* Semana por chofer: una fila por persona, una columna por día. */
+.cn-vista-toggle { display: inline-flex; gap: 6px; margin-left: auto; }
+.cn-choferes { margin-top: 4px; }
+.cn-choferes-scroll { overflow-x: auto; padding-bottom: 6px; }
+.cn-choferes-tabla { width: 100%; min-width: 980px; border-collapse: separate; border-spacing: 6px; }
+.cn-choferes-tabla th, .cn-choferes-tabla td { vertical-align: top; text-align: left; }
+.cn-choferes-tabla thead th { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.cn-choferes-tabla thead th span { display: block; color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.cn-choferes-tabla thead th strong { display: inline-block; margin-top: 2px; font-size: 18px; }
+.cn-choferes-tabla thead th small { margin-left: 4px; color: var(--ink-muted); font-size: 10px; }
+.cn-choferes-tabla thead th[data-hoy], .cn-choferes-tabla td[data-hoy] { border-color: var(--primary); }
+.cn-choferes-tabla tbody th { width: 160px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.cn-choferes-tabla tbody th strong { display: block; font-size: 12px; }
+.cn-choferes-tabla tbody th small { display: block; margin-top: 3px; color: var(--ink-muted); font-size: 10px; }
+.cn-choferes-tabla tbody td { min-width: 126px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.cn-chofer-servicio { display: grid; gap: 2px; padding: 6px 7px; border: 1px solid var(--line); border-radius: 8px; color: inherit; text-decoration: none; }
+.cn-chofer-servicio + .cn-chofer-servicio { margin-top: 5px; }
+.cn-chofer-servicio:hover { border-color: var(--primary); }
+.cn-chofer-servicio strong { font-size: 11px; line-height: 1.25; }
+.cn-chofer-servicio span { color: var(--ink-muted); font-size: 10px; }
+.cn-choferes-vacio { padding: 24px; color: var(--ink-soft); text-align: center; }
+.cn-vista-toggle .pill.is-active { border-color: var(--primary); background: var(--primary); color: #fff; }
