@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import "./row-modal.css";
 
@@ -10,6 +10,7 @@ type RowModalProps = {
   /** Texto accesible del disparador, para cuando la celda sólo muestra una etiqueta. */
   triggerLabel: string;
   triggerClassName?: string;
+  triggerDisabled?: boolean;
   /** Clase extra del modal, para un formulario más ancho (por ejemplo, cargar un vuelo). */
   modalClassName?: string;
   eyebrow: string;
@@ -19,6 +20,8 @@ type RowModalProps = {
   children: ReactNode;
   /** Abierto al cargar la página: el paso siguiente de un flujo (por ejemplo, naves después de coordinar). */
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 /**
@@ -26,8 +29,13 @@ type RowModalProps = {
  * botón que abre las opciones de esa reserva sin salir del listado. Los formularios de adentro son
  * los mismos server actions del detalle, con `listQuery` para volver al listado filtrado.
  */
-export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-celda-boton", modalClassName, eyebrow, title, subtitle, children, defaultOpen = false }: RowModalProps) {
-  const [abierto, setAbierto] = useState(defaultOpen);
+export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-celda-boton", triggerDisabled = false, modalClassName, eyebrow, title, subtitle, children, defaultOpen = false, open, onOpenChange }: RowModalProps) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const abierto = open ?? internalOpen;
+  const setAbierto = useCallback((next: boolean) => {
+    if (open === undefined) setInternalOpen(next);
+    onOpenChange?.(next);
+  }, [open, onOpenChange]);
   const tituloId = useId();
 
   useEffect(() => {
@@ -42,13 +50,14 @@ export function RowModal({ trigger, triggerLabel, triggerClassName = "reservas-c
       document.removeEventListener("keydown", alPresionar);
       document.body.style.overflow = overflowPrevio;
     };
-  }, [abierto]);
+  }, [abierto, setAbierto]);
 
   return (
     <>
       <button
         className={triggerClassName}
         type="button"
+        disabled={triggerDisabled}
         aria-haspopup="dialog"
         aria-expanded={abierto}
         aria-label={triggerLabel}

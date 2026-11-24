@@ -1,3 +1,6 @@
+import { PrivateTransferEdit } from "../../aeropuerto/reservar/private-edit";
+import { opcionesDeNave } from "../../aeropuerto/combi-modal";
+import { prisma } from "@/lib/db/prisma";
 import { isPaihuenReservation, paihuenPickupTime } from "@/lib/airport/paihuen";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -86,6 +89,9 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
   const disability = payment?.provider === DISABILITY_DOCUMENT_PROVIDER || reservation.status === "DOCUMENTATION_PENDING";
   const paid = payment?.status === "APPROVED" && !disability;
   const cancelled = reservation.status === "CANCELLED";
+  const privateFleet = airport?.isPrivate && !cancelled ? await Promise.all([
+    opcionesDeNave(), prisma.airportVehicleAssignment.findUnique({ where: { privateReservationId: reservation.id }, select: { vehicleId: true } })
+  ]) : null;
   const pending = reservation.status === "PENDING_PAYMENT";
   const canRecordPayment = canRegisterManualPayment(reservation.status, reservation.totalCents, payment);
   const total = new Intl.NumberFormat("es-AR", { style: "currency", currency: reservation.currency }).format(reservation.total);
@@ -363,7 +369,15 @@ export default async function AdminPassengerPage({ params, searchParams }: Admin
         </div>
       </section>
 
-      {airport && (airport.pickupAddress?.trim() || pickupPoint) ? (
+      {airport?.isPrivate && airport.privateStops && (
+        <section className="plain-card admin-section">
+          <h2>Traslado privado · paradas y nave</h2>
+          {privateFleet ? <PrivateTransferEdit code={reservation.code} initialStops={airport.privateStops}
+            initialVehicle={privateFleet[1]?.vehicleId ?? ""} vehicles={privateFleet[0]} />
+            : <p>{airport.pickupAddress}</p>}
+        </section>
+      )}
+      {airport && !airport.isPrivate && (airport.pickupAddress?.trim() || pickupPoint) ? (
         <section className="plain-card admin-section">
           <h2>{airport.direction === "ARRIVAL" ? "Dirección de destino" : "Dirección de búsqueda"}</h2>
           {airport.pickupName ? <p><strong>{airport.pickupName}</strong></p> : null}

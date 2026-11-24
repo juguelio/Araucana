@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
-import { ImprimirButton } from "@/components/imprimir-button";
+import { ServicePrintSelection } from "@/components/service-print-selection";
 import { RouteSheetDocument } from "@/components/route-sheet";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { buildRouteSheet } from "@/lib/driver/route-sheet";
@@ -50,10 +50,10 @@ export default async function PlanillaDeSalidaPage({ params }: PageProps) {
         </div>
       }
     >
-      <div className="orden-publica-acciones no-print">
-        <ImprimirButton />
-      </div>
-      <RouteSheetDocument sheet={sheet} />
+      <ServicePrintSelection documents={[{
+        id: scheduleId, title: sheet.routeShortLabel, detail: sheet.vehicle,
+        content: <RouteSheetDocument sheet={sheet} />
+      }]} />
     </AdminShell>
   );
 }

@@ -111,7 +111,12 @@ export async function saveTrip(id: string | null, version: string | null, _state
         tx.user.count({ where: { id: { in: driversToCheck }, isActive: true, role: "DRIVER" } })
       ]);
       if (vehicleCount !== vehiclesToCheck.length || driverCount !== driversToCheck.length) throw new TripError("Elegí naves y choferes activos.");
-      const conflicts = status === "CANCELLED" ? [] : (await Promise.all(assignments.map((a) => fleetConflicts(tx, a, id ?? undefined)))).flat();
+      const previousAssignments = previous?.assignments ?? [];
+      const changed = assignments.filter((a) => !previousAssignments.some((p) =>
+        p.vehicleId === a.vehicleId && p.driverId === a.driverId && +p.startsAt === +a.startsAt && +p.endsAt === +a.endsAt
+      ));
+      const toCheck = previous?.status === "CANCELLED" ? assignments : changed;
+      const conflicts = status === "CANCELLED" ? [] : (await Promise.all(toCheck.map((a) => fleetConflicts(tx, a, id ?? undefined)))).flat();
       const unique = [...new Map(conflicts.map((c) => [c.href + c.id, c])).values()];
       const confirmation = conflictKey(unique, assignments);
       if (unique.length && value("confirmation") !== confirmation) return { conflicts: unique, confirmation };
@@ -125,7 +130,11 @@ export async function saveTrip(id: string | null, version: string | null, _state
         invoiceDate, paymentStatus: value("paymentStatus").slice(0, 500) || null
       };
       const trip = id
-        ? await tx.specialTrip.update({ where: { id }, data: { ...data, assignments: { deleteMany: {}, createMany: { data: assignments } } } })
+        ? await tx.specialTrip.update({ where: { id }, data: {
+            ...data,
+            ...(changed.length || previousAssignments.length !== assignments.length
+              ? { assignments: { deleteMany: {}, createMany: { data: assignments } } } : {})
+          } })
         : await tx.specialTrip.create({ data: { ...data, assignments: { createMany: { data: assignments } } } });
       await recordAcceptance(tx, "SPECIAL", trip.id, user.id, unique);
 

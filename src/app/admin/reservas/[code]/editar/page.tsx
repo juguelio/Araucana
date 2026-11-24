@@ -107,7 +107,8 @@ export default async function EditReservationPage({ params }: { params: Promise<
         <ReservationEditForm action={updateReservationAction} code={reservation.code} passenger={reservation.passenger}
           referredBy={reservation.referredBy ?? ""}
           service={service ?? undefined}
-          counts={reservation.status === "CANCELLED" ? undefined : {
+          privateAirport={airport?.isPrivate}
+          counts={airport?.isPrivate || reservation.status === "CANCELLED" ? undefined : {
             price: priceBasis,
             totalCents: reservation.totalCents,
             currency: reservation.currency,
@@ -122,7 +123,7 @@ export default async function EditReservationPage({ params }: { params: Promise<
             paymentReceiptPending: reservation.payment?.status === "PENDING" && Boolean(reservation.payment.receiptBlobPathname)
               && reservation.payment.provider !== DISABILITY_DOCUMENT_PROVIDER
           }}
-          transfer={pickup ? {
+          transfer={pickup && !airport?.isPrivate ? {
             address: pickup.pickupAddress ?? "", point, notes: pickup.pickupNotes ?? "", name: pickup.pickupName ?? "",
             airport: Boolean(airport), direction: airport?.direction, coverage
           } : undefined}

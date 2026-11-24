@@ -14,7 +14,7 @@ function base(vuelos: Record<string, string | null>) {
             where.id?.in ? where.id.in.includes(id)
               : typeof where.pickupGroupId === "string" ? grupo === where.pickupGroupId
                 : where.pickupGroupId ? grupo !== null && where.pickupGroupId.in.includes(grupo) : true)
-          .map(([id, grupo]) => ({ id, pickupGroupId: grupo }))),
+          .map(([id, grupo]) => ({ id, pickupGroupId: grupo, assignments: [] }))),
       updateMany: vi.fn(async ({ where, data }: { where: { id: { in: string[] } }; data: { pickupGroupId: string | null } }) => {
         where.id.in.forEach((id) => { grupos[id] = data.pickupGroupId; });
       }),

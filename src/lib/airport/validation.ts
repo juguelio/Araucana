@@ -1,4 +1,5 @@
 import { reservationPriceCents } from "@/lib/booking/admin-price";
+import { privateTransferSchema, privatePassengerCount, type PrivateTransfer } from "./private-transfer";
 import { z } from "zod";
 import { fareCounts, hasFullFare, sinAdultoMensaje } from "@/lib/booking/passenger-fares";
 // El aeropuerto no exige documento (#206, #208) ni email (#239): el checkout los marca «(opcional)».
@@ -94,11 +95,19 @@ const noFullFareError = { path: ["freeFareCount"], message: sinAdultoMensaje };
 export const airportReservationSchema = airportReservationFields
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError);
+function stopsMatchCount(transfer: PrivateTransfer | undefined, count: number) {
+  return !transfer || privatePassengerCount(transfer.stops) === count;
+}
+
+const stopCountError = { message: "La suma de pasajeros de las paradas debe coincidir con el total del grupo." };
+
 export const adminAirportReservationSchema = airportReservationFields.extend({
   passenger: adminPassengerSchema,
+  privateTransfer: privateTransferSchema.optional(),
   overrideTotalCents: reservationPriceCents.optional(),
   referredBy: referredBySchema
 })
+  .refine(v => stopsMatchCount(v.privateTransfer, v.passengerCount), stopCountError)
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError);
 
@@ -157,7 +166,12 @@ export const airportRoundTripSchema = airportRoundTripFields
 
 /** Alta desde el panel: los datos de identidad del pasajero son opcionales. */
 export const adminAirportRoundTripSchema = airportRoundTripFields
-  .extend({ passenger: adminPassengerSchema, referredBy: referredBySchema })
+  .extend({
+    passenger: adminPassengerSchema, referredBy: referredBySchema,
+    arrival: airportLegFields.extend({ privateTransfer: privateTransferSchema.optional() }),
+    departure: airportLegFields.extend({ privateTransfer: privateTransferSchema.optional() })
+  })
+  .refine(v => stopsMatchCount(v.arrival.privateTransfer, v.passengerCount) && stopsMatchCount(v.departure.privateTransfer, v.passengerCount), stopCountError)
   .refine(halfFareFitsSeats, halfFareCountError)
   .refine(faresHaveFull, noFullFareError)
   .superRefine(roundTripChronology);

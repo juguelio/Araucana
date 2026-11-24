@@ -60,9 +60,9 @@ export async function POST(request: Request) {
 
     const input = parsed.data;
     const coverage = await getAirportCoverage();
-    const errorLlegada = pickupCoverageError(input.arrival, coverage, "llegada");
+    const errorLlegada = fromAdmin && "privateTransfer" in input.arrival && input.arrival.privateTransfer ? null : pickupCoverageError(input.arrival, coverage, "llegada");
     if (errorLlegada) return errorLlegada;
-    const errorVuelta = pickupCoverageError(input.departure, coverage, "vuelta");
+    const errorVuelta = fromAdmin && "privateTransfer" in input.departure && input.departure.privateTransfer ? null : pickupCoverageError(input.departure, coverage, "vuelta");
     if (errorVuelta) return errorVuelta;
 
     const { roundTripId, arrival, departure } = await createAirportRoundTripReservation(input, context);

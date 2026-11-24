@@ -171,6 +171,7 @@ export async function manageReservation(code: string, command: ReservationOperat
               cancelledByName: command.cancelledBy ?? null
             }
           });
+          if (reservation.airportDetails?.isPrivate) await tx.airportVehicleAssignment.deleteMany({ where: { privateReservationId: id } });
           await tx.chapelcoManifestStop.deleteMany({ where: { reservationId: id, status: "PENDING" } });
           // Boleto numerado (#370): conserva su número y queda ANULADO con motivo, fecha y usuario.
           if (reservation.bookingMode === "SEATED") {
@@ -212,8 +213,8 @@ export async function manageReservation(code: string, command: ReservationOperat
               include: {
                 flight: {
                   include: {
-                    reservations: { select: { reservation: { select: { passengerCount: true, status: true } } } },
-                    assignments: { select: { vehicle: { select: { seats: { select: { id: true } } } } } }
+                    reservations: { where: { isPrivate: false }, select: { reservation: { select: { passengerCount: true, status: true } } } },
+                    assignments: { where: { privateReservationId: null }, select: { vehicle: { select: { seats: { select: { id: true } } } } } }
                   }
                 }
               }
@@ -237,7 +238,7 @@ export async function manageReservation(code: string, command: ReservationOperat
               if (closed) throw new BookingError("SERVICE_ALREADY_STARTED", closed);
               const ocupados = pasajerosOcupados(vuelo.reservations.map((item) => item.reservation));
               const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
-              if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
+              if (!details.isPrivate && !hayLugar(capacidad, ocupados, reservation.passengerCount)) {
                 throw new BookingError(
                   "CAPACITY_FULL",
                   `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
@@ -359,6 +360,10 @@ export async function manageReservation(code: string, command: ReservationOperat
           // lugares, así que se edita con la misma guarda de cupo que un alta. Una reserva cancelada
           // ya liberó su lugar: cambiarle la cantidad descuadraría un servicio que no va a existir.
           const cambiaCantidad = passengerCount !== undefined && passengerCount !== reservation.passengerCount;
+          const privada = reservation.airportDetails?.isPrivate;
+          if (privada && (cambiaCantidad || pickup || pickupName !== undefined)) {
+            throw new BookingError("RESERVATION_LOCKED", "Editá las paradas y sus pasajeros desde la ficha del traslado privado.");
+          }
           const cambiaEquipaje = sportsLuggageCount !== undefined && sportsLuggageCount !== (reservation.airportDetails?.sportsLuggageCount ?? 0);
           // Menores y bajada no ocupan lugares: sólo cambian el precio y lo que ve el chofer.
           const cambiaMenores = (halfFareCount !== undefined && halfFareCount !== mediasAhora)
@@ -416,7 +421,8 @@ export async function manageReservation(code: string, command: ReservationOperat
               movida = true;
             } else if (move.mode === "AIRPORT" && move.flightId !== reservation.airportDetails?.flightId) {
               if (!reservation.airportDetails) throw new BookingError("RESERVATION_LOCKED", "La reserva no tiene los datos del vuelo.");
-              const vuelo = await lugarEnVuelo(tx, move.flightId, pedido);
+              const vuelo = await lugarEnVuelo(tx, move.flightId, pedido, privada);
+              if (privada) await tx.airportVehicleAssignment.deleteMany({ where: { privateReservationId: id } });
               // Otro sentido = otra tarifa: la ruta del sentido del vuelo manda, igual que en el alta.
               if (vuelo.direction !== reservation.airportDetails.direction) {
                 const ruta = await tx.travelRoute.findFirst({
@@ -490,8 +496,8 @@ export async function manageReservation(code: string, command: ReservationOperat
                     include: {
                       flight: {
                         include: {
-                          reservations: { select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
-                          assignments: { select: { vehicle: { select: { seats: { select: { id: true } } } } } }
+                          reservations: { where: { isPrivate: false }, select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
+                          assignments: { where: { privateReservationId: null }, select: { vehicle: { select: { seats: { select: { id: true } } } } } }
                         }
                       }
                     }
@@ -632,7 +638,7 @@ export async function manageReservation(code: string, command: ReservationOperat
           const precioEscrito = financial !== undefined && (
             financial.operation === "price" || (financial.operation === "correctPayment" && financial.totalCents !== undefined)
           );
-          if (!precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || cambiaZona || cambiaPaihuen || movida) && rutaDeLaReserva && rutaFinal) {
+          if (!privada && !precioEscrito && (cambiaCantidad || cambiaEquipaje || cambiaMenores || cambiaSubida || cambiaBajada || cambiaZona || cambiaPaihuen || movida) && rutaDeLaReserva && rutaFinal) {
             const total = totalAlEditar({
               basis: {
                 priceCents: tarifaPorPersona(rutaDeLaReserva, reservation.dropoffStop, reservation.boardingStop),

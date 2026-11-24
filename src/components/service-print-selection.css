@@ -1,0 +1,83 @@
+.driver-print-options { margin: 0 0 20px; padding: 14px; min-width: 0; }
+.driver-print-options legend { font-size: 15px; font-weight: 800; padding: 0 6px; }
+.driver-print-options > p { margin: 0 0 10px; font-size: 13px; }
+.driver-print-choices { list-style: none; padding: 0; margin: 0 0 12px; }
+.driver-print-choices > li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+.driver-print-choice, .driver-print-sheet-choice { display: flex; align-items: center; gap: 8px; }
+.driver-print-choice input { flex: none; }
+.driver-print-choice small { display: block; margin-top: 2px; color: var(--ink-muted); }
+.driver-print-sheet-choice select { min-width: 58px; }
+.driver-print-actions { flex-wrap: wrap; }
+.driver-print-sheet-title { font-size: 14px; margin: 0 0 6px; }
+.driver-print-sheet + .driver-print-sheet { margin-top: 20px; }
+.driver-orders-document + .driver-orders-document { margin-top: 12px; }
+
+.service-print-only { display: none; }
+.service-print-measure { position: fixed; top: 0; left: -20000px; visibility: hidden; }
+.service-print-paper { display: flow-root; box-sizing: border-box; }
+.service-print-paper .no-print { display: none !important; }
+.service-print-paper .orden { max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; }
+.service-print-paper .orden-bloque { margin: 0; }
+.service-print-paper .orden-cabecera {
+  display: flex;
+  flex-direction: row;
+  margin: 0 0 1.5mm;
+  padding: 0 0 1.5mm;
+  border-bottom: 2px solid #000;
+  line-height: 1.15;
+}
+.service-print-paper .orden-cabecera :is(.orden-marca, .orden-subtitulo, .orden-fecha) { font-size: 10px; }
+.service-print-paper .orden-cabecera .orden-titulo { font-size: 18px; }
+.service-print-paper .orden-fecha { text-align: right; }
+.service-print-paper .orden-fecha strong { font-size: 14px; }
+.service-print-paper .orden-bloque-titulo { padding: 4px 0; border-bottom: 2px solid #000; }
+.service-print-paper .orden-tabla { display: table; width: 100%; table-layout: fixed; }
+.service-print-paper .orden-tabla thead { display: table-header-group; }
+.service-print-paper .orden-tabla :is(tbody, tfoot) { display: table-row-group; }
+.service-print-paper .orden-tabla tr { display: table-row; }
+.service-print-paper .orden-tabla :is(th, td) {
+  display: table-cell;
+  padding: 1px 4px;
+  font-size: 9.5px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.service-print-paper .orden-tabla td::before { display: none; }
+.service-print-paper .orden-tabla thead th { font-size: 9px; }
+.service-print-paper .orden-tabla tfoot td { padding-top: 4px; }
+.service-print-paper .orden-forma-pago-impresa { display: inline; }
+.service-print-paper .orden-whatsapp-boton { display: none; }
+.service-print-paper .orden-forma-pago { display: flex; flex-wrap: wrap; min-width: 0; gap: 2px 5px; font-size: 9px; }
+.service-print-paper .orden-forma-pago-casillero { width: 10px; height: 10px; font-size: 9px; }
+.service-print-paper .orden-tabla tbody tr { border: 0; padding: 0; margin: 0; }
+.service-print-paper .orden-tabla th:nth-child(1) { width: 15%; }
+.service-print-paper .orden-tabla th:nth-child(2) { width: 4%; }
+.service-print-paper .orden-tabla th:nth-child(3) { width: 7%; }
+.service-print-paper .orden-tabla th:nth-child(4) { width: 32%; }
+.service-print-paper .orden-tabla th:nth-child(5) { width: 9%; }
+.service-print-paper .orden-tabla th:nth-child(6) { width: 9%; }
+.service-print-paper .orden-tabla th:nth-child(7) { width: 11%; }
+.service-print-paper .orden-tabla th:nth-child(8) { width: 13%; }
+.service-print-paper .driver-orders-document + .driver-orders-document { margin-top: 3mm; }
+.service-print-paper .driver-orders-document + .driver-orders-document :is(.orden-marca, .orden-titulo, .orden-fecha) { display: none; }
+.service-print-paper .orden-pie { display: none; }
+.service-print-paper .orden-especial-datos { margin: 5px 0; gap: 5px 14px; font-size: 12px; }
+.service-print-paper .orden-especial-tramos { margin: 4px 0; font-size: 12px; }
+
+@media print {
+  html:not([data-imprimir-una]) .service-print-only { display: block; }
+  .driver-print-sheet + .driver-print-sheet { break-before: page; margin-top: 0; }
+  .driver-print-sheet[data-fitted="true"] { break-inside: avoid; }
+  .driver-print-sheet[data-fitted="true"] > .service-print-content {
+    width: var(--service-paper-width);
+    zoom: var(--service-page-scale);
+  }
+}

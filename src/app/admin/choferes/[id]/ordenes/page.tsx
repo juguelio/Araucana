@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
-import { ImprimirTodas } from "@/components/imprimir-todas";
+import { RouteSheetDocument } from "@/components/route-sheet";
 import { CabeceraOrden, ServiceOrderSheet } from "@/components/service-order-sheet";
-import { fechaDeLaOrden } from "@/lib/airport/service-order";
+import { fechaDeLaOrden, horaEnSalta } from "@/lib/airport/service-order";
 import { getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { listDriverServiceOrders } from "@/lib/driver/service-orders";
 import { localDateKey } from "@/lib/operations/day-board";
 import { argentina, dateOnly, legSchema, localDateTime, pointsForLeg, tripContactLabel } from "@/lib/special-trips/data";
+import { ServicePrintSelection } from "@/components/service-print-selection";
 import "./ordenes.css";
 
 export const metadata = {
@@ -74,10 +75,10 @@ function SpecialOrderSheet({ order, driver, date }: { order: SpecialOrder; drive
 
 export default async function DriverOrdersPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ fecha?: string | string[]; imprimir?: string | string[] }>;
+  searchParams: Promise<{ fecha?: string | string[] }>;
 }) {
   const actor = await getCurrentDriverManagerOrRedirect();
-  const [{ id }, { fecha, imprimir }] = await Promise.all([params, searchParams]);
+  const [{ id }, { fecha }] = await Promise.all([params, searchParams]);
   const date = typeof fecha === "string" && dateOnly(fecha) ? fecha : localDateKey(new Date());
   const driver = await prisma.user.findFirst({
     where: { id, role: "DRIVER" },
@@ -88,6 +89,31 @@ export default async function DriverOrdersPage({ params, searchParams }: {
   const driverName = driver.name?.trim() || driver.email;
   const driverHref = `/admin/choferes/${driver.id}`;
   const orders = await listDriverServiceOrders(driver.id, date);
+
+  const documents = orders.map((order) => {
+    const id = `${order.type}-${order.id}`;
+    const time = horaEnSalta(order.at);
+    switch (order.type) {
+      case "airport":
+        return {
+          id, title: `${order.block.direction === "ARRIVAL" ? "IN" : "OUT"} · ${order.block.flightNumber}`,
+          detail: `${time} · ${order.block.vehicle?.name ?? "Aeropuerto"}`,
+          content: <ServiceOrderSheet date={date} blocks={[order.block]} variante="chofer" mostrarResumen={false} />
+        };
+      case "special":
+        return {
+          id, title: order.assignment.trip.client,
+          detail: `Viaje especial · ${time} · ${order.assignment.vehicle.name}`,
+          content: <SpecialOrderSheet order={order} driver={driverName} date={date} />
+        };
+      case "route":
+        return {
+          id, title: order.sheet.routeShortLabel,
+          detail: `Servicio público · ${time} · ${order.vehicles.join(" + ")}`,
+          content: <RouteSheetDocument sheet={order.sheet} assignment={`${driverName} · Nave asignada: ${order.vehicles.join(" + ")}`} />
+        };
+    }
+  });
 
   return (
     <AdminShell title="Hoja del chofer" eyebrow={driverName} role={actor.role}
@@ -101,19 +127,10 @@ export default async function DriverOrdersPage({ params, searchParams }: {
             <label>Fecha del servicio<input type="date" name="fecha" defaultValue={date} required /></label>
             <button className="ghost-button" type="submit">Ver órdenes</button>
           </form>
-          {orders.length ? <ImprimirTodas cantidad={orders.length} alAbrir={imprimir === "1"} /> : null}
         </div>
-        {orders.length ? (
-          <div className="driver-orders-documents">
-            {orders.map((order) => (
-              <div className="driver-orders-document" key={`${order.type}-${order.id}`}>
-                {order.type === "airport"
-                  ? <ServiceOrderSheet date={date} blocks={[order.block]} variante="chofer" mostrarResumen={false} />
-                  : <SpecialOrderSheet order={order} driver={driverName} date={date} />}
-              </div>
-            ))}
-          </div>
-        ) : <p className="plain-card admin-section">No hay órdenes de Aeropuerto ni de Viajes especiales para este chofer en la fecha elegida.</p>}
+        {documents.length ? (
+          <ServicePrintSelection key={JSON.stringify([driver.id, date, documents.map(({ id }) => id)])} documents={documents} />
+        ) : <p className="plain-card admin-section">No hay servicios asignados a este chofer en la fecha elegida.</p>}
       </div>
     </AdminShell>
   );

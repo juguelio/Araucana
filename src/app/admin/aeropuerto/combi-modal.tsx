@@ -13,6 +13,7 @@ import type { NaveElegible } from "./nave-buscador";
 type ChoferElegible = ChoferOpcion;
 import { NAVES_STEP_FIELD, ORDER_RETURN_FIELD } from "./return-to-order";
 import "./aeropuerto.css";
+import "./combi-modal.css";
 
 /** Lo que necesita el modal de un vuelo: sus combis (con butacas y chofer) y sus pasajeros. */
 export const INCLUDE_COMBIS_DEL_VUELO = {
@@ -29,26 +30,25 @@ export const nombreDeChofer = (chofer: { name: string | null; email: string }) =
 const hhmm = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 
 /** Naves (sin utilitarios) y choferes activos para elegir en el modal. */
+export async function opcionesDeNave() {
+  const vehicles = await prisma.vehicle.findMany({
+    where: { isActive: true, kind: { not: "UTILITARIO" } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true, internalNumber: true, licensePlate: true, _count: { select: { seats: true } } }
+  });
+  return vehicles.map(({ _count, ...vehicle }) => ({ ...vehicle, seats: butacasParaAeropuerto(_count.seats) }));
+}
+
 export async function opcionesDeCombi(): Promise<{ naves: NaveElegible[]; choferes: ChoferElegible[] }> {
   const [naves, choferes] = await Promise.all([
-    prisma.vehicle.findMany({
-      where: { isActive: true, kind: { not: "UTILITARIO" } },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, internalNumber: true, licensePlate: true, _count: { select: { seats: true } } }
-    }),
+    opcionesDeNave(),
     prisma.user.findMany({
       where: { role: "DRIVER", isActive: true },
       orderBy: [{ name: "asc" }, { email: "asc" }],
       select: { id: true, name: true, email: true }
     })
   ]);
-  return {
-    naves: naves.map((nave) => ({
-      id: nave.id, name: nave.name, internalNumber: nave.internalNumber, licensePlate: nave.licensePlate,
-      seats: butacasParaAeropuerto(nave._count.seats)
-    })),
-    choferes: choferes.map((chofer) => ({ id: chofer.id, label: nombreDeChofer(chofer), email: chofer.email }))
-  };
+  return { naves, choferes: choferes.map(chofer => ({ id: chofer.id, label: nombreDeChofer(chofer), email: chofer.email })) };
 }
 
 /** «Sprinter 1 (15) · Ramón Paz»: las combis del vuelo con su chofer, como se ven en el botón. */
@@ -65,7 +65,7 @@ export function combisCortas(vuelo: VueloConCombis) {
 
 export function combisDelVuelo(vuelo: VueloConCombis) {
   return vuelo.assignments
-    .map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)}) · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`)
+    .map((a) => `${a.vehicle.name} (${butacasParaAeropuerto(a.vehicle.seats.length)})${a.privateReservationId ? " · privada" : ""} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`)
     .join(" · ");
 }
 
@@ -162,11 +162,11 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
           {vuelo.assignments.map((a) => (
             <div key={a.id} className="aero-combi-asignada">
               <span>
-                <strong>{tituloDeNave(a.vehicle)}</strong> · {butacasParaAeropuerto(a.vehicle.seats.length)} lugares · {a.driver ? `chofer ${nombreDeChofer(a.driver)}` : "sin chofer"}
+                <strong>{tituloDeNave(a.vehicle)}</strong>{a.privateReservationId ? " · privada" : ""} · {butacasParaAeropuerto(a.vehicle.seats.length)} lugares · {a.driver ? `chofer ${nombreDeChofer(a.driver)}` : "sin chofer"}
               </span>
               {/* El chofer de una combi ya asignada se cambia acá mismo: avisa si está ocupado en otra salida. */}
               <FleetAssignmentForm action={assignVehicleAction}>
-                <input type="hidden" name="flightId" value={vuelo.id} />
+                <input type="hidden" name="flightId" value={a.privateReservationId ? a.flightId : vuelo.id} />
                 <input type="hidden" name="vehicleId" value={a.vehicle.id} />
                 {volver}
                 <select name="driverId" defaultValue={a.driver?.id ?? ""} aria-label={`Chofer de ${a.vehicle.name}`}>

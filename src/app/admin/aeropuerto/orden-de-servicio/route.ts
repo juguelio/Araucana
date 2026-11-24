@@ -57,11 +57,11 @@ export async function GET(request: Request) {
   const workbook = await buildServiceOrderWorkbook({ date, generatedAt }, blocks);
   const nave = vehicle && blocks[0] ? naveDeLaOrden(blocks[0]) : null;
   const referencia = flightId ? [blocks[0]?.flightNumber ?? flightId, nave].filter(Boolean).join(" ") : null;
-  const pasajeros = blocks.reduce((total, block) => total + block.passengers.length, 0);
+  const reservas = new Set(blocks.flatMap(block => block.passengers.map(p => p.code))).size;
 
   await recordDownload(request, downloader, {
     entity: "AIRPORT", entityId: flightId, entityLabel: `Orden de servicio ${date}${referencia ? ` · ${referencia}` : ""}`,
-    summary: `Orden de servicio del aeropuerto descargada (${pasajeros} reservas).`
+    summary: `Orden de servicio del aeropuerto descargada (${reservas} reservas).`
   });
 
   return new Response(new Uint8Array(workbook), {

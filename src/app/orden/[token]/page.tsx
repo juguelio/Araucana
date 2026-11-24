@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
-import { ImprimirButton } from "@/components/imprimir-button";
-import { ServiceOrderSheet } from "@/components/service-order-sheet";
+import { airportPrintDocuments } from "@/components/service-print-documents";
+import { ServicePrintSelection } from "@/components/service-print-selection";
+import { groupAirportPair, ServiceOrderSheet } from "@/components/service-order-sheet";
 import { ServiceOrderMap } from "@/components/service-order-map";
 import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
 import { filtrarPorNave, ordenesDelVuelo } from "@/lib/airport/service-order";
@@ -36,21 +37,16 @@ export default async function OrdenPublicaPage({ params }: PageProps) {
 
   const { blocks: ordenesDelDia, oficina } = await getAirportServiceOrder(payload.date, payload.flight);
   const blocks = filtrarPorNave(
-    ordenesDelVuelo(ordenesDelDia, payload.flight ?? null),
+    ordenesDelVuelo(ordenesDelDia, payload.flight ?? null).filter(order => !payload.flight || payload.vehicle || !order.privateOrderId),
     payload.flight ? (payload.vehicle ?? null) : null
   );
 
   return (
     <main className="page-shell section orden-publica">
-      <div className="orden-publica-acciones no-print">
-        <ImprimirButton />
-      </div>
-      <ServiceOrderSheet
-        date={payload.date}
-        blocks={blocks}
-        variante="chofer"
-        pieDeOrden={(block) => <ServiceOrderMap block={block} oficina={oficina} />}
-      />
+      <ServicePrintSelection documents={airportPrintDocuments(payload.date, blocks)} defaultGrouped={groupAirportPair(blocks)}>
+        <ServiceOrderSheet date={payload.date} blocks={blocks} variante="chofer"
+          pieDeOrden={(block) => <ServiceOrderMap block={block} oficina={oficina} />} />
+      </ServicePrintSelection>
       <p className="orden-pie orden-publica-pie no-print">La Araucana Viajes S.R.L. · San Martín de los Andes</p>
     </main>
   );

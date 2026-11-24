@@ -6,8 +6,6 @@
 
 .driver-orders-controls form { align-items: end; }
 .driver-orders-controls label { display: grid; gap: 6px; }
-.driver-orders-document + .driver-orders-document { margin-top: 16px; }
-
 .orden-especial-datos {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr));
@@ -21,11 +19,6 @@
 .orden-especial-notas { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @media print {
-  .driver-orders-document + .driver-orders-document {
-    break-before: page;
-    margin-top: 0;
-  }
-
   .orden-especial-datos { font-size: 12px; }
   .orden-especial-tramos { font-size: 12px; }
 }

@@ -187,7 +187,7 @@ describe("aeropuerto: la combi y el chofer son de la recorrida, no de un vuelo s
 
   it("si toda la recorrida ya iba con esa combi y ese chofer, no guarda nada", async () => {
     mocks.findAssignment.mockResolvedValue({ driverId: "d1" });
-    mocks.findAssignments.mockResolvedValue([{ flightId: "f2" }]);
+    mocks.findAssignments.mockImplementation(async ({ where }) => where.privateReservationId ? [] : [{ flightId: "f2" }]);
     expect(await assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" }))).toEqual({ error: "La combi ya tenía ese chofer." });
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
@@ -202,7 +202,8 @@ describe("aeropuerto: la combi y el chofer son de la recorrida, no de un vuelo s
   it("el vuelo sin recorrida sigue con el mensaje de siempre y no consulta el grupo", async () => {
     mocks.findFlights.mockResolvedValue([]);
     const url = await redirectTo(assignVehicleAction(undefined, form({ flightId: "f1", vehicleId: "v1", driverId: "d1" })));
-    expect(mocks.findAssignments).not.toHaveBeenCalled();
+    expect(mocks.findAssignments).toHaveBeenCalledTimes(1);
+    expect(mocks.findAssignments).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ privateReservationId: { not: null } }) }));
     expect(mocks.deleteAssignments).not.toHaveBeenCalled();
     expect(url).toBe("redirect:/admin/aeropuerto?date=2026-11-19&notice=Combi asignada al vuelo.");
   });
@@ -225,7 +226,7 @@ describe("aeropuerto: quitar una combi de una recorrida", () => {
     mocks.findAssignments.mockResolvedValue([{ id: "asig-ja", flight: ja }]);
     const url = await redirectTo(removeAssignmentAction(form({ id: "asig-ar" })));
     expect(mocks.findAssignments).toHaveBeenCalledWith(expect.objectContaining({
-      where: { vehicleId: "v1", flight: { pickupGroupId: "recorrida-1" }, id: { not: "asig-ar" } }
+      where: { vehicleId: "v1", privateReservationId: null, flight: { pickupGroupId: "recorrida-1" }, id: { not: "asig-ar" } }
     }));
     expect(mocks.deleteAssignments).toHaveBeenCalledWith({ where: { id: { in: ["asig-ar", "asig-ja"] } } });
     expect(mocks.auditAfterCommit).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({

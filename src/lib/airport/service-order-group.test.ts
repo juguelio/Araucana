@@ -131,3 +131,20 @@ describe("una sola camioneta para varios vuelos: la hoja los une en una orden", 
     expect(solo.passengers[0].name).toBe("Ana Paz");
   });
 });
+
+it("mantiene dos reservas privadas pendientes separadas en una recorrida compartida", () => {
+  const stops = [{ destination: "Traful", passengers: 2 }, { destination: "Meliquina", passengers: 2 }, { destination: "Junín", passengers: 1 }];
+  const orders = buildServiceOrderBlocks([
+    reserva("Grupo", { ...ar, vehicles: [] }, { privateOrderId: "r1", privateStops: stops, passengerCount: 5 }),
+    reserva("Familia", { ...ar, vehicles: [] }, { privateOrderId: "r2", privateStops: [stops[1]] }),
+    reserva("Ana", ar), reserva("Beto", ja)
+  ]);
+  const [group] = filtrarPorNave(orders, "privada-r1");
+  expect(group.vehicle).toBeNull();
+  expect(group.passengers.map(p => [p.code, p.lodging, p.seats, p.amountCents])).toEqual([
+    ["Grupo", "Traful", 2, 100000], ["Grupo", "Meliquina", 2, 0], ["Grupo", "Junín", 1, 0]
+  ]);
+  expect(orders).toHaveLength(3);
+  expect(group.totalCents).toBe(100000);
+  expect(orders.find(o => !o.privateOrderId)?.passengers.map(p => p.code)).toEqual(["Ana", "Beto"]);
+});

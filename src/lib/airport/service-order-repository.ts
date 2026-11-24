@@ -1,3 +1,4 @@
+import { privateStopsSchema } from "./private-transfer";
 import { prisma } from "@/lib/db/prisma";
 import { butacasParaAeropuerto, rangoDelDia } from "./booking";
 import type { ServiceOrderReservationInput } from "./service-order";
@@ -62,6 +63,7 @@ export async function getAirportServiceOrderReservations(
                 orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 select: {
                   id: true,
+                  privateReservationId: true,
                   vehicle: { select: { id: true, name: true, _count: { select: { seats: true } } } },
                   driver: { select: { id: true, name: true, email: true } }
                 }
@@ -80,6 +82,8 @@ export async function getAirportServiceOrderReservations(
     return [
       {
         code: reserva.code,
+        privateOrderId: detalle.isPrivate ? detalle.id : null,
+        privateStops: detalle.isPrivate ? privateStopsSchema.parse(detalle.privateStops) : undefined,
         // Quién derivó la venta (#109): lo carga el panel y el chofer lo lee en su hoja.
         referredBy: reserva.referredBy,
         totalCents: reserva.totalCents,
@@ -113,7 +117,7 @@ export async function getAirportServiceOrderReservations(
               estimatedAt: detalle.flight.estimatedAt,
               pickupStartOverrideAt: detalle.flight.pickupStartOverrideAt,
               pickupGroupId: detalle.flight.pickupGroupId,
-              vehicles: detalle.flight.assignments.map((asignacion) => ({
+              vehicles: detalle.flight.assignments.filter(a => detalle.isPrivate ? a.privateReservationId === reserva.id : !a.privateReservationId).map((asignacion) => ({
                 assignmentId: asignacion.id,
                 vehicleId: asignacion.vehicle.id,
                 name: asignacion.vehicle.name,

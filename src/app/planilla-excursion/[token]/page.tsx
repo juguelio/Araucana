@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { ImprimirButton } from "@/components/imprimir-button";
+import { excursionPrintDocuments } from "@/components/service-print-documents";
+import { ServicePrintSelection } from "@/components/service-print-selection";
 import { ExcursionSheet } from "@/components/excursion-sheet";
 import { getExcursionBookingsForDay } from "@/lib/excursions/booking-repository";
 import { buildExcursionSheetBlocks } from "@/lib/excursions/sheet";
@@ -31,10 +32,10 @@ export default async function PlanillaPublicaPage({ params }: PageProps) {
 
   return (
     <main className="page-shell section orden-publica">
-      <div className="orden-publica-acciones no-print">
-        <ImprimirButton />
-      </div>
-      <ExcursionSheet date={payload.date} blocks={blocks} variante="guia" />
+      <ServicePrintSelection key={JSON.stringify([payload.date, blocks.map((block) => block.key)])}
+        documents={excursionPrintDocuments(payload.date, blocks)}>
+        <ExcursionSheet date={payload.date} blocks={blocks} variante="guia" />
+      </ServicePrintSelection>
       <p className="orden-pie orden-publica-pie">La Araucana Viajes S.R.L. · San Martín de los Andes</p>
     </main>
   );
