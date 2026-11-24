@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { Paginador } from "@/components/admin-list/paginador";
 import type { NaveEnVivo } from "@/lib/driver/en-vivo";
+import { paginarNaves } from "@/lib/vehicles/fleet-table";
 import { fechaLocal, minutosAHoras } from "@/lib/driver/jornada";
 import { AVISO_PREVIO_MINUTOS, type ResumenDeServicios } from "@/lib/driver/servicios";
 import { seAsignaDesdeNavesEnVivo } from "@/lib/driver/servicio-id";
@@ -52,12 +54,14 @@ export function ServiciosDelDia({
   resumen,
   fecha,
   hoy,
+  page = 1,
   naves = [],
   choferes = []
 }: {
   resumen: ResumenDeServicios;
   fecha: string;
   hoy?: string;
+  page?: number;
   naves?: NaveParaAsignar[];
   choferes?: ChoferParaAsignar[];
 }) {
@@ -67,6 +71,25 @@ export function ServiciosDelDia({
 
   const pendientes = resumen.evaluados.filter((servicio) => servicio.nivel !== "pasado");
   const pasados = resumen.evaluados.filter((servicio) => servicio.nivel === "pasado");
+  const pagina = paginarNaves(pendientes, page, 12);
+  const hrefPagina = (numero: number) => {
+    const query = new URLSearchParams({ vista: "servicios", fecha });
+    if (numero > 1) query.set("page", String(numero));
+    return `/admin/naves/en-vivo?${query.toString()}#srv-lista`;
+  };
+  const paginador = (
+    <div className="srv-paginacion">
+      <Paginador
+        page={pagina.page}
+        totalPages={pagina.totalPages}
+        total={pagina.total}
+        desde={pagina.desde}
+        hasta={pagina.hasta}
+        hrefPagina={hrefPagina}
+        etiqueta="servicios del día"
+      />
+    </div>
+  );
   const [anio, mes, dia] = fecha.split("-").map(Number);
   const fechaLinda = new Date(Date.UTC(anio, mes - 1, dia)).toLocaleDateString("es-AR", {
     weekday: "long",
@@ -144,8 +167,11 @@ export function ServiciosDelDia({
             : `Los ${resumen.total} servicios de ese día ya finalizaron. Abajo están con su nave asignada.`}
         </p>
       ) : (
+        <>
+        {pagina.totalPages > 1 ? paginador : null}
+        <div id="srv-lista" className="srv-ancla" />
         <ul className="srv-lista">
-          {pendientes.map((servicio) => (
+          {pagina.items.map((servicio) => (
             <li key={servicio.id} className={`srv-fila ${NIVEL[servicio.nivel].clase}`}>
               <div className="srv-hora">
                 <strong>{hora(servicio.at)}</strong>
@@ -183,6 +209,8 @@ export function ServiciosDelDia({
                       fecha={fecha}
                       naves={naves}
                       choferes={choferes}
+                      vista="servicios"
+                      page={pagina.page}
                     />
                   ) : (
                     <Link className="srv-asignar" href={servicio.href}>Abrir tablero</Link>
@@ -227,10 +255,29 @@ export function ServiciosDelDia({
                     Ver en mapa
                   </Link>
                 ) : null}
+                {seAsignaDesdeNavesEnVivo(servicio.area) && servicio.unidades.length > 0 ? (
+                  <AsignarUnidad
+                    servicioId={servicio.id}
+                    titulo={servicio.titulo}
+                    subtitulo={`${hora(servicio.at)} · ${NIVEL[servicio.nivel].etiqueta} · ${servicio.motivo}`}
+                    fecha={fecha}
+                    naves={naves}
+                    choferes={choferes}
+                    vista="servicios"
+                    trigger="Cambiar nave y chofer"
+                    triggerClassName="srv-cambiar"
+                    defaultVehicleId={servicio.unidades[0].vehicleId}
+                    defaultDriverId={servicio.unidades[0].driverId ?? ""}
+                    assignmentId={servicio.area === "AEROPUERTO" ? servicio.unidades[0].assignmentId ?? "" : ""}
+                    page={pagina.page}
+                  />
+                ) : null}
               </div>
             </li>
           ))}
         </ul>
+        {pagina.totalPages > 1 ? paginador : null}
+        </>
       )}
 
       {pasados.length > 0 ? (

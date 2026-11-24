@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
 
 type Props = {
-  searchParams?: Promise<{ vista?: string; fecha?: string; unidad?: string; ok?: string; error?: string }>;
+  searchParams?: Promise<{ vista?: string; fecha?: string; unidad?: string; ok?: string; error?: string; page?: string }>;
 };
 
 /**
@@ -40,6 +40,7 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
   const fechaPedida = typeof query.fecha === "string" ? query.fecha : "";
   const fecha = rangoDelDia(fechaPedida) ? fechaPedida : hoy;
   const unidadSeleccionada = typeof query.unidad === "string" && query.unidad.trim() ? query.unidad.trim() : null;
+  const paginaServicios = Math.max(1, Number.parseInt(String(query.page ?? ""), 10) || 1);
   /** Resultado de asignar nave desde el aviso o desde la lista (server action → redirect). */
   const aviso = query.ok ? { tono: "ok" as const, texto: query.ok } : query.error ? { tono: "error" as const, texto: query.error } : null;
 
@@ -67,8 +68,13 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
 
   const resumenServicios = servicios ? evaluarServiciosDelDia(servicios, flota) : null;
 
-  // Naves y choferes para el modal «Asignar nave»: sólo se leen cuando hay algo para asignar.
-  const necesitaAsignar = Boolean(resumenServicios && resumenServicios.enRiesgo > 0);
+  // Naves y choferes para el modal «Asignar nave»: en Servicios del día se puede asignar
+  // cualquier servicio que no haya terminado, aunque todavía no esté en riesgo.
+  const necesitaAsignar = Boolean(
+    resumenServicios &&
+      (resumenServicios.enRiesgo > 0 ||
+        (vista === "servicios" && resumenServicios.evaluados.some((servicio) => servicio.nivel !== "pasado")))
+  );
   const opciones = necesitaAsignar ? await opcionesParaAsignar() : { naves: [], choferes: [] };
 
   return (
@@ -136,7 +142,7 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
       ) : vista === "servicios" && resumenServicios ? (
         <>
           <AutoRefresco cadaMs={60_000} />
-          <ServiciosDelDia resumen={resumenServicios} fecha={fecha} hoy={hoy} naves={opciones.naves} choferes={opciones.choferes} />
+          <ServiciosDelDia resumen={resumenServicios} fecha={fecha} hoy={hoy} page={paginaServicios} naves={opciones.naves} choferes={opciones.choferes} />
         </>
       ) : dia ? (
         <ResumenDelDia dia={dia} dias={dias} hoy={hoy} />

@@ -24,9 +24,10 @@ import { fleetConflicts, lockFleet } from "@/lib/special-trips/conflicts";
  *
  * Vuele o no, siempre se vuelve a la vista con un mensaje: `?ok=` o `?error=`.
  */
-function volver(fecha: string, clave: "ok" | "error", mensaje: string): never {
-  const params = new URLSearchParams({ vista: "en-vivo" });
+function volver(fecha: string, clave: "ok" | "error", mensaje: string, vista: "en-vivo" | "servicios" = "en-vivo", page = ""): never {
+  const params = new URLSearchParams({ vista });
   if (fecha) params.set("fecha", fecha);
+  if (page && Number.parseInt(page, 10) > 1) params.set("page", page);
   params.set(clave, mensaje);
   redirect(`/admin/naves/en-vivo?${params.toString()}`);
 }
@@ -37,10 +38,16 @@ export async function asignarUnidadAction(formData: FormData) {
   const vehicleId = String(formData.get("vehicleId") ?? "");
   const driverId = String(formData.get("driverId") ?? "") || null;
   const fecha = String(formData.get("fecha") ?? "");
+  const vista: "en-vivo" | "servicios" = formData.get("vista") === "servicios" ? "servicios" : "en-vivo";
+  const assignmentId = String(formData.get("assignmentId") ?? "") || null;
+  const page = String(formData.get("page") ?? "");
+  function responder(clave: "ok" | "error", mensaje: string): never {
+    return volver(fecha, clave, mensaje, vista, page);
+  }
 
   const servicio = parseServicioId(servicioId);
-  if (!servicio) volver(fecha, "error", "No se reconoció el servicio a asignar.");
-  if (!vehicleId) volver(fecha, "error", "Elegí la nave.");
+  if (!servicio) responder("error", "No se reconoció el servicio a asignar.");
+  if (!vehicleId) responder("error", "Elegí la nave.");
 
   if (servicio.area === "AEROPUERTO") {
     const vuelo = await prisma.flight.findUnique({
@@ -55,7 +62,7 @@ export async function asignarUnidadAction(formData: FormData) {
         pickupGroupId: true
       }
     });
-    if (!vuelo) volver(fecha, "error", "El vuelo ya no existe.");
+    if (!vuelo) responder("error", "El vuelo ya no existe.");
 
     // Recorrida: la combi va a todos los vuelos del grupo y la hoja del chofer se arma allá. Se manda al
     // tablero del aeropuerto con el modal de naves de ese vuelo abierto, en vez de partir el grupo.
@@ -70,44 +77,54 @@ export async function asignarUnidadAction(formData: FormData) {
         ? prisma.user.findUnique({ where: { id: driverId }, select: { isActive: true, role: true, name: true, email: true } })
         : Promise.resolve(null)
     ]);
-    if (!naveVuelo?.isActive) volver(fecha, "error", "Esa nave no está disponible: elegí una unidad activa.");
+    if (!naveVuelo?.isActive) responder("error", "Esa nave no está disponible: elegí una unidad activa.");
     if (driverId && !(choferVuelo?.isActive && choferVuelo.role === "DRIVER")) {
-      volver(fecha, "error", "Ese chofer no está disponible: elegí un chofer activo.");
+      responder("error", "Ese chofer no está disponible: elegí un chofer activo.");
     }
 
     const desde = airportPickupStart(vuelo) ?? vuelo.scheduledAt;
     const hasta = new Date(desde.getTime() + 120 * 60_000);
     const resultadoVuelo = await prisma.$transaction(async (tx) => {
       await lockFleet(tx, [vehicleId]);
-      const conflictos = await fleetConflicts(tx, { vehicleId, startsAt: desde, endsAt: hasta });
+      const conflictos = await fleetConflicts(tx, { vehicleId, startsAt: desde, endsAt: hasta }, undefined, undefined, assignmentId ?? undefined);
       if (conflictos.length > 0) return { error: vehicleConflictNotice(conflictos) };
 
-      await tx.airportVehicleAssignment.create({
-        data: { flightId: vuelo.id, vehicleId, driverId, createdBy: actor.id }
-      });
+      if (assignmentId) {
+        const { count } = await tx.airportVehicleAssignment.updateMany({
+          where: { id: assignmentId, flightId: vuelo.id },
+          data: { vehicleId, driverId }
+        });
+        if (count === 0) return { error: "La asignación de esa combi ya no existe: recargá la página." };
+      } else {
+        await tx.airportVehicleAssignment.create({
+          data: { flightId: vuelo.id, vehicleId, driverId, createdBy: actor.id }
+        });
+      }
       await recordEntityAudit(tx, {
         actor,
         entity: "AIRPORT",
         entityId: vuelo.id,
         entityLabel: `${vuelo.number} · ${formatAuditDate(vuelo.scheduledAt)}`,
-        summary: "Combi asignada al vuelo desde Naves en vivo.",
+        summary: assignmentId
+          ? "Combi reasignada al vuelo desde Naves en vivo."
+          : "Combi asignada al vuelo desde Naves en vivo.",
         before: null,
         after: { vehicle: naveVuelo.name, driver: choferVuelo?.name ?? choferVuelo?.email ?? null }
       });
       return { ok: true as const };
     });
 
-    if ("error" in resultadoVuelo && resultadoVuelo.error) volver(fecha, "error", resultadoVuelo.error);
+    if ("error" in resultadoVuelo && resultadoVuelo.error) responder("error", resultadoVuelo.error);
 
     revalidatePath("/admin/naves/en-vivo");
     revalidatePath("/admin/aeropuerto");
     revalidatePath("/admin/salidas-del-dia");
     revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
-    volver(fecha, "ok", `Combi ${naveVuelo.name} asignada al vuelo ${vuelo.number}.`);
+    responder("ok", `Combi ${naveVuelo.name} ${assignmentId ? "reasignada" : "asignada"} al vuelo ${vuelo.number}.`);
   }
 
   if (servicio.area !== "RUTA") {
-    volver(fecha, "error", "Chapelco y los viajes especiales se asignan desde su propio tablero.");
+    responder("error", "Chapelco y los viajes especiales se asignan desde su propio tablero.");
   }
 
   const salida = await prisma.schedule.findUnique({
@@ -123,8 +140,8 @@ export async function asignarUnidadAction(formData: FormData) {
       route: { select: { slug: true } }
     }
   });
-  if (!salida) volver(fecha, "error", "La salida ya no existe.");
-  if (salida.status === "CANCELLED") volver(fecha, "error", "La salida está cancelada.");
+  if (!salida) responder("error", "La salida ya no existe.");
+  if (salida.status === "CANCELLED") responder("error", "La salida está cancelada.");
 
   const [nave, chofer] = await Promise.all([
     prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { isActive: true } }),
@@ -132,9 +149,9 @@ export async function asignarUnidadAction(formData: FormData) {
       ? prisma.user.findUnique({ where: { id: driverId }, select: { isActive: true, role: true } })
       : Promise.resolve(null)
   ]);
-  if (!nave?.isActive) volver(fecha, "error", "Esa nave no está disponible: elegí una unidad activa.");
+  if (!nave?.isActive) responder("error", "Esa nave no está disponible: elegí una unidad activa.");
   if (driverId && !(chofer?.isActive && chofer.role === "DRIVER")) {
-    volver(fecha, "error", "Ese chofer no está disponible: elegí un chofer activo.");
+    responder("error", "Ese chofer no está disponible: elegí un chofer activo.");
   }
 
   const resultado = await prisma.$transaction(async (tx) => {
@@ -156,7 +173,7 @@ export async function asignarUnidadAction(formData: FormData) {
     return { ok: true as const };
   });
 
-  if ("error" in resultado && resultado.error) volver(fecha, "error", resultado.error);
+  if ("error" in resultado && resultado.error) responder("error", resultado.error);
 
   revalidatePath("/admin/naves/en-vivo");
   revalidatePath("/admin/salidas-del-dia");
@@ -166,5 +183,5 @@ export async function asignarUnidadAction(formData: FormData) {
     revalidatePath(`/rutas/${salida.route.slug}`);
     revalidatePath(`/reservar/${salida.route.slug}`);
   }
-  volver(fecha, "ok", "Nave y chofer asignados a la salida.");
+  responder("ok", "Nave y chofer asignados a la salida.");
 }
