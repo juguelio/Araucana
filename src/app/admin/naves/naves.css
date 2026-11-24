@@ -298,3 +298,7 @@ a.naves-fila-que:hover, a.naves-fila-que:focus-visible { color: var(--primary); 
 }
 .naves-fila-sin-habilitacion { color: #a62c22; font-weight: 800; }
 .naves-pagina-actual { color: var(--ink-muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+
+/* La paginación de Naves usa el mismo Paginador que el resto del panel. */
+.naves-paginacion .pagination { flex: 1; margin: 0; }
+.naves-ancla { scroll-margin-top: 20px; }

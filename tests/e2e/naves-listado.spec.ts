@@ -56,10 +56,11 @@ test("la búsqueda reúne las 25 naves de la prueba y el total de sus plazas", a
   await page.getByRole("searchbox", { name: "Buscar nave" }).fill(suffix);
   await page.getByRole("button", { name: "Buscar", exact: true }).click();
   await expect(page.locator("li.naves-fila")).toHaveCount(12);
-  const pages = page.getByRole("navigation", { name: "Páginas de la flota (arriba)" });
+  const pages = page.locator('.naves-paginacion[data-ubicacion="arriba"]');
   await pages.getByRole("link", { name: "3", exact: true }).click();
   await expect(page.locator("li.naves-fila")).toHaveCount(1);
-  await page.locator('.naves-paginacion[data-ubicacion="arriba"]').getByRole("link", { name: "Todas" }).click();
+  await expect(page).toHaveURL(/#flota$/);
+  await pages.getByRole("link", { name: "Todas" }).click();
   await expect(page.locator("li.naves-fila")).toHaveCount(25);
   await expect(page.getByRole("status")).toContainText("25 naves · 93 asientos");
 });
