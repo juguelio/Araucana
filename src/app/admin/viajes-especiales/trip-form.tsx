@@ -76,7 +76,7 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
               </div>
             </section>
             <section className={`plain-card admin-section ${styles.section}`}>
-              <h2>Ocupación de naves</h2>
+              <h2>Naves y choferes</h2>
               <p className="muted">Ingresá el intervalo durante el que la nave no estará disponible, en hora argentina.{dias > 1 ? ` Al agregar una, se propone el viaje entero (${dias} días).` : ""}</p>
               {sinCubrir.length > 0 && <div className={styles.aviso} role="status">
                 <p>{sinCubrir.map((a) => nombreNave(a.vehicleId)).join(", ")} no {sinCubrir.length === 1 ? "queda ocupada" : "quedan ocupadas"} todos los días del viaje: el tablero la{sinCubrir.length === 1 ? "" : "s"} va a mostrar libre{sinCubrir.length === 1 ? "" : "s"} mientras está afuera.</p>
@@ -85,16 +85,16 @@ export function TripForm({ draft, vehicles, drivers }: { draft: Draft; vehicles:
               {assignments.map((assignment, index) => {
                 const change = (patch: Partial<AssignmentInput>) => setAssignments(assignments.map((item, i) => i === index ? { ...item, ...patch } : item));
                 return <fieldset key={index} className="admin-form-grid">
-                  <legend>Ocupación {index + 1}</legend>
+                  <legend>Unidad {index + 1}</legend>
                   <label>Nave<select aria-label="Nave" required value={assignment.vehicleId} onChange={(e) => change({ vehicleId: e.target.value })}><option value="">Elegí una nave</option>{vehicles.map((v) => <option value={v.id} key={v.id}>{v.name}</option>)}</select></label>
                   <label>Chofer<select aria-label="Chofer" value={assignment.driverId} onChange={(e) => change({ driverId: e.target.value })}><option value="">Sin asignar</option>{drivers.map((d) => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label>
                   <label>Segundo chofer<select aria-label="Segundo chofer" value={assignment.coDriverId ?? ""} onChange={(e) => change({ coDriverId: e.target.value })}><option value="">Sin asignar</option>{drivers.map((d) => <option value={d.id} key={d.id}>{d.name}</option>)}</select></label>
                   <label>Desde<input required type="datetime-local" value={assignment.start} onChange={(e) => change({ start: e.target.value })} /></label>
                   <label>Hasta<input required type="datetime-local" value={assignment.end} onChange={(e) => change({ end: e.target.value })} /></label>
-                  <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.filter((_, i) => i !== index))}>Quitar ocupación {index + 1}</button>
+                  <button type="button" className="ghost-button" onClick={() => setAssignments(assignments.filter((_, i) => i !== index))}>Quitar unidad {index + 1}</button>
                 </fieldset>;
               })}
-              <button type="button" className="ghost-button" onClick={() => setAssignments([...assignments, { vehicleId: "", driverId: "", ...bloque }])}>Agregar ocupación</button>
+              <button type="button" className="ghost-button" onClick={() => setAssignments([...assignments, { vehicleId: "", driverId: "", ...bloque }])}>{assignments.length ? "Agregar otra nave" : "Agregar nave y chofer"}</button>
             </section>
             <section className={`plain-card admin-section ${styles.section}`} id="cobros">
               <h2>Precio y cobros</h2>

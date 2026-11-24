@@ -995,10 +995,10 @@ model VehicleDocument {
 
 /// Un servicio escolar fechado. Las filas paralelas pueden tener el mismo recorrido.
 model SchoolRun {
-  /// Recorridos fijos escolares o de transporte de personal.
-  kind String @default("ESCOLAR")
   id           String   @id @default(cuid())
   serviceDate  DateTime @db.Date
+  /// escuela · personal-aeropuerto · otro: los servicios recurrentes que agrupa Concesiones.
+  kind         String   @default("escuela")
   routeName    String
   shift        String
   driverId     String?

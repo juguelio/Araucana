@@ -210,6 +210,9 @@ export type AdminScheduleRowDto = {
   vehicleName: string;
   vehiclePlate: string | null;
   vehicleInternalNumber: string | null;
+  /** Chofer asignado a la salida (issue #174); se asigna desde Salidas del día y Servicio público. */
+  driverId?: string | null;
+  driverName?: string | null;
   /** Naves que se sumaron a la salida además de la principal (sus nombres). */
   extraVehicleNames?: string[];
   departureAt: Date;

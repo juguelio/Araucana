@@ -89,7 +89,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   const withCurrent = (options: Option[], id: string | null, label: string | null) =>
     id && !options.some((option) => option.id === id) ? [{ id, label: `${label ?? id} (inactivo)` }, ...options] : options;
   const routeOptions: Option[] = routes.map((route) => ({ id: route.id, label: `${route.from} → ${route.to}${route.isActive ? "" : " (inactiva)"}` }));
-  const { messages: issues, pending } = dispatchReview(board.rows, assignments, vehicleDamages, dateKey === today ? Date.now() : undefined);
+  const { messages: issues, summaries, pending } = dispatchReview(board.rows, assignments, vehicleDamages, dateKey === today ? Date.now() : undefined);
   const pendingRows = panel ? pending : serviceRows.filter(row => row.missingVehicle || row.missingDriver || row.overbooked);
   const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
   const matchRow = (row: BoardRow) => (!area || row.area === area) && (!search || normalize([
@@ -120,7 +120,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
               data-sigue={row.continuing || undefined}
               data-falta={row.missingVehicle || row.missingDriver || row.overbooked || undefined}
             >
-              <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} priority={row.key === firstPending?.key} issues={issues.get(row.key)} />}>
+              <ServiceDisclosure panel={panel} serviceKey={row.key} initiallyOpen={params?.servicio === row.key} summary={panel && <ServiceSummary row={row} priority={row.key === firstPending?.key} alert={summaries.get(row.key) ?? row.status} />}>
               {panel && row.school && row.detail && <p className="plan-detail">{row.detail}</p>}
               {panel && issues.has(row.key) && <ul className="console-issues">{issues.get(row.key)!.map(message => <li key={message}>{message}</li>)}</ul>}
               {panel ? <div className="plan-detail-links">
@@ -325,15 +325,15 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
             <Link className="ghost-button" href={`/admin/aeropuerto?date=${dateKey}`}>Cargar vuelo a mano</Link>
             <Link className="ghost-button" href={`/admin/reservas/nueva?servicio=aeropuerto&date=${dateKey}`}>Reserva de aeropuerto</Link>
             <Link className="ghost-button" href={`/admin/escolares/nuevo?fecha=${dateKey}`}>Recorrido escolar</Link>
-            <Link className="ghost-button" href={`/admin/escolares/nuevo?fecha=${dateKey}&tipo=personal`}>Traslado de personal</Link>
+            <Link className="ghost-button" href={`/admin/escolares/nuevo?fecha=${dateKey}&tipo=personal-aeropuerto`}>Traslado de personal</Link>
             <Link className="ghost-button" href="/admin/viajes-especiales/nuevo">Viaje especial</Link>
             {canEditRoutes ? <Link className="ghost-button" href="/admin/naves/nueva">Nave nueva</Link> : null}
             {canEditRoutes ? <Link className="ghost-button" href="/admin/choferes/nueva">Chofer nuevo</Link> : null}
           </div>
         </div>
       </details>
-      } filters={panel && <details name="panel-menu" className="plan-filter-menu" open={!!(area || search) || undefined}>
-        <summary>Filtrar</summary>
+      } filters={panel && <details name="panel-menu" className="plan-filter-menu">
+        <summary>{area || search ? "Filtros activos" : "Filtrar"}</summary>
         <form action="/admin" className="console-filters">
           <input type="hidden" name="date" value={dateKey} />{onlyMissing && <input type="hidden" name="falta" value="1" />}
           <label>Buscar servicio<input name="q" type="search" defaultValue={search} placeholder="Servicio, nave o chofer" maxLength={100} /></label>
@@ -375,7 +375,7 @@ export async function DayWorkspace({ user, params, panel = false }: { user: { ro
   );
 }
 
-function ServiceSummary({ row, priority, issues = [] }: { row: BoardRow; priority: boolean; issues?: string[] }) {
+function ServiceSummary({ row, priority, alert }: { row: BoardRow; priority: boolean; alert?: string | null }) {
   const first = row.units[0];
   const count = row.units.length;
   return <>
@@ -384,14 +384,14 @@ function ServiceSummary({ row, priority, issues = [] }: { row: BoardRow; priorit
       <small>{AREA_LABEL[row.area]}{row.inactiveRoute && " · Inactiva"}</small>
       <strong>{row.title}</strong>
       {row.detail && !row.school && row.area !== "RUTA" && <span className="plan-detail">{row.detail}</span>}
-      {(issues.length > 0 || row.status) && <span className="plan-alert" data-priority={priority || undefined}>{priority && "Revisar primero · "}{issues.slice(0, 2).join(" · ") || row.status}</span>}
+      {alert && <span className="plan-alert" data-priority={priority || undefined}>{priority && "Revisar primero · "}{alert}</span>}
     </span>
     <span className="plan-crew">
       <strong>{count > 1 ? `${count} naves asignadas` : first?.vehicleName ?? "Sin asignar"}</strong>
       {!first && row.school?.driver && <small>{personName(row.school.driver)}</small>}
       {first && <small>{count === 1 ? [first.driverName, first.coDriverName].filter(Boolean).join(" y ") : row.units.map(unit => unit.vehicleName).join(" · ")}</small>}
     </span>
-    <span className="plan-load">{row.school ? "—" : row.passengers}{row.capacity !== null && <small> / {row.capacity}</small>}<span className="plan-mobile-label"> pasajeros</span></span>
+    <span className="plan-load" data-sin-pasajeros={row.school ? true : undefined}>{row.school ? "—" : row.passengers}{row.capacity !== null && <small> / {row.capacity}</small>}<span className="plan-mobile-label"> pasajeros</span></span>
     <span className="plan-chevron" aria-hidden="true">⌄</span>
   </>;
 }

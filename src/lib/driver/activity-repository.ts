@@ -1,6 +1,6 @@
 import { airportServiceWindow } from "@/lib/airport/service-window";
 import { prisma } from "@/lib/db/prisma";
-import { localDateKey, schoolWindow } from "@/lib/operations/day-board";
+import { concessionArea, localDateKey, schoolWindow } from "@/lib/operations/day-board";
 import type { DriverActivity } from "./activity";
 
 const vehicle = { select: { name: true } } as const;
@@ -123,7 +123,7 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
   const schoolRuns: DriverActivity[] = schools.map(run => {
     const date = run.serviceDate.toISOString().slice(0,10);
     const { start, end } = schoolWindow(date, run.shift);
-    return { id: "escolar-" + run.id, area: run.kind === "PERSONAL" ? "PERSONAL" : "ESCOLAR", date, startsAt: start, endsAt: end,
+    return { id: "escolar-" + run.id, area: concessionArea(run.kind), date, startsAt: start, endsAt: end,
       title: run.routeName + " · " + run.shift, vehicle: run.vehicle?.name ?? "Sin nave asignada",
       links: [{ href: "/admin/escolares/" + run.id, label: "Ver recorrido" }] };
   });

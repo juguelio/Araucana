@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { ServicePublicNav } from "@/components/service-public-nav";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { listAdminRoutes } from "@/lib/booking/repository";
 import { EncabezadoOrdenable } from "@/components/admin-list/encabezado-ordenable";
@@ -79,6 +80,7 @@ export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageP
   return (
     <AdminShell role={sessionUser.role}
       title="Rutas"
+      eyebrow="Servicio público"
       notice={params?.notice}
       action={
         <div className="inline-actions">
@@ -87,6 +89,7 @@ export default async function AdminRoutesPage({ searchParams }: AdminRoutesPageP
         </div>
       }
     >
+      <ServicePublicNav actual="rutas" />
       <section className="admin-grid rutas-stats">
         <div className="admin-card">
           <span className="muted">Rutas activas</span>

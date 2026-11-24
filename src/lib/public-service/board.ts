@@ -37,10 +37,15 @@ export type SalidaDeTerminal = {
   desde: string;
   hacia: string;
   nave: string;
+  vehicleId: string;
   patente: string | null;
+  driverId: string | null;
+  driverName: string | null;
   ocupados: number;
   capacidad: number;
   libres: number;
+  /** Se puede vender sólo si la salida está abierta/en documentación y todavía no arrancó. */
+  vendible: boolean;
   estado: string;
   estadoLabel: string;
 };
@@ -65,7 +70,13 @@ const horaFormatter = new Intl.DateTimeFormat("es-AR", {
 });
 
 /** Filas del servicio público, listas para mostrar: sólo salidas por asiento desde una terminal. */
-export function salidasDeTerminal(rows: AdminScheduleRowDto[]): SalidaDeTerminal[] {
+const ESTADOS_VENDIBLES = new Set(["OPEN", "DOCUMENTATION"]);
+
+export function ventaAbierta(status: string, departureAt: Date, now = new Date()): boolean {
+  return ESTADOS_VENDIBLES.has(status) && departureAt.getTime() > now.getTime();
+}
+
+export function salidasDeTerminal(rows: AdminScheduleRowDto[], now = new Date()): SalidaDeTerminal[] {
   return rows
     .filter((row) => row.bookingMode === "SEATED" && terminalDe(row.from))
     .map((row) => {
@@ -78,10 +89,14 @@ export function salidasDeTerminal(rows: AdminScheduleRowDto[]): SalidaDeTerminal
         desde: row.from,
         hacia: row.to,
         nave: row.vehicleName,
+        vehicleId: row.vehicleId,
         patente: row.vehiclePlate,
+        driverId: row.driverId ?? null,
+        driverName: row.driverName ?? null,
         ocupados,
         capacidad: row.totalSeats,
         libres: row.availableSeats,
+        vendible: ventaAbierta(row.status, new Date(row.departureAt), now),
         estado: row.status,
         estadoLabel: estadoLabel(row.status)
       };

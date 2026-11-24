@@ -159,6 +159,12 @@ describe("busqueda de salidas (alta manual)", () => {
     });
   });
 
+  it("la boletería oculta las rutas dadas de baja", () => {
+    expect(adminScheduleWhere({ activeRoutesOnly: true })).toEqual({
+      AND: [{ route: { is: { isActive: true } } }]
+    });
+  });
+
   it("sin filtros no filtra nada", () => {
     expect(adminScheduleWhere({})).toEqual({});
   });

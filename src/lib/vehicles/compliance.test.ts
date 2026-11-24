@@ -15,7 +15,8 @@ const hoy = new Date(2026, 10, 4); // 4-nov-2026, hora local
 
 describe("vencimientos de la flota", () => {
   it("cuenta los días por fecha calendario, no por horas", () => {
-    expect(diasHasta(new Date(2026, 10, 4, 23, 0), new Date(2026, 10, 4, 1, 0))).toBe(0);
+    // Fechas de calendario: se comparan por día UTC, sin importar la hora del server.
+    expect(diasHasta(new Date(Date.UTC(2026, 10, 4, 23)), new Date(Date.UTC(2026, 10, 4, 1)))).toBe(0);
     expect(diasHasta(new Date(2026, 10, 25), hoy)).toBe(21);
     expect(diasHasta(new Date(2025, 1, 28), hoy)).toBeLessThan(0);
     expect(diasHasta(null)).toBeNull();

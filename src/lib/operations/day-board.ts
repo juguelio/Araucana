@@ -8,8 +8,8 @@
  * Todo acá es puro: recibe lo que ya se leyó de la base y devuelve las filas. Así se testea.
  */
 
-export type BoardArea = "RUTA" | "AEROPUERTO" | "CHAPELCO" | "ESPECIAL" | "ESCOLAR" | "PERSONAL";
-export const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial", ESCOLAR: "Escolar", PERSONAL: "Traslado de personal" };
+export type BoardArea = "RUTA" | "AEROPUERTO" | "CHAPELCO" | "ESPECIAL" | "ESCOLAR" | "PERSONAL" | "RECURRENTE";
+export const AREA_LABEL: Record<BoardArea, string> = { RUTA: "Ruta", AEROPUERTO: "Aeropuerto", CHAPELCO: "Chapelco", ESPECIAL: "Viaje especial", ESCOLAR: "Escolar", PERSONAL: "Traslado de personal", RECURRENTE: "Otro recurrente" };
 
 export type BoardPerson = { id: string; name: string | null; email: string };
 
@@ -145,12 +145,18 @@ export function schoolWindow(date: string, shift: string) {
   return { start, end: end && start && end > start ? end : null };
 }
 
+export function concessionArea(kind?: string): "ESCOLAR" | "PERSONAL" | "RECURRENTE" {
+  if (kind === "personal-aeropuerto") return "PERSONAL";
+  return kind === "otro" ? "RECURRENTE" : "ESCOLAR";
+}
+
 function schoolRow(school: SchoolInput, date: string): BoardRow {
+  const area = concessionArea(school.kind);
   const { start } = schoolWindow(date, school.shift);
   const href = "/admin/escolares/" + school.id;
   return {
-    key: (school.kind === "PERSONAL" ? "personal-" : "escolar-") + school.id, area: school.kind === "PERSONAL" ? "PERSONAL" : "ESCOLAR", serviceId: school.id, school,
-    at: start, atLabel: school.kind === "PERSONAL" ? "Turno de personal" : "Turno escolar", timeText: school.shift, title: school.routeName,
+    key: area.toLowerCase() + "-" + school.id, area, serviceId: school.id, school,
+    at: start, atLabel: AREA_LABEL[area], timeText: school.shift, title: school.routeName,
     detail: school.companion ? "Acompañante · " + school.companion : null,
     passengers: 0, capacity: null, missingVehicle: !school.vehicle, missingDriver: !school.driver,
     overbooked: false, programmed: false, status: null, href, editHref: href + "/editar",

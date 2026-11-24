@@ -66,6 +66,27 @@ export function estadoDeNave(nave: NaveDelTablero): EstadoDeNave {
   return { clave: "disponible", etiqueta: "Disponible", tono: "ok" };
 }
 
+/** La etiqueta corta que ve la operación en la tarjeta: activa, trabajando, en taller, etc. */
+export function etiquetaCortaDeNave(estado: EstadoDeNave): string {
+  switch (estado.clave) {
+    case "disponible":
+    case "en-servicio":
+      return "Activa";
+    case "en-recorrido":
+      return "Trabajando";
+    case "en-la-calle":
+      return "En la calle";
+    case "danio-grave":
+      return "Con alerta";
+    case "en-reparacion":
+      return "En taller";
+    case "uso-interno":
+      return "Uso interno";
+    case "inactiva":
+      return "No habilitada";
+  }
+}
+
 /**
  * Lo más urgente para resolver, una sola cosa (las demás se cuentan en `otras`): un papel vencido,
  * uno que vence en 30 días, la capacidad sin cargar, un daño pendiente o los papeles sin fecha.
@@ -93,34 +114,62 @@ export function papelEnPalabras(tipo: string, dias: number): string {
   return `${tipo} vence en ${n} ${n === 1 ? "día" : "días"}`;
 }
 
-/** Pestañas del tablero, con lo que entra en cada una. */
-export const PESTANAS_DE_FLOTA = ["activas", "recorrido", "alertas", "taller", "publico", "inactivas"] as const;
+/**
+ * Pestañas del tablero, con lo que entra en cada una. Los nombres siguen el lenguaje de Quique:
+ * activas = pueden salir; trabajando = en la calle; con alertas = hay algo para revisar; no
+ * habilitadas = fuera de la flota o de uso interno.
+ */
+export const PESTANAS_DE_FLOTA = ["todas", "activas", "recorrido", "alertas", "taller", "publico", "inactivas"] as const;
 export type PestanaDeFlota = (typeof PESTANAS_DE_FLOTA)[number];
 
 export function leerPestanaDeFlota(valor: string | undefined): PestanaDeFlota {
-  return (PESTANAS_DE_FLOTA as readonly string[]).includes(valor ?? "") ? (valor as PestanaDeFlota) : "activas";
+  return (PESTANAS_DE_FLOTA as readonly string[]).includes(valor ?? "") ? (valor as PestanaDeFlota) : "todas";
 }
 
 export function entraEnPestana(
   pestana: PestanaDeFlota,
   nave: { isActive: boolean; publicTransport?: boolean | null },
   estado: EstadoDeNave,
-  alerta: AlertaDeNave | null
+  alerta: AlertaDeNave | null,
+  edad: number | null = null
 ): boolean {
   switch (pestana) {
+    case "todas":
+      return true;
     case "activas":
-      return nave.isActive;
+      // «Activa» para Quique es la que puede salir: no está en la calle, no está en el taller y no
+      // tiene una alerta pendiente. No alcanza con `isActive`.
+      return (
+        nave.isActive &&
+        Boolean(nave.publicTransport) &&
+        estado.clave !== "uso-interno" &&
+        estado.clave !== "danio-grave" &&
+        estado.clave !== "en-reparacion" &&
+        estado.clave !== "en-recorrido" &&
+        estado.clave !== "en-la-calle" &&
+        alerta?.tono !== "grave" &&
+        alerta?.tono !== "atencion" &&
+        !(edad !== null && edad >= 15)
+      );
     case "recorrido":
       return nave.isActive && (estado.clave === "en-recorrido" || estado.clave === "en-la-calle");
     case "alertas":
       // Lo que pide hacer algo: un papel vencido o por vencer, un daño, la capacidad sin cargar.
-      return nave.isActive && (estado.tono === "grave" || estado.tono === "atencion" || alerta?.tono === "grave" || alerta?.tono === "atencion");
+      // Estar en la calle no es una alerta: eso se ve en «Trabajando».
+      return (
+        nave.isActive &&
+        (estado.clave === "danio-grave" ||
+          estado.clave === "en-reparacion" ||
+          alerta?.tono === "grave" ||
+          alerta?.tono === "atencion")
+      );
     case "taller":
       return nave.isActive && (estado.clave === "danio-grave" || estado.clave === "en-reparacion");
     case "publico":
       return nave.isActive && Boolean(nave.publicTransport);
     case "inactivas":
-      return !nave.isActive;
+      // No habilitadas para pasajeros: dadas de baja, utilitarios y vehículos sin habilitación.
+      return !nave.isActive || estado.clave === "uso-interno" || !nave.publicTransport || (edad !== null && edad >= 15);
   }
 }
 

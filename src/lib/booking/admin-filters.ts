@@ -207,6 +207,8 @@ export const adminScheduleFiltersSchema = z.object({
   to: z.string().trim().max(120).optional(),
   date: z.union([z.literal(""), z.iso.date()]).optional(),
   bookableOnly: z.boolean().optional(),
+  /** La boletería no muestra salidas de rutas dadas de baja, aunque tengan horario cargado. */
+  activeRoutesOnly: z.boolean().optional(),
   // El alta manual no ofrece el aeropuerto: ese servicio se reserva eligiendo el vuelo (issue #79).
   excludeAirport: z.boolean().optional()
 });
@@ -228,6 +230,11 @@ export function adminScheduleWhere(input: AdminScheduleFilters = {}, now = new D
     // horarias (09:00, 13:00, 17:00, 21:00) y la reserva quedaba sin número de vuelo: sin horario
     // de vuelo no se puede calcular la recorrida ni saber qué combi lleva a cada pasajero.
     AND.push({ route: { is: { bookingMode: { not: "AIRPORT" } } } });
+  }
+  if (filters.activeRoutesOnly) {
+    // Una ruta dada de baja conserva sus horarios viejos: la boletería no debe seguir ofreciéndola
+    // como si estuviera operativa (Hua Hum, 23-nov).
+    AND.push({ route: { is: { isActive: true } } });
   }
   if (filters.bookableOnly) {
     AND.push({ status: { in: [...BOOKABLE_SCHEDULE_STATUSES] } });

@@ -3,9 +3,10 @@ import { expect, it, vi } from "vitest";
 import SchoolsPage from "./page";
 import SchoolDetail from "./[id]/page";
 import { SchoolEditPage } from "./edit-page";
+import WeekPage from "./semana/page";
 
 const fixture = vi.hoisted(() => ({
-  id: "esc-7", serviceDate: new Date("2026-11-24T00:00:00Z"), routeName: "Primaria Quila Quina", shift: "Mañana",
+  id: "esc-7", serviceDate: new Date("2026-11-24T00:00:00Z"), kind: "escuela", routeName: "Primaria Quila Quina", shift: "Mañana",
   driverId: "ch-5", driver: { name: "Ana", email: "ana@example.test" }, vehicleId: "n-1", vehicle: { name: "153" },
   companion: "Luz", notes: "Entrada norte", review: "Confirmar horario", revision: 2, source: { sheet: "241126", row: 8 }
 }));
@@ -28,9 +29,17 @@ it("abre la ficha desde el listado y la edición desde la ficha", async () => {
   expect(detail).not.toContain("<textarea");
 });
 
+it("muestra la planilla semanal con los servicios del día", async () => {
+  const week = renderToStaticMarkup(await WeekPage({ searchParams: Promise.resolve({ semana: "2026-11-23" }) }));
+  expect(week).toContain("Primaria Quila Quina");
+  expect(week).toContain("Semana anterior");
+  expect(week).toContain('href="/admin/escolares?fecha=2026-11-23"');
+  expect(week.match(/cn-semana-dia/g)).toHaveLength(7);
+});
+
 it("precarga la asignación importada y todos los campos operativos", async () => {
   const edit = renderToStaticMarkup(await SchoolEditPage({ id: fixture.id }));
-  for (const field of ["date", "shift", "routeName", "driverId", "vehicleId", "companion", "review", "notes"]) {
+  for (const field of ["date", "kind", "shift", "routeName", "driverId", "vehicleId", "companion", "review", "notes"]) {
     expect(edit).toContain(`name="${field}"`);
   }
   for (const value of ["Mañana", "Primaria Quila Quina", "Luz", "Entrada norte", "Confirmar horario", "ABC123", "ana@example.test"]) {

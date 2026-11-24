@@ -27,7 +27,7 @@ export async function assignSchoolCrew(form: FormData) {
       summary: "Equipo del recorrido actualizado para el " + date, before: { driverId: run.driverId, vehicleId: run.vehicleId }, after: { driverId, vehicleId } });
     return "Equipo guardado para la jornada.";
   });
-  for (const path of ["/admin", "/admin/salidas-del-dia", "/admin/escolares", "/admin/escolares/" + id]) revalidatePath(path);
+  for (const path of ["/admin", "/admin/salidas-del-dia", "/admin/escolares/semana", "/admin/escolares", "/admin/escolares/" + id]) revalidatePath(path);
   redirectToBoard(date, message, form);
 }
 
@@ -61,6 +61,6 @@ export async function repeatSchoolRun(form: FormData) {
       summary: "Repetición de recorrido · " + created + " recorridos creados entre " + field("desde") + " y " + field("hasta") });
     return created ? "Recorridos creados: " + created + "." : "No había fechas nuevas para este recorrido.";
   });
-  for (const path of ["/admin", "/admin/salidas-del-dia", "/admin/escolares"]) revalidatePath(path);
+  for (const path of ["/admin", "/admin/salidas-del-dia", "/admin/escolares/semana", "/admin/escolares"]) revalidatePath(path);
   redirectToBoard(date, message, form);
 }

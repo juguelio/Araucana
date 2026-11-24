@@ -34,16 +34,16 @@ type QueueLevel = "capacidad" | "cruce" | "equipo" | "novedad";
 const order: Record<QueueLevel, number> = { capacidad: 0, cruce: 1, equipo: 2, novedad: 3 };
 
 export function dispatchReview(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>, now?: number) {
-  const issues = new Map<string, Map<string, number>>();
-  function add(key: string, level: QueueLevel, message: string) {
-    const messages = issues.get(key) ?? new Map<string, number>();
-    messages.set(message, order[level]);
+  const issues = new Map<string, Map<string, { level: QueueLevel; summary: string }>>();
+  function add(key: string, level: QueueLevel, message: string, summary = message) {
+    const messages = issues.get(key) ?? new Map();
+    messages.set(message, { level, summary });
     issues.set(key, messages);
   }
   for (const row of rows) {
     if (row.inactiveRoute && row.passengers > 0) add(row.key, "capacidad", "Ruta inactiva con pasajeros");
     if (!row.programmed) {
-      if (row.missingVehicle) add(row.key, "equipo", "Falta nave");
+      if (row.missingVehicle) add(row.key, "equipo", "Falta nave", row.missingDriver ? "Faltan nave y chofer" : "Falta nave");
       if (row.missingDriver) add(row.key, "equipo", "Falta chofer");
       if (row.overbooked) add(row.key, "capacidad", "Sobrecupo de " + (row.passengers - row.capacity!) + " lugares");
       if (row.area === "AEROPUERTO" && row.status && row.passengers) add(row.key, "novedad", "Vuelo " + row.status.toLowerCase());
@@ -75,21 +75,30 @@ export function dispatchReview(rows: BoardRow[], assignments: DispatchAssignment
         if (next.start !== first.start && next.start! >= (first.end ?? first.start!)) break;
         if (!assignmentsOverlap(first, next)) continue;
         const name = resource.startsWith("nave/") ? first.vehicleName : resource === "chofer/" + first.coDriverId ? first.coDriverName : first.driverName;
-        add(first.rowKey, "cruce", "Cruce de " + name + " con " + next.title);
-        add(next.rowKey, "cruce", "Cruce de " + name + " con " + first.title);
+        add(first.rowKey, "cruce", "Cruce de " + name + " con " + next.title, "Cruce de horario");
+        add(next.rowKey, "cruce", "Cruce de " + name + " con " + first.title, "Cruce de horario");
       }
     }
   }
-  const messages = new Map([...issues].map(([key, values]) => [key, [...values].sort((a,b) => a[1] - b[1]).map(([message]) => message)]));
+  const messages = new Map<string, string[]>();
+  const summaries = new Map<string, string>();
+  const levels = new Map<string, number>();
+  for (const [key, details] of issues) {
+    const sorted = [...details].sort((a, b) => order[a[1].level] - order[b[1].level]);
+    const first = sorted[0][1];
+    messages.set(key, sorted.map(([message]) => message));
+    summaries.set(key, first.summary);
+    levels.set(key, order[first.level]);
+  }
   const finalEnd = new Map<string, number>();
   for (const job of assignments) finalEnd.set(job.rowKey, Math.max(finalEnd.get(job.rowKey) ?? 0, job.end ?? Infinity));
   const rank = (row: BoardRow) => {
     const past = now !== undefined && (finalEnd.get(row.key) ?? Infinity) <= now;
-    return Number(past) * 10 + Number(row.programmed) * 5 + Math.min(...issues.get(row.key)!.values());
+    return Number(past) * 10 + Number(row.programmed) * 5 + levels.get(row.key)!;
   };
   const pending = rows.filter(row => issues.has(row.key)).sort((a,b) =>
     rank(a) - rank(b) || (a.at?.getTime() ?? Infinity) - (b.at?.getTime() ?? Infinity) || b.passengers - a.passengers);
-  return { messages, pending };
+  return { messages, summaries, pending };
 }
 
 export function dispatchIssues(rows: BoardRow[], assignments: DispatchAssignment[], damages: ReadonlyMap<string, DispatchDamage[]>) {
