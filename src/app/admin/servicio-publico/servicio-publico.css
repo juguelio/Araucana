@@ -400,10 +400,14 @@
 
 .sp-acciones {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.sp-acciones > * {
+  white-space: nowrap;
 }
 
 .sp-acciones .button,
@@ -522,6 +526,7 @@
   }
 
   .sp-acciones {
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 }
