@@ -22,6 +22,9 @@ export type AlertaDeNave = { etiqueta: string; tono: TonoDeNave };
 /** Días hasta el vencimiento a partir de los cuales el papel pasa a ser «la alerta» de la nave. */
 export const DIAS_ALERTA_TABLERO = 30;
 
+/** Días sin una referencia de km a partir de los cuales el tablero recuerda cargarla. */
+export const DIAS_SIN_KM = 7;
+
 export type NaveDelTablero = UnidadConVencimientos & {
   isActive: boolean;
   kind: string;
@@ -33,6 +36,10 @@ export type NaveDelTablero = UnidadConVencimientos & {
   enRecorrido?: boolean;
   /** El chofer mandó señal en movimiento hace poco, desde la app del chofer. */
   enMovimiento?: boolean;
+  /** Cada cuántos km corresponde el service; null = sin intervalo definido. */
+  serviceIntervalKm?: number | null;
+  /** Última lectura suelta o planilla de service que trajo un km. */
+  ultimaReferenciaKmAt?: Date | null;
 };
 
 const abierto = (danio: { status: string }) => danio.status !== "REPARADO";
@@ -83,8 +90,8 @@ export function etiquetaCortaDeNave(estado: EstadoDeNave): string {
 
 /**
  * Lo más urgente para resolver, una sola cosa (las demás se cuentan en `otras`): un papel vencido,
- * uno que vence en 30 días, la capacidad sin cargar, un daño pendiente o los papeles sin fecha.
- * Un daño grave o en reparación no se repite acá: ya es el estado.
+ * uno que vence en 30 días, la capacidad sin cargar, un daño pendiente, los papeles sin fecha o el
+ * recordatorio de cargar el kilometraje. Un daño grave o en reparación no se repite acá: ya es el estado.
  */
 export function alertasDeNave(nave: NaveDelTablero, hoy: Date = new Date()): { principal: AlertaDeNave | null; otras: number } {
   if (!nave.isActive) return { principal: null, otras: 0 };
@@ -97,7 +104,21 @@ export function alertasDeNave(nave: NaveDelTablero, hoy: Date = new Date()): { p
   const pendientes = nave.danios.filter((danio) => danio.status === "PENDIENTE" && danio.severity !== "GRAVE").length;
   if (pendientes > 0) alertas.push({ etiqueta: `${pendientes} ${pendientes === 1 ? "daño pendiente" : "daños pendientes"}`, tono: "atencion" });
   if (!peor) alertas.push({ etiqueta: "Sin fechas de papeles", tono: "normal" });
+  const avisoKm = recordatorioDeKm(nave, hoy);
+  if (avisoKm) alertas.push(avisoKm);
   return { principal: alertas[0] ?? null, otras: Math.max(0, alertas.length - 1) };
+}
+
+/**
+ * Recordatorio de kilometraje: sólo para unidades con intervalo de service. Es un aviso `normal`
+ * (no bloquea la salida) porque el km se carga cuando el chofer pasa por YPF, no en el momento.
+ */
+function recordatorioDeKm(nave: NaveDelTablero, hoy: Date): AlertaDeNave | null {
+  if (!nave.serviceIntervalKm || nave.serviceIntervalKm <= 0) return null;
+  if (!nave.ultimaReferenciaKmAt) return { etiqueta: "Falta la primera lectura de km", tono: "normal" };
+  const dias = Math.max(0, Math.floor((+hoy - +nave.ultimaReferenciaKmAt) / 86_400_000));
+  if (dias <= DIAS_SIN_KM) return null;
+  return { etiqueta: `Km sin actualizar hace ${dias} ${dias === 1 ? "día" : "días"}`, tono: "normal" };
 }
 
 /** «Técnica vencida hace 3 días» · «Póliza vence hoy» · «RTO vence en 12 días» (los tres papeles son «la»). */
