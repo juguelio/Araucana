@@ -8,11 +8,11 @@ import {
   documentTypeLabels,
   formatServiceDay,
   isDepartureSheetKind,
-  passengerFullName,
   type DepartureSheetKind,
   type DocumentType
 } from "@/lib/departure-sheets/types";
-import { PlanillaForm } from "./form";
+import { documentoEnmascarado, nombreParaLista, type PasajeroDeLaLista } from "@/lib/departure-sheets/carga";
+import { ListaDePasajeros, PlanillaCarga } from "./form";
 import "./planilla.css";
 
 export const metadata = {
@@ -39,7 +39,17 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
   const destino =
     legs.map((leg) => leg.destination || leg.description).filter(Boolean).join(" · ") ||
     trip.destinationSearch.replaceAll("\n", " · ");
-  const maskDocument = (value: string) => value.length > 3 ? `${"•".repeat(Math.min(6, value.length - 3))}${value.slice(-3)}` : "•••";
+  // Al navegador sólo llega el documento enmascarado: el link lo puede ver todo el grupo.
+  const pasajeros: PasajeroDeLaLista[] = sheet.passengers.map((passenger) => ({
+    id: passenger.id,
+    position: passenger.position,
+    nombre: nombreParaLista(passenger.lastName, passenger.firstName),
+    firstName: passenger.firstName,
+    lastName: passenger.lastName,
+    documento: documentoEnmascarado(documentTypeLabels[passenger.documentType as DocumentType] ?? passenger.documentType, passenger.documentNumber),
+    nationality: passenger.nationality
+  }));
+  const esperados = trip.passengers ?? null;
 
   return (
     <>
@@ -59,10 +69,12 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
               <span>Fecha del viaje</span>
               <strong>{day}</strong>
             </div>
-            <div>
-              <span>Pasajeros en la planilla</span>
-              <strong>{sheet.passengers.length}</strong>
-            </div>
+            {esperados ? (
+              <div>
+                <span>Pasajeros del viaje</span>
+                <strong>{esperados}</strong>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -71,46 +83,20 @@ export default async function DepartureSheetPublicPage({ params }: { params: Pro
           <p className="muted">{copy.passengerNote}</p>
         </section>
 
-        {sheet.passengers.length > 0 ? (
-          <section className="planilla-lista" aria-labelledby="pasajeros-cargados">
-            <div className="planilla-lista-head">
-              <div>
-                <p className="eyebrow">Planilla</p>
-                <h2 id="pasajeros-cargados">Pasajeros cargados</h2>
-              </div>
-              <span className="pill">{sheet.passengers.length}</span>
-            </div>
-            <ol className="planilla-pasajeros">
-              {sheet.passengers.map((passenger) => (
-                <li key={passenger.id}>
-                  <span className="planilla-pasajero-num">{passenger.position}</span>
-                  <div>
-                    <strong>{passengerFullName(passenger)}</strong>
-                    <span>
-                      {documentTypeLabels[passenger.documentType as DocumentType] ?? passenger.documentType}{" "}
-                      {maskDocument(passenger.documentNumber)} · {passenger.nationality}
-                    </span>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <p className="muted planilla-lista-nota">
-              Si ves tus datos repetidos o con un error, volvé a cargarlos con el mismo documento: se actualizan.
-            </p>
-          </section>
-        ) : null}
-
         {sheet.isOpen ? (
-          <PlanillaForm token={sheet.token} kind={kind} countries={getCountryOptions()} />
+          <PlanillaCarga token={sheet.token} kind={kind} countries={getCountryOptions()} pasajeros={pasajeros} esperados={esperados} />
         ) : (
-          <section className="form-panel planilla-panel">
-            <p className="eyebrow">Planilla cerrada</p>
-            <h2>Esta planilla ya no recibe datos</h2>
-            <p>
-              La agencia cerró la carga de esta planilla. Si necesitás corregir o agregar un pasajero,
-              escribinos y lo resolvemos desde la oficina.
-            </p>
-          </section>
+          <div className="planilla-carga">
+            <ListaDePasajeros pasajeros={pasajeros} esperados={esperados} />
+            <section className="form-panel planilla-panel">
+              <p className="eyebrow">Planilla cerrada</p>
+              <h2>Esta planilla ya no recibe datos</h2>
+              <p>
+                La agencia cerró la carga de esta planilla. Si necesitás corregir o agregar un pasajero,
+                escribinos y lo resolvemos desde la oficina.
+              </p>
+            </section>
+          </div>
         )}
 
         <p className="muted planilla-pie">

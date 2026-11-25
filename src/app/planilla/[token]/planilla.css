@@ -3,7 +3,7 @@
 .planilla-page {
   display: grid;
   gap: 22px;
-  max-width: 860px;
+  max-width: 1180px;
 }
 
 .planilla-hero {
@@ -107,94 +107,155 @@
   }
 }
 
-/* Lista de pasajeros ya cargados: que se vean todos, no sólo el último. */
-.planilla-lista {
+/* === Carga con la lista a la vista (rediseño del 25-nov) ===
+   Pedido de Jugue: «que se vean mientras ingresás todos los nombres». En la computadora el
+   formulario va a la izquierda y la lista queda fija a la derecha, con su propio scroll; en el
+   teléfono la lista es una barra fija arriba (progreso + último cargado) que se despliega. */
+.planilla-carga {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-areas: "form lista";
+  align-items: start;
+  gap: 22px;
+}
+/* El formulario ocupa su columna entera (el .form-panel global mide 440 px). */
+.planilla-form { grid-area: form; width: 100%; }
+.planilla-lista { grid-area: lista; }
+
+.planilla-form-cabeza { display: grid; gap: 2px; }
+.planilla-form-cabeza .eyebrow { margin: 0; }
+.planilla-form-cabeza h2 { margin: 0; font-size: 22px; }
+.planilla-ok {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-deep);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.planilla-aviso {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  padding: 10px 14px;
+  border: 1px solid #e3c58f;
+  border-radius: 12px;
+  background: #fbf3e2;
+  color: #5c3c0a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.planilla-form-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.planilla-form-pie .muted { font-size: 12px; }
+
+/* En la computadora la lista mide lo mismo que el formulario y se desplaza por dentro: cuando ves
+   el formulario, ves la lista entera al lado (con `height: 0; min-height: 100%` la fila de la grilla
+   la define el formulario, no la lista). */
+.planilla-carga { align-items: stretch; grid-template-rows: minmax(min(600px, calc(100vh - 120px)), auto); }
+.planilla-lista {
+  display: flex;
+  flex-direction: column;
+  height: 0;
+  min-height: 100%;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: #fff;
+  box-shadow: 0 18px 50px rgba(24, 59, 50, 0.08);
 }
-
-.planilla-lista-head {
+.planilla-carga > .planilla-panel:not(.planilla-form) { align-self: start; min-height: 320px; }
+.planilla-lista-barra {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 18px 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
 }
+.planilla-lista-titulo { display: grid; gap: 2px; min-width: 0; }
+.planilla-lista-titulo strong { color: var(--primary-deep); font-size: 18px; }
+.planilla-lista-titulo small { overflow: hidden; color: var(--ink-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.planilla-lista-titulo small[data-borrador] { color: var(--primary); font-weight: 700; }
+.planilla-lista-titulo small[data-coincide] { color: #7a4f0e; font-weight: 700; }
+.planilla-lista-ver { display: none; color: var(--primary); font-size: 13px; font-weight: 800; white-space: nowrap; }
+.planilla-progreso { height: 6px; margin: 0 18px 8px; border-radius: 999px; background: var(--surface-2, #efe7d8); overflow: hidden; }
+.planilla-progreso span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .3s ease; }
+.planilla-progreso[data-completa] span { background: #2f9e6b; }
 
-.planilla-lista-head .eyebrow {
-  margin: 0 0 2px;
-}
-
-.planilla-lista-head h2 {
-  margin: 0;
-  font-size: 20px;
-}
+.planilla-lista-cuerpo { display: flex; flex-direction: column; gap: 10px; min-height: 0; padding: 4px 18px 16px; }
+.planilla-lista-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.planilla-lista-head h2 { margin: 0; color: var(--ink-soft); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.planilla-lista-head .pill[data-completa] { background: #dff3e8; color: #1d6b45; }
 
 .planilla-pasajeros {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  min-height: 0;
   margin: 0;
-  padding: 0;
+  padding: 0 2px 2px 0;
+  overflow-y: auto;
   list-style: none;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
 }
-
 .planilla-pasajeros li {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 30px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 11px 12px;
+  gap: 10px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--surface);
 }
-
 .planilla-pasajero-num {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 999px;
   background: var(--primary);
   color: #fff;
   font-size: 12px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.planilla-pasajeros li div { display: grid; gap: 1px; min-width: 0; }
+.planilla-pasajeros strong { color: var(--primary-deep); font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
+.planilla-pasajeros li div span { color: var(--ink-muted); font-size: 12px; }
+.planilla-pasajeros li em { color: #1d6b45; font-size: 11px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.planilla-pasajeros li[data-nuevo] { border-color: #2f9e6b; background: #eef8f2; animation: planilla-entra .6s ease; }
+.planilla-pasajeros li[data-coincide] { border-color: #d9a441; background: #fbf3e2; }
+.planilla-pasajeros li[data-borrador] { border-style: dashed; border-color: var(--primary); background: transparent; }
+.planilla-pasajeros li[data-borrador] .planilla-pasajero-num { background: transparent; border: 2px dashed var(--primary); color: var(--primary); }
+.planilla-pasajeros li[data-borrador] div span { font-style: italic; }
+.planilla-vacia { display: block !important; padding: 14px !important; border-style: dashed !important; background: transparent !important; color: var(--ink-muted); font-size: 13px; text-align: center; }
+.planilla-lista-nota { margin: 0; font-size: 12px; }
+@keyframes planilla-entra { from { transform: translateY(6px); opacity: .3; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .planilla-pasajeros li[data-nuevo] { animation: none; }
+  .planilla-pasajeros { scroll-behavior: auto; }
 }
 
-.planilla-pasajeros li div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
+/* Teléfono y tablet angosta: la lista arriba, como barra fija que se despliega. */
+@media (max-width: 860px) {
+  .planilla-carga { grid-template-columns: 1fr; grid-template-areas: "lista" "form"; gap: 14px; }
+  /* El encabezado del sitio también queda fijo (79 px): la barra de la lista se pega debajo. */
+  .planilla-carga { align-items: start; grid-template-rows: auto; }
+  .planilla-lista { position: sticky; top: 79px; z-index: 5; height: auto; min-height: 0; border-radius: 0 0 14px 14px; margin: 0 -4px; }
+  .planilla-lista-barra { cursor: pointer; padding: 12px 14px 8px; }
+  .planilla-lista-titulo strong { font-size: 16px; }
+  .planilla-lista-ver { display: inline; }
+  .planilla-progreso { margin: 0 14px 10px; }
+  .planilla-lista-cuerpo { display: none; padding: 0 14px 14px; }
+  .planilla-lista[data-abierta] .planilla-lista-cuerpo { display: flex; max-height: 55vh; }
 }
-
-.planilla-pasajeros strong {
-  color: var(--primary-deep);
-  font-size: 15px;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-}
-
-.planilla-pasajeros li div span {
-  color: var(--ink-muted);
-  font-size: 12px;
-}
-
-.planilla-lista-nota {
-  margin: 0;
-  font-size: 12px;
-}
-
 @media (max-width: 560px) {
-  .planilla-lista {
-    padding: 16px;
-  }
-
-  .planilla-pasajeros li {
-    grid-template-columns: 30px minmax(0, 1fr);
-    gap: 10px;
-    padding: 10px;
-  }
+  .planilla-form-pie .button { width: 100%; }
 }

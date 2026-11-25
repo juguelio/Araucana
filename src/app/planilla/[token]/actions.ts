@@ -60,7 +60,9 @@ export async function submitDeparturePassengerAction(
         ? "Actualizamos los datos de este documento: no quedó duplicado en la planilla."
         : "Tus datos quedaron cargados en la planilla.",
       passengerName: passengerFullName(result.passenger),
-      updated: result.updated
+      updated: result.updated,
+      passengerId: result.passenger.id,
+      position: result.passenger.position
     };
   } catch (error) {
     if (error instanceof DepartureSheetError) {
