@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
-import { MenuFila } from "@/components/admin-list/menu-fila";
 import { EXPIRY_LABELS, expiryDaysLabel, expiryStatus, todayInArgentina, worstStatus, type ExpiryStatus } from "@/lib/admin/driver-documents";
 import { getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
@@ -12,7 +11,7 @@ import {
 } from "@/lib/driver/tablero-choferes";
 import { tituloDeNave } from "@/lib/fleet/titulo-de-nave";
 import { isDateKey, localDateKey, shiftDateKey } from "@/lib/operations/day-board";
-import { AsignarJornada, type ChoferVista, type NaveVista, type ServicioVista } from "./asignar-jornada";
+import { AsignarJornada, type ChoferVista, type ServicioVista } from "./asignar-jornada";
 import { AsignarViaje } from "./asignar-viaje";
 import "./choferes.css";
 
@@ -71,7 +70,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
     }),
     cargarServiciosDelDia(dia),
     prisma.vehicle.findMany({
-      select: { id: true, name: true, internalNumber: true, licensePlate: true, isActive: true, kind: true, _count: { select: { seats: true } } }
+      select: { id: true, name: true, internalNumber: true }
     }),
     esHoy
       ? prisma.driverVehicleLocation.findMany({
@@ -121,10 +120,6 @@ export default async function ChoferesPage({ searchParams }: Props) {
     clave: s.clave, area: s.area, vehicleId: s.vehicleId, driverId: s.driverId, desde: s.desde.getTime(), hasta: s.hasta.getTime(),
     horario: horario(s), titulo: s.titulo, asignable: s.asignableDesdeChoferes
   }));
-  const navesVista: NaveVista[] = vehiculos
-    .filter((v) => v.isActive && v.kind !== "UTILITARIO")
-    .sort((a, b) => tituloDeNave(a).localeCompare(tituloDeNave(b), "es", { numeric: true }))
-    .map((v) => ({ id: v.id, titulo: tituloDeNave(v), detalle: [v.licensePlate, v._count.seats ? `${v._count.seats} butacas` : null].filter(Boolean).join(" · ") }));
   const choferesVista: ChoferVista[] = filas
     .filter((fila) => fila.chofer.isActive)
     .map((fila) => ({ id: fila.chofer.id, nombre: fila.nombre, iniciales: iniciales(fila.chofer.name, fila.chofer.email) }));
@@ -252,12 +247,12 @@ export default async function ChoferesPage({ searchParams }: Props) {
           const papelesTexto = papelesEnPalabras(fila.licencia, fila.antecedentes, chofer.driverProfile, hoyAr);
           return (
             <li key={chofer.id} className="chofer" data-inactivo={!chofer.isActive || undefined}>
-              <div className="chofer-quien">
+              <Link className="chofer-quien" href={`/admin/choferes/${chofer.id}/actividad?dia=${dia}`} aria-label={fila.nombre} prefetch={false}>
                 <span className="chofer-avatar" aria-hidden data-tono={actual ? "curso" : jornada.length ? "ok" : "calmo"}>
                   {iniciales(chofer.name, chofer.email)}
                 </span>
                 <div className="chofer-nombre">
-                  <Link href={`/admin/choferes/${chofer.id}/actividad`}>{fila.nombre}</Link>
+                  <strong>{fila.nombre}</strong>
                   <span className="chofer-estado">
                     {!chofer.isActive
                       ? "Inactivo"
@@ -276,7 +271,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
                   {chofer.driverProfile ? `Lic. ${chofer.driverProfile.licenseCategory}` : "Sin papeles"}
                   {fila.papeles !== "VALID" ? ` · ${EXPIRY_LABELS[fila.papeles].toLowerCase()}` : ""}
                 </span>
-              </div>
+              </Link>
 
               <div className="chofer-linea" role="img" aria-label={jornada.length ? `Servicios: ${jornada.map((s) => `${horario(s)} ${s.titulo}`).join("; ")}` : "Sin servicios"}>
                 {horasDeLinea.map((h) => (
@@ -331,14 +326,12 @@ export default async function ChoferesPage({ searchParams }: Props) {
                   ) : null}
                 </div>
                 <div className="chofer-acciones">
-                  {puedeAsignar && chofer.isActive ? (
-                    <AsignarViaje dia={dia} fechaTexto={fechaTexto} driverId={chofer.id} nombre={fila.nombre} naves={navesVista} />
-                  ) : null}
-                  <MenuFila etiqueta={`Más opciones de ${fila.nombre}`}>
-                    {jornada.length ? <Link href={`/admin/choferes/${chofer.id}/ordenes?fecha=${dia}`} prefetch={false}>Hoja del día</Link> : null}
-                    <Link href={`/admin/choferes/${chofer.id}/actividad`}>Actividad</Link>
-                    <Link href={`/admin/choferes/${chofer.id}`}>Datos y papeles</Link>
-                  </MenuFila>
+                  {puedeAsignar && chofer.isActive && (
+                    <AsignarViaje origen="listado" dia={dia} fechaTexto={fechaTexto} driverId={chofer.id} nombre={fila.nombre} />
+                  )}
+                  <Link className="button choferes-asignar" href={`/admin/choferes/${chofer.id}/ordenes?fecha=${dia}`} prefetch={false}>
+                    Ver hoja de ruta
+                  </Link>
                 </div>
               </div>
             </li>

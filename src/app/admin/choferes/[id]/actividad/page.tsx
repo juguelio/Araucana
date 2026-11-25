@@ -12,6 +12,8 @@ import {
 import { listDriverActivity } from "@/lib/driver/activity-repository";
 import { localDateKey } from "@/lib/operations/day-board";
 import { dateOnly } from "@/lib/special-trips/data";
+import { AsignarViaje } from "../../asignar-viaje";
+import "../../choferes.css";
 import "./driver-activity.css";
 
 type Query = Record<string, string | string[] | undefined>;
@@ -20,7 +22,7 @@ const localTime = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentin
 const dateLabel = (date: string) => date.split("-").reverse().join("/");
 
 export const metadata = {
-  title: "Actividad del chofer · La Araucana",
+  title: "Ficha del chofer · La Araucana",
   robots: { index: false, follow: false }
 };
 
@@ -40,6 +42,7 @@ export default async function DriverActivityPage({ params, searchParams }: {
   const now = new Date();
   const today = localDateKey(now);
   const dateFilter = (value: Query[string]) => typeof value === "string" && dateOnly(value) ? value : undefined;
+  const dia = dateFilter(query.dia) ?? today;
   const from = dateFilter(query.desde);
   const to = dateFilter(query.hasta);
   const area = typeof query.tipo === "string" && Object.hasOwn(driverActivityAreas, query.tipo) ? query.tipo as DriverActivityArea : undefined;
@@ -49,15 +52,19 @@ export default async function DriverActivityPage({ params, searchParams }: {
   const actorIsAdmin = isAdminRole(actor.role);
   const invalidRange = Boolean(from && to && from > to);
   const entries = await listDriverActivity(driver.id);
-  const rows = invalidRange ? [] : filterDriverActivity(entries, { period, today, area, from, to });
+  const rows = invalidRange ? [] : filterDriverActivity(entries, { period, today: dia, area, from, to });
   const page = paginar(rows, leerPagina(query.page), 25);
 
   return (
-    <AdminShell role={actor.role} title={driver.name || driver.email} eyebrow="Actividad del chofer"
+    <AdminShell role={actor.role} title={driver.name || driver.email} eyebrow="Ficha del chofer"
+      notice={typeof query.notice === "string" ? query.notice : undefined}
       action={<div className="inline-actions">
-        <Link className="ghost-button" href="/admin/choferes">Volver a choferes</Link>
+        <Link className="ghost-button" href={`/admin/choferes?dia=${dia}`}>Volver a choferes</Link>
         <Link className="ghost-button" href={driverHref}>Editar chofer</Link>
-        <Link className="button" href={`${driverHref}/ordenes`} prefetch={false}>Órdenes de servicio</Link>
+        {actorIsAdmin && driver.isActive && (
+          <AsignarViaje origen="ficha" dia={dia} fechaTexto={dateLabel(dia)} driverId={driver.id} nombre={driver.name || driver.email} />
+        )}
+        <Link className="button" href={`${driverHref}/ordenes?fecha=${dia}`} prefetch={false}>Ver hoja del chofer</Link>
       </div>}
     >
       <p className="inline-actions">
@@ -70,12 +77,13 @@ export default async function DriverActivityPage({ params, searchParams }: {
           {Object.entries(driverActivityPeriods).map(([key, label]) => (
             <Link key={key}
               className={key === period ? "button" : "ghost-button"}
-              href={hrefDePagina(base, { vista: key, tipo: area }, 1)}
+              href={hrefDePagina(base, { dia, vista: key, tipo: area }, 1)}
               aria-current={key === period ? "page" : undefined}
-            >{label}</Link>
+            >{key === "hoy" && dia !== today ? dateLabel(dia) : label}</Link>
           ))}
         </nav>
         <form action={base} className="admin-form-grid driver-activity-filters">
+          <input type="hidden" name="dia" value={dia} />
           <input type="hidden" name="vista" value={period} />
           <label>Tipo de servicio
             <select name="tipo" defaultValue={area ?? ""}>
@@ -126,7 +134,7 @@ export default async function DriverActivityPage({ params, searchParams }: {
           </table>
         </div>
         <Paginador {...page}
-          hrefPagina={(n) => hrefDePagina(base, { vista: period, tipo: area, desde: from, hasta: to }, n)}
+          hrefPagina={(n) => hrefDePagina(base, { dia, vista: period, tipo: area, desde: from, hasta: to }, n)}
           etiqueta="servicios del chofer" />
       </section>
     </AdminShell>

@@ -138,8 +138,8 @@ export default async function DriverOrdersPage({ params, searchParams }: {
   return (
     <AdminShell title="Hoja del chofer" eyebrow={driverName} role={actor.role}
       action={<div className="inline-actions">
-        <Link className="ghost-button" href="/admin/choferes">Volver a choferes</Link>
-        <Link className="ghost-button" href={`${driverHref}/actividad`}>Ver actividad</Link>
+        <Link className="ghost-button" href={`/admin/choferes?dia=${date}`}>Volver a choferes</Link>
+        <Link className="ghost-button" href={`${driverHref}/actividad?dia=${date}`}>Volver a la ficha</Link>
       </div>}>
       <div className="driver-orders">
         <div className="driver-orders-controls inline-actions no-print">

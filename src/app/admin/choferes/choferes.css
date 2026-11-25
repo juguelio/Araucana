@@ -133,7 +133,7 @@
 /* --- Cada chofer: quién · línea del día · naves y acciones --- */
 .choferes-regla, .chofer {
   display: grid;
-  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr) 176px;
+  grid-template-columns: minmax(230px, 300px) minmax(0, 1fr) 275px;
   column-gap: 18px;
 }
 .choferes-regla { position: sticky; top: 0; z-index: 2; padding: 6px 16px 4px; background: var(--bg); }
@@ -175,8 +175,7 @@
 .chofer-avatar[data-tono="ok"] { background: var(--primary-soft); color: var(--primary-deep); }
 .chofer-avatar[data-tono="curso"] { background: var(--primary); color: #fff; box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent); }
 .chofer-nombre { display: grid; gap: 2px; min-width: 0; }
-.chofer-nombre a { overflow: hidden; color: var(--ink); font-size: 16px; font-weight: 800; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
-.chofer-nombre a:hover { color: var(--primary); text-decoration: underline; }
+.chofer-nombre > strong { overflow: hidden; color: var(--ink); font-size: 16px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
 .chofer-estado { overflow: hidden; color: var(--ink-soft); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .chofer-estado b[data-tono="curso"] { color: var(--primary); }
 .chofer-papeles {
@@ -256,6 +255,8 @@
 .chofer-nave[data-gps]::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: #2f9e6b; box-shadow: 0 0 0 3px rgba(47, 158, 107, .2); }
 .chofer-senal { color: var(--ink-muted); font-size: 12px; font-weight: 700; }
 .chofer-acciones { grid-area: acciones; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.chofer-quien { color: inherit; text-decoration: none; }
+.chofer-quien:is(:hover, :focus-visible) strong { color: var(--primary); text-decoration: underline; }
 
 .choferes-vacio { padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--ink-soft); text-align: center; }
 .choferes-vacio a { color: var(--primary); font-weight: 700; }
@@ -380,7 +381,8 @@
   .choferes-dia-elegir input { flex: 1 1 auto; min-width: 0; }
   .choferes-sin-chofer li { flex-direction: column; align-items: stretch; }
   .choferes-sin-chofer .choferes-asignar { width: 100%; }
-  .chofer { padding: 12px; }
+  .chofer { padding: 12px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "quien" "linea" "naves" "acciones"; }
+  .chofer-acciones { flex-wrap: wrap; justify-content: flex-start; }
   .chofer-acciones .choferes-asignar { padding-inline: 10px; }
   .chofer-quien { grid-template-columns: auto minmax(0, 1fr); }
   .jornada-servicio { grid-template-columns: auto minmax(0, 1fr); }

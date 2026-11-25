@@ -8,7 +8,7 @@ import type { PendingTrip } from "@/lib/driver/assign-trip-types";
 import type { NaveVista } from "./asignar-jornada";
 import { asignarViajeAction, cargarViajesPendientes } from "./asignar-viaje-action";
 
-type Props = { dia: string; fechaTexto: string; driverId: string; nombre: string; naves: NaveVista[] };
+type Props = { dia: string; fechaTexto: string; driverId: string; nombre: string; origen: "listado" | "ficha" };
 const clave = (trip: PendingTrip) => `${trip.day}:${trip.kind}:${trip.id}`;
 const normalizar = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es").trim();
 
@@ -21,14 +21,15 @@ function detalle(viaje: PendingTrip) {
 export function AsignarViaje(props: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const [viajes, setViajes] = useState<PendingTrip[] | null>(null);
+  const [opciones, setOpciones] = useState<Awaited<ReturnType<typeof cargarViajesPendientes>> | null>(null);
+  const etiqueta = props.origen === "listado" ? "Asignar nave" : "Asignar viaje";
   const [cargando, iniciarCarga] = useTransition();
   function cargar() {
     iniciarCarga(async () => {
       try {
-        setViajes(await cargarViajesPendientes(props.dia));
+        setOpciones(await cargarViajesPendientes(props.dia));
       } catch {
-        setViajes(null);
+        setOpciones(null);
       }
     });
   }
@@ -39,15 +40,16 @@ export function AsignarViaje(props: Props) {
   function mostrarAsignacion(day: string) {
     setOpen(false);
     const params = new URLSearchParams({ dia: day, notice: "Viaje asignado al chofer con la nave elegida." });
-    router.push(`/admin/choferes?${params}`);
+    const destino = props.origen === "listado" ? "/admin/choferes" : `/admin/choferes/${props.driverId}/actividad`;
+    router.push(`${destino}?${params}`);
   }
   return (
-    <RowModal trigger="Asignar viaje" triggerLabel={`Asignar viaje a ${props.nombre}`}
+    <RowModal trigger={etiqueta} triggerLabel={`${etiqueta} a ${props.nombre}`}
       triggerClassName="ghost-button choferes-asignar" modalClassName="jornada-modal" eyebrow={props.fechaTexto}
       title={`Asignar viaje a ${props.nombre}`} open={open} onOpenChange={abrir}>
       {open && (cargando
         ? <p role="status">Buscando viajes sin nave…</p>
-        : viajes ? <ElegirViaje {...props} viajes={viajes} onSaved={mostrarAsignacion} />
+        : opciones ? <ElegirViaje {...props} {...opciones} onSaved={mostrarAsignacion} />
         : <div><p role="alert">No se pudieron cargar los viajes.</p><button type="button" className="ghost-button" onClick={cargar}>Reintentar</button></div>)}
     </RowModal>
   );
@@ -55,7 +57,7 @@ export function AsignarViaje(props: Props) {
 
 type AlGuardar = { onSaved: (day: string) => void };
 
-function ElegirViaje({ dia, driverId, nombre, viajes, naves, onSaved }: Props & { viajes: PendingTrip[] } & AlGuardar) {
+function ElegirViaje({ dia, driverId, nombre, viajes, naves, onSaved }: Props & { viajes: PendingTrip[]; naves: NaveVista[] } & AlGuardar) {
   const [seleccion, setSeleccion] = useState("");
   const [buscar, setBuscar] = useState("");
   const [fecha, setFecha] = useState("");
@@ -88,7 +90,7 @@ function ElegirViaje({ dia, driverId, nombre, viajes, naves, onSaved }: Props & 
   </section>;
 }
 
-function ElegirNave({ viaje, driverId, nombre, naves, onSaved }: Pick<Props, "driverId" | "nombre" | "naves"> & { viaje: PendingTrip } & AlGuardar) {
+function ElegirNave({ viaje, driverId, nombre, naves, onSaved }: Pick<Props, "driverId" | "nombre"> & { viaje: PendingTrip; naves: NaveVista[] } & AlGuardar) {
   const [vehicleId, setVehicleId] = useState("");
   return <div className="jornada-paso">
     <label htmlFor="viaje-nave"><strong>Nave para el viaje</strong></label>

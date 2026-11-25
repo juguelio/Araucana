@@ -4,12 +4,25 @@ import { revalidatePath } from "next/cache";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { assignPendingTrip, listPendingTrips } from "@/lib/driver/assign-trip";
 import { tripKinds, type AssignTripResult } from "@/lib/driver/assign-trip-types";
+import { prisma } from "@/lib/db/prisma";
+import { tituloDeNave } from "@/lib/fleet/titulo-de-nave";
 import { fechaUTC } from "@/lib/school-runs/week";
 
 export async function cargarViajesPendientes(day: string) {
   await getCurrentAdminOrRedirect();
   if (typeof day !== "string" || !fechaUTC(day)) throw new Error("Fecha inválida.");
-  return listPendingTrips(day, true);
+  const [viajes, flota] = await Promise.all([
+    listPendingTrips(day, true),
+    prisma.vehicle.findMany({
+      where: { isActive: true, kind: { not: "UTILITARIO" } },
+      select: { id: true, name: true, internalNumber: true, licensePlate: true, _count: { select: { seats: true } } }
+    })
+  ]);
+  const naves = flota.map((v) => ({
+    id: v.id, titulo: tituloDeNave(v),
+    detalle: [v.licensePlate, v._count.seats ? `${v._count.seats} butacas` : null].filter(Boolean).join(" · ")
+  })).sort((a, b) => a.titulo.localeCompare(b.titulo, "es", { numeric: true }));
+  return { viajes, naves };
 }
 
 export async function asignarViajeAction(form: FormData): Promise<AssignTripResult> {
