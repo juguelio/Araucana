@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { NavesPendientes } from "./naves-pendientes";
+import { ROTULO_DE_SERVICIOS } from "@/components/modulo/modulo";
 import type { Prisma } from "@prisma/client";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
@@ -151,8 +152,8 @@ export default async function SpecialTripsPage({ searchParams }: { searchParams:
     <EncabezadoOrdenable etiqueta={ETIQUETAS[columna]} columna={columna} orden={orden} base={base} params={{ ...params, modo: "listado" }} clavePagina="pagina" />
   );
 
-  return <AdminShell title="Viajes especiales" role={user.role} action={<div className="inline-actions">
-    <Link href={`${base}/importar`} className="ghost-button">Importar historial</Link>
+  return <AdminShell title="Viajes especiales" eyebrow={ROTULO_DE_SERVICIOS} role={user.role} action={<div className="inline-actions">
+    <Link href={`${base}/importar`} className="ghost-button">Importar</Link>
     <Link href={`${base}/nuevo`} className="button">Nuevo viaje</Link>
   </div>}>
     <SpecialTripsViewTabs active="listado" />

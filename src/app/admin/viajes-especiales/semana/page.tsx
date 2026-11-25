@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
+import { ROTULO_DE_SERVICIOS } from "@/components/modulo/modulo";
 import { WeeklyCalendar } from "@/components/weekly-calendar/weekly-calendar";
 import { calendarWeekStart } from "@/lib/admin/weekly-calendar";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
@@ -34,9 +35,9 @@ export default async function SpecialTripsWeekPage({ searchParams }: {
   const suffix = query.size ? `?${query}` : "";
 
   return (
-    <AdminShell title="Viajes especiales" eyebrow="Calendario semanal" role={user.role}
+    <AdminShell title="Viajes especiales" eyebrow={ROTULO_DE_SERVICIOS} role={user.role}
       action={<div className="inline-actions">
-        <Link className="ghost-button" href={`${base}/importar`}>Importar historial</Link>
+        <Link className="ghost-button" href={`${base}/importar`}>Importar</Link>
         <Link className="button" href={`${base}/nuevo`}>Nuevo viaje</Link>
       </div>}>
       <SpecialTripsViewTabs active="calendario" />
@@ -52,7 +53,7 @@ export default async function SpecialTripsWeekPage({ searchParams }: {
           {vehicles.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
         </select></label>
         <div className="inline-actions">
-          <button className="ghost-button" type="submit">Ver calendario</button>
+          <button className="ghost-button" type="submit">Filtrar</button>
           {query.size > 0 && <Link href={`${base}/semana?semana=${start}`}>Limpiar filtros</Link>}
         </div>
       </form>

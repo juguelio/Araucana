@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { calendarDayDistance, calendarWindow, type CalendarWeek } from "@/lib/admin/weekly-calendar";
 import { etiquetaDeSemana, fechaUTC, lunesDe, sumarDias } from "@/lib/school-runs/week";
+import "@/components/modulo/modulo.css";
 import "./weekly-calendar.css";
 
 const weekday = new Intl.DateTimeFormat("es-AR", { weekday: "short", timeZone: "UTC" });
@@ -167,15 +168,23 @@ export function WeeklyCalendar({ start, today, initial, dataUrl, label, singular
 
   return (
     <section className="weekly-calendar" aria-label={label}>
-      <nav className="weekly-calendar-nav" aria-label="Navegación del calendario">
-        <button className="ghost-button" type="button" onClick={() => goTo(sumarDias(visibleWeek, -7))}>‹ Semana anterior</button>
-        <strong>{etiquetaDeSemana(visibleWeek)}</strong>
-        <button className="ghost-button" type="button" onClick={() => goTo(sumarDias(visibleWeek, 7))}>Semana siguiente ›</button>
-        {visibleWeek !== todayWeek && <button className="ghost-button" type="button" onClick={() => goTo(todayWeek)}>Esta semana</button>}
+      {/* La misma barra que el día de Aeropuerto (patrón común, 24-nov): ‹ Anterior · SEMANA · Siguiente ›. */}
+      <nav className="flights-toolbar modulo-barra weekly-calendar-nav" aria-label="Navegación del calendario">
+        <div className="flights-date">
+          <button className="ghost-button flights-dia-paso" type="button" onClick={() => goTo(sumarDias(visibleWeek, -7))} aria-label="Semana anterior">‹ Anterior</button>
+          <label>
+            Semana
+            <input type="date" value={visibleWeek} onChange={(event) => { if (fechaUTC(event.target.value)) goTo(lunesDe(event.target.value)); }} />
+          </label>
+          <strong className="weekly-calendar-rango">{etiquetaDeSemana(visibleWeek)}</strong>
+          <button className="ghost-button flights-dia-paso" type="button" onClick={() => goTo(sumarDias(visibleWeek, 7))} aria-label="Semana siguiente">Siguiente ›</button>
+          {visibleWeek !== todayWeek && <button className="ghost-button flights-dia-paso" type="button" onClick={() => goTo(todayWeek)}>Esta semana</button>}
+        </div>
       </nav>
 
       {initial.summary && (
-        <dl className="weekly-calendar-summary" aria-label="Resumen de la semana visible">
+        <dl className="flights-summary modulo-cifras weekly-calendar-summary" aria-label="Resumen de la semana visible"
+          style={{ gridTemplateColumns: `repeat(${initial.summary.length}, minmax(0, 1fr))` }}>
           {initial.summary.map(({ label: name }, index) =>
             <div key={name}><dt>{name}</dt><dd>{summary?.[index]?.value ?? "—"}</dd></div>
           )}

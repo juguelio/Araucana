@@ -1,0 +1,36 @@
+/* Patrón común de los módulos de servicios (24-nov). Las piezas usan las clases de Aeropuerto
+   (`flights-toolbar`, `flights-date`, `flights-filters`, `flights-summary`), definidas en globals.css;
+   acá sólo lo que hace falta para que entren en los otros módulos. Todo va bajo una clase `modulo-*`:
+   Aeropuerto es el modelo y no se toca (pedido de Jugue, 24-nov), así que nada de esto lo alcanza. */
+.modulo-vistas { margin: 0 0 14px; }
+.modulo-barra { margin-bottom: 14px; }
+.modulo-barra .flights-date .flights-dia-paso { min-height: 44px; display: inline-flex; align-items: center; white-space: nowrap; }
+.modulo-barra .flights-date { flex-wrap: wrap; }
+.modulo-barra-derecha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.modulo-filtros { flex-wrap: wrap; }
+.modulo-filtros a:hover { border-color: var(--line-strong); color: var(--ink); }
+.modulo-filtros a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.modulo-filtros a[data-active="true"]:hover { border-color: var(--accent); color: var(--accent); }
+.modulo-cifras { margin: 0 0 16px; }
+.modulo-cifras dd a { color: inherit; text-decoration: none; }
+.modulo-cifras dd a:hover { text-decoration: underline; }
+/* El botón de asignar nave y chofer, igual en todos los módulos: chico y con borde. */
+.modulo-asignar { min-height: 34px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .modulo-cifras { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)) !important; }
+  .modulo-barra { align-items: stretch; }
+}
+.modulo-rango { align-self: center; font-size: 14px; white-space: nowrap; }
+/* En el teléfono la barra queda en dos renglones parejos: la fecha con «Ver» (o el rango de la
+   semana) arriba, y ‹ Anterior · Siguiente › abajo. Vale para los tres módulos y el calendario. */
+@media (max-width: 640px) {
+  .modulo-barra .flights-date { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 8px; width: 100%; }
+  .modulo-barra .flights-date > label { order: 1; }
+  .modulo-barra .flights-date > label input { width: 100%; min-width: 0; }
+  .modulo-barra .flights-date > button[type="submit"], .modulo-barra .flights-date > .weekly-calendar-rango { order: 2; align-self: center; }
+  .modulo-barra .flights-date > button[type="submit"] { min-height: 44px; }
+  .modulo-barra .flights-date > .modulo-rango { order: 3; grid-column: 1 / -1; }
+  .modulo-barra .flights-date > .flights-dia-paso { order: 4; justify-content: center; }
+  .modulo-barra .flights-date > .flights-dia-paso:not([aria-label]) { order: 5; grid-column: 1 / -1; }
+  .modulo-barra-derecha { width: 100%; }
+}

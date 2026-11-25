@@ -2,6 +2,7 @@
 
 import { RowModal } from "@/app/admin/reservas/row-modal";
 import { SelectorNaveYChofer, type ChoferOpcion, type NaveOpcion } from "@/components/asignar-flota/selector-nave-chofer";
+import type { EstadoDeOpcion } from "@/lib/fleet/ocupacion";
 import { assignSchoolRunResources } from "./actions";
 
 /**
@@ -21,7 +22,9 @@ export function AsignarRecursosConcesion({
   naveActual,
   choferActual,
   trigger,
-  triggerClassName = "pill school-assign-trigger"
+  triggerClassName = "pill school-assign-trigger",
+  ocupacionNaves,
+  ocupacionChoferes
 }: {
   id: string;
   titulo: string;
@@ -35,6 +38,9 @@ export function AsignarRecursosConcesion({
   choferActual: string;
   trigger: string;
   triggerClassName?: string;
+  /** Qué naves y choferes están en otro servicio a ese horario (Concesiones y el resto del día). */
+  ocupacionNaves?: Record<string, EstadoDeOpcion>;
+  ocupacionChoferes?: Record<string, EstadoDeOpcion>;
 }) {
   return (
     <RowModal
@@ -63,6 +69,8 @@ export function AsignarRecursosConcesion({
           choferes={choferes}
           naveActual={naveActual}
           choferActual={choferActual}
+          ocupacionNaves={ocupacionNaves}
+          ocupacionChoferes={ocupacionChoferes}
           boton={naveActual ? "Guardar cambios" : "Asignar"}
         />
       </form>

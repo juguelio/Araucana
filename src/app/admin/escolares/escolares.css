@@ -13,12 +13,13 @@
 .cn-semana-scroll { overflow-x: auto; padding-bottom: 6px; }
 .cn-semana-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(136px, 1fr));
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
   gap: 8px;
   min-width: 0;
 }
 .cn-semana-dia {
   display: flex;
+  min-width: 0;
   min-height: 220px;
   flex-direction: column;
   gap: 8px;
@@ -28,7 +29,7 @@
   background: var(--surface);
 }
 .cn-semana-dia[data-hoy="true"] { border-color: var(--primary); box-shadow: inset 0 3px 0 var(--primary); }
-.cn-semana-dia > header { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.cn-semana-dia > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 6px; }
 .cn-semana-dia > header span { color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .cn-semana-dia > header strong { font-size: 20px; line-height: 1; }
 .cn-semana-dia > header small { color: var(--ink-muted); font-size: 11px; }
@@ -83,3 +84,98 @@
 .cn-chofer-servicio span { color: var(--ink-muted); font-size: 10px; }
 .cn-choferes-vacio { padding: 24px; color: var(--ink-soft); text-align: center; }
 .cn-vista-toggle .pill.is-active { border-color: var(--primary); background: var(--primary); color: #fff; }
+
+/* === Concesiones · el día (rediseño del 24-nov) ===
+   Por horario o por chofer, con lo que falta resolver arriba. Mismo lenguaje que Naves y Choferes. */
+
+/* El calendario semanal arriba del día (pedido de Jugue: «mantené el calendario semanal, como en
+   viajes especiales»): las siete columnas de la vista Semana, más bajas, con el día que se mira marcado
+   y cada servicio en un renglón. */
+.cn-semana-compacta { margin-bottom: 16px; }
+.cn-semana-compacta .cn-semana-dia { min-height: 0; gap: 6px; padding: 8px; }
+.cn-semana-compacta .cn-semana-pie { flex-wrap: wrap; gap: 2px 8px; }
+.cn-semana-compacta .cn-semana-dia > p { font-size: 12px; }
+.cn-semana-compacta .cn-semana-lista { max-height: 168px; overflow-y: auto; gap: 3px; scrollbar-width: thin; }
+.cn-semana-dia[data-actual] { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); box-shadow: inset 0 3px 0 var(--primary), 0 0 0 1px var(--primary); }
+.cn-semana-viendo { color: var(--primary); font-size: 11px; font-weight: 800; }
+.cn-semana-faltan { color: var(--accent-deep); font-style: normal; font-weight: 800; }
+.cn-semana-renglon {
+  display: block; flex: 0 0 auto; overflow: hidden; padding: 4px 6px; border-radius: 6px;
+  font-size: 11px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap;
+}
+.cn-semana-renglon b { font-variant-numeric: tabular-nums; }
+.cn-semana-servicio[data-falta] { border-left: 3px solid var(--accent); }
+
+
+.cd-herramientas { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.cd-semana-titulo { margin: 0 0 8px; font-size: 14px; }
+.cd-buscar { display: flex; flex: 1 1 260px; gap: 6px; min-width: 0; }
+.cd-buscar input { flex: 1 1 auto; min-width: 0; font-size: 15px; }
+
+.cd-grupos { display: grid; gap: 18px; }
+.cd-grupo-cabeza { position: sticky; top: 0; z-index: 2; display: flex; align-items: baseline; gap: 10px; padding: 6px 2px; background: var(--bg); }
+.cd-grupo-cabeza h2 { margin: 0; font-family: var(--display); font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.cd-grupo-cabeza span { color: var(--ink-muted); font-size: 13px; font-weight: 700; }
+.cd-lista { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+
+.cd-servicio {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto;
+  grid-template-areas: "que quien accion" "avisos avisos avisos";
+  align-items: center;
+  gap: 8px 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--primary-soft);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.cd-servicio[data-estado="falta"] { border-left-color: var(--accent); }
+.cd-servicio[data-estado="choque"] { border-left-color: var(--accent-deep); background: color-mix(in srgb, var(--accent) 4%, var(--surface)); }
+.cd-servicio[data-estado="revisar"] { border-left-color: #d9a441; }
+.cd-servicio[data-estado="listo"] { border-left-color: var(--primary); }
+.cd-servicio-que { grid-area: que; display: grid; gap: 3px; min-width: 0; }
+.cd-servicio-hora:empty { display: none; }
+.cd-servicio-hora { color: var(--primary); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cd-servicio-nombre { overflow: hidden; color: var(--ink); font-size: 15px; font-weight: 800; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.cd-servicio-nombre:hover { color: var(--primary); text-decoration: underline; }
+.cd-servicio-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; color: var(--ink-soft); font-size: 12px; }
+.cd-tipo { padding: 1px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-deep); font-size: 11px; font-weight: 800; }
+.cd-tipo[data-tipo="personal-aeropuerto"] { background: #dbe7ee; color: #0d3b52; }
+.cd-tipo[data-tipo="otro"] { background: var(--surface-2); color: var(--ink-soft); }
+.cd-servicio-quien { grid-area: quien; display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.cd-recurso {
+  display: inline-grid; min-width: 0; max-width: 100%; padding: 4px 10px;
+  border: 1px solid var(--line-strong); border-radius: 10px; background: #fffaf1;
+  font-size: 13px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cd-recurso small { color: var(--ink-muted); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.cd-recurso[data-vacio] { border-style: dashed; border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: transparent; color: var(--accent-deep); }
+.cd-servicio-accion { grid-area: accion; display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.cd-estado { padding: 2px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-deep); font-size: 11px; font-weight: 800; white-space: nowrap; }
+.cd-estado[data-estado="falta"], .cd-estado[data-estado="choque"] { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); color: var(--accent-deep); }
+.cd-estado[data-estado="revisar"] { background: #f4e3c4; color: #7a4f0e; }
+.cd-avisos { grid-area: avisos; display: grid; gap: 4px; margin: 0; padding: 8px 0 0; border-top: 1px dashed var(--line); list-style: none; font-size: 13px; }
+.cd-avisos li { color: var(--ink-soft); }
+.cd-avisos li[data-tono="choque"] b { color: var(--accent-deep); }
+.cd-avisos li[data-tono="posible"] b, .cd-avisos li[data-tono="revisar"] b { color: #7a4f0e; }
+.cd-avisos a { color: inherit; font-weight: 700; }
+
+.cd-vacio { display: grid; justify-items: center; gap: 10px; padding: 28px 16px; border: 1px dashed var(--line-strong); border-radius: 14px; color: var(--ink-soft); text-align: center; }
+.cd-vacio p { margin: 0; }
+
+@media (max-width: 960px) {
+  .cd-servicio { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "que accion" "quien quien" "avisos avisos"; }
+}
+@media (max-width: 640px) {
+  /* En el teléfono la semana se desliza de costado, con columnas más angostas. */
+  .cn-semana-compacta .cn-semana-grid { grid-template-columns: repeat(7, 148px); min-width: 0; }
+  .cn-semana-compacta .cn-semana-lista { max-height: 120px; }
+  .cd-buscar { flex-basis: 100%; }
+  .cd-servicio { grid-template-areas: "que que" "quien quien" "accion accion" "avisos avisos"; padding: 12px; }
+  .cd-servicio-accion { justify-content: space-between; }
+  .cd-servicio-accion .modulo-asignar { flex: 1 1 auto; justify-content: center; }
+  .cd-servicio-nombre { white-space: normal; }
+}
+/* «Por día · Por chofer» arriba del calendario, a la derecha (patrón común, 24-nov). */
+.cn-agrupar { justify-content: flex-end; margin: -4px 0 10px; }
