@@ -13,17 +13,22 @@ type ExpenseFormProps = {
     id: string;
     name: string;
   }>;
+  /** El mes que se está mirando (YYYY-MM): al guardar se vuelve a ese mes. */
+  mes?: string;
+  /** Fecha sugerida: hoy si es el mes que se mira; si no, el último día de ese mes. */
+  fecha?: string;
 };
 
-export function ExpenseForm({ action, vehicles }: ExpenseFormProps) {
+export function ExpenseForm({ action, vehicles, mes, fecha }: ExpenseFormProps) {
   const [state, formAction] = useActionState(action, initialAdminFormState);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = fecha ?? new Date().toISOString().slice(0, 10);
 
   return (
     <form className="admin-form-grid" action={formAction}>
       <AdminFormAlert state={state} />
+      {mes ? <input type="hidden" name="volverA" value={mes} /> : null}
       <label>
-        Categoria
+        Categoría
         <select name="category" required>
           {EXPENSE_CATEGORIES.map((category) => (
             <option key={category} value={category}>

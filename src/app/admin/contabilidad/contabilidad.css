@@ -1,0 +1,55 @@
+/* === Contabilidad: el trabajo del mes (25-nov, sobre #457) ===
+   Barra del mes y cifras con el patrón de los módulos (`modulo-*`), «Sueldos del mes» con la base de
+   servicio público, en qué se fueron los egresos y la lista. */
+.cont-seccion-cabeza { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 20px; margin-bottom: 12px; }
+.cont-seccion-cabeza h2 { margin: 0; }
+.cont-seccion-cabeza p { max-width: 70ch; margin: 4px 0 0; font-size: 13px; }
+.cont-tabla-scroll { max-width: 100%; overflow-x: auto; }
+.cont-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Barra de progreso (pagado / pactado, y la de cada categoría). */
+.cont-barra { height: 8px; border-radius: 999px; background: var(--surface-2, #efe7d8); overflow: hidden; }
+.cont-barra span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.cont-sueldos-total { display: grid; gap: 6px; min-width: 240px; font-size: 13px; font-weight: 700; }
+
+.cont-sueldos-tabla td { vertical-align: middle; }
+/* Nueve columnas: celdas más justas para que todo entre a 1280 px sin scroll. */
+.cont-sueldos-tabla th, .cont-sueldos-tabla td { padding-left: 8px; padding-right: 8px; }
+.cont-sueldos-tabla td[data-label="Persona"] { min-width: 150px; }
+.cont-sueldos-tabla .cont-estado { font-size: 11px; }
+.cont-sueldos-tabla td[data-label="Persona"] a { font-weight: 800; }
+.cont-sueldos-tabla td small { display: block; color: var(--ink-muted); font-size: 12px; }
+.cont-sueldos-tabla tr[data-estado="pendiente"] td:first-child, .cont-sueldos-tabla tr[data-estado="parcial"] td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.cont-sueldos-tabla tr[data-estado="sin-sueldo"] td:first-child { box-shadow: inset 4px 0 0 #d9a441; }
+.cont-estado { display: inline-block; padding: 2px 9px; border-radius: 999px; background: var(--primary-soft); color: var(--primary-deep); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.cont-estado[data-estado="pendiente"], .cont-estado[data-estado="parcial"] { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); color: var(--accent-deep); }
+.cont-estado[data-estado="sin-sueldo"], .cont-estado[data-estado="de-mas"] { background: #f4e3c4; color: #7a4f0e; }
+.cont-falta-dato { color: #7a4f0e; font-size: 13px; font-weight: 700; }
+.cont-accion { text-align: right; white-space: nowrap; }
+
+.cont-categorias-lista { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.cont-categorias-lista li { display: grid; grid-template-columns: minmax(110px, 180px) minmax(0, 1fr) auto; align-items: center; gap: 14px; font-size: 14px; }
+.cont-categorias-lista strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.reservas-modal.cont-modal { width: min(620px, 100%); }
+
+/* Teléfono: la tabla de sueldos pasa a tarjetas (una por persona). */
+@media (max-width: 760px) {
+  /* Los montos son largos: dos cifras por renglón y un poco más chicas, para que entren. */
+  .cont-cifras .modulo-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .cont-cifras .modulo-cifras dd { font-size: 20px; overflow-wrap: anywhere; }
+  .cont-sueldos-tabla thead { display: none; }
+  .cont-sueldos-tabla, .cont-sueldos-tabla tbody, .cont-sueldos-tabla tr, .cont-sueldos-tabla td { display: block; width: 100%; }
+  .cont-sueldos-tabla tr { margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+  .cont-sueldos-tabla tr[data-estado="pendiente"], .cont-sueldos-tabla tr[data-estado="parcial"] { border-left: 4px solid var(--accent); }
+  .cont-sueldos-tabla td { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border: 0; box-shadow: none !important; text-align: right; }
+  .cont-sueldos-tabla td::before { content: attr(data-label); color: var(--ink-muted); font-size: 12px; font-weight: 700; text-align: left; }
+  .cont-sueldos-tabla td[data-label="Persona"] { display: block; text-align: left; }
+  .cont-sueldos-tabla td[data-label="Persona"]::before { content: none; }
+  .cont-accion { padding-top: 8px !important; }
+  .cont-accion .modulo-asignar { width: 100%; justify-content: center; }
+  .cont-accion::before { content: none !important; }
+  .cont-categorias-lista li { grid-template-columns: minmax(0, 1fr) auto; }
+  .cont-categorias-lista .cont-barra { grid-column: 1 / -1; grid-row: 2; }
+  .cont-sueldos-total { min-width: 0; width: 100%; }
+}
