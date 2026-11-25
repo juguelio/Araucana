@@ -96,6 +96,7 @@ export const INCOME_CHECK_LABELS = {
 } as const;
 
 export type AccountingIncomeItem = {
+  hasRoute: boolean;
   check: keyof typeof INCOME_CHECK_LABELS;
   approvedPayment: { amountCents: number; currency: string } | null;
   id: string;

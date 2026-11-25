@@ -10,6 +10,7 @@ function report(): AccountingReport {
       {
         id: "r1",
         source: "reservation",
+        hasRoute: true,
         check: "amount",
         approvedPayment: { amountCents: 1_499_999, currency: "ARS" },
         code: "ARC-2611-ABC",

@@ -93,6 +93,11 @@ describe("accounting service", () => {
     expect(income?.occurredAt.toISOString()).toBe("2026-05-03T12:00:00.000Z");
   });
 
+  it("conserva el ingreso histórico cuando se perdió el recorrido de su ficha", () => {
+    const result = reservationToIncome(reservation({ status: "CONFIRMED", schedule: null, route: null }));
+    expect(result).toMatchObject({ hasRoute: false, amountCents: 100_000, check: "missing" });
+  });
+
   it("excludes pending or cancelled reservations without approved payments", () => {
     expect(reservationToIncome(reservation({ status: "PENDING_PAYMENT" }))).toBeNull();
     expect(reservationToIncome(reservation({ status: "CANCELLED" }))).toBeNull();

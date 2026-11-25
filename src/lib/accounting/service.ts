@@ -94,6 +94,7 @@ export function reservationToIncome(reservation: AccountingReservationRecord): A
 
   return {
     id: reservation.id,
+    hasRoute: Boolean(reservation.schedule?.route || reservation.route),
     check,
     approvedPayment: approvedPayment ? { amountCents: approvedPayment.amountCents, currency: approvedPayment.currency } : null,
     source: "reservation" as const,

@@ -24,6 +24,7 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
       {
         id: "r1",
         source: "reservation",
+        hasRoute: true,
         check: "missing",
         approvedPayment: null,
         code: "ARC-1",
@@ -37,6 +38,7 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
       {
         id: "r2",
         source: "reservation",
+        hasRoute: true,
         check: "missing",
         approvedPayment: null,
         code: "ARC-2",

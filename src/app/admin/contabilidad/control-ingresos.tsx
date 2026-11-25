@@ -33,7 +33,7 @@ export function ControlIngresos({ ingresos, mes, filtro, pagina }: Props) {
     {lista.total ? <><div className="cont-tabla-scroll"><table className="data-table embedded-table"><thead><tr>
       <th>Reserva</th><th>Ingreso del informe</th><th>Pago aprobado</th><th>Control</th>
     </tr></thead><tbody>{lista.items.map(item => <tr key={item.id}>
-      <td><Link href={"/admin/reservas/" + encodeURIComponent(item.code)}>{item.code}</Link></td>
+      <td>{item.hasRoute ? <Link href={"/admin/reservas/" + encodeURIComponent(item.code)}>{item.code}</Link> : <>{item.code}<small> · Recorrido sin vincular</small></>}</td>
       <td className="cont-num">{importe(item.amountCents, item.currency)}</td>
       <td className="cont-num">{item.approvedPayment ? importe(item.approvedPayment.amountCents, item.approvedPayment.currency) : "—"}</td>
       <td>{INCOME_CHECK_LABELS[item.check]}</td>
