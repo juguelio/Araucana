@@ -1,3 +1,5 @@
+import { pasajerosDeOrden } from "@/lib/driver/jornada-aeropuerto";
+import { MarcasDelServicio } from "@/components/marcas-del-servicio";
 import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -84,11 +86,12 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
   // Cada orden tiene su botón «Asignar nave y chofer», que abre el mismo modal que la tarjeta del
   // vuelo en Aeropuerto y, al guardar, vuelve a esta misma orden.
   const flightIds = [...new Set(blocks.flatMap((block) => block.flightIds))];
-  const [vuelos, { naves, choferes }, ocupacion] = await Promise.all([
+  const [vuelos, { naves, choferes }, ocupacion, marcas] = await Promise.all([
     prisma.flight.findMany({ where: { id: { in: flightIds } }, include: INCLUDE_COMBIS_DEL_VUELO }),
     opcionesDeCombi(),
     // Qué naves y choferes están en otro servicio ese día, para marcarlos en el modal.
-    cargarOcupacionDelDia(date)
+    cargarOcupacionDelDia(date),
+    prisma.driverServiceMark.findMany({ where: { servicioId: { in: blocks.map(b => "orden-" + b.key) } } })
   ]);
   const vueloPorId = new Map(vuelos.map((vuelo) => [vuelo.id, vuelo]));
   const volverAOrden = new URLSearchParams({
@@ -164,7 +167,8 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
 
   // «Visualizar recorrido»: el mapa de las paradas de la orden, en el orden de la hoja.
   function mapa(block: ServiceOrderBlock) {
-    return <ServiceOrderMap key={`mapa-${block.key}`} block={block} oficina={oficina} />;
+    return <><ServiceOrderMap block={block} oficina={oficina} />
+      <MarcasDelServicio filas={pasajerosDeOrden(block).filas} marcas={marcas.filter(m => m.servicioId === "orden-" + block.key)} /></>;
   }
 
   function filas(block: ServiceOrderBlock) {

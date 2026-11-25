@@ -6,6 +6,8 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import { CHAPELCO_BOOKING_MODE } from "@/lib/chapelco/constants";
 import { getChapelcoAvailability } from "@/lib/chapelco/repository";
+import { ultimasMarcas } from "@/lib/driver/marcas";
+import { registroAnteriorChapelco } from "@/lib/chapelco/registro-manifiesto";
 import { OperationBoard } from "./operation-board";
 
 type ChapelcoAdminPageProps = {
@@ -47,7 +49,7 @@ export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminP
     );
   }
 
-  const [vehicles, reservations, availability, duties] = await Promise.all([
+  const [vehicles, reservations, availability, duties, marcas] = await Promise.all([
     prisma.vehicle.findMany({
       where: { isActive: true },
       orderBy: { name: "asc" },
@@ -81,6 +83,11 @@ export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminP
             status: true
           }
         },
+        chapelcoStops: {
+          where: { run: { operationDay: { serviceDate: serviceDateFromKey(serviceDate), routeId: route.id } } },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, status: true, passengerCount: true, runId: true, run: { select: { direction: true, sequence: true } } }
+        },
         chapelcoDetails: {
           select: {
             ascentSlot: true,
@@ -95,8 +102,27 @@ export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminP
     prisma.chapelcoVehicleDuty.findMany({
       where: { status: "ACTIVE", operationDay: { routeId: route.id, serviceDate: serviceDateFromKey(serviceDate) } },
       include: { vehicle: { select: { name: true } } }
-    })
+    }),
+    prisma.driverServiceMark.findMany({ where: { fecha: serviceDate, servicioId: { startsWith: "vuelta-" }, tipo: "embarque" } })
   ]);
+
+  const porFila = new Map<string, typeof marcas>();
+  for (const marca of ultimasMarcas(marcas)) {
+    const key = JSON.stringify([marca.servicioId, marca.filaId]);
+    const registros = porFila.get(key) ?? [];
+    registros.push(marca);
+    porFila.set(key, registros);
+  }
+  const manifiesto = reservations.map(r => ({ ...r, registros: r.chapelcoStops.flatMap(p => {
+    const vuelta = (p.run.direction === "UP" ? "Ascenso " : "Descenso ") + p.run.sequence;
+    const anotaciones = porFila.get(JSON.stringify(["vuelta-" + p.runId, p.id])) ?? [];
+    const anterior = registroAnteriorChapelco(p.status, p.passengerCount);
+    const lineas = anotaciones.map(m => [m.nave || "Sin nave registrada", m.cantidad === 0 ? "Ausente" : m.cantidad + " de " + m.prevista + " embarcados",
+      m.estado === "revision" ? "Para revisar" : null].filter(Boolean).join(" · "));
+    if (anterior && !anotaciones.some(m => m.estado === "guardada")) lineas.unshift(anterior);
+    if (!lineas.length) lineas.push("Sin informar");
+    return lineas.map(linea => vuelta + " · " + linea);
+  }) }));
 
   return (
     <AdminShell title="Chapelco" notice={params?.notice} role={user.role}>
@@ -124,7 +150,7 @@ export default async function ChapelcoAdminPage({ searchParams }: ChapelcoAdminP
         serviceEndDate={route.serviceEndDate}
         serviceDate={serviceDate}
         vehicles={vehicles}
-        reservations={reservations}
+        reservations={manifiesto}
         availability={availability}
       />
     </AdminShell>

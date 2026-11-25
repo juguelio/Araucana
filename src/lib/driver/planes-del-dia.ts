@@ -8,6 +8,7 @@ import { normalizeRouteSheetStops } from "./route-sheet";
 import { cierreDelTraslado } from "./servicios-consulta";
 import type { ServicioDelDia, UnidadDeServicio } from "./servicios";
 import { distanciaAlSegmento, type PlanMapa, type Punto, type TramoPrevisto } from "./plan-mapa";
+import { resumenDeMarcas, ultimasMarcas } from "./marcas";
 import caminos from "./data/caminos-patagonia.json";
 
 // Referencias viales de OpenStreetMap (ODbL), obtenidas con OSRM de routing.openstreetmap.de.
@@ -38,7 +39,7 @@ function unidad(u: UnidadDeServicio) {
 
 function base(s: ServicioDelDia): PlanMapa {
   return { id: s.id, titulo: s.titulo, salida: s.at?.getTime() ?? null, fin: s.endsAt?.getTime() ?? null,
-    unidades: s.unidades.map(unidad), detalle: s.detalle ?? "", tramos: [], completo: false };
+    previstos: s.pasajeros, unidades: s.unidades.map(unidad), detalle: s.detalle ?? "", tramos: [], completo: false };
 }
 
 function camino(clave: keyof typeof caminos): Punto[] {
@@ -65,18 +66,19 @@ function traslado(paradas: Punto[], referencia: Punto[], vuelta: boolean): Tramo
 
 export async function cargarPlanesDelDia(fecha: string, servicios: ServicioDelDia[]): Promise<PlanMapa[]> {
   const diasDeVuelo = [...new Set([fecha, ...servicios.flatMap(s => s.fechaVuelo ? [s.fechaVuelo] : [])])];
-  const [ordenes, rutas, ascensos, concesiones] = await Promise.all([
-    Promise.all(diasDeVuelo.map(d => getAirportServiceOrder(d, null, { soloVuelosOperativos: true }))),
+  const [ordenes, rutas, ascensos, concesiones, marcas] = await Promise.all([
+    Promise.all(diasDeVuelo.map(d => getAirportServiceOrder(d, null, { soloVuelosOperativos: true, incluirVacias: true }))),
     prisma.travelRoute.findMany({ where: { id: { in: servicios.flatMap(s => s.rutaId ? [s.rutaId] : []) } },
       select: { id: true, from: true, to: true, via: true, stops: true } }),
     prisma.chapelcoRun.findMany({
       where: { operationDay: { serviceDate: new Date(fecha), status: { not: "CANCELLED" } }, vehicleDuty: { status: "ACTIVE" }, status: { not: "CANCELLED" } },
       select: { id: true, operationDayId: true, direction: true, ascentSlot: true, sequence: true,
         vehicleDuty: { select: { vehicle: { select: { id: true, name: true } }, driver: { select: { name: true } } } },
-        stops: { orderBy: { stopOrder: "asc" }, select: { pickupLatitude: true, pickupLongitude: true } } }
+        stops: { orderBy: { stopOrder: "asc" }, select: { pickupLatitude: true, pickupLongitude: true, passengerCount: true } } }
     }),
     prisma.schoolRun.findMany({ where: { serviceDate: new Date(fecha) }, select: { id: true, routeName: true, shift: true,
-      vehicle: { select: { id: true, name: true } }, driver: { select: { name: true } } } })
+      vehicle: { select: { id: true, name: true } }, driver: { select: { name: true } } } }),
+    prisma.driverServiceMark.findMany({ where: { fecha } })
   ]);
   const planes: PlanMapa[] = [];
   const vuelosConOrden = new Set<string>();
@@ -91,6 +93,7 @@ export async function cargarPlanesDelDia(fecha: string, servicios: ServicioDelDi
       else if (salida && !paihuen && oficina.point && paradas.length) paradas.unshift(oficina.point);
       planes.push({
         id: `orden-${b.key}`, titulo: `Vuelo ${b.flightNumber} · ${salida ? "hacia el aeropuerto" : "desde el aeropuerto"}`,
+        previstos: b.passengers.reduce((n, p) => n + p.seats, 0),
         detalle: salida ? `Vuelo ${horaEnSalta(b.scheduledAt)}` : "Reparto",
         salida: +b.operationAt, fin: +cierreDelTraslado(b.operationAt, b.direction, b.scheduledAt),
         unidades: b.vehicle ? [{ id: b.vehicle.vehicleId, nombre: b.vehicle.name, chofer: b.vehicle.driver }] : [],
@@ -103,9 +106,9 @@ export async function cargarPlanesDelDia(fecha: string, servicios: ServicioDelDi
     if (vuelosConOrden.has(s.id)) continue;
     const plan = base(s);
     if (s.area === "ESPECIAL") {
-      for (const [i, u] of s.unidades.entries()) {
-        if (u.inicioAsignado && localDateKey(u.inicioAsignado) === fecha)
-          planes.push({ ...plan, id: `${s.id}-${i}`, salida: +u.inicioAsignado, fin: u.finAsignado?.getTime() ?? null, unidades: [unidad(u)] });
+      for (const u of s.unidades) {
+        if (u.inicioAsignado && u.assignmentId)
+          planes.push({ ...plan, id: `especial-${u.assignmentId}`, salida: +u.inicioAsignado, fin: u.finAsignado?.getTime() ?? null, unidades: [unidad(u)] });
       }
       continue;
     }
@@ -133,12 +136,17 @@ export async function cargarPlanesDelDia(fecha: string, servicios: ServicioDelDi
     const subida = r.direction === "UP";
     const salida = subida && r.ascentSlot ? Date.parse(`${fecha}T${r.ascentSlot}:00-03:00`) : null;
     planes.push({ id: `vuelta-${r.id}`, titulo: `Chapelco · ${subida ? "Ascenso" : "Descenso"} ${r.sequence}`,
-      detalle: "", salida, fin: salida === null ? null : salida + 90 * 60000,
+      gpsManual: true, previstos: r.stops.reduce((n, stop) => n + stop.passengerCount, 0), detalle: "", salida, fin: salida === null ? null : salida + 90 * 60000,
       unidades: [{ id: r.vehicleDuty.vehicle.id, nombre: r.vehicleDuty.vehicle.name, chofer: r.vehicleDuty.driver?.name ?? null }],
       tramos: traslado(r.stops.map(p => [p.pickupLatitude, p.pickupLongitude]), camino("sma-cerro"), !subida),
       completo: false });
   }
   for (const c of concesiones) planes.push({ id: c.id, titulo: c.routeName, detalle: c.shift, salida: null, fin: null,
     unidades: c.vehicle ? [{ id: c.vehicle.id, nombre: c.vehicle.name, chofer: c.driver?.name ?? null }] : [], tramos: [], completo: false });
+  const vigentes = ultimasMarcas(marcas);
+  for (const plan of planes) {
+    const resumen = resumenDeMarcas(vigentes.filter(m => m.servicioId === plan.id));
+    plan.registro = plan.previstos == null ? resumen : `${plan.previstos} previstos · ${resumen}`;
+  }
   return planes.sort((a, b) => (a.salida ?? Infinity) - (b.salida ?? Infinity) || a.titulo.localeCompare(b.titulo, "es"));
 }

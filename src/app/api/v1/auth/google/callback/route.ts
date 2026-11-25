@@ -64,7 +64,7 @@ export async function GET(request: Request) {
     });
     const destination = user.isActive ? getDefaultPathForRole(toPublicRole(user.role)) : "/acceso-pendiente";
     const response = NextResponse.redirect(new URL(destination, googleRequestBaseUrl(request)), 302);
-    setSessionCookie(response, session.token, session.expiresAt);
+    setSessionCookie(response, session);
     response.cookies.set(getGoogleStateCookieName(), "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

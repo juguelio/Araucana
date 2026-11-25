@@ -116,6 +116,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         assignments: {
           where: { startsAt: { lt: to }, endsAt: { gt: from } },
           select: {
+            id: true,
             startsAt: true,
             endsAt: true,
             vehicle: { select: { id: true, name: true, internalNumber: true } },
@@ -129,14 +130,10 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
   const servicios: ServicioDelDia[] = [];
 
   for (const schedule of schedules) {
-    /**
-     * Las salidas de la programación diaria (la temporada cargada) nacen sin pasajeros y con una nave
-     * puesta por defecto. El propio tablero las llama «salidas programadas sin pasajeros: no son un
-     * servicio hasta que tengan reservas», pero acá se listaban como servicios con unidad: la misma
-     * «Araucana 24» aparecía en trece salidas del día. Si no hay pasajeros, no es un servicio.
-     */
+    // La programación de temporada trae naves por defecto. Una reserva o una asignación
+    // explícita de chofer convierte esa salida en trabajo operativo para el mapa.
     const pasajeros = schedule.reservations.reduce((total, reserva) => total + reserva.passengerCount, 0);
-    if (pasajeros === 0) continue;
+    if (pasajeros === 0 && !schedule.driver && !schedule.extraUnits.some(u => u.driver)) continue;
 
     const unidades = [
       schedule.vehicle
@@ -241,6 +238,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       titulo: `Viaje especial · ${trip.client}`,
       detalle: trip.destinationSearch.trim() || null,
       unidades: trip.assignments.map((assignment) => ({
+        assignmentId: assignment.id,
         inicioAsignado: assignment.startsAt,
         finAsignado: assignment.endsAt,
         vehicleId: assignment.vehicle.id,

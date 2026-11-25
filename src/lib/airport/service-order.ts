@@ -98,6 +98,7 @@ export type ServiceOrderPassenger = {
   document: string;
   lodging: string;
   lodgingDetail: string | null;
+  pickupNotes?: string | null;
   /** Quién derivó la venta; `null` cuando la reserva se vendió directo. */
   referredBy: string | null;
   payment: string;
@@ -491,6 +492,7 @@ export function buildServiceOrderBlocks(
       document: documentoDelPasajero(reserva.passenger.documentType, reserva.passenger.documentId),
       lodging,
       lodgingDetail,
+      ...(reserva.pickupNotes?.trim() ? { pickupNotes: reserva.pickupNotes.trim() } : {}),
       referredBy: reserva.referredBy?.trim() || null,
       payment: paymentLabel(reserva.paymentStatus, reserva.totalCents, reserva.currency),
       paymentMethod: reserva.paymentMethod?.trim() || null,

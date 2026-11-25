@@ -223,6 +223,7 @@ model VehicleDamage {
 }
 
 model DriverVehicleLocation {
+  servicioId String?
   id         String   @id @default(cuid())
   driverId   String   @unique
   driver     User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
@@ -254,6 +255,7 @@ model DriverVehicleLocation {
 }
 
 model DriverLocationSample {
+  servicioId String?
   id         String   @id @default(cuid())
   driverId   String
   driver     User     @relation(fields: [driverId], references: [id], onDelete: Cascade)
@@ -1031,4 +1033,29 @@ model VehicleOdometerReading {
   createdAt DateTime @default(now())
 
   @@index([vehicleId, readAt])
+}
+
+// Registro inmutable de lo informado en cada dispositivo. Conserva la asignación que
+// tenía la hoja al descargarse, incluso si Administración luego cambia o elimina el servicio.
+model DriverServiceMark {
+  id           String   @id
+  driverId     String
+  servicioId   String
+  fecha        String
+  vehicleId    String?
+  tipo         String
+  filaId       String?
+  cantidad     Int?
+  prevista     Int?
+  at           DateTime
+  receivedAt   DateTime @default(now())
+  estado       String
+  motivo       String?
+  servicio     String
+  nave         String?
+  fila         String?
+
+  @@index([fecha, servicioId])
+  @@index([driverId, fecha])
+  @@index([servicioId, vehicleId, tipo])
 }

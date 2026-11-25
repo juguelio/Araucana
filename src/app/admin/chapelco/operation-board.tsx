@@ -9,6 +9,7 @@ type VehicleOption = {
 
 type ReservationOption = {
   id: string;
+  registros: string[];
   code: string;
   passengerCount: number;
   status: string;
@@ -146,6 +147,7 @@ export function OperationBoard({
               <th>Busqueda</th>
               <th>Personas</th>
               <th>Pago</th>
+              <th>Manifiesto</th>
             </tr>
           </thead>
           <tbody>
@@ -157,11 +159,12 @@ export function OperationBoard({
                 <td>{reservation.chapelcoDetails?.pickupName}</td>
                 <td>{reservation.passengerCount}</td>
                 <td>{reservation.payment?.status ?? "Pendiente"}</td>
+                <td>{reservation.registros.length ? reservation.registros.map((linea, i) => <div key={i}>{linea}</div>) : "Sin vuelta asignada"}</td>
               </tr>
             ))}
             {reservations.length === 0 ? (
               <tr>
-                <td colSpan={6}>No hay reservas Chapelco para este dia.</td>
+                <td colSpan={7}>No hay reservas Chapelco para este dia.</td>
               </tr>
             ) : null}
           </tbody>

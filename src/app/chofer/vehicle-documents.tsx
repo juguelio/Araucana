@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { documentosPorTipo, fechaDePapel } from "@/lib/vehicles/documents";
 
 export type DocumentoDeLaNave = {
@@ -10,7 +9,7 @@ export type DocumentoDeLaNave = {
 };
 
 /**
- * Los papeles vigentes de la unidad que el chofer tiene marcada. Sólo lectura y sólo los vigentes:
+ * Los papeles vigentes de la unidad que el chofer tiene asignada. Sólo lectura y sólo los vigentes:
  * el historial de lo reemplazado es cosa de la oficina. Los archivos se sirven por la ruta
  * autenticada, que además comprueba que la unidad sea la del chofer.
  */
@@ -28,7 +27,7 @@ export function DriverVehicleDocuments({ vehicleId, vehicleName, documentos }: {
         <span className="muted">{vehicleName}</span>
       </div>
       <p className="muted">
-        La documentación vigente de la nave que tenés marcada. Si un papel falta o está vencido, avisá a la oficina.
+        La documentación vigente de la nave que tenés asignada. Si un papel falta o está vencido, avisá a la oficina.
       </p>
       <ul className="nave-lista">
         {tipos.map(({ tipo, label, vigente }) => (
@@ -40,9 +39,9 @@ export function DriverVehicleDocuments({ vehicleId, vehicleName, documentos }: {
               <strong>{label}</strong>
               <br />
               {vigente ? (
-                <Link href={`/api/vehiculos/${vehicleId}/documentos/${vigente.id}`} target="_blank">
+                <a rel="noopener" href={`/api/vehiculos/${vehicleId}/documentos/${vigente.id}`} target="_blank">
                   Abrir {vigente.fileName.toLowerCase().endsWith(".pdf") ? "PDF" : "archivo"}
-                </Link>
+                </a>
               ) : (
                 <span className="muted">La oficina todavía no lo subió</span>
               )}

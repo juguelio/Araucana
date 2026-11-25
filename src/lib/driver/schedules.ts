@@ -125,14 +125,18 @@ export async function listDriverRouteOptions(): Promise<DriverRouteOption[]> {
 
 export async function listDriverUpcomingSchedules(options: {
   routeId?: string;
+  driverId?: string;
+  until?: Date;
   from?: Date;
   take?: number;
 } = {}): Promise<DriverUpcomingSchedule[]> {
   const schedules = await prisma.schedule.findMany({
     where: {
       routeId: options.routeId,
+      ...(options.driverId ? { OR: [{ driverId: options.driverId }, { extraUnits: { some: { driverId: options.driverId } } }] } : {}),
       departureAt: {
-        gte: options.from ?? new Date()
+        gte: options.from ?? new Date(),
+        ...(options.until ? { lt: options.until } : {})
       },
       status: {
         in: [...ACTIVE_DRIVER_SCHEDULE_STATUSES]
@@ -145,7 +149,7 @@ export async function listDriverUpcomingSchedules(options: {
     orderBy: {
       departureAt: "asc"
     },
-    take: options.take ?? DEFAULT_UPCOMING_SCHEDULE_LIMIT,
+    take: options.take ?? (options.until && options.driverId ? undefined : DEFAULT_UPCOMING_SCHEDULE_LIMIT),
     include: {
       route: {
         select: {
@@ -173,6 +177,7 @@ export async function listDriverUpcomingSchedules(options: {
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: {
           vehicle: { select: { id: true, name: true, licensePlate: true, isActive: true, _count: { select: { seats: true } } } },
+          driverId: true,
           driver: { select: { name: true, email: true } }
         }
       },
@@ -212,6 +217,9 @@ export async function listDriverUpcomingSchedules(options: {
 
   return schedules.map((schedule) => {
     const route = mapDriverRouteOption(schedule.route);
+    const unidades = (schedule.extraUnits ?? []).filter(unit => !options.driverId || unit.driverId === options.driverId);
+    const asignada = options.driverId && schedule.driverId !== options.driverId ? unidades[0]?.vehicle : schedule.vehicle;
+    if (!asignada) throw new Error("Salida sin asignación vigente.");
     const passengers = schedule.reservations.map((reservation) => ({
       reservationId: reservation.id,
       // Ticket code, never the reservation code: the latter is the passenger's private link.
@@ -239,11 +247,11 @@ export async function listDriverUpcomingSchedules(options: {
       arrivalAt: schedule.arrivalAt.toISOString(),
       status: schedule.status,
       vehicle: {
-        id: schedule.vehicle.id,
-        name: schedule.vehicle.name,
-        licensePlate: schedule.vehicle.licensePlate
+        id: asignada.id,
+        name: asignada.name,
+        licensePlate: asignada.licensePlate
       },
-      extraVehicles: (schedule.extraUnits ?? []).map((unit) => ({
+      extraVehicles: unidades.filter(u => u.vehicle.id !== asignada.id).map((unit) => ({
         id: unit.vehicle.id,
         name: unit.vehicle.name,
         licensePlate: unit.vehicle.licensePlate,

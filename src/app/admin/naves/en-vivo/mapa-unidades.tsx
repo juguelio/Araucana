@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Layer, LeafletMouseEvent, Map as LeafletMap, Marker } from "leaflet";
 import type { NaveEnVivo } from "@/lib/driver/en-vivo";
-import { datosDelPlan, planesEnHorario, type PlanMapa, type Punto } from "@/lib/driver/plan-mapa";
+import { datosDelPlan, planesDeLaNave, planesEnHorario, type PlanMapa, type Punto } from "@/lib/driver/plan-mapa";
 import type { Recorrido } from "@/lib/driver/recorrido";
 import { horaSenal, nombreUnidad, puedeAnimar } from "@/lib/driver/mapa-vivo";
 import "leaflet/dist/leaflet.css";
@@ -93,10 +93,11 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
         `Última señal: ${horaSenal(nave.recordedAt)} · hace ${nave.minutosDesdeLaSenal} min`]) globo.append(textoSeguro(texto));
       const estado = estadosPlan.get(nave.vehicleId);
       if (estado) globo.append(textoSeguro(estado.texto));
-      const actuales = planesEnHorario(planesDelDia, nave.vehicleId, Date.now());
+      const actuales = planesDeLaNave(nave, planesDelDia, Date.now());
       for (const p of actuales) {
         if (actuales.length > 1) globo.append(textoSeguro(p.titulo));
         globo.append(textoSeguro(datosDelPlan(p)[1]));
+        if (p.registro) globo.append(textoSeguro(p.registro));
       }
       const colorUnidad = colores.get(nave.driverId) ?? "#4f6a62";
       const icon = L.divIcon({
@@ -206,7 +207,8 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
     for (const recorrido of recorridos) {
       if (recorrido.puntos.length < 2 || (seleccion && claveUnidad(recorrido) !== seleccion)) continue;
       if (planElegido && !planElegido.unidades.some(u => u.id === recorrido.vehicleId)) continue;
-      const muestras = planElegido?.salida != null && planElegido.fin != null
+      if (planElegido && recorrido.servicioId && recorrido.servicioId !== planElegido.id) continue;
+      const muestras = !recorrido.servicioId && planElegido?.salida != null && planElegido.fin != null
         ? recorrido.puntos.filter(p => Date.parse(p.at) >= planElegido.salida! && Date.parse(p.at) < planElegido.fin!)
         : recorrido.puntos;
       if (muestras.length < 2) continue;
@@ -249,7 +251,8 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
         }
         if (ultimoPunto === cercano) return;
         ultimoPunto = cercano;
-        const servicios = planesEnHorario(posibles, recorrido.vehicleId, Date.parse(muestras[cercano].at));
+        const servicios = recorrido.servicioId ? posibles.filter(p => p.id === recorrido.servicioId)
+          : planesEnHorario(posibles, recorrido.vehicleId, Date.parse(muestras[cercano].at));
         const texto = [nombreHuella, horaSenal(muestras[cercano].at), ...servicios.flatMap(datosDelPlan)];
         if (!servicios.length) texto.push("Sin salida asignada a esa hora");
         linea.setTooltipContent(ficha(texto));

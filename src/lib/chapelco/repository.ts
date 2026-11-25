@@ -585,11 +585,13 @@ export async function updateChapelcoStopStatus(input: StopStatusInput, actor?: A
 export async function getDriverChapelcoManifest(driverId: string, serviceDate: string) {
   return prisma.chapelcoRun.findMany({
     where: {
+      status: { not: "CANCELLED" },
       operationDay: {
+        status: { not: "CANCELLED" },
         serviceDate: serviceDateFromKey(serviceDate)
       },
       vehicleDuty: {
-        driverId
+        status: "ACTIVE", driverId
       }
     },
     include: {
@@ -604,6 +606,7 @@ export async function getDriverChapelcoManifest(driverId: string, serviceDate: s
         }
       },
       stops: {
+        where: { reservation: { status: { not: "CANCELLED" } } },
         include: {
           reservation: {
             // The reservation code is the passenger's private link: drivers get the ticket code instead.

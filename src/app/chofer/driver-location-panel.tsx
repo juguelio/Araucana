@@ -1,217 +1,94 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ServicioApp } from "@/lib/driver/jornada-app-types";
 import { DRIVER_LOCATION_UPDATE_INTERVAL_MS } from "@/lib/driver/location";
+import { admiteGPSManual, claveServicio, diaLocal, hora, objetivoGPS } from "./estado-jornada";
+import { choferGuardado } from "./almacen";
 
-type DriverVehicle = {
-  id: string;
-  name: string;
-  brand: string;
-  model: string;
-  licensePlate: string | null;
+type Navegador = Navigator & {
+  getBattery?: () => Promise<{ level: number; charging: boolean }>;
+  connection?: { effectiveType?: string; type?: string };
 };
 
-type DriverLocationPanelProps = {
-  vehicles: DriverVehicle[];
-  initialVehicleId?: string;
-};
-
-type BatteryManager = EventTarget & {
-  charging: boolean;
-  level: number;
-};
-
-type NavigatorWithTelemetry = Navigator & {
-  getBattery?: () => Promise<BatteryManager>;
-  connection?: {
-    effectiveType?: string;
-    type?: string;
-  };
-};
-
-function vehicleLabel(vehicle: DriverVehicle) {
-  return `${vehicle.name} · ${vehicle.brand} ${vehicle.model}${vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""}`;
-}
-
-async function readDeviceTelemetry() {
-  const telemetryNavigator = navigator as NavigatorWithTelemetry;
-  const battery = telemetryNavigator.getBattery ? await telemetryNavigator.getBattery().catch(() => null) : null;
-
-  return {
-    batteryLevel: battery?.level ?? null,
-    batteryCharging: battery?.charging ?? null,
-    clientNetworkType: telemetryNavigator.connection?.effectiveType ?? telemetryNavigator.connection?.type ?? null
-  };
-}
-
-/**
- * Panel del chofer (issue #316). El pedido del cliente es «mientras el chofer esté logueado»: el
- * envío arranca solo al entrar al panel, con la nave que ya tenía elegida, y el botón queda como
- * pausa explícita. Si el navegador niega el permiso, se dice con instrucciones en vez de dejar de
- * mandar en silencio (el admin lo ve como «sin ubicación»).
- */
-export function DriverLocationPanel({ vehicles, initialVehicleId = "" }: DriverLocationPanelProps) {
-  const [selectedVehicleId, setSelectedVehicleId] = useState(initialVehicleId);
-  const [paused, setPaused] = useState(false);
-  const [blocked, setBlocked] = useState(false);
-  const [message, setMessage] = useState("");
-  const [ultimoEnvio, setUltimoEnvio] = useState<string | null>(null);
-  const isSendingRef = useRef(false);
-
-  const sharing = Boolean(selectedVehicleId) && !paused && !blocked;
+type Props = { servicios: ServicioApp[]; hoja?: ServicioApp; ahora: number; alDia: boolean; chofer: string };
+export function DriverLocationPanel({ servicios, hoja, ahora, alDia, chofer }: Props) {
+  const [manual, setManual] = useState<string | null>(null);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [ultima, setUltima] = useState<{ id: string; at: string }>();
+  const objetivo = objetivoGPS(servicios, ahora, manual);
+  const id = objetivo.servicio?.id;
+  const nave = objetivo.servicio?.nave?.id;
+  const fin = objetivo.servicio?.fin;
+  const fecha = objetivo.servicio?.fecha;
+  const esManual = objetivo.manual;
+  const manualDisponible = hoja && admiteGPSManual(hoja, ahora);
 
   useEffect(() => {
-    if (!sharing || !selectedVehicleId) {
-      return;
+    if (!manual || servicios.some(s => claveServicio(s) === manual && admiteGPSManual(s, ahora))) return;
+    setManual(null);
+  }, [ahora, manual, servicios]);
+
+  useEffect(() => {
+    setMensaje("");
+    setUltima(undefined);
+    if (!alDia || !id || !nave || bloqueado) return;
+    if (!navigator.geolocation) { setMensaje("Este dispositivo no tiene GPS disponible."); return; }
+    const controlador = new AbortController();
+    let leyendo = false;
+    const autorizado = () => !controlador.signal.aborted && choferGuardado() === chofer && navigator.onLine &&
+      document.visibilityState === "visible" && (esManual ? diaLocal(Date.now()) === fecha && (!fin || Date.now() < Date.parse(fin)) : fin != null && Date.now() < Date.parse(fin));
+    function ubicar() {
+      if (leyendo || !autorizado()) return;
+      leyendo = true;
+      navigator.geolocation.getCurrentPosition(async pos => {
+        try {
+          if (!autorizado()) return;
+          const nav = navigator as Navegador;
+          const bateria = await nav.getBattery?.().catch(() => null);
+          if (!autorizado()) return;
+          const c = pos.coords;
+          const res = await fetch("/api/v1/driver/location", {
+            method: "POST", headers: { "Content-Type": "application/json" }, signal: controlador.signal,
+            body: JSON.stringify({ servicioId: id, vehicleId: nave, manual: esManual, recordedAt: new Date(pos.timestamp).toISOString(),
+              latitude: c.latitude, longitude: c.longitude, altitude: c.altitude, altitudeAccuracy: c.altitudeAccuracy,
+              speed: c.speed, heading: c.heading, accuracy: c.accuracy, batteryLevel: bateria?.level, batteryCharging: bateria?.charging,
+              clientNetworkType: nav.connection?.effectiveType ?? nav.connection?.type })
+          });
+          if (!autorizado() || !id) return;
+          if (res.ok) { setUltima({ id, at: new Date(pos.timestamp).toISOString() }); setMensaje(""); }
+          else { setUltima(undefined); setMensaje("La ubicación no se pudo enviar. Verificá tu asignación."); }
+        } catch { if (autorizado()) { setUltima(undefined); setMensaje("Sin señal para enviar la ubicación."); } }
+        finally { leyendo = false; }
+      }, error => {
+        leyendo = false;
+        if (!autorizado()) return;
+        setUltima(undefined);
+        if (error.code === error.PERMISSION_DENIED) setBloqueado(true);
+        else setMensaje("Esperando una señal GPS del dispositivo.");
+      }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 8000 });
     }
+    ubicar();
+    const reloj = window.setInterval(ubicar, DRIVER_LOCATION_UPDATE_INTERVAL_MS);
+    document.addEventListener("visibilitychange", ubicar);
+    return () => { controlador.abort(); window.clearInterval(reloj); document.removeEventListener("visibilitychange", ubicar); };
+  }, [alDia, bloqueado, chofer, esManual, fecha, fin, id, nave]);
 
-    if (!("geolocation" in navigator)) {
-      setBlocked(true);
-      setMessage("Este dispositivo no permite compartir ubicación.");
-      return;
-    }
+  let estado = "Fuera del horario de servicio";
+  if (objetivo.conflicto) estado = "En pausa · Hay naves superpuestas. Consultá a Operaciones.";
+  else if (!alDia) estado = "En pausa · Sin conexión con Operaciones";
+  else if (id) estado = bloqueado ? "Sin permiso · Habilitá la ubicación del navegador" : mensaje ||
+    (ultima?.id === id ? "Compartiendo · Última señal " + hora(ultima.at) : "Esperando ubicación");
+  else if (manualDisponible) estado = "Disponible para este servicio sin franja horaria";
 
-    let stopped = false;
-
-    async function sendPosition(position: GeolocationPosition) {
-      if (isSendingRef.current || stopped) {
-        return;
-      }
-
-      isSendingRef.current = true;
-
-      try {
-        const deviceTelemetry = await readDeviceTelemetry();
-        const response = await fetch("/api/v1/driver/location", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            vehicleId: selectedVehicleId,
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            heading: position.coords.heading,
-            speed: position.coords.speed,
-            altitude: position.coords.altitude,
-            altitudeAccuracy: position.coords.altitudeAccuracy,
-            ...deviceTelemetry,
-            recordedAt: new Date(position.timestamp).toISOString()
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error("No pudimos actualizar la ubicación.");
-        }
-
-        if (stopped) return;
-        setUltimoEnvio(new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false }));
-        setMessage("");
-      } catch (error) {
-        if (stopped) return;
-        // Un corte de red no apaga el compartir: el próximo intento (3 s) lo resuelve.
-        setMessage(error instanceof Error ? error.message : "No pudimos actualizar la ubicación.");
-      } finally {
-        isSendingRef.current = false;
-      }
-    }
-
-    function requestPosition() {
-      navigator.geolocation.getCurrentPosition(
-        sendPosition,
-        (error) => {
-          if (stopped) return;
-          if (error.code === error.PERMISSION_DENIED) {
-            setBlocked(true);
-            setMessage(
-              "El navegador tiene bloqueado el acceso a la ubicación. Abrí el candado de la barra de direcciones, elegí «Ubicación» y permitila; después tocá «Reintentar»."
-            );
-            return;
-          }
-          setMessage("No pudimos leer tu ubicación todavía. Reintentamos solos en unos segundos.");
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 8000
-        }
-      );
-    }
-
-    requestPosition();
-    const intervalId = window.setInterval(requestPosition, DRIVER_LOCATION_UPDATE_INTERVAL_MS);
-
-    return () => {
-      stopped = true;
-      window.clearInterval(intervalId);
-    };
-  }, [selectedVehicleId, sharing]);
-
-  const canShare = vehicles.length > 0 && Boolean(selectedVehicleId);
-
-  return (
-    <section className="plain-card admin-section">
-      <div className="admin-form-grid">
-        <label className="span-2">
-          Nave
-          <select
-            value={selectedVehicleId}
-            onChange={(event) => {
-              setSelectedVehicleId(event.target.value);
-              setMessage("");
-            }}
-          >
-            <option value="">Elegir nave</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicleLabel(vehicle)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="span-2 table-actions">
-          {sharing ? (
-            <button
-              className="button"
-              type="button"
-              onClick={() => {
-                setPaused(true);
-                setUltimoEnvio(null);
-                setMessage("Ubicación pausada: la operación no ve dónde estás hasta que la reanudes.");
-              }}
-            >
-              Pausar
-            </button>
-          ) : (
-            <button
-              className="button"
-              type="button"
-              disabled={!canShare}
-              onClick={() => {
-                setBlocked(false);
-                setPaused(false);
-                setMessage("");
-              }}
-            >
-              {blocked ? "Reintentar" : "Compartir ubicación"}
-            </button>
-          )}
-          {sharing ? (
-            <span className="muted">
-              Compartiendo sola desde que entraste
-              {ultimoEnvio ? ` · última señal ${ultimoEnvio}` : " · esperando la primera señal"}.
-            </span>
-          ) : null}
-        </div>
-
-        {!selectedVehicleId ? (
-          <p className="muted span-2">Elegí la nave que estás manejando para empezar a compartir la ubicación.</p>
-        ) : null}
-
-        {message ? <p className={blocked ? "error span-2" : "muted span-2"}>{message}</p> : null}
-      </div>
-    </section>
-  );
+  return <aside className="jc-gps" aria-label="Ubicación del chofer">
+    <span className={"jc-dot" + (ultima?.id && ultima.id === id && alDia && !mensaje && !bloqueado ? " activo" : "")} />
+    <div><strong>GPS</strong><span>{estado}</span>
+      {id && objetivo.servicio && <small>{objetivo.servicio.titulo} · {objetivo.servicio.nave?.nombre}</small>}
+    </div>
+    {bloqueado && id && <button type="button" onClick={() => setBloqueado(false)}>Reintentar</button>}
+    {manual && <button type="button" onClick={() => setManual(null)}>Finalizar GPS manual</button>}
+    {!manual && manualDisponible && !objetivo.servicio && !objetivo.conflicto && alDia && <button type="button" onClick={() => setManual(claveServicio(hoja))}>Compartir GPS</button>}
+  </aside>;
 }

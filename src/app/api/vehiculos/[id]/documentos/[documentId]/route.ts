@@ -2,10 +2,12 @@ import { get } from "@vercel/blob";
 import { getAppUserFromToken, getTokenFromRequest } from "@/lib/auth/service";
 import { prisma } from "@/lib/db/prisma";
 
+import { cargarJornadaApp } from "@/lib/driver/jornada-app";
+
 /**
  * Sirve un papel de la unidad. Los archivos viven en un blob privado: se piden por acá y la ruta
  * decide quién puede verlos —administración y secretaría cualquiera, el chofer sólo los de la nave
- * que tiene marcada como su ubicación— en vez de exponer una URL pública.
+ * que le asignó Administración— en vez de exponer una URL pública.
  */
 
 type Props = {
@@ -33,11 +35,8 @@ export async function GET(request: Request, { params }: Props) {
   }
 
   if (user.role === "DRIVER") {
-    const suNave = await prisma.driverVehicleLocation.findFirst({
-      where: { driverId: user.id, vehicleId: id },
-      select: { id: true }
-    });
-    if (!suNave) {
+    const jornada = await cargarJornadaApp(user.id);
+    if (!jornada.servicios.some(servicio => servicio.nave?.id === id)) {
       return new Response("Este documento no es de tu unidad", { status: 403 });
     }
   } else if (!["ADMIN", "SECRETARY", "SUPERADMIN"].includes(user.role)) {

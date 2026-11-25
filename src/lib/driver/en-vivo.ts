@@ -18,6 +18,7 @@ export const VENTANA_SENAL_MINUTOS = 10;
 export type EstadoDeNaveEnVivo = "en-movimiento" | "detenida" | "sin-senal";
 
 export type NaveEnVivo = {
+  servicioId?: string | null;
   vehicleId: string;
   vehicleName: string;
   internalNumber: string | null;
@@ -52,6 +53,7 @@ export type FlotaEnVivo = {
 };
 
 export type UbicacionCruda = {
+  servicioId?: string | null;
   driverId: string;
   vehicleId: string;
   latitude: number;
@@ -107,6 +109,7 @@ export function armarFlotaEnVivo(
   const naves: NaveEnVivo[] = ubicaciones.map((ubicacion) => {
     const minutos = minutosDesdeLaSenal(ubicacion.recordedAt, ahora);
     return {
+      servicioId: ubicacion.servicioId ?? null,
       vehicleId: ubicacion.vehicleId,
       vehicleName: ubicacion.vehicle.name,
       internalNumber: ubicacion.vehicle.internalNumber,
@@ -150,6 +153,7 @@ export async function cargarFlotaEnVivo(ahora: Date = new Date()): Promise<Flota
   const [ubicaciones, choferes] = await Promise.all([
     prisma.driverVehicleLocation.findMany({
       select: {
+        servicioId: true,
         driverId: true,
         vehicleId: true,
         latitude: true,

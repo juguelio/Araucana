@@ -4,31 +4,34 @@ import { prisma } from "@/lib/db/prisma";
 import { deriveLocationTelemetry, parseDriverLocationInput } from "@/lib/driver/location";
 import { handleApiError, jsonError } from "@/lib/api/responses";
 
+import { cargarVentanasGpsApp } from "@/lib/driver/jornada-app";
+import { permiteUbicacion } from "@/lib/driver/gps-asignado";
+import { localDateKey } from "@/lib/operations/day-board";
+
 export async function POST(request: Request) {
   try {
     const user = await requireDriverUser(request);
-    const location = parseDriverLocationInput(await request.json());
-    const vehicle = await prisma.vehicle.findFirst({
-      where: {
-        id: location.vehicleId,
-        isActive: true
-      },
-      select: {
-        id: true,
-        name: true
-      }
-    });
-
-    if (!vehicle) {
-      return jsonError("VEHICLE_NOT_FOUND", "La nave seleccionada no esta activa", 404);
+    const body = await request.json().catch(() => null);
+    const location = parseDriverLocationInput(body);
+    const ahora = new Date();
+    const antiguedad = +ahora - +location.recordedAt;
+    if (antiguedad > 120000 || antiguedad < -60000) {
+      return jsonError("UBICACION_VENCIDA", "Se necesita una lectura reciente del GPS.", 422);
+    }
+    const ventanas = await cargarVentanasGpsApp(user.id, localDateKey(ahora));
+    const autorizada = (fecha: Date) => permiteUbicacion(ventanas, location.vehicleId, body.servicioId, body.manual === true, fecha);
+    if (!autorizada(ahora) || !autorizada(location.recordedAt)) {
+      return jsonError("SIN_ASIGNACION_GPS", "No hay una asignación vigente para informar esta nave.", 403);
     }
 
     const savedLocation = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
       const previousLocation = await tx.driverVehicleLocation.findUnique({
         where: {
           driverId: user.id
         },
         select: {
+          vehicleId: true,
           latitude: true,
           longitude: true,
           recordedAt: true,
@@ -36,9 +39,11 @@ export async function POST(request: Request) {
           stopStartedAt: true
         }
       });
-      const telemetry = deriveLocationTelemetry(location, previousLocation);
+      if (previousLocation && previousLocation.recordedAt >= location.recordedAt) return null;
+      const telemetry = deriveLocationTelemetry(location, previousLocation?.vehicleId === location.vehicleId ? previousLocation : null);
       const locationData = {
         ...location,
+        servicioId: typeof body.servicioId === "string" ? body.servicioId : null,
         ...telemetry
       };
 
@@ -68,6 +73,7 @@ export async function POST(request: Request) {
       });
     });
 
+    if (!savedLocation) return jsonError("UBICACION_ANTERIOR", "Ya hay una lectura más reciente.", 409);
     return NextResponse.json({
       location: {
         vehicleId: savedLocation.vehicleId,

@@ -29,6 +29,8 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
+    // El canal de depuración de React usa el WebSocket de next dev, inaccesible en pruebas sin red.
+    ...(process.env.ARAUCANA_E2E_RUNNER === "1" ? { reactDebugChannel: false } : {}),
     serverActions: {
       bodySizeLimit: "12mb"
     },

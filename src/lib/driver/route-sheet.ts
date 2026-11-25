@@ -29,6 +29,7 @@ export type RouteSheetStop = {
 };
 
 export type RouteSheetReservationInput = {
+  id?: string;
   /** Código del ticket: lo que puede ver el chofer. El `code` de la reserva es el link privado. */
   ticketCode: string | null;
   passengerCount: number;
@@ -139,7 +140,7 @@ const coordenadasDeLaParada = (stop: RouteSheetStop): PickupCoords | null =>
  *   es la secuencia de paradas de la ruta, que es la que el chofer recorre igual.
  * - La reserva sin parada cargada (viaja hasta el final) va al final, sin inventarle una ubicación.
  */
-export function routeSheetOrder(passengers: RouteSheetPassenger[], stops: RouteSheetStop[]): RouteSheetPassenger[] {
+export function routeSheetOrder<T extends Pick<RouteSheetPassenger, "stop" | "name">>(passengers: T[], stops: RouteSheetStop[]): T[] {
   const conCoordenadas = stops.filter((stop) => coordenadasDeLaParada(stop) !== null);
   const rango = new Map<string, number>();
 
@@ -153,7 +154,7 @@ export function routeSheetOrder(passengers: RouteSheetPassenger[], stops: RouteS
     });
   }
 
-  const posicion = (passenger: RouteSheetPassenger) =>
+  const posicion = (passenger: T) =>
     passenger.stop ? rango.get(fareStopName(passenger.stop.trim()).toLowerCase()) ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY;
 
   return [...passengers].sort((a, b) => {

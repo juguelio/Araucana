@@ -13,7 +13,7 @@ export async function POST(request: Request) {
       summary: "Sesión renovada.", ...requestOrigin(request)
     });
     const response = NextResponse.json({ token: session.token, expiresAt: session.expiresAt.toISOString(), user: session.user });
-    setSessionCookie(response, session.token, session.expiresAt);
+    setSessionCookie(response, session);
     return response;
   } catch (error) {
     return handleApiError(error);

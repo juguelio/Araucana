@@ -25,10 +25,10 @@ export async function vuelosDelGrupo(flightId: string): Promise<string[]> {
 export async function getAirportServiceOrderReservations(
   date: string,
   flightId?: string | null,
-  { soloVuelosOperativos = false } = {}
+  { soloVuelosOperativos = false, vuelos, soloRecorrido = false }: { soloVuelosOperativos?: boolean; vuelos?: string[]; soloRecorrido?: boolean } = {}
 ): Promise<ServiceOrderReservationInput[]> {
   const { desde, hasta } = rangoDelDia(date);
-  const flightIds = flightId ? await vuelosDelGrupo(flightId) : null;
+  const flightIds = vuelos ?? (flightId ? await vuelosDelGrupo(flightId) : null);
 
   const reservas = await prisma.reservation.findMany({
     where: {
@@ -43,11 +43,15 @@ export async function getAirportServiceOrderReservations(
       }
     },
     orderBy: [{ createdAt: "asc" }],
-    include: {
-      passenger: true,
-      payment: { select: { status: true, method: true } },
+    select: {
+      id: true, code: true, referredBy: !soloRecorrido, totalCents: true, currency: true, passengerCount: true,
+      passenger: soloRecorrido ? false : { select: { firstName: true, lastName: true, phone: true, documentType: true, documentId: true } },
+      payment: soloRecorrido ? false : { select: { status: true, method: true } },
       airportDetails: {
-        include: {
+        select: {
+          id: true, isPrivate: true, privateStops: true, direction: true, flightNumber: true,
+          pickupName: true, pickupAddress: true, pickupNotes: !soloRecorrido, pickupLatitude: true, pickupLongitude: true,
+          assignmentId: true, routePosition: true,
           flight: {
             select: {
               id: true,
@@ -66,7 +70,7 @@ export async function getAirportServiceOrderReservations(
                   id: true,
                   privateReservationId: true,
                   vehicle: { select: { id: true, name: true, _count: { select: { seats: true } } } },
-                  driver: { select: { id: true, name: true, email: true } }
+                  driver: { select: { id: true, name: !soloRecorrido, email: !soloRecorrido } }
                 }
               }
             }
@@ -102,11 +106,11 @@ export async function getAirportServiceOrderReservations(
         assignmentId: detalle.assignmentId,
         routePosition: detalle.routePosition,
         passenger: {
-          firstName: reserva.passenger.firstName,
-          lastName: reserva.passenger.lastName,
-          phone: reserva.passenger.phone,
-          documentType: reserva.passenger.documentType,
-          documentId: reserva.passenger.documentId
+          firstName: reserva.passenger?.firstName ?? "",
+          lastName: reserva.passenger?.lastName ?? "",
+          phone: reserva.passenger?.phone ?? "",
+          documentType: reserva.passenger?.documentType ?? "",
+          documentId: reserva.passenger?.documentId ?? ""
         },
         flight: detalle.flight
           ? {

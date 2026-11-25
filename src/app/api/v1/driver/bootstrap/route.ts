@@ -2,14 +2,22 @@ import { NextResponse } from "next/server";
 import { AuthorizationError, requireDriverUser } from "@/lib/auth/service";
 import { prisma } from "@/lib/db/prisma";
 import { handleApiError, jsonError } from "@/lib/api/responses";
-import { getDriverScheduleDashboard } from "@/lib/driver/schedules";
+import { dayRange, localDateKey, shiftDateKey } from "@/lib/operations/day-board";
+import { cargarVentanasGpsApp } from "@/lib/driver/jornada-app";
+import { listDriverUpcomingSchedules } from "@/lib/driver/schedules";
 
 export async function GET(request: Request) {
   try {
     const user = await requireDriverUser(request);
-    const [vehicles, currentLocation, scheduleDashboard] = await Promise.all([
+    const fecha = localDateKey(new Date());
+    const [ventanas, schedules] = await Promise.all([
+      cargarVentanasGpsApp(user.id, fecha, 7),
+      listDriverUpcomingSchedules({ driverId: user.id, from: dayRange(fecha).from, until: dayRange(shiftDateKey(fecha, 7)).from })
+    ]);
+    const vehicleIds = [...new Set(ventanas.flatMap(s => s.nave ? [s.nave.id] : []))];
+    const [vehicles, currentLocation] = await Promise.all([
       prisma.vehicle.findMany({
-        where: { isActive: true },
+        where: { id: { in: vehicleIds } },
         orderBy: { name: "asc" },
         select: {
           id: true,
@@ -28,16 +36,15 @@ export async function GET(request: Request) {
             }
           }
         }
-      }),
-      getDriverScheduleDashboard()
+      })
     ]);
 
     return NextResponse.json({
       user,
       vehicles,
-      routes: scheduleDashboard.routes,
-      schedules: scheduleDashboard.schedules,
-      currentLocation: currentLocation
+      routes: [...new Map(schedules.map(s => [s.routeId, s.route])).values()],
+      schedules,
+      currentLocation: currentLocation && vehicleIds.includes(currentLocation.vehicleId)
         ? {
             vehicleId: currentLocation.vehicleId,
             vehicleName: currentLocation.vehicle.name,
@@ -50,7 +57,7 @@ export async function GET(request: Request) {
             updatedAt: currentLocation.updatedAt.toISOString()
           }
         : null
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     if (error instanceof AuthorizationError) {
       return jsonError("UNAUTHORIZED", error.message, 401);

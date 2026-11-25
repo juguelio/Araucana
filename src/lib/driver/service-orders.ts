@@ -45,8 +45,16 @@ async function assignedServices(driverIds: string[], date: string) {
 
 export async function driversWithServiceOrders(driverIds: string[], date: string) {
   if (!driverIds.length) return new Set<string>();
-  const { airport, special, schedules } = await assignedServices(driverIds, date);
+  const driverId = { in: driverIds };
+  const [{ airport, special, schedules }, guardias, concesiones, marcas] = await Promise.all([
+    assignedServices(driverIds, date),
+    prisma.chapelcoVehicleDuty.findMany({ where: { driverId, status: "ACTIVE", operationDay: {
+      serviceDate: new Date(date), status: { not: "CANCELLED" } } }, select: { driverId: true } }),
+    prisma.schoolRun.findMany({ where: { driverId, serviceDate: new Date(date) }, select: { driverId: true } }),
+    prisma.driverServiceMark.findMany({ where: { driverId, fecha: date }, distinct: ["driverId"], select: { driverId: true } })
+  ]);
   const assigned = new Set([
+    ...[...guardias, ...concesiones, ...marcas].map(s => s.driverId),
     ...airport.map((block) => block.vehicle?.driverId),
     ...special.map((assignment) => assignment.driverId),
     ...schedules.flatMap((schedule) => [schedule.driverId, ...schedule.extraUnits.map((unit) => unit.driverId)])

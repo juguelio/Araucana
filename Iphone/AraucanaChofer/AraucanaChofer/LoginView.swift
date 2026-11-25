@@ -23,12 +23,18 @@ struct LoginView: View {
                         .textContentType(.password)
                 }
 
+                #if DEBUG
                 Section {
                     TextField("URL de API", text: $session.apiBaseURL)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .disabled(session.isLoading)
                         .autocorrectionDisabled()
                 } footer: {
                     Text("Para simulador local usa http://127.0.0.1:3000. En producción debe ser HTTPS.")
                 }
+
+                #endif
 
                 if let errorMessage = session.errorMessage {
                     Section {

@@ -1,3 +1,5 @@
+import { MarcasDelServicio } from "@/components/marcas-del-servicio";
+import { prisma } from "@/lib/db/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
@@ -34,6 +36,7 @@ export default async function PlanillaDeSalidaPage({ params }: PageProps) {
   }
 
   const sheet = buildRouteSheet(input);
+  const marcas = await prisma.driverServiceMark.findMany({ where: { servicioId: "salida-" + scheduleId } });
 
   return (
     <AdminShell role={sessionUser.role}
@@ -54,6 +57,9 @@ export default async function PlanillaDeSalidaPage({ params }: PageProps) {
         id: scheduleId, title: sheet.routeShortLabel, detail: sheet.vehicle,
         content: <RouteSheetDocument sheet={sheet} />
       }]} />
+      <MarcasDelServicio marcas={marcas} filas={input.reservations.flatMap(r => r.id ? [{
+        id: r.id, nombre: [r.passenger.firstName, r.passenger.lastName].join(" "), cantidad: r.passengerCount
+      }] : [])} />
     </AdminShell>
   );
 }

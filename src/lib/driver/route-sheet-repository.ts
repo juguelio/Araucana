@@ -23,6 +23,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
         where: { status: { not: "CANCELLED" } },
         orderBy: [{ dropoffStop: "asc" }, { createdAt: "asc" }],
         select: {
+          id: true,
           passengerCount: true,
           boardingStop: true,
           dropoffStop: true,
@@ -65,6 +66,7 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
       }
       : schedule.vehicle,
     reservations: schedule.reservations.map((reservation) => ({
+      id: reservation.id,
       ticketCode: reservation.ticket?.code ?? null,
       passengerCount: reservation.passengerCount,
       boardingStop: reservation.boardingStop,

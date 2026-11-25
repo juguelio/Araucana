@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       ...requestOrigin(request)
     });
     const response = NextResponse.json({ token: session.token, expiresAt: session.expiresAt.toISOString(), user: session.user, isActive: session.isActive });
-    setSessionCookie(response, session.token, session.expiresAt);
+    setSessionCookie(response, session);
     return response;
   } catch (error) {
     // Sólo el email intentado: la contraseña que se probó nunca se guarda.

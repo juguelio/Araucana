@@ -6,19 +6,15 @@ struct APIClient {
 
     private let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
-        let fractionalFormatter = ISO8601DateFormatter()
-        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let standardFormatter = ISO8601DateFormatter()
-        standardFormatter.formatOptions = [.withInternetDateTime]
-
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let value = try container.decode(String.self)
-
-            if let date = fractionalFormatter.date(from: value) ?? standardFormatter.date(from: value) {
+            if let date = try? Date.ISO8601FormatStyle(includingFractionalSeconds: true).parse(value) {
                 return date
             }
-
+            if let date = try? Date.ISO8601FormatStyle().parse(value) {
+                return date
+            }
             throw DecodingError.dataCorruptedError(
                 in: container,
                 debugDescription: "Fecha ISO invalida: \(value)"
@@ -39,25 +35,38 @@ struct APIClient {
         try await post("/api/v1/auth/logout", authenticated: true)
     }
 
-    func me() async throws -> APIUser {
-        let envelope: UserEnvelope = try await get("/api/v1/auth/me")
-        guard let user = envelope.user else {
-            throw DriverAPIError.unauthorized
+    func jornada() async throws -> Jornada {
+        try await get("/api/v1/driver/jornada")
+    }
+
+    func marcas() async throws -> MarcasEnvelope {
+        try await get("/api/v1/driver/marcas")
+    }
+
+    func registrar(_ marca: Marca) async throws -> MarcaRespuesta {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var c = encoder.singleValueContainer()
+            try c.encode(date.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)))
         }
-        return user
+        return try await postJSON("/api/v1/driver/marcas", data: encoder.encode(marca))
     }
 
-    func driverBootstrap() async throws -> DriverBootstrap {
-        try await get("/api/v1/driver/bootstrap")
+    func ubicacion(_ body: [String: Any]) async throws {
+        let _: UbicacionRespuesta = try await postJSON("/api/v1/driver/location", data: JSONSerialization.data(withJSONObject: body))
     }
 
-    func routes() async throws -> [TravelRoute] {
-        let envelope: RoutesEnvelope = try await get("/api/v1/routes", authenticated: false)
-        return envelope.routes
+    private func postJSON<T: Decodable>(_ path: String, data: Data) async throws -> T {
+        var request = URLRequest(url: baseURL.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+        try authorize(&request)
+        return try await send(request)
     }
 
     private func get<T: Decodable>(_ path: String, authenticated: Bool = true) async throws -> T {
-        var request = URLRequest(url: baseURL.appending(path: path))
+        var request = URLRequest(url: baseURL.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         if authenticated {
@@ -67,7 +76,7 @@ struct APIClient {
     }
 
     private func post<T: Decodable>(_ path: String, body: [String: String]? = nil, authenticated: Bool = false) async throws -> T {
-        var request = URLRequest(url: baseURL.appending(path: path))
+        var request = URLRequest(url: baseURL.appending(path: path), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -87,8 +96,15 @@ struct APIClient {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 
+    private static let transport: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil
+        config.httpCookieStorage = nil
+        return URLSession(configuration: config)
+    }()
+
     private func send<T: Decodable>(_ request: URLRequest) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await Self.transport.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw DriverAPIError.invalidResponse
         }
@@ -97,7 +113,7 @@ struct APIClient {
             return try decoder.decode(T.self, from: data)
         }
 
-        if http.statusCode == 401 {
+        if http.statusCode == 401 || (http.statusCode == 403 && request.httpMethod == "GET") {
             throw DriverAPIError.unauthorized
         }
 

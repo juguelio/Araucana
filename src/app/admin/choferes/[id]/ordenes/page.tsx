@@ -1,3 +1,5 @@
+import { MarcasDelServicio } from "@/components/marcas-del-servicio";
+import { cargarJornadaApp } from "@/lib/driver/jornada-app";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdminShell } from "@/components/admin-shell";
@@ -88,7 +90,12 @@ export default async function DriverOrdersPage({ params, searchParams }: {
 
   const driverName = driver.name?.trim() || driver.email;
   const driverHref = `/admin/choferes/${driver.id}`;
-  const orders = await listDriverServiceOrders(driver.id, date);
+  const [orders, jornada] = await Promise.all([listDriverServiceOrders(driver.id, date), cargarJornadaApp(driver.id, date, 1)]);
+  const marcas = await prisma.driverServiceMark.findMany({
+    where: { fecha: date, OR: [{ driverId: driver.id }, { servicioId: { in: jornada.servicios.map(s => s.id) } }] }
+  });
+  const asignadas = new Set(jornada.servicios.map(s => s.id));
+  const anteriores = [...new Set(marcas.filter(m => !asignadas.has(m.servicioId)).map(m => m.servicioId))];
 
   const documents = orders.map((order) => {
     const id = `${order.type}-${order.id}`;
@@ -115,6 +122,19 @@ export default async function DriverOrdersPage({ params, searchParams }: {
     }
   });
 
+  for (const servicio of jornada.servicios.filter(s => s.tipo === "Concesiones" || s.tipo === "Chapelco")) {
+    documents.push({
+      id: JSON.stringify([servicio.id, servicio.nave?.id]), title: servicio.titulo,
+      detail: [servicio.tipo, servicio.nave?.nombre ?? "Nave pendiente"].join(" · "),
+      content: <article className="orden"><CabeceraOrden fecha={fechaDeLaOrden(date)} subtitulo={servicio.tipo} />
+        <h2>{servicio.titulo}</h2><p>{[servicio.nave?.nombre, ...servicio.indicaciones].filter(Boolean).join(" · ")}</p>
+        {servicio.salida && <p>Salida · {horaEnSalta(new Date(servicio.salida))}</p>}
+        {servicio.paradas.length > 0 && <ol>{servicio.paradas.map((p, i) => <li key={i}>{p}</li>)}</ol>}
+        {servicio.filas.length > 0 && <ul>{servicio.filas.map(f => <li key={f.id}>{f.nombre} · {f.cantidad} · {f.detalle}</li>)}</ul>}
+      </article>
+    });
+  }
+
   return (
     <AdminShell title="Hoja del chofer" eyebrow={driverName} role={actor.role}
       action={<div className="inline-actions">
@@ -131,6 +151,12 @@ export default async function DriverOrdersPage({ params, searchParams }: {
         {documents.length ? (
           <ServicePrintSelection key={JSON.stringify([driver.id, date, documents.map(({ id }) => id)])} documents={documents} />
         ) : <p className="plain-card admin-section">No hay servicios asignados a este chofer en la fecha elegida.</p>}
+        <div className="no-print">{[...asignadas, ...anteriores].map(id => {
+          const registros = marcas.filter(m => m.servicioId === id);
+          const servicio = jornada.servicios.find(s => s.id === id);
+          const titulo = servicio?.titulo ?? registros[0]?.servicio;
+          return <details key={id}><summary>{titulo} · Registro del chofer</summary><MarcasDelServicio marcas={registros} filas={servicio?.filas} /></details>;
+        })}</div>
       </div>
     </AdminShell>
   );

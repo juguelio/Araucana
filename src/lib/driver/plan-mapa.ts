@@ -9,6 +9,9 @@ export type PlanMapa = {
   salida: number | null;
   fin: number | null;
   detalle: string;
+  registro?: string;
+  previstos?: number;
+  gpsManual?: boolean;
   unidades: { id: string; nombre: string; chofer: string | null }[];
   tramos: TramoPrevisto[];
   completo: boolean;
@@ -20,7 +23,8 @@ export function datosDelPlan(plan: PlanMapa) {
   return [
     plan.titulo,
     [plan.salida === null ? "Salida sin horario" : `Salida ${hora.format(plan.salida)}`, plan.detalle].filter(Boolean).join(" · "),
-    plan.unidades.map(u => [u.nombre, u.chofer].filter(Boolean).join(" · ")).join(" / ") || "Sin nave asignada"
+    plan.unidades.map(u => [u.nombre, u.chofer].filter(Boolean).join(" · ")).join(" / ") || "Sin nave asignada",
+    ...(plan.registro ? [plan.registro] : [])
   ];
 }
 
@@ -43,14 +47,24 @@ export function planesEnHorario(planes: PlanMapa[], vehicleId: string, instante:
     p.unidades.some(u => u.id === vehicleId));
 }
 
+export function planesDeLaNave(nave: NaveEnVivo, planes: PlanMapa[], ahora: number) {
+  const previstos = planesEnHorario(planes, nave.vehicleId, ahora);
+  const manual = planes.find(p => p.id === nave.servicioId && (p.gpsManual || p.fin === null || p.salida === null) &&
+    nave.estado !== "sin-senal" && p.unidades.some(u => u.id === nave.vehicleId) &&
+    horaDia.format(new Date(nave.recordedAt)) === horaDia.format(ahora));
+  return manual ? [manual] : previstos;
+}
+
+const horaDia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Salta" });
+
 export function seguimiento(nave: NaveEnVivo, planes: PlanMapa[], ahora: number) {
-  const activos = planesEnHorario(planes, nave.vehicleId, ahora);
+  const activos = planesDeLaNave(nave, planes, ahora);
   if (!activos.length) return { texto: "Sin salida en curso", alerta: false };
   if (activos.length > 1) return { texto: "Asignaciones superpuestas", alerta: false };
   const plan = activos[0];
   const etiqueta = plan.titulo;
   const info = (estado: string, alerta = false) => ({ texto: `${etiqueta} · ${estado}`, alerta });
-  if (nave.estado === "sin-senal" || Date.parse(nave.recordedAt) < plan.salida!) return info("Sin GPS reciente en esta salida");
+  if (nave.estado === "sin-senal" || (plan.salida !== null && Date.parse(nave.recordedAt) < plan.salida)) return info("Sin GPS reciente en esta salida");
   if (nave.accuracy != null && nave.accuracy > MARGEN_VIAL) return info("GPS impreciso");
   if (!plan.completo || !plan.tramos.length) return info("Sin trazado completo");
   const posicion: Punto = [nave.latitude, nave.longitude];

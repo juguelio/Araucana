@@ -31,9 +31,11 @@ export async function PATCH(request: Request) {
     const stop = await prisma.chapelcoManifestStop.findFirst({
       where: {
         id: stopId,
+        reservation: { status: { not: "CANCELLED" } },
         run: {
+          status: { not: "CANCELLED" }, operationDay: { status: { not: "CANCELLED" } },
           vehicleDuty: {
-            driverId: user.id
+            status: "ACTIVE", driverId: user.id
           }
         }
       },

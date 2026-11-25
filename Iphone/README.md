@@ -1,40 +1,14 @@
-# Araucana Chofer iPhone
+# Araucana Chofer para iPhone
 
-Proyecto SwiftUI nativo para la app de choferes.
+La app SwiftUI para iOS 17 o posterior abre la jornada de la cuenta de chofer. Administración asigna los servicios y las naves. Cada salida reúne su hoja, las paradas y las marcas de inicio, fin y embarque.
 
-## Abrir en Xcode
+## Desarrollo
 
-Abrir:
+Abrí `Iphone/AraucanaChofer/AraucanaChofer.xcodeproj` en Xcode y ejecutá el esquema `AraucanaChofer`. Para usar el servidor de desarrollo, iniciá `npm run dev` en la Mac e ingresá `http://127.0.0.1:3000` en el campo de API del simulador. La compilación de distribución usa `https://araucana.vercel.app`.
 
-```bash
-Iphone/AraucanaChofer/AraucanaChofer.xcodeproj
-```
+## Operación
 
-## Base inicial
-
-- App SwiftUI.
-- Target iOS 17.
-- Bundle ID: `com.araucana.chofer`.
-- Inicio de sesión con email y contraseña de Araucana; el JWT se guarda en el llavero de iOS y se envía a la API como Bearer.
-- Recupera usuario con `GET /api/v1/auth/me`.
-- Recupera datos de chofer, rutas de trabajo, salidas proximas y pasajeros con `GET /api/v1/driver/bootstrap`.
-
-## Desarrollo local
-
-Con el servidor web corriendo en la Mac:
-
-```bash
-npm run dev
-```
-
-En el simulador iPhone usar:
-
-```text
-http://127.0.0.1:3000
-```
-
-El usuario debe tener rol `DRIVER`.
-
-## Acceso
-
-La cuenta debe tener rol `DRIVER` y estar activa. La app inicia sesión en `POST /api/v1/auth/login`, renueva el JWT al recuperar una sesión y revoca la sesión al salir. Los tokens se guardan en Keychain, nunca en `UserDefaults`.
+- El primer ingreso necesita conexión y una cuenta activa con rol `DRIVER`. El token se guarda en el llavero y la copia local se separa por cuenta y servidor.
+- Las hojas de hoy se descargan al actualizar la jornada. Abrir una hoja futura con conexión la guarda para consultarla sin señal. Las marcas pendientes se vuelven a enviar con el mismo identificador al recuperar la conexión. Al cerrar sesión se eliminan las hojas y las marcas pendientes quedan reservadas para el siguiente ingreso de la misma cuenta.
+- Durante una franja asignada, iOS solicita permiso de ubicación al abrir la app en primer plano. Con el permiso concedido, el seguimiento iniciado continúa en segundo plano y con la pantalla bloqueada mientras iOS permite su ejecución. Una salida sin franja completa ofrece activación manual dentro de sus límites conocidos y durante su día. Al finalizar la franja, detener el envío manual o cerrar sesión se corta el seguimiento.
+- La jornada y las marcas usan `/api/v1/driver/jornada` y `/api/v1/driver/marcas`. Cada lectura GPS se envía a `/api/v1/driver/location` con la nave y la salida correspondientes.

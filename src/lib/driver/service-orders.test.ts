@@ -7,7 +7,8 @@ import { getRouteSheetInput } from "./route-sheet-repository";
 
 vi.mock("@/lib/airport/service-order-data", () => ({ getAirportServiceOrder: vi.fn() }));
 vi.mock("@/lib/db/prisma", () => ({
-  prisma: { specialTripAssignment: { findMany: vi.fn() }, schedule: { findMany: vi.fn() } }
+  prisma: { schoolRun: { findMany: vi.fn() }, chapelcoVehicleDuty: { findMany: vi.fn() },
+    driverServiceMark: { findMany: vi.fn() }, specialTripAssignment: { findMany: vi.fn() }, schedule: { findMany: vi.fn() } }
 }));
 vi.mock("./route-sheet-repository", () => ({ getRouteSheetInput: vi.fn() }));
 
@@ -22,6 +23,9 @@ const schedule = {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(prisma.schoolRun.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.chapelcoVehicleDuty.findMany).mockResolvedValue([]);
+  vi.mocked(prisma.driverServiceMark.findMany).mockResolvedValue([]);
   vi.mocked(getAirportServiceOrder).mockResolvedValue({ blocks: [], oficina: office });
   vi.mocked(prisma.specialTripAssignment.findMany).mockResolvedValue([]);
   vi.mocked(prisma.schedule.findMany).mockResolvedValue([]);

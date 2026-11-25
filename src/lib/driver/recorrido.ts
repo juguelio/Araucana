@@ -17,6 +17,7 @@ export const MAX_PAUSA_RECORRIDO_MS = 10 * 60 * 1000;
 export const MAX_VELOCIDAD_RECORRIDO_KMH = 180;
 
 export type MuestraCruda = {
+  servicioId?: string | null;
   id?: string;
   driverId: string;
   vehicleId: string;
@@ -34,6 +35,7 @@ export type PuntoRecorrido = {
 };
 
 export type Recorrido = {
+  servicioId?: string;
   /** Identifica el inicio del segmento; independiente del orden de entrada y del recorte visual. */
   id: string;
   driverId: string;
@@ -142,7 +144,7 @@ export function metrosDeRecorrido(puntos: PuntoRecorrido[]): number {
 }
 
 function hayCorte(anterior: MuestraCruda, actual: MuestraCruda): boolean {
-  if (anterior.vehicleId !== actual.vehicleId) return true;
+  if (anterior.vehicleId !== actual.vehicleId || anterior.servicioId !== actual.servicioId) return true;
   const ms = actual.recordedAt.getTime() - anterior.recordedAt.getTime();
   if (ms > MAX_PAUSA_RECORRIDO_MS) return true;
   const metros = distanciaMetros([anterior.latitude, anterior.longitude], [actual.latitude, actual.longitude]);
@@ -172,6 +174,7 @@ export function construirRecorridos(muestras: MuestraCruda[], opciones: Opciones
     const depurados = filtrarRuido(segmento, distanciaMinimaMetros);
     recorridos.push({
       id: claveMuestra(segmento[0]),
+      ...(ultima.servicioId && { servicioId: ultima.servicioId }),
       driverId: ultima.driverId,
       driverName: ultima.driver?.name?.trim() || null,
       vehicleId: ultima.vehicleId,
@@ -204,7 +207,7 @@ export function construirRecorridos(muestras: MuestraCruda[], opciones: Opciones
 }
 
 const SELECT_MUESTRA = {
-  id: true, driverId: true, vehicleId: true, latitude: true, longitude: true, recordedAt: true,
+  id: true, driverId: true, vehicleId: true, servicioId: true, latitude: true, longitude: true, recordedAt: true,
   driver: { select: { name: true } },
   vehicle: { select: { name: true, internalNumber: true } }
 } as const;
