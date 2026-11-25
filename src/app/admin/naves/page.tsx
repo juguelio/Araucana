@@ -96,13 +96,26 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
   const porPagina = params?.porPagina === "todas" ? 0 : params?.porPagina === "24" ? 24 : 12;
 
   const [flota, danios, servicios, senales] = await Promise.all([
-    prisma.vehicle.findMany({ include: { _count: { select: { seats: true } } } }),
+    prisma.vehicle.findMany({
+      include: {
+        _count: { select: { seats: true } },
+        odometerReadings: { orderBy: { readAt: "desc" }, take: 1, select: { readAt: true } },
+        serviceSheets: { orderBy: { servicedAt: "desc" }, take: 1, select: { servicedAt: true } }
+      }
+    }),
     prisma.vehicleDamage.findMany({ where: { status: { not: "REPARADO" } }, select: { vehicleId: true, status: true, severity: true } }),
     cargarServiciosDeLaFlota(ahora),
     cargarSenalesDeChoferes(ahora)
   ]);
 
   const hoyDia = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).format(ahora);
+  const ultimaReferenciaKm = new Map<string, Date | null>();
+  for (const vehicle of flota) {
+    const fechas = [vehicle.odometerReadings[0]?.readAt, vehicle.serviceSheets[0]?.servicedAt].filter(
+      (fecha): fecha is Date => Boolean(fecha)
+    );
+    ultimaReferenciaKm.set(vehicle.id, fechas.length ? new Date(Math.max(...fechas.map((fecha) => +fecha))) : null);
+  }
   const naves = ordenarNaves(
     flota.map((vehicle) => ({ ...vehicle, asientos: vehicle._count.seats })),
     "unidad",
@@ -118,7 +131,8 @@ export default async function AdminVehiclesPage({ searchParams }: AdminVehiclesP
       danios: danios.filter((danio) => danio.vehicleId === vehicle.id),
       serviciosHoy: hoy,
       enRecorrido: Boolean(enCurso),
-      enMovimiento: Boolean(senal && !senal.detenido)
+      enMovimiento: Boolean(senal && !senal.detenido),
+      ultimaReferenciaKmAt: ultimaReferenciaKm.get(vehicle.id) ?? null
     };
     const estado = estadoDeNave(datos);
     const alertas = alertasDeNave(datos, ahora);

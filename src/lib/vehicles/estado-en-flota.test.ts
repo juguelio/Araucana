@@ -97,6 +97,34 @@ describe("alertasDeNave: una sola cosa para resolver", () => {
     expect(alertasDeNave({ ...sprinter, isActive: false, technicalInspectionDueAt: enDias(-90) }, hoy).principal).toBeNull();
   });
 
+  it("con intervalo de service avisa si el km no se actualizó en 7 días", () => {
+    const nave = { ...sprinter, serviceIntervalKm: 10_000, ultimaReferenciaKmAt: new Date(2026, 10, 12, 9, 0) };
+    expect(alertasDeNave(nave, hoy).principal).toEqual({ etiqueta: "Km sin actualizar hace 8 días", tono: "normal" });
+  });
+
+  it("con una referencia de km de esta semana no avisa", () => {
+    const nave = { ...sprinter, serviceIntervalKm: 10_000, ultimaReferenciaKmAt: enDias(-3) };
+    expect(alertasDeNave(nave, hoy).principal).toBeNull();
+  });
+
+  it("sin ninguna referencia de km pide la primera lectura", () => {
+    const nave = { ...sprinter, serviceIntervalKm: 10_000, ultimaReferenciaKmAt: null };
+    expect(alertasDeNave(nave, hoy).principal).toEqual({ etiqueta: "Falta la primera lectura de km", tono: "normal" });
+  });
+
+  it("sin intervalo de service el km no genera recordatorio", () => {
+    const nave = { ...sprinter, serviceIntervalKm: null, ultimaReferenciaKmAt: null };
+    expect(alertasDeNave(nave, hoy).principal).toBeNull();
+  });
+
+  it("el recordatorio de km no tapa una alerta de papel y no bloquea la salida", () => {
+    const nave = { ...sprinter, technicalInspectionDueAt: enDias(-3), serviceIntervalKm: 10_000, ultimaReferenciaKmAt: enDias(-9) };
+    const { principal, otras } = alertasDeNave(nave, hoy);
+    expect(principal).toEqual({ etiqueta: "Técnica vencida hace 3 días", tono: "grave" });
+    expect(otras).toBe(1);
+    expect(entraEnPestana("alertas", { isActive: true }, estadoDeNave(sprinter), { etiqueta: "Km sin actualizar hace 9 días", tono: "normal" })).toBe(false);
+  });
+
   it("papelEnPalabras: hoy, un día, varios", () => {
     expect(papelEnPalabras("RTO", 0)).toBe("RTO vence hoy");
     expect(papelEnPalabras("RTO", 1)).toBe("RTO vence en 1 día");
