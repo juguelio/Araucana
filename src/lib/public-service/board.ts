@@ -37,7 +37,7 @@ export type SalidaDeTerminal = {
   desde: string;
   hacia: string;
   nave: string;
-  vehicleId: string;
+  vehicleId: string | null;
   patente: string | null;
   driverId: string | null;
   driverName: string | null;
@@ -99,7 +99,7 @@ export function salidasDeTerminal(rows: AdminScheduleRowDto[], now = new Date())
         ocupados,
         capacidad: row.totalSeats,
         libres: row.availableSeats,
-        vendible: ventaAbierta(row.status, new Date(row.departureAt), now),
+        vendible: !!row.vehicleId && ventaAbierta(row.status, new Date(row.departureAt), now),
         estado: row.status,
         estadoLabel: estadoLabel(row.status),
         salidaAt: new Date(row.departureAt),

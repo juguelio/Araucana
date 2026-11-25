@@ -94,7 +94,7 @@ export const adminRouteInputSchema = z
 
 export const adminScheduleInputSchema = z.object({
   routeId: requiredString,
-  vehicleId: requiredString,
+  vehicleId: requiredString.nullable().default(null),
   departureAt: isoDateSchema("departureAt"),
   status: z.enum(scheduleStatuses).default("OPEN"),
   confirmation: z.string().max(20000).optional()
@@ -200,16 +200,19 @@ function scheduleInclude() {
   };
 }
 
-async function getRouteDuration(routeId: string) {
+async function getRouteDuration(routeId: string, vehicleId: string | null) {
   const route = await prisma.travelRoute.findUnique({
     where: { id: routeId },
-    select: { durationMin: true }
+    select: { durationMin: true, bookingMode: true }
   });
 
   if (!route) {
     throw new ApiError("ROUTE_NOT_FOUND", "Ruta no encontrada", 404);
   }
 
+  if (!vehicleId && ["AIRPORT", "CHAPELCO"].includes(route.bookingMode)) {
+    throw new ApiError("INVALID_ROUTE", "La ruta no tiene salidas propias.", 400);
+  }
   return route.durationMin;
 }
 
@@ -322,7 +325,7 @@ export async function getAdminApiSchedule(id: string) {
 }
 
 async function persistAdminApiSchedule(
-  data: { routeId: string; vehicleId: string; departureAt: Date; arrivalAt: Date; status: string },
+  data: { routeId: string; vehicleId: string | null; departureAt: Date; arrivalAt: Date; status: string },
   actor: ApiActor,
   confirmation?: string,
   id?: string,
@@ -349,7 +352,7 @@ async function persistAdminApiSchedule(
 
 async function saveAdminApiSchedule(payload: unknown, actor: ApiActor, id?: string) {
   const { confirmation, ...input } = parseAdminPayload(adminScheduleInputSchema, payload);
-  const durationMin = await getRouteDuration(input.routeId);
+  const durationMin = await getRouteDuration(input.routeId, input.vehicleId);
   return persistAdminApiSchedule({ ...input, arrivalAt: addMinutes(input.departureAt, durationMin) }, actor, confirmation, id);
 }
 

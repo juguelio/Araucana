@@ -73,7 +73,10 @@ export default async function RouteSchedulePage({ params, searchParams }: RouteS
 
   const here = `/admin/rutas/${routeId}/salidas/${scheduleId}`;
   const units = [
-    { key: "principal", vehicle: schedule.vehicle, seats: schedule.vehicle._count.seats, driver: schedule.driver, remove: schedule.extraUnits.length ? { name: "primaryOf", value: schedule.id } : null },
+    ...(schedule.vehicle ? [{
+      key: "principal", vehicle: schedule.vehicle, seats: schedule.vehicle._count.seats, driver: schedule.driver,
+      remove: schedule.extraUnits.length ? { name: "primaryOf", value: schedule.id } : null
+    }] : []),
     ...schedule.extraUnits.map((unit) => ({
       key: unit.id, vehicle: unit.vehicle, seats: unit.vehicle.isActive ? unit.vehicle._count.seats : 0, driver: unit.driver, remove: { name: "unitId", value: unit.id }
     }))
@@ -92,7 +95,7 @@ export default async function RouteSchedulePage({ params, searchParams }: RouteS
       <section className="plain-card admin-section">
         <h2>Datos de la salida</h2>
         <div className="summary-list">
-          <div><span>{units.length > 1 ? "Naves" : "Nave"}</span><strong>{units.map((unit) => unit.vehicle.name).join(" + ")}</strong></div>
+          <div><span>{units.length > 1 ? "Naves" : "Nave"}</span><strong>{units.map((unit) => unit.vehicle.name).join(" + ") || "Sin nave asignada"}</strong></div>
           <div><span>Lugares</span><strong>{taken} de {capacity}</strong></div>
           <div><span>Estado</span><strong>{status}</strong></div>
         </div>
@@ -127,14 +130,14 @@ export default async function RouteSchedulePage({ params, searchParams }: RouteS
           <FleetAssignmentForm action={addScheduleUnitAction}>
             <input type="hidden" name="scheduleId" value={schedule.id} />
             <select name="vehicleId" defaultValue="" aria-label="Nave para sumar a la salida" required>
-              <option value="" disabled>Sumar otra nave…</option>
+              <option value="" disabled>{units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
               {freeVehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name} · {vehicle._count.seats} asientos</option>)}
             </select>
             <select name="driverId" defaultValue="" aria-label="Chofer de la nave nueva">
               <option value="">Sin chofer</option>
               {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name ?? driver.email}</option>)}
             </select>
-            <button className="ghost-button" type="submit">Sumar nave</button>
+            <button className="ghost-button" type="submit">{units.length ? "Sumar nave" : "Asignar nave"}</button>
           </FleetAssignmentForm>
         ) : null}
       </section>

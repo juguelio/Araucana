@@ -136,6 +136,14 @@ describe("salidas del día: la programación no es servicio (issue #258)", () =>
     driver: null
   });
 
+  it("separa la salida que espera nave de otra de la misma ruta y hora", () => {
+    const conNave = salidaProgramada("con-nave", "08:00");
+    const rows = scheduleRows([conNave, { ...conNave, id: "pendiente", vehicle: null }]);
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({ serviceId: "pendiente", missingVehicle: true, units: [], capacity: null });
+    expect(rows[0].key).not.toBe(rows[1].key);
+  });
+
   it("un día con 9 salidas programadas y ninguna reserva no tiene ningún servicio", () => {
     const { rows, summary } = buildDayBoard({
       dateKey: "2026-11-17",

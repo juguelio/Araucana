@@ -244,11 +244,17 @@ describe("salidas del día: crear y sumar unidades (más flexibilidad)", () => {
     expect(mocks.createSchedule).not.toHaveBeenCalled();
   });
 
-  it("no crea salidas de aeropuerto ni de Chapelco desde acá, y pide hora y nave", async () => {
+  it("programa una salida sin nave ni chofer y sin reservar flota", async () => {
+    await redirectTo(createBoardScheduleAction({}, form({ date: "2026-11-17", routeId: "r1", time: "08:00" })));
+    expect(mocks.createSchedule).toHaveBeenCalledWith({ data: expect.objectContaining({ vehicleId: null, driverId: null }) });
+    expect(mocks.fleetConflicts).not.toHaveBeenCalled();
+  });
+
+  it("pide hora y rechaza las rutas de aeropuerto o Chapelco y un chofer sin nave", async () => {
     mocks.findRoute.mockResolvedValue({ id: "r2", slug: "x", durationMin: 60, bookingMode: "AIRPORT", isActive: true });
     expect((await createBoardScheduleAction({}, form({ date: "2026-11-17", routeId: "r2", time: "08:00", vehicleId: "v2" }))).error).toContain("no tiene salidas propias");
     expect((await createBoardScheduleAction({}, form({ date: "2026-11-17", routeId: "r1", time: "", vehicleId: "v2" }))).error).toBe("Poné la hora de salida.");
-    expect((await createBoardScheduleAction({}, form({ date: "2026-11-17", routeId: "r1", time: "08:00", vehicleId: "" }))).error).toBe("Elegí la nave.");
+    expect((await createBoardScheduleAction({}, form({ date: "2026-11-17", routeId: "r1", time: "08:00", driverId: "d1" }))).error).toBe("Elegí la nave para asignar ese chofer.");
     expect(mocks.createSchedule).not.toHaveBeenCalled();
   });
 

@@ -122,7 +122,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       status: schedule.status,
       passengers: schedule.reservations.reduce((sum, reservation) => sum + reservation.passengerCount, 0),
       reservations: schedule._count.reservations,
-      vehicle: { id: schedule.vehicle.id, name: schedule.vehicle.name, seats: seatsOf(schedule.vehicle) },
+      vehicle: schedule.vehicle && { id: schedule.vehicle.id, name: schedule.vehicle.name, seats: seatsOf(schedule.vehicle) },
       driver: schedule.driver,
       extraUnits: schedule.extraUnits.map((unit) => ({
         id: unit.id,
@@ -380,8 +380,8 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
                 </label>
                 <label><span>Sale</span><input type="time" name="time" required /></label>
                 <label><span>Nave</span>
-                  <select name="vehicleId" defaultValue="" required>
-                    <option value="" disabled>Elegir nave…</option>
+                  <select name="vehicleId" defaultValue="">
+                    <option value="">Sin nave asignada</option>
                     {vehicleOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                   </select>
                 </label>
@@ -588,14 +588,14 @@ function RouteUnits({ row, dateKey, vehicleOptions, driverOptions, withCurrent }
         <input type="hidden" name="date" value={dateKey} />
         <input type="hidden" name="scheduleId" value={row.serviceId} />
         <select name="vehicleId" defaultValue="" aria-label="Nave para sumar a la salida" required>
-          <option value="" disabled>Sumar otra nave…</option>
+          <option value="" disabled>{row.units.length ? "Sumar otra nave…" : "Elegir nave…"}</option>
           {vehicleOptions.filter((option) => !row.units.some((unit) => unit.vehicleId === option.id)).map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
         </select>
         <select name="driverId" defaultValue="" aria-label="Chofer de la nave nueva">
           <option value="">Sin chofer</option>
           {driverOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
         </select>
-        <button className="ghost-button" type="submit">Sumar</button>
+        <button className="ghost-button" type="submit">{row.units.length ? "Sumar" : "Asignar"}</button>
       </FleetAssignmentForm>
 </div>
     </div>

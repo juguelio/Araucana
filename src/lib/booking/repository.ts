@@ -64,7 +64,7 @@ type SeatRecord = {
 type ScheduleRecord = {
   id: string;
   routeId: string;
-  vehicleId: string;
+  vehicleId: string | null;
   departureAt: Date;
   arrivalAt: Date;
   status: string;
@@ -73,7 +73,7 @@ type ScheduleRecord = {
     id: string;
     isActive?: boolean;
     seats: SeatRecord[];
-  };
+  } | null;
   extraUnits?: Array<{ vehicle: { id: string; isActive?: boolean; seats: SeatRecord[] } }>;
   reservations?: Array<{
     id: string;
@@ -365,7 +365,7 @@ type ScheduleSummaryRecord = Omit<ScheduleRecord, "vehicle" | "reservations" | "
     internalNumber?: string | null;
     seats?: SeatRecord[];
     _count?: { seats: number };
-  };
+  } | null;
   driver?: { id: string; name: string | null; email: string } | null;
   extraUnits?: Array<{ vehicle: { id: string; isActive?: boolean; name: string; _count?: { seats: number } } }>;
   reservations?: Array<{ status: string; passengerCount: number }>;
@@ -764,7 +764,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
       throw new BookingError("SCHEDULE_NOT_FOUND", "Schedule not found");
     }
 
-    if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || schedule.vehicle.isActive === false) {
+    if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= new Date() || !schedule.route.isActive || !schedule.vehicle || schedule.vehicle.isActive === false) {
       throw new BookingError("SCHEDULE_CLOSED", "Schedule is not available for reservations");
     }
 
@@ -1048,7 +1048,7 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
 
       return {
         scheduleId: schedule.id,
-        vehicleId: schedule.vehicle.id,
+        vehicleId: schedule.vehicle?.id ?? null,
         seats: orderedSeats(scheduleSeatPool(schedule))
           .map((seat) => ({
             id: seat.id,
@@ -1386,9 +1386,9 @@ export function createBookingRepository(client: BookingClient, deps: BookingRepo
           id: schedule.id,
           routeId: schedule.routeId,
           vehicleId: schedule.vehicleId,
-          vehicleName: schedule.vehicle.name,
-          vehiclePlate: schedule.vehicle.licensePlate ?? null,
-          vehicleInternalNumber: schedule.vehicle.internalNumber ?? null,
+          vehicleName: schedule.vehicle?.name ?? "Sin nave asignada",
+          vehiclePlate: schedule.vehicle?.licensePlate ?? null,
+          vehicleInternalNumber: schedule.vehicle?.internalNumber ?? null,
           driverId: schedule.driver?.id ?? null,
           driverName: schedule.driver ? schedule.driver.name?.trim() || schedule.driver.email : null,
           extraVehicleNames: (schedule.extraUnits ?? []).map((unit) => unit.vehicle.name),

@@ -54,16 +54,12 @@ function addMinutes(date: Date, minutes: number) {
 
 async function scheduleData(formData: FormData) {
   const routeId = value(formData, "routeId");
-  const vehicleId = value(formData, "vehicleId");
+  const vehicleId = value(formData, "vehicleId") || null;
   const status = value(formData, "status") || "OPEN";
   const fieldErrors: AdminFieldErrors = {};
 
   if (!routeId) {
     fieldErrors.routeId = "Elegi una ruta para la salida.";
-  }
-
-  if (!vehicleId) {
-    fieldErrors.vehicleId = "Elegi una nave para la salida.";
   }
 
   if (Object.keys(fieldErrors).length) {
@@ -78,12 +74,18 @@ async function scheduleData(formData: FormData) {
 
   const route = await prisma.travelRoute.findUnique({
     where: { id: routeId },
-    select: { durationMin: true, slug: true }
+    select: { durationMin: true, slug: true, bookingMode: true }
   });
 
   if (!route) {
     throw new FormValidationError("Revisa los campos marcados para guardar la salida.", {
       routeId: "La ruta seleccionada ya no existe."
+    });
+  }
+
+  if (!vehicleId && ["AIRPORT", "CHAPELCO"].includes(route.bookingMode)) {
+    throw new FormValidationError("Elegí una ruta con salidas propias.", {
+      routeId: "Los vuelos y las operaciones de Chapelco se programan desde su módulo."
     });
   }
 
@@ -112,6 +114,8 @@ function scheduleErrorState(error: unknown) {
 function revalidateSchedulePaths(routeSlug?: string, routeId?: string) {
   revalidatePath("/admin");
   revalidatePath("/admin/rutas");
+  revalidatePath("/admin/choferes");
+  revalidatePath("/admin/servicio-publico");
   revalidatePath("/rutas");
 
   if (routeId) {

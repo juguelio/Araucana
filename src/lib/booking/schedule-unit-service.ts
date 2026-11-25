@@ -89,6 +89,16 @@ export async function addScheduleUnit(input: {
     }
     const check = await checkVehicle(tx, schedule, input.vehicleId, input.confirmation, ["add", schedule.id, input.vehicleId]);
     if ("stop" in check) return check.stop;
+    if (!schedule.vehicleId) {
+      const saved = await tx.schedule.updateMany({
+        where: { id: schedule.id, vehicleId: null },
+        data: { vehicleId: input.vehicleId, driverId: input.driverId }
+      });
+      if (!saved.count) return { error: "La salida ya tiene una nave. Volvé a abrirla." };
+      await recordAcceptance(tx, "PUBLIC", schedule.id, input.actor.id, check.conflicts);
+      await recordScheduleAudit(tx, input.actor, "Nave asignada a la salida.", schedule, { ...schedule, vehicleId: input.vehicleId, driverId: input.driverId });
+      return done(schedule, "Nave asignada a la salida.");
+    }
     await tx.scheduleUnit.create({ data: { scheduleId: schedule.id, vehicleId: input.vehicleId, driverId: input.driverId } });
     await recordAcceptance(tx, "PUBLIC", schedule.id, input.actor.id, check.conflicts);
     await recordScheduleAudit(tx, input.actor, "Nave sumada a la salida.",
@@ -149,7 +159,7 @@ export async function updateScheduleUnit(input: {
 }
 
 function totalSeats(schedule: LoadedSchedule) {
-  return schedule.vehicle._count.seats + schedule.extraUnits
+  return (schedule.vehicle?._count.seats ?? 0) + schedule.extraUnits
     .filter((unit) => unit.vehicle.isActive)
     .reduce((total, unit) => total + unit.vehicle._count.seats, 0);
 }
@@ -175,7 +185,7 @@ export async function removeScheduleUnit(input: {
       return { error: "Es la única nave de la salida: para sacarla, cerrá o borrá la salida." };
     }
     if (!input.primaryOf && !leaving) return { error: "Esa nave ya no está en la salida." };
-    const seatsLeaving = leaving ? (leaving.vehicle.isActive ? leaving.vehicle._count.seats : 0) : schedule.vehicle._count.seats;
+    const seatsLeaving = leaving ? (leaving.vehicle.isActive ? leaving.vehicle._count.seats : 0) : (schedule.vehicle?._count.seats ?? 0);
     const capacity = totalSeats(schedule) - seatsLeaving;
     if (occupied(schedule) > capacity) {
       return { error: `No se quitó: con las naves que quedan no entran los ${occupied(schedule)} pasajeros reservados (quedarían ${capacity} lugares).` };
@@ -199,12 +209,13 @@ export async function removeScheduleUnit(input: {
  * Al cambiar la nave principal de una salida: que no sea una de las naves ya sumadas y que con la
  * nueva entren los pasajeros reservados. Devuelve el aviso, o `null` si se puede.
  */
-export async function primaryVehicleProblem(tx: Prisma.TransactionClient, scheduleId: string, vehicleId: string) {
+export async function primaryVehicleProblem(tx: Prisma.TransactionClient, scheduleId: string, vehicleId: string | null) {
   const schedule = await tx.schedule.findUnique({ where: { id: scheduleId }, select: scheduleForUnits });
   if (!schedule || schedule.vehicleId === vehicleId) return null;
+  if (!vehicleId) return "La salida ya tiene una nave. Elegí una nave de reemplazo.";
   if (schedule.extraUnits.some((unit) => unit.vehicleId === vehicleId)) return "Esa nave ya está sumada a la salida: quitala de las otras naves o elegí otra.";
   const replacement = await tx.vehicle.findUnique({ where: { id: vehicleId }, select: { _count: { select: { seats: true } } } });
-  const capacity = totalSeats(schedule) - schedule.vehicle._count.seats + (replacement?._count.seats ?? 0);
+  const capacity = totalSeats(schedule) - (schedule.vehicle?._count.seats ?? 0) + (replacement?._count.seats ?? 0);
   const taken = occupied(schedule);
   return taken > capacity ? `Con esa nave no entran los ${taken} pasajeros reservados (quedarían ${capacity} lugares).` : null;
 }

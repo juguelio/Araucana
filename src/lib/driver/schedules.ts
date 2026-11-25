@@ -133,6 +133,7 @@ export async function listDriverUpcomingSchedules(options: {
   const schedules = await prisma.schedule.findMany({
     where: {
       routeId: options.routeId,
+      vehicleId: { not: null },
       ...(options.driverId ? { OR: [{ driverId: options.driverId }, { extraUnits: { some: { driverId: options.driverId } } }] } : {}),
       departureAt: {
         gte: options.from ?? new Date(),

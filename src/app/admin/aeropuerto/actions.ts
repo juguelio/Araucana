@@ -6,16 +6,14 @@ import { z } from "zod";
 import { detectFlightChange, FLIGHT_STATUSES, jetSmartCanonicalNumber } from "@/lib/airport/flights";
 import { fechaLocal } from "@/lib/airport/projection";
 import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
-import { conflictKey, dayInterval, driverConflicts, lockFleet, recordAcceptance, specialConflicts, type FleetConflict } from "@/lib/special-trips/conflicts";
-import type { Prisma } from "@prisma/client";
+import { dayInterval, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { BookingError } from "@/lib/booking/repository";
-import { airportVehicleBusy, assignPrivateVehicle } from "@/lib/airport/private-vehicle";
-import { airportServiceWindow } from "@/lib/airport/service-window";
-import { PrivateVehicleGroupConflict, companerosDeRecorrida, reagruparVuelos, vuelosDeLaRecorrida } from "@/lib/airport/pickup-group";
+import { PrivateVehicleGroupConflict, reagruparVuelos } from "@/lib/airport/pickup-group";
 import { argentina, localDateTime, localInput } from "@/lib/special-trips/data";
 import { prisma } from "@/lib/db/prisma";
-import { readForAudit, recordEntityAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
+import { readForAudit, recordEntityAuditAfterCommit, type EntityAudit } from "@/lib/audit/entity";
 import { formatAuditDate } from "@/lib/audit/labels";
+import { flightLabel, saveAirportFleet } from "@/lib/airport/fleet-assignment";
 import { errorState, type AdminFieldErrors, type AdminFormState } from "../form-state";
 import { redirectToBoard, returnsToBoard } from "../salidas-del-dia/return-to";
 import { navesStepHref, orderReturnHref } from "./return-to-order";
@@ -27,11 +25,6 @@ function value(formData: FormData, key: string) {
 
 function notice(text: string): never {
   redirect(`/admin/aeropuerto?notice=${encodeURIComponent(text)}`);
-}
-
-/** "AR 1656 · 16/11/2026, 14:30": cómo se nombra un vuelo en la auditoría. */
-function flightLabel(flight: { number: string; scheduledAt: Date }) {
-  return `${flight.number} · ${formatAuditDate(flight.scheduledAt)}`;
 }
 
 /** Para escrituras que ya quedaron guardadas: la auditoría no puede convertirlas en un error. */
@@ -251,47 +244,6 @@ export async function updateFlightAction(formData: FormData) {
   redirect(`/admin/aeropuerto?${new URLSearchParams({ date: fechaLocal(prev.scheduledAt), notice: message })}#vuelo-${id}`);
 }
 
-async function guardarCombiPrivada(tx: Prisma.TransactionClient, actor: Awaited<ReturnType<typeof getCurrentReservationsUserOrRedirect>>,
-  form: FormData, reservationId: string, vehicleId: string, driverId: string | null) {
-  const detalle = await tx.airportReservationDetails.findUnique({
-    where: { reservationId },
-    include: { flight: true, reservation: { select: { status: true, shortCode: true, privateAirportVehicles: true } } }
-  });
-  const flight = detalle?.flight;
-  if (!detalle?.isPrivate || !flight || flight.id !== value(form, "flightId") || detalle.reservation.status === "CANCELLED") {
-    return { error: "La reserva privada ya no está activa en este vuelo." };
-  }
-  const assignmentId = value(form, "assignmentId");
-  const anterior = detalle.reservation.privateAirportVehicles.find(a => a.id === assignmentId);
-  if ((anterior?.id ?? "") !== assignmentId || (anterior?.driverId ?? "") !== value(form, "previousDriverId") ||
-      (form.has("previousVehicleId") && (anterior?.vehicleId ?? "") !== value(form, "previousVehicleId"))) {
-    return { error: "La asignación privada cambió. Actualizá el tablero antes de guardar." };
-  }
-  if (driverId && driverId !== anterior?.driverId &&
-      !await tx.user.findFirst({ where: { id: driverId, role: "DRIVER", isActive: true }, select: { id: true } })) {
-    return { error: "Elegí un chofer activo." };
-  }
-  const conflicts = driverId && !["CANCELLED", "DIVERTED"].includes(flight.status)
-    ? await driverConflicts(tx, { driverId, ...airportServiceWindow(flight) }, { flightId: flight.id, vehicleId: anterior?.vehicleId ?? vehicleId })
-    : [];
-  const confirmation = conflictKey(conflicts, [reservationId, vehicleId, driverId]);
-  if (conflicts.length && value(form, "confirmation") !== confirmation) return { conflicts, confirmation };
-
-  // Si falla la asignación de reemplazo, la transacción conserva la nave y el chofer anteriores.
-  let asignacion;
-  if (anterior?.vehicleId === vehicleId) {
-    asignacion = await tx.airportVehicleAssignment.update({ where: { id: anterior.id }, data: { driverId } });
-  } else {
-    asignacion = await assignPrivateVehicle(tx, reservationId, flight, 1, vehicleId, driverId, anterior?.id);
-  }
-  await recordAcceptance(tx, "AIRPORT", asignacion.id, actor.id, conflicts);
-  const message = `Asignación privada guardada para ${detalle.reservation.shortCode}.`;
-  await recordEntityAudit(tx, { actor, entity: "AIRPORT", entityId: flight.id, entityLabel: flightLabel(flight),
-    action: anterior ? "UPDATE" : "CREATE", summary: message,
-    before: anterior ? { vehicleId: anterior.vehicleId, driverId: anterior.driverId } : null, after: { reservationId, vehicleId, driverId } });
-  return { day: localInput(flight.scheduledAt).slice(0, 10), message };
-}
-
 /**
  * Asigna una combi a un vuelo, con su chofer, o le cambia el chofer a una combi que ya tiene. Se puede
  * cambiar hasta último momento: agregar, cambiar o quitar. Si la nave o el chofer ya están ocupados
@@ -315,101 +267,13 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   const requestedDriver = value(formData, "driverId") || null;
   if (!flightId || !vehicleId) return { error: "Elegí una combi para asignar." };
 
-  const result = await prisma.$transaction(async (tx) => {
-    await lockFleet(tx, [vehicleId]);
-    const privada = value(formData, "privateReservationId");
-    if (privada) return guardarCombiPrivada(tx, user, formData, privada, vehicleId, requestedDriver);
-    const flight = await tx.flight.findUnique({ where: { id: flightId } });
-    if (!flight) return { error: "El vuelo ya no existe." };
-    // La recorrida es la unidad con la que se asigna la flota: la hoja del chofer une en una sola orden a
-    // los vuelos que comparten camioneta, así que si se asigna a un vuelo suelto el grupo queda con dos
-    // naves y vuelve a partirse en silencio.
-    const previous = await tx.airportVehicleAssignment.findUnique({
-      where: { flightId_vehicleId: { flightId, vehicleId } }, select: { driverId: true, privateReservationId: true }
-    });
-    if (previous?.privateReservationId) return { error: "Esta nave está reservada para un traslado privado." };
-    const recorrida = await vuelosDeLaRecorrida(tx, flight);
-    // Los otros vuelos de la recorrida que todavía no tienen esta combi (por ejemplo, se juntaron después).
-    const companeros = recorrida.filter((vuelo) => vuelo.id !== flight.id);
-    if (await airportVehicleBusy(tx, vehicleId,
-      [flight, ...companeros.map(other => ({ ...flight, ...other }))], false)) {
-      return { error: "Esta nave está reservada para un traslado privado." };
-    }
-    const yaLaTienen = companeros.length
-      ? await tx.airportVehicleAssignment.findMany({ where: { flightId: { in: companeros.map((vuelo) => vuelo.id) }, vehicleId }, select: { flightId: true } })
-      : [];
-    const faltan = companeros.filter((vuelo) => !yaLaTienen.some((tiene) => tiene.flightId === vuelo.id));
-    const driverId = sendsDriver ? requestedDriver : previous?.driverId ?? null;
-    const driverChanged = driverId !== (previous?.driverId ?? null);
-    // Re-guardar lo mismo no hace nada, salvo que a algún vuelo de la recorrida todavía le falte la combi.
-    if (previous && !driverChanged && faltan.length === 0) return { error: "La combi ya tenía ese chofer." };
-    if (driverId && driverChanged && !(await tx.user.findFirst({ where: { id: driverId, role: "DRIVER", isActive: true }, select: { id: true } }))) {
-      return { error: "Ese chofer no está disponible: elegí un chofer activo." };
-    }
-
-    const active = !["CANCELLED", "DIVERTED"].includes(flight.status);
-    // La nave se controla al sumarla; al cambiar sólo el chofer, ya estaba en el vuelo.
-    const days = new Set([flight.scheduledAt, flight.estimatedAt, flight.pickupStartOverrideAt ?? flight.pickupStartInitialAt]
-      .flatMap((date) => date ? [localInput(date).slice(0, 10)] : []));
-    const vehicleHits = active && !previous ? (await Promise.all(
-      [...days].map((day) => specialConflicts(tx, { vehicleId, ...dayInterval(day) }, undefined, true))
-    )).flat() : [];
-    const driverHits = active && driverId && driverChanged
-      ? await driverConflicts(tx, { driverId, ...airportServiceWindow(flight) }, { flightId, vehicleId, sameTrip: await companerosDeRecorrida(tx, flight) })
-      : [];
-    const conflicts = [...new Map([...vehicleHits, ...driverHits].map((hit) => [hit.id, hit])).values()];
-    const confirmation = conflictKey(conflicts, [flightId, vehicleId, driverId]);
-    if (conflicts.length && value(formData, "confirmation") !== confirmation) return { conflicts, confirmation };
-
-    const assignment = await tx.airportVehicleAssignment.upsert({
-      where: { flightId_vehicleId: { flightId, vehicleId } },
-      update: { driverId },
-      create: { flightId, vehicleId, driverId }
-    });
-    await recordAcceptance(tx, "AIRPORT", assignment.id, user.id, conflicts);
-    // El resto de la recorrida lleva la misma combi y el mismo chofer: es una sola vuelta. Desde el
-    // tablero llega sólo la nave (`sinChofer`): ahí no se pisa el chofer que el vuelo ya tenía, para no
-    // borrar una asignación que el operador cargó a mano.
-    for (const companero of companeros) {
-      await tx.airportVehicleAssignment.upsert({
-        where: { flightId_vehicleId: { flightId: companero.id, vehicleId } },
-        update: sendsDriver ? { driverId } : {},
-        create: { flightId: companero.id, vehicleId, driverId }
-      });
-    }
-    const [vehicle, drivers] = await Promise.all([
-      tx.vehicle.findUnique({ where: { id: vehicleId }, select: { name: true } }),
-      tx.user.findMany({ where: { id: { in: [previous?.driverId, driverId].filter((d): d is string => !!d) } }, select: { id: true, name: true, email: true } })
-    ]);
-    const driverName = (driver: string | null | undefined) => {
-      const found = drivers.find((item) => item.id === driver);
-      return found ? found.name ?? found.email : null;
-    };
-    const vehicleName = vehicle?.name ?? vehicleId;
-    const chofer = driverId ? driverName(driverId) : null;
-    await recordEntityAudit(tx, {
-      actor: user, entity: "AIRPORT", entityId: flightId, entityLabel: flightLabel(flight),
-      action: previous ? "UPDATE" : "CREATE",
-      summary: !previous ? `Combi ${vehicleName} asignada al vuelo.`
-        : driverId ? `Chofer de la combi ${vehicleName} cambiado en el vuelo.` : `Chofer de la combi ${vehicleName} quitado del vuelo.`,
-      before: previous ? { vehicle: vehicleName, driver: driverName(previous.driverId) } : null,
-      after: { vehicle: vehicleName, driver: chofer }
-    });
-    for (const companero of faltan) {
-      await recordEntityAudit(tx, {
-        actor: user, entity: "AIRPORT", entityId: companero.id, entityLabel: flightLabel(companero),
-        action: "CREATE", summary: `Combi ${vehicleName} asignada a la recorrida de ${flightLabel(flight)}.`,
-        before: null, after: { vehicle: vehicleName, driver: chofer }
-      });
-    }
-    const recorridaNombre = recorrida.map((vuelo) => vuelo.number).join(" + ");
-    // Con la recorrida unida el aviso nombra los vuelos: el operador tiene que poder ver qué hizo la
-    // asignación más allá del vuelo donde la cargó.
-    const message = recorrida.length > 1
-      ? `Combi ${vehicleName} y ${chofer ? `chofer ${chofer}` : "sin chofer"} en la recorrida ${recorridaNombre}.`
-      : !previous ? "Combi asignada al vuelo." : driverId ? "Chofer asignado a la combi." : "Chofer quitado de la combi.";
-    return { day: localInput(flight.scheduledAt).slice(0, 10), message };
-  }, { isolationLevel: "Serializable" }).catch(error => {
+  const result = await prisma.$transaction(tx => saveAirportFleet(tx, user, {
+    flightId, vehicleId, driverId: sendsDriver ? requestedDriver : undefined,
+    privateReservationId: value(formData, "privateReservationId"), assignmentId: value(formData, "assignmentId"),
+    previousDriverId: value(formData, "previousDriverId"),
+    previousVehicleId: formData.has("previousVehicleId") ? value(formData, "previousVehicleId") : undefined,
+    confirmation: value(formData, "confirmation")
+  }), { isolationLevel: "Serializable" }).catch(error => {
     if (error instanceof BookingError) return { error: error.message };
     if (error?.code === "P2034" || error?.code === "P2002") {
       return { error: "La asignación cambió mientras guardabas. Revisá la nave y volvé a intentar." };
@@ -418,7 +282,6 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
   });
   if (!("day" in result)) return result;
   const { day, message } = result;
-  if (!day || !message) return result;
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/salidas-del-dia");
   revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");

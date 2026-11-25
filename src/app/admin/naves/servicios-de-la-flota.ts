@@ -74,7 +74,7 @@ export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 
     }
     return fuentes;
   };
-  for (const salida of salidas) de(salida.vehicleId).salidas.push(salida);
+  for (const salida of salidas) if (salida.vehicleId) de(salida.vehicleId).salidas.push(salida);
   for (const unidad of unidadesExtra) de(unidad.vehicleId).unidadesExtra.push(unidad);
   for (const viaje of viajesEspeciales) de(viaje.vehicleId).viajesEspeciales.push(viaje);
   for (const asignacion of aeropuerto) de(asignacion.vehicleId).aeropuerto.push(asignacion);

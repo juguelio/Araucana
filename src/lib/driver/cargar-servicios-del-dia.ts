@@ -1,4 +1,8 @@
+import { airportWindowCandidates } from "@/lib/airport/window-query";
+import { localDateKey } from "@/lib/operations/day-board";
 import { airportServiceWindow } from "@/lib/airport/service-window";
+import { schoolTripWindow } from "./school-trip-conflicts";
+import { leerTurno } from "@/lib/school-runs/dia";
 import { prisma } from "@/lib/db/prisma";
 import type { ServicioDelDia } from "./tablero-choferes";
 
@@ -16,7 +20,7 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
   const fin = new Date(inicio.getTime() + 86_400_000);
   const estadoActivo = { notIn: ["CANCELLED", "CANCELED", "CLOSED"] };
 
-  const [salidas, vuelos, viajes, chapelco] = await Promise.all([
+  const [salidas, vuelos, viajes, chapelco, concesiones] = await Promise.all([
     prisma.schedule.findMany({
       where: { departureAt: { gte: inicio, lt: fin }, status: estadoActivo },
       select: {
@@ -26,12 +30,7 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
       }
     }),
     prisma.airportVehicleAssignment.findMany({
-      where: {
-        flight: {
-          status: { notIn: ["CANCELLED", "DIVERTED"] },
-          OR: [{ scheduledAt: { gte: inicio, lt: fin } }, { estimatedAt: { gte: inicio, lt: fin } }]
-        }
-      },
+      where: { flight: airportWindowCandidates(inicio, fin) },
       select: {
         id: true, vehicleId: true, driverId: true, flightId: true,
         flight: { select: { number: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartInitialAt: true, pickupStartOverrideAt: true, status: true } }
@@ -44,6 +43,10 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
     prisma.chapelcoVehicleDuty.findMany({
       where: { status: "ACTIVE", operationDay: { serviceDate: new Date(`${dia}T00:00:00Z`), status: { not: "CANCELLED" } } },
       select: { id: true, vehicleId: true, driverId: true }
+    }),
+    prisma.schoolRun.findMany({
+      where: { serviceDate: new Date(dia), vehicleId: { not: null } },
+      select: { id: true, vehicleId: true, driverId: true, routeName: true, shift: true }
     })
   ]);
 
@@ -51,7 +54,7 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
   for (const salida of salidas) {
     const titulo = `${lugar(salida.route.from)} → ${lugar(salida.route.to)}`;
     const href = `/admin/servicio-publico?vista=dia&fecha=${dia}`;
-    servicios.push({
+    if (salida.vehicleId) servicios.push({
       clave: `salida:${salida.id}`, area: "SERVICIO_PUBLICO", vehicleId: salida.vehicleId, driverId: salida.driverId,
       desde: salida.departureAt, hasta: salida.arrivalAt, titulo, href, asignableDesdeChoferes: true
     });
@@ -63,12 +66,13 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
     }
   }
   for (const asignacion of vuelos) {
-    const ventana = airportServiceWindow({ ...asignacion.flight, status: asignacion.flight.status ?? undefined });
+    const ventana = airportServiceWindow(asignacion.flight);
+    if (ventana.startsAt >= fin || ventana.endsAt <= inicio) continue;
     servicios.push({
       clave: `vuelo:${asignacion.id}`, area: "AEROPUERTO", vehicleId: asignacion.vehicleId, driverId: asignacion.driverId,
       desde: ventana.startsAt, hasta: ventana.endsAt,
       titulo: `${asignacion.flight.direction === "ARRIVAL" ? "Arribo" : "Partida"} ${asignacion.flight.number} (${hora.format(asignacion.flight.estimatedAt ?? asignacion.flight.scheduledAt)})`,
-      href: `/admin/aeropuerto?date=${dia}#vuelo-${asignacion.flightId}`,
+      href: `/admin/aeropuerto?date=${localDateKey(asignacion.flight.scheduledAt)}#vuelo-${asignacion.flightId}`,
       asignableDesdeChoferes: true
     });
   }
@@ -84,6 +88,16 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
       clave: `chapelco:${turno.id}`, area: "CHAPELCO", vehicleId: turno.vehicleId, driverId: turno.driverId,
       desde: new Date(`${dia}T08:00:00-03:00`), hasta: new Date(`${dia}T18:00:00-03:00`), titulo: "Chapelco",
       href: `/admin/chapelco?date=${dia}`, asignableDesdeChoferes: false
+    });
+  }
+  for (const run of concesiones) {
+    if (!run.vehicleId) continue;
+    const window = schoolTripWindow(dia, run.shift);
+    servicios.push({
+      clave: `concesion:${run.id}`, area: "CONCESION", titulo: run.routeName, turno: leerTurno(run.shift).etiqueta,
+      // Una concesión sin horario cuenta en la jornada sin sumar horas ni dibujar un bloque.
+      desde: window?.startsAt ?? fin, hasta: window?.endsAt ?? fin,
+      vehicleId: run.vehicleId, driverId: run.driverId, href: `/admin/escolares/${run.id}`, asignableDesdeChoferes: false
     });
   }
   return servicios;

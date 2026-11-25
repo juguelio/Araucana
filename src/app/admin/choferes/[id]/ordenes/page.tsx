@@ -116,8 +116,8 @@ export default async function DriverOrdersPage({ params, searchParams }: {
       case "route":
         return {
           id, title: order.sheet.routeShortLabel,
-          detail: `Servicio público · ${time} · ${order.vehicles.join(" + ")}`,
-          content: <RouteSheetDocument sheet={order.sheet} assignment={`Nave asignada: ${order.vehicles.join(" + ")}`} />
+          detail: `Servicio público · ${time} · ${order.vehicles.join(" + ") || "Nave pendiente"}`,
+          content: <RouteSheetDocument sheet={order.sheet} assignment={order.vehicles.length ? `Nave asignada: ${order.vehicles.join(" + ")}` : "Nave pendiente"} />
         };
     }
   });

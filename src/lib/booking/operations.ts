@@ -105,7 +105,6 @@ export async function getAdminOperationsSummary(now = new Date()): Promise<Admin
         reservations: { select: { passengerCount: true, status: true } }
       }
     }),
-    // El único lugar donde puede faltar unidad es el aeropuerto: la salida regular exige `vehicleId`.
     prisma.flight.count({
       where: {
         scheduledAt: { gte: now },
@@ -131,7 +130,7 @@ export async function getAdminOperationsSummary(now = new Date()): Promise<Admin
         departureAt: departure.departureAt,
         occupied: ocupadas,
         capacity: scheduleSeatCount(departure),
-        vehicle: scheduleVehicles(departure).map((vehicle) => vehicle.name).join(" + ")
+        vehicle: scheduleVehicles(departure).map((vehicle) => vehicle.name).join(" + ") || "Sin nave asignada"
       };
     }),
     flightsWithoutVehicle

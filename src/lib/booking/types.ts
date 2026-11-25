@@ -58,7 +58,7 @@ export type SeatOptionDto = {
 
 export type SeatMapDto = {
   scheduleId: string;
-  vehicleId: string;
+  vehicleId: string | null;
   seats: SeatOptionDto[];
 };
 
@@ -208,7 +208,7 @@ export type AdminScheduleRowDto = {
   from: string;
   to: string;
   routeId: string;
-  vehicleId: string;
+  vehicleId: string | null;
   /** Issue #81: el calendario y el listado muestran la nave de cada salida. */
   vehicleName: string;
   vehiclePlate: string | null;

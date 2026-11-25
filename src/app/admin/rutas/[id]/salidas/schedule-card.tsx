@@ -21,7 +21,7 @@ export type CalendarSchedule = Pick<
  * como si fuera la asignada.
  */
 export function scheduleVehicleOptions(schedule: CalendarSchedule, vehicles: VehicleOption[]): VehicleOption[] {
-  if (vehicles.some((vehicle) => vehicle.id === schedule.vehicleId)) {
+  if (!schedule.vehicleId || vehicles.some((vehicle) => vehicle.id === schedule.vehicleId)) {
     return vehicles;
   }
 
@@ -72,12 +72,13 @@ export function ScheduleCard({ schedule, routeId, vehicles, timeLabel }: {
       </p>
       <form action={setScheduleVehicleAction} className="calendar-schedule-vehicle-change">
         <input type="hidden" name="id" value={schedule.id} />
-        <select name="vehicleId" defaultValue={schedule.vehicleId} aria-label={`Nave de la salida de las ${timeLabel}`}>
+        <select name="vehicleId" defaultValue={schedule.vehicleId ?? ""} required aria-label={`Nave de la salida de las ${timeLabel}`}>
+          {!schedule.vehicleId ? <option value="" disabled>Elegir nave…</option> : null}
           {scheduleVehicleOptions(schedule, vehicles).map((vehicle) => (
             <option key={vehicle.id} value={vehicle.id}>{vehicleLabel(vehicle)}</option>
           ))}
         </select>
-        <button type="submit">Cambiar nave</button>
+        <button type="submit">{schedule.vehicleId ? "Cambiar nave" : "Asignar nave"}</button>
       </form>
       <div className="calendar-schedule-actions">
         <Link href={`/admin/rutas/${routeId}/salidas/${schedule.id}`}>Reservas y naves</Link>

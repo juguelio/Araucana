@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
-import { driverConflicts } from "./conflicts";
+import { driverConflicts, fleetConflicts } from "./conflicts";
 
 const at = (time: string, day = "2026-11-20") => new Date(`${day}T${time}:00-03:00`);
 
@@ -62,4 +62,13 @@ describe("driverConflicts: dónde más maneja el chofer en ese tramo", () => {
     ]);
     expect(conflicts[4].href).toBe("/admin/aeropuerto?date=2026-11-20#vuelo-f2");
   });
+});
+
+it("la nave queda libre entre dos traslados de aeropuerto del mismo día", async () => {
+  const { client } = tx({ airport: [
+    { id: "ocupada", flightId: "a", flight: { number: "AR1650", direction: "ARRIVAL", scheduledAt: at("13:00") } },
+    { id: "libre", flightId: "b", flight: { number: "AR1654", direction: "ARRIVAL", scheduledAt: at("17:00") } }
+  ] });
+  const conflicts = await fleetConflicts(client, { vehicleId: "v1", startsAt: at("14:00"), endsAt: at("15:00") });
+  expect(conflicts.map(hit => hit.id)).toEqual(["ocupada"]);
 });

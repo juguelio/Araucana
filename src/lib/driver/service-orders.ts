@@ -66,8 +66,8 @@ export async function listDriverServiceOrders(driverId: string, date: string) {
   const { airport, special, schedules } = await assignedServices([driverId], date);
   const routes = await Promise.all(schedules.map(async (schedule) => {
     const vehicles = [schedule, ...schedule.extraUnits]
-      .filter((unit) => unit.driverId === driverId).map((unit) => unit.vehicle.name);
-    if (!vehicles.length) return null;
+      .flatMap((unit) => unit.driverId === driverId && unit.vehicle ? [unit.vehicle.name] : []);
+    if (!vehicles.length && schedule.driverId !== driverId) return null;
     const input = await getRouteSheetInput(schedule.id);
     if (!input || input.status === "CANCELLED") return null;
     return {

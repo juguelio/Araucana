@@ -1,6 +1,9 @@
 import { dayRange, localDateKey, type BoardArea } from "@/lib/operations/day-board";
 
-export const driverActivityAreas: Record<BoardArea, string> = {
+export type DriverActivityArea = BoardArea | "CONCESION";
+
+export const driverActivityAreas: Record<DriverActivityArea, string> = {
+  CONCESION: "Concesiones",
   RUTA: "Rutas",
   AEROPUERTO: "Aeropuerto",
   CHAPELCO: "Chapelco",
@@ -17,7 +20,7 @@ export type DriverActivityPeriod = keyof typeof driverActivityPeriods;
 
 export type DriverActivity = {
   id: string;
-  area: BoardArea;
+  area: DriverActivityArea;
   date: string;
   startsAt: Date | null;
   endsAt: Date | null;

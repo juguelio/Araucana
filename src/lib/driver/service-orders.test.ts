@@ -105,3 +105,17 @@ it("imprime la salida de ruta del chofer adicional con su nave y el horario incl
       sheet: { heading: expect.stringContaining("sale 11:30"), passengers: [] } }
   ]);
 });
+
+it("conserva la hoja del chofer que ya tiene salida aunque todavía esté pendiente la nave", async () => {
+  const sinNave = { ...schedule, vehicle: null, vehicleId: null, extraUnits: [] };
+  vi.mocked(prisma.schedule.findMany).mockResolvedValue([sinNave]);
+  vi.mocked(getRouteSheetInput).mockResolvedValue({
+    scheduleId: "s1", departureAt, arrivalAt: schedule.arrivalAt, status: "OPEN",
+    driver: { name: "Chofer principal", email: "principal@example.com" },
+    route: { from: "San Martín", to: "Villa Traful", via: "", stops: [] },
+    vehicle: { name: "Sin nave", licensePlate: null }, reservations: []
+  });
+  expect(await listDriverServiceOrders("principal", "2026-11-24")).toMatchObject([
+    { type: "route", id: "s1", vehicles: [], sheet: { vehicle: "Sin nave" } }
+  ]);
+});

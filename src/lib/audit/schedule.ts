@@ -8,7 +8,7 @@ const when = new Intl.DateTimeFormat("es-AR", {
 });
 
 type ScheduleRow = {
-  id: string; routeId: string; vehicleId: string; driverId?: string | null; departureAt: Date; arrivalAt: Date; status: string;
+  id: string; routeId: string; vehicleId: string | null; driverId?: string | null; departureAt: Date; arrivalAt: Date; status: string;
   /** Naves que se sumaron a la salida además de la principal. Sólo se compara si viene en los dos lados. */
   extraUnits?: Array<{ vehicleId: string; driverId: string | null }>;
 };
@@ -35,7 +35,7 @@ export async function recordScheduleAudit(
   const extras = [...(before?.extraUnits ?? []), ...(after?.extraUnits ?? [])];
   const vehicleIds = [...new Set([before?.vehicleId, after?.vehicleId, ...extras.map((unit) => unit.vehicleId)].filter((id): id is string => !!id))];
   const vehicles = await tx.vehicle.findMany({ where: { id: { in: vehicleIds } }, select: { id: true, name: true } });
-  const vehicleName = (id?: string) => (id ? vehicles.find((vehicle) => vehicle.id === id)?.name ?? id : null);
+  const vehicleName = (id?: string | null) => (id ? vehicles.find((vehicle) => vehicle.id === id)?.name ?? id : null);
   // El chofer (issue #174) también por nombre: un id de usuario no le dice nada a quien lee.
   const driverIds = [...new Set([before?.driverId, after?.driverId, ...extras.map((unit) => unit.driverId)].filter((id): id is string => !!id))];
   const drivers = driverIds.length ? await tx.user.findMany({ where: { id: { in: driverIds } }, select: { id: true, name: true, email: true } }) : [];

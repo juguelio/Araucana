@@ -1,12 +1,13 @@
 import { airportServiceWindow } from "@/lib/airport/service-window";
 import { prisma } from "@/lib/db/prisma";
 import { localDateKey } from "@/lib/operations/day-board";
+import { leerTurno } from "@/lib/school-runs/dia";
 import type { DriverActivity } from "./activity";
 
 const vehicle = { select: { name: true } } as const;
 
 export async function listDriverActivity(driverId: string): Promise<DriverActivity[]> {
-  const [schedules, airport, chapelco, specialTrips] = await Promise.all([
+  const [schedules, airport, chapelco, specialTrips, concessions] = await Promise.all([
     prisma.schedule.findMany({
       where: { OR: [{ driverId }, { extraUnits: { some: { driverId } } }] },
       select: {
@@ -43,7 +44,8 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
         id: true, startsAt: true, endsAt: true, vehicle,
         trip: { select: { id: true, client: true, destinationSearch: true, status: true } }
       }
-    })
+    }),
+    prisma.schoolRun.findMany({ where: { driverId }, select: { id: true, serviceDate: true, shift: true, routeName: true, vehicle } })
   ]);
 
   const routes: DriverActivity[] = schedules.flatMap((schedule) => {
@@ -56,7 +58,7 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
       startsAt: schedule.departureAt,
       endsAt: schedule.arrivalAt,
       title: `${schedule.route.from} → ${schedule.route.to}`,
-      vehicle: assignment.vehicle.name,
+      vehicle: assignment.vehicle?.name ?? "Sin nave",
       status: schedule.status === "CANCELLED" ? "Cancelada" : undefined,
       links: [
         { href: `${href}/planilla`, label: "Ver planilla" },
@@ -119,5 +121,15 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
     ]
   }));
 
-  return [...routes, ...airportTransfers, ...skiDuties, ...trips];
+  const recurring: DriverActivity[] = concessions.map((run) => {
+    const date = run.serviceDate.toISOString().slice(0, 10);
+    const shift = leerTurno(run.shift);
+    return {
+      id: `concesion-${run.id}`, area: "CONCESION", date,
+      startsAt: shift.minutos === null ? null : new Date(`${date}T${shift.clave}:00-03:00`), endsAt: null,
+      title: `${run.routeName} · ${shift.etiqueta}`, vehicle: run.vehicle?.name ?? "Sin nave",
+      links: [{ href: `/admin/escolares/${run.id}`, label: "Ver recorrido" }]
+    };
+  });
+  return [...routes, ...airportTransfers, ...skiDuties, ...trips, ...recurring];
 }

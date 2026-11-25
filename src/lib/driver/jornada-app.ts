@@ -40,7 +40,7 @@ async function serviciosPublicos(driverId: string, desde: Date, hasta: Date, con
     const origen = lugarDeTerminal(s.route.from);
     return unidades.map(u => ({
       id: "salida-" + s.id, fecha: localDateKey(s.departureAt), tipo: "Servicio Público", titulo: s.route.from + " → " + s.route.to,
-      salida: s.departureAt.toISOString(), fin: s.arrivalAt.toISOString(), origen, nave: naveApp(u),
+      salida: s.departureAt.toISOString(), fin: s.arrivalAt.toISOString(), origen, nave: u && naveApp(u),
       paradas: [...new Set([origen, ...paradas.map(p => lugarDeTerminal(p.name)), lugarDeTerminal(s.route.to)])], indicaciones: textos([s.route.via]),
       filas, compartida: s._count.extraUnits > 0
     }));

@@ -13,6 +13,7 @@ import {
 import { tituloDeNave } from "@/lib/fleet/titulo-de-nave";
 import { isDateKey, localDateKey, shiftDateKey } from "@/lib/operations/day-board";
 import { AsignarJornada, type ChoferVista, type NaveVista, type ServicioVista } from "./asignar-jornada";
+import { AsignarViaje } from "./asignar-viaje";
 import "./choferes.css";
 
 type Props = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
@@ -26,7 +27,7 @@ const NOMBRE_PESTANA: Record<PestanaChoferes, string> = {
 };
 
 /** Mismo orden que la línea: el color no alcanza si no hay leyenda. */
-const AREAS_LEYENDA = ["SERVICIO_PUBLICO", "AEROPUERTO", "VIAJE_ESPECIAL", "CHAPELCO"] as const;
+const AREAS_LEYENDA = ["SERVICIO_PUBLICO", "AEROPUERTO", "VIAJE_ESPECIAL", "CONCESION", "CHAPELCO"] as const;
 
 const hora = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 const diaLargo = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -35,14 +36,14 @@ const diaCorto = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "nume
 const SENAL_VIVA_MS = 15 * 60_000;
 
 const sinTildes = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-const horario = (servicio: Pick<ServicioDelDia, "desde" | "hasta">) => `${hora.format(servicio.desde)}–${hora.format(servicio.hasta)}`;
+const horario = (servicio: Pick<ServicioDelDia, "desde" | "hasta" | "turno">) => servicio.turno ?? `${hora.format(servicio.desde)}–${hora.format(servicio.hasta)}`;
 const horas = (valor: number) => `${valor.toLocaleString("es-AR", { maximumFractionDigits: 1 })} h`;
 
 /**
  * Choferes como tablero del día (rediseño del 24-nov). Antes era la planilla de cuentas filtrada a
  * chofer: nombre, email, DNI y vencimientos. Ahora la pregunta es la de la operación —¿quién maneja
  * qué hoy, y con qué nave?— y la respuesta está en una línea del día por chofer, con un gesto para
- * asignarle una nave por el día. Los papeles siguen a la vista, como una marca en cada chofer y una
+ * asignarle un viaje y su nave. Los papeles siguen a la vista, como una marca en cada chofer y una
  * pestaña para lo que hay que renovar.
  *
  * Lo ve la secretaría (sólo mirar); asignar es de administración, igual que el chofer de una salida.
@@ -120,9 +121,9 @@ export default async function ChoferesPage({ searchParams }: Props) {
     clave: s.clave, area: s.area, vehicleId: s.vehicleId, driverId: s.driverId, desde: s.desde.getTime(), hasta: s.hasta.getTime(),
     horario: horario(s), titulo: s.titulo, asignable: s.asignableDesdeChoferes
   }));
-  const usadas = new Set(servicios.map((s) => s.vehicleId));
   const navesVista: NaveVista[] = vehiculos
-    .filter((v) => usadas.has(v.id) || (v.isActive && v.kind !== "UTILITARIO"))
+    .filter((v) => v.isActive && v.kind !== "UTILITARIO")
+    .sort((a, b) => tituloDeNave(a).localeCompare(tituloDeNave(b), "es", { numeric: true }))
     .map((v) => ({ id: v.id, titulo: tituloDeNave(v), detalle: [v.licensePlate, v._count.seats ? `${v._count.seats} butacas` : null].filter(Boolean).join(" · ") }));
   const choferesVista: ChoferVista[] = filas
     .filter((fila) => fila.chofer.isActive)
@@ -191,7 +192,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
                 </div>
                 {puedeAsignar ? (
                   <AsignarJornada
-                    dia={dia} diaTexto={fechaTexto} servicios={serviciosVista} naves={navesVista} choferes={choferesVista}
+                    dia={dia} diaTexto={fechaTexto} servicios={serviciosVista} tituloNave={tituloNave(vehicleId)} choferes={choferesVista}
                     vehicleId={vehicleId} trigger="Asignar chofer" triggerClassName="button choferes-asignar"
                   />
                 ) : null}
@@ -263,7 +264,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
                       : actual
                         ? <><b data-tono="curso">Manejando</b> {actual.titulo} · {tituloNave(actual.vehicleId)}</>
                         : siguiente
-                          ? <>Próximo {hora.format(siguiente.desde)} · {siguiente.titulo}</>
+                          ? <>Próximo {siguiente.turno ?? hora.format(siguiente.desde)} · {siguiente.titulo}</>
                           : jornada.length === 1
                             ? <>{esHoy ? "Terminó" : "1 servicio"} · {horas(horasDeLaJornada(jornada))} · {jornada[0].titulo}</>
                             : jornada.length
@@ -303,7 +304,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
                       title={`${horario(servicio)} · ${ETIQUETA_AREA[servicio.area]} · ${servicio.titulo} · ${tituloNave(servicio.vehicleId)}`}
                       aria-label={`${horario(servicio)} · ${ETIQUETA_AREA[servicio.area]} · ${servicio.titulo} · ${tituloNave(servicio.vehicleId)}`}
                     >
-                      <span className="chofer-bloque-hora">{cubreElDia ? "Todo el día" : hora.format(servicio.desde)}</span>
+                      <span className="chofer-bloque-hora">{servicio.turno ?? (cubreElDia ? "Todo el día" : hora.format(servicio.desde))}</span>
                       {cubreElDia ? <span className="chofer-bloque-area">{ETIQUETA_AREA[servicio.area]}</span> : null}
                       {muestraTitulo ? <span className="chofer-bloque-titulo">{servicio.titulo}</span> : null}
                     </Link>
@@ -331,10 +332,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
                 </div>
                 <div className="chofer-acciones">
                   {puedeAsignar && chofer.isActive ? (
-                    <AsignarJornada
-                      dia={dia} diaTexto={fechaTexto} servicios={serviciosVista} naves={navesVista} choferes={choferesVista}
-                      driverId={chofer.id} trigger={naves.length ? "Sumar nave" : "Asignar nave"} triggerClassName="ghost-button choferes-asignar"
-                    />
+                    <AsignarViaje dia={dia} fechaTexto={fechaTexto} driverId={chofer.id} nombre={fila.nombre} naves={navesVista} />
                   ) : null}
                   <MenuFila etiqueta={`Más opciones de ${fila.nombre}`}>
                     {jornada.length ? <Link href={`/admin/choferes/${chofer.id}/ordenes?fecha=${dia}`} prefetch={false}>Hoja del día</Link> : null}

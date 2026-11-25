@@ -57,7 +57,7 @@ export type AccountingReservationRecord = {
     vehicle: {
       id: string;
       name: string;
-    };
+    } | null;
     route: {
       from: string;
       to: string;

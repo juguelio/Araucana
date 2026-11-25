@@ -93,7 +93,7 @@ export type ScheduleInput = {
   passengers: number;
   /** Todas las reservas de la salida, canceladas incluidas: con alguna, no se quita desde el tablero. */
   reservations?: number;
-  vehicle: { id: string; name: string; seats: number };
+  vehicle: { id: string; name: string; seats: number } | null;
   driver: BoardPerson | null;
   /** Naves que se sumaron a la salida además de la principal. */
   extraUnits?: Array<{ id: string; vehicle: { id: string; name: string; seats: number }; driver: BoardPerson | null }>;
@@ -161,12 +161,13 @@ function crewFlags(passengers: number, units: BoardUnit[], needsVehicle: boolean
 export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
   const groups = new Map<string, ScheduleInput[]>();
   for (const schedule of schedules) {
-    const key = `${schedule.routeId}|${schedule.departureAt.toISOString()}`;
+    const key = schedule.vehicle ? `${schedule.routeId}|${schedule.departureAt.toISOString()}` : schedule.id;
     groups.set(key, [...(groups.get(key) ?? []), schedule]);
   }
   return [...groups.values()].map((group) => {
     const first = group[0];
     const units: BoardUnit[] = group.flatMap((schedule) => {
+      if (!schedule.vehicle) return [];
       const extras = schedule.extraUnits ?? [];
       const primary: BoardUnit = {
         id: schedule.id,
@@ -200,9 +201,9 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
     const passengers = group.reduce((sum, schedule) => sum + schedule.passengers, 0);
     // Una salida programada sin un solo pasajero es programación, no servicio del día (issue #258).
     const programmed = passengers === 0;
-    const statuses = [...new Set(units.map((unit) => unit.status ?? null))];
+    const statuses = [...new Set(group.map((schedule) => SCHEDULE_STATUS[schedule.status] ?? null))];
     return {
-      key: `ruta-${first.routeId}-${first.departureAt.toISOString()}`,
+      key: first.vehicle ? `ruta-${first.routeId}-${first.departureAt.toISOString()}` : `ruta-${first.id}`,
       area: "RUTA" as const,
       serviceId: first.id,
       at: first.departureAt,
@@ -210,7 +211,7 @@ export function scheduleRows(schedules: ScheduleInput[]): BoardRow[] {
       title: `${first.from} → ${first.to}`,
       detail: units.length > 1 ? `${units.length} naves` : null,
       passengers,
-      ...crewFlags(passengers, units, false),
+      ...crewFlags(passengers, units, first.status !== "CLOSED"),
       programmed,
       units,
       // El estado va en la fila sólo si todas las unidades lo comparten; si no, en cada unidad.

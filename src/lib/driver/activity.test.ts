@@ -6,7 +6,8 @@ const db = vi.hoisted(() => ({
   schedule: { findMany: vi.fn() },
   airportVehicleAssignment: { findMany: vi.fn() },
   chapelcoVehicleDuty: { findMany: vi.fn() },
-  specialTripAssignment: { findMany: vi.fn() }
+  specialTripAssignment: { findMany: vi.fn() },
+  schoolRun: { findMany: vi.fn() }
 }));
 vi.mock("@/lib/db/prisma", () => ({ prisma: db }));
 
@@ -28,12 +29,15 @@ it("incluye la nave adicional del chofer y enlaza la orden al vuelo, nave y fech
     operationDay: { serviceDate: new Date("2026-11-23T00:00:00Z"), route: { from: "San Martín", to: "Chapelco" } }
   }]);
   db.specialTripAssignment.findMany.mockResolvedValue([]);
+  db.schoolRun.findMany.mockResolvedValue([{ id: "e1", serviceDate: new Date("2026-11-23"), shift: "Mañana",
+    routeName: "Personal del aeropuerto", vehicle: { name: "Minibús" } }]);
 
   const entries = await listDriverActivity("chofer-1");
   expect(db.schedule.findMany).toHaveBeenCalledWith(expect.objectContaining({
     where: { OR: [{ driverId: "chofer-1" }, { extraUnits: { some: { driverId: "chofer-1" } } }] }
   }));
-  expect(entries).toHaveLength(3);
+  expect(entries).toHaveLength(4);
+  expect(entries[3]).toMatchObject({ area: "CONCESION", vehicle: "Minibús", date: "2026-11-23", startsAt: null });
   expect(entries[0]).toMatchObject({ vehicle: "Nave adicional", links: expect.arrayContaining([
     { href: "/admin/rutas/r1/salidas/s1/planilla", label: "Ver planilla" }
   ]) });

@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { airportWindowCandidates } from "@/lib/airport/window-query";
 import { airportServiceWindow } from "@/lib/airport/service-window";
 import { dateOnly, localInput } from "./data";
 
@@ -52,7 +53,6 @@ export async function fleetConflicts(
   const first = localInput(startsAt).slice(0, 10);
   const last = localInput(new Date(+endsAt - 1)).slice(0, 10);
   const dateRange = { gte: dateOnly(first)!, lte: dateOnly(last)! };
-  const flightRange = { gte: dayInterval(first).startsAt, lt: dayInterval(last).endsAt };
   const [special, schedules, chapelco, airport] = await Promise.all([
     specialConflicts(tx, interval, excludeTrip),
     tx.schedule.findMany({
@@ -74,7 +74,7 @@ export async function fleetConflicts(
       where: {
         vehicleId,
         ...(excludeAirportAssignment ? { id: { not: excludeAirportAssignment } } : {}),
-        flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }, { pickupStartOverrideAt: null, pickupStartInitialAt: flightRange }] }
+        flight: airportWindowCandidates(startsAt, endsAt)
       },
       include: { flight: true }
     })
@@ -83,7 +83,10 @@ export async function fleetConflicts(
     ...special,
     ...schedules.map((s): FleetConflict => ({ id: s.id, label: `Servicio público · ${s.route.from} → ${s.route.to}`, href: `/admin/rutas/${s.routeId}/salidas/${s.id}`, possible: false })),
     ...chapelco.map((d): FleetConflict => ({ id: d.id, label: "Chapelco", href: `/admin/chapelco?date=${d.operationDay.serviceDate.toISOString().slice(0, 10)}`, possible: true })),
-    ...airport.map((a): FleetConflict => ({ id: a.id, label: `Aeropuerto · ${a.flight.number}`, href: `/admin/aeropuerto?date=${localInput(a.flight.scheduledAt).slice(0, 10)}#vuelo-${a.flightId}`, possible: true }))
+    ...airport.filter(({ flight }) => {
+      const window = airportServiceWindow(flight);
+      return window.startsAt < endsAt && window.endsAt > startsAt;
+    }).map((a): FleetConflict => ({ id: a.id, label: `Aeropuerto · ${a.flight.number}`, href: `/admin/aeropuerto?date=${localInput(a.flight.scheduledAt).slice(0, 10)}#vuelo-${a.flightId}`, possible: true }))
   ];
 }
 
@@ -103,9 +106,6 @@ export async function driverConflicts(
   const { driverId, startsAt, endsAt } = interval;
   const first = localInput(startsAt).slice(0, 10);
   const last = localInput(new Date(+endsAt - 1)).slice(0, 10);
-  // Los vuelos se traen con un día de margen para cada lado (un arribo de la noche anterior reparte
-  // pasada la medianoche) y se filtran por su propia ventana de servicio.
-  const flightRange = { gte: new Date(+dayInterval(first).startsAt - 86_400_000), lt: new Date(+dayInterval(last).endsAt + 86_400_000) };
   const activeSchedule = { departureAt: { lt: endsAt }, arrivalAt: { gt: startsAt }, status: { notIn: ["CANCELLED", "CANCELED", "CLOSED"] } };
   const [schedules, units, special, chapelco, airport] = await Promise.all([
     tx.schedule.findMany({ where: { driverId, ...activeSchedule }, include: { route: { select: { from: true, to: true } } } }),
@@ -129,7 +129,7 @@ export async function driverConflicts(
         ...(excludeAirport?.sameTrip?.length ? { AND: { NOT: {
           flightId: { in: excludeAirport.sameTrip }, privateReservationId: null, vehicleId: excludeAirport.vehicleId
         } } } : {}),
-        flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }] }
+        flight: airportWindowCandidates(startsAt, endsAt)
       },
       include: { flight: true }
     })
@@ -159,14 +159,14 @@ export async function recordAcceptance(tx: Prisma.TransactionClient, service: st
 }
 
 
-type ScheduleData = { routeId: string; vehicleId: string; departureAt: Date; arrivalAt: Date; status: string };
+type ScheduleData = { routeId: string; vehicleId: string | null; departureAt: Date; arrivalAt: Date; status: string };
 
 export async function savePublicSchedule(tx: Prisma.TransactionClient, data: ScheduleData, userId: string, acknowledgment: string, id?: string, statusOnly = false) {
   // Al mover una salida que lleva varias naves, se controlan también las que se le sumaron.
   const extras = id && !statusOnly
     ? (await tx.scheduleUnit.findMany({ where: { scheduleId: id }, select: { vehicleId: true } })).map((unit) => unit.vehicleId)
     : [];
-  const vehicleIds = [...new Set([data.vehicleId, ...extras])];
+  const vehicleIds = [...new Set([data.vehicleId, ...extras].filter((id): id is string => id !== null))];
   await lockFleet(tx, vehicleIds);
   /**
    * Antes acá sólo se miraban los viajes especiales: desde el calendario de salidas se podía asignar la
@@ -187,7 +187,11 @@ export async function savePublicSchedule(tx: Prisma.TransactionClient, data: Sch
   if (conflicts.length && acknowledgment !== confirmation) return { conflicts, confirmation };
   const saved = id
     ? await tx.schedule.update({
-      where: statusOnly ? { id, routeId: data.routeId, vehicleId: data.vehicleId, departureAt: data.departureAt, arrivalAt: data.arrivalAt } : { id },
+      where: {
+        id,
+        ...(data.vehicleId === null ? { vehicleId: null } : {}),
+        ...(statusOnly ? { routeId: data.routeId, vehicleId: data.vehicleId, departureAt: data.departureAt, arrivalAt: data.arrivalAt } : {})
+      },
       data: statusOnly ? { status: data.status } : data
     })
     : await tx.schedule.create({ data });

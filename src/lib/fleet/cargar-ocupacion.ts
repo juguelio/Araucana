@@ -53,7 +53,7 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
   return [
     ...salidas.map((salida): Ocupacion => ({
       clave: `salida:${salida.id}`,
-      vehicleIds: [salida.vehicleId, ...salida.extraUnits.map((unidad) => unidad.vehicleId)],
+      vehicleIds: [...(salida.vehicleId ? [salida.vehicleId] : []), ...salida.extraUnits.map((unidad) => unidad.vehicleId)],
       driverIds: [salida.driverId, ...salida.extraUnits.map((unidad) => unidad.driverId)].filter((id): id is string => Boolean(id)),
       desde: salida.departureAt,
       hasta: salida.arrivalAt,

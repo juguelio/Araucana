@@ -1,0 +1,1 @@
+ALTER TABLE "Schedule" ALTER COLUMN "vehicleId" DROP NOT NULL;

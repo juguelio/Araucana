@@ -59,12 +59,12 @@ export async function getRouteSheetInput(scheduleId: string): Promise<RouteSheet
     // Con varias naves, la planilla las nombra todas («Combi 243 (AB123CD) + Sprinter 196»).
     vehicle: schedule.extraUnits.length
       ? {
-        name: [schedule.vehicle, ...schedule.extraUnits.map((unit) => unit.vehicle)]
+        name: [...(schedule.vehicle ? [schedule.vehicle] : []), ...schedule.extraUnits.map((unit) => unit.vehicle)]
           .map((vehicle) => (vehicle.licensePlate ? `${vehicle.name} (${vehicle.licensePlate})` : vehicle.name))
           .join(" + "),
         licensePlate: null
       }
-      : schedule.vehicle,
+      : schedule.vehicle ?? { name: "Sin nave", licensePlate: null },
     reservations: schedule.reservations.map((reservation) => ({
       id: reservation.id,
       ticketCode: reservation.ticket?.code ?? null,

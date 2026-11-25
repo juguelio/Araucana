@@ -13,7 +13,7 @@ export type UnitSeat = { id: string; vehicleId: string; number: string; row: num
 type UnitVehicle = { id?: string; isActive?: boolean; seats?: UnitSeat[]; _count?: { seats: number } };
 
 export type ScheduleWithUnits = {
-  vehicle: UnitVehicle;
+  vehicle: UnitVehicle | null;
   extraUnits?: Array<{ vehicle: UnitVehicle }>;
 };
 
@@ -32,20 +32,21 @@ export function unitSeatPrefix(position: number) {
   return position <= 1 ? "" : `U${position}-`;
 }
 
-function seatsOf(vehicle: UnitVehicle) {
-  return vehicle.seats ?? [];
+function seatsOf(vehicle: UnitVehicle | null) {
+  return vehicle?.seats ?? [];
 }
 
-function countOf(vehicle: UnitVehicle) {
-  return vehicle._count?.seats ?? vehicle.seats?.length ?? 0;
+function countOf(vehicle: UnitVehicle | null) {
+  return vehicle?._count?.seats ?? vehicle?.seats?.length ?? 0;
 }
 
 /**
  * Todas las naves de la salida en orden: la principal y después las extra. Una nave extra dada de
  * baja no suma lugares (la principal inactiva ya cierra la venta de la salida entera).
  */
-export function scheduleVehicles<T>(schedule: { vehicle: T; extraUnits?: Array<{ vehicle: T }> }): T[] {
-  return [schedule.vehicle, ...(schedule.extraUnits ?? []).map((unit) => unit.vehicle)];
+export function scheduleVehicles<T>(schedule: { vehicle: T | null; extraUnits?: Array<{ vehicle: T }> }): T[] {
+  const extras = (schedule.extraUnits ?? []).map((unit) => unit.vehicle);
+  return schedule.vehicle ? [schedule.vehicle, ...extras] : extras;
 }
 
 /** Lugares de la salida: la suma de los asientos de sus naves activas. */

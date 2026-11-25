@@ -6,7 +6,7 @@
  * de asignar la usan igual.
  */
 
-export type AreaDeServicio = "SERVICIO_PUBLICO" | "AEROPUERTO" | "VIAJE_ESPECIAL" | "CHAPELCO";
+export type AreaDeServicio = "SERVICIO_PUBLICO" | "AEROPUERTO" | "VIAJE_ESPECIAL" | "CHAPELCO" | "CONCESION";
 
 export type ServicioDelDia = {
   /** `salida:<scheduleId>`, `unidad:<scheduleUnitId>`, `vuelo:<assignmentId>`, `viaje:<assignmentId>`, `chapelco:<dutyId>`. */
@@ -19,6 +19,7 @@ export type ServicioDelDia = {
   /** «San Martín → Villa Traful» · «Partida AR1659» · cliente del viaje · «Chapelco». */
   titulo: string;
   href: string;
+  turno?: string;
   /** Chapelco tiene su propio tablero (paradas por chofer): desde Choferes sólo se ve. */
   asignableDesdeChoferes: boolean;
 };
@@ -27,6 +28,7 @@ export const ETIQUETA_AREA: Record<AreaDeServicio, string> = {
   SERVICIO_PUBLICO: "Servicio público",
   AEROPUERTO: "Aeropuerto",
   VIAJE_ESPECIAL: "Viaje especial",
+  CONCESION: "Concesiones",
   CHAPELCO: "Chapelco"
 };
 

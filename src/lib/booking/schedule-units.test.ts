@@ -7,6 +7,13 @@ const combi = { id: "v1", name: "Combi 243", isActive: true, seats: [seat("v1", 
 const sprinter = { id: "v2", name: "Sprinter 196", isActive: true, seats: [seat("v2", "1", 1), seat("v2", "2", 1, 2), seat("v2", "3", 2)] };
 
 describe("varias naves por salida", () => {
+  it("una salida pendiente no aporta cupo ni asientos para vender", () => {
+    const pending = { vehicle: null };
+    expect(scheduleVehicles(pending)).toEqual([]);
+    expect(scheduleSeatCount(pending)).toBe(0);
+    expect(scheduleSeatPool(pending)).toEqual([]);
+  });
+
   it("el cupo es la suma de los asientos de todas las naves activas", () => {
     expect(scheduleSeatCount({ vehicle: combi })).toBe(2);
     expect(scheduleSeatCount({ vehicle: combi, extraUnits: [{ vehicle: sprinter }] })).toBe(5);

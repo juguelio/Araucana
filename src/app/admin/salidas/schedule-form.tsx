@@ -26,7 +26,7 @@ type VehicleOption = {
 type ScheduleFormData = {
   id?: string;
   routeId?: string;
-  vehicleId?: string;
+  vehicleId?: string | null;
   departureAt?: Date;
   status?: string;
 };
@@ -93,14 +93,15 @@ export function ScheduleForm({ action, routes, vehicles, schedule, submitLabel }
         <FieldError id="routeId-error" message={errors.routeId} />
       </label>
       <label>
-        Vehiculo
+        Nave
         <select
           name="vehicleId"
-          defaultValue={schedule?.vehicleId}
-          required
+          defaultValue={schedule?.vehicleId ?? ""}
+          required={Boolean(schedule?.vehicleId)}
           aria-invalid={Boolean(errors.vehicleId)}
           aria-describedby={errors.vehicleId ? "vehicleId-error" : undefined}
         >
+          {!schedule?.vehicleId ? <option value="">Sin nave asignada</option> : null}
           {vehicles.map((vehicle) => (
             <option key={vehicle.id} value={vehicle.id}>
               {vehicle.name} · {vehicle._count.seats} asientos

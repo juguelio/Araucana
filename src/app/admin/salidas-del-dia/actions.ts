@@ -203,19 +203,19 @@ export async function createBoardScheduleAction(_state: BoardFormState, formData
   const actor = await getCurrentAdminOrRedirect();
   const dateKey = value(formData, "date");
   const routeId = value(formData, "routeId");
-  const vehicleId = value(formData, "vehicleId");
+  const vehicleId = value(formData, "vehicleId") || null;
   const driverId = value(formData, "driverId") || null;
   const departureAt = timeOnDay(dateKey, value(formData, "time"));
   if (!routeId) return { error: "Elegí la ruta." };
   if (!departureAt) return { error: "Poné la hora de salida." };
-  if (!vehicleId) return { error: "Elegí la nave." };
+  if (driverId && !vehicleId) return { error: "Elegí la nave para asignar ese chofer." };
 
   const [route, vehicle] = await Promise.all([
     prisma.travelRoute.findUnique({ where: { id: routeId }, select: { id: true, slug: true, durationMin: true, bookingMode: true, isActive: true } }),
-    prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { isActive: true } })
+    vehicleId ? prisma.vehicle.findUnique({ where: { id: vehicleId }, select: { isActive: true } }) : null
   ]);
   if (!route || ["AIRPORT", "CHAPELCO"].includes(route.bookingMode)) return { error: "Esa ruta no tiene salidas propias: elegí otra." };
-  if (!vehicle?.isActive) return { error: "Esa nave no está disponible: elegí una unidad activa." };
+  if (vehicleId && !vehicle?.isActive) return { error: "Esa nave no está disponible: elegí una unidad activa." };
   if (driverId && !(await activeDriver(driverId))) return { error: "Ese chofer no está disponible: elegí un chofer activo." };
   const arrivalAt = new Date(departureAt.getTime() + Math.max(route.durationMin, 1) * 60000);
 
@@ -227,13 +227,14 @@ export async function createBoardScheduleAction(_state: BoardFormState, formData
     select: { id: true }
   });
   if (existing) {
+    if (!vehicleId) return { error: "Ya hay una salida de esa ruta a esa hora." };
     const added = await addScheduleUnit({ actor, scheduleId: existing.id, vehicleId, driverId, confirmation: value(formData, "confirmation") });
     return afterUnitChange(added, formData);
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    await lockFleet(tx, [vehicleId]);
-    const conflicts = await fleetConflicts(tx, { vehicleId, startsAt: departureAt, endsAt: arrivalAt });
+    if (vehicleId) await lockFleet(tx, [vehicleId]);
+    const conflicts = vehicleId ? await fleetConflicts(tx, { vehicleId, startsAt: departureAt, endsAt: arrivalAt }) : [];
     const check = checkConflicts(conflicts, [routeId, vehicleId, departureAt.toISOString()], value(formData, "confirmation"));
     if (check?.error) {
       const labels = [...new Set(conflicts.filter((c) => !c.possible).map((c) => c.label))];
@@ -248,6 +249,8 @@ export async function createBoardScheduleAction(_state: BoardFormState, formData
   if (!("id" in result)) return result;
 
   revalidatePath("/admin/salidas-del-dia");
+  revalidatePath("/admin/choferes");
+  revalidatePath("/admin/servicio-publico");
   revalidatePath(`/admin/rutas/${routeId}/salidas`);
   revalidatePath(`/rutas/${route.slug}`);
   revalidatePath(`/reservar/${route.slug}`);

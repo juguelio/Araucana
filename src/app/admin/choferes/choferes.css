@@ -1,12 +1,13 @@
 /* === Choferes: tablero del día (rediseño del 24-nov) ===
    Antes: la planilla de cuentas (nombre, email, DNI, vencimientos). Ahora: el día de cada chofer en una
-   línea de 05 a 24 h, con color por área, las naves que maneja y un gesto para asignarle una nave por
-   el día. Arriba, lo que falta resolver (servicios sin chofer). Mismo lenguaje que el tablero de Naves. */
+   línea de 05 a 24 h, con color por área, las naves que maneja y un gesto para asignarle un viaje con
+   su nave. Arriba, lo que falta resolver (servicios sin chofer). Mismo lenguaje que el tablero de Naves. */
 
 /* Colores por área (los mismos en la línea y en el modal). */
 .choferes-leyenda, .choferes-lista, .jornada-form {
   --area-publico: #1f5b4f;
   --area-aeropuerto: #0d3b52;
+  --area-concesion: #685084;
   --area-especial: #a05438;
   --area-chapelco: #6b7a6e;
 }
@@ -125,6 +126,7 @@
 .choferes-leyenda-item { display: inline-flex; align-items: center; gap: 6px; }
 .choferes-leyenda-item i { width: 10px; height: 10px; border-radius: 3px; background: var(--area-publico); }
 .choferes-leyenda-item i[data-area="AEROPUERTO"] { background: var(--area-aeropuerto); }
+.choferes-leyenda-item i[data-area="CONCESION"] { background: var(--area-concesion); }
 .choferes-leyenda-item i[data-area="VIAJE_ESPECIAL"] { background: var(--area-especial); }
 .choferes-leyenda-item i[data-area="CHAPELCO"] { background: repeating-linear-gradient(135deg, var(--area-chapelco) 0 3px, color-mix(in srgb, var(--area-chapelco) 80%, #fff) 3px 6px); }
 
@@ -221,6 +223,7 @@
 }
 .chofer-bloque[data-area="AEROPUERTO"] { --area-actual: var(--area-aeropuerto); background: var(--area-actual); }
 .chofer-bloque[data-area="VIAJE_ESPECIAL"] { --area-actual: var(--area-especial); background: var(--area-actual); }
+.chofer-bloque[data-area="CONCESION"] { --area-actual: var(--area-concesion); background: var(--area-actual); }
 .chofer-bloque[data-area="CHAPELCO"] { --area-actual: var(--area-chapelco); background: repeating-linear-gradient(135deg, var(--area-chapelco) 0 6px, color-mix(in srgb, var(--area-chapelco) 80%, #fff) 6px 12px); }
 .chofer-bloque-hora { flex: 0 0 auto; }
 .chofer-bloque-area { flex: 0 0 auto; font-weight: 700; opacity: .8; }
@@ -261,6 +264,8 @@
 .reservas-modal.jornada-modal { width: min(640px, 100%); }
 .jornada-pasos { display: grid; gap: 16px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .jornada-paso { display: grid; gap: 8px; min-width: 0; }
+.jornada-fecha { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.jornada-fecha input { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; font: inherit; color: inherit; }
 .jornada-paso h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .jornada-paso h3 span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: var(--primary); color: #fff; font-size: 12px; letter-spacing: 0; }
 .jornada-buscar {

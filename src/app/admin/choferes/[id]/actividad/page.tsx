@@ -7,10 +7,10 @@ import { getCurrentDriverManagerOrRedirect } from "@/lib/auth/admin";
 import { isAdminRole } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
 import {
-  activityStatus, driverActivityAreas, driverActivityPeriods, filterDriverActivity, type DriverActivityPeriod
+  activityStatus, driverActivityAreas, driverActivityPeriods, filterDriverActivity, type DriverActivityArea, type DriverActivityPeriod
 } from "@/lib/driver/activity";
 import { listDriverActivity } from "@/lib/driver/activity-repository";
-import { localDateKey, type BoardArea } from "@/lib/operations/day-board";
+import { localDateKey } from "@/lib/operations/day-board";
 import { dateOnly } from "@/lib/special-trips/data";
 import "./driver-activity.css";
 
@@ -42,7 +42,7 @@ export default async function DriverActivityPage({ params, searchParams }: {
   const dateFilter = (value: Query[string]) => typeof value === "string" && dateOnly(value) ? value : undefined;
   const from = dateFilter(query.desde);
   const to = dateFilter(query.hasta);
-  const area = typeof query.tipo === "string" && Object.hasOwn(driverActivityAreas, query.tipo) ? query.tipo as BoardArea : undefined;
+  const area = typeof query.tipo === "string" && Object.hasOwn(driverActivityAreas, query.tipo) ? query.tipo as DriverActivityArea : undefined;
   const period = typeof query.vista === "string" && Object.hasOwn(driverActivityPeriods, query.vista) ? query.vista as DriverActivityPeriod : "hoy";
   const driverHref = `/admin/choferes/${driver.id}`;
   const base = `${driverHref}/actividad`;

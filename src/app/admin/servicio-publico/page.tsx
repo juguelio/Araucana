@@ -241,7 +241,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                             <span className="sp-patente">{salida.patente ?? "Sin patente"}</span>
                           </td>
                           <td data-label="Unidad">
-                            <Link href={`/admin/naves/${salida.vehicleId}`}>{salida.nave}</Link>
+                            {salida.vehicleId ? <Link href={`/admin/naves/${salida.vehicleId}`}>{salida.nave}</Link> : "Sin nave"}
                           </td>
                           <td data-label="Chofer">
                             {salida.driverId && salida.driverName ? (
@@ -255,7 +255,7 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
                               fecha={fecha}
                               naves={opciones.naves}
                               choferes={opciones.choferes}
-                              defaultVehicleId={salida.vehicleId}
+                              defaultVehicleId={salida.vehicleId ?? ""}
                               defaultDriverId={salida.driverId ?? ""}
                               ocupacionNaves={ocupacionEnVentana(ocupacionDelDia, "nave", { desde: salida.salidaAt, hasta: salida.llegadaAt }, [`salida:${salida.id}`])}
                               ocupacionChoferes={ocupacionEnVentana(ocupacionDelDia, "chofer", { desde: salida.salidaAt, hasta: salida.llegadaAt }, [`salida:${salida.id}`])}

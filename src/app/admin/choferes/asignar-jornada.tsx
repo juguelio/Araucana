@@ -3,12 +3,13 @@
 import { startTransition, useActionState, useMemo, useState } from "react";
 import { FleetConflictWarning } from "@/app/admin/fleet-assignment-form";
 import { RowModal } from "@/app/admin/reservas/row-modal";
+import { ETIQUETA_AREA, type AreaDeServicio } from "@/lib/driver/tablero-choferes";
 import { asignarChoferANaveAction, type AsignarChoferState } from "./actions";
 
 /** Un servicio del día, listo para el navegador (sin `Date`). */
 export type ServicioVista = {
   clave: string;
-  area: "SERVICIO_PUBLICO" | "AEROPUERTO" | "VIAJE_ESPECIAL" | "CHAPELCO";
+  area: AreaDeServicio;
   vehicleId: string;
   driverId: string | null;
   desde: number;
@@ -21,68 +22,41 @@ export type ServicioVista = {
 export type NaveVista = { id: string; titulo: string; detalle: string };
 export type ChoferVista = { id: string; nombre: string; iniciales: string };
 
-const AREA: Record<ServicioVista["area"], string> = {
-  SERVICIO_PUBLICO: "Servicio público",
-  AEROPUERTO: "Aeropuerto",
-  VIAJE_ESPECIAL: "Viaje especial",
-  CHAPELCO: "Chapelco"
-};
-
 const sinTildes = (texto: string) => texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Igual que `preseleccion` (lib/driver/tablero-choferes): lo que no tiene chofer o ya es suyo. */
 const vieneTildado = (servicio: ServicioVista, driverId: string) => servicio.asignable && (!servicio.driverId || servicio.driverId === driverId);
 
-/**
- * «Este chofer maneja esta nave hoy» (tablero de Choferes, 24-nov). Se abre desde un chofer (se elige la
- * nave) o desde una nave sin chofer (se elige el chofer); en los dos casos se tildan los servicios de la
- * nave ese día que pasan a ser suyos y se guarda todo junto.
- */
+/** Completa el chofer de servicios que ya tienen nave. */
 export function AsignarJornada({
-  dia, diaTexto, servicios, naves, choferes, driverId: choferFijo, vehicleId: naveFija, trigger, triggerClassName
+  dia, diaTexto, servicios, tituloNave, choferes, vehicleId, trigger, triggerClassName
 }: {
-  dia: string;
-  diaTexto: string;
-  servicios: ServicioVista[];
-  naves: NaveVista[];
-  choferes: ChoferVista[];
-  driverId?: string;
-  vehicleId?: string;
-  trigger: string;
-  triggerClassName: string;
+  dia: string; diaTexto: string; servicios: ServicioVista[]; tituloNave: string;
+  choferes: ChoferVista[]; vehicleId: string; trigger: string; triggerClassName: string;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const chofer = choferes.find((c) => c.id === choferFijo);
-  const nave = naves.find((n) => n.id === naveFija);
-  const titulo = chofer ? `${chofer.nombre} · ${diaTexto}` : `${nave?.titulo ?? "Nave"} · ${diaTexto}`;
   return (
     <RowModal
       trigger={trigger}
-      triggerLabel={chofer ? `Asignar nave a ${chofer.nombre}` : `Asignar chofer a ${nave?.titulo ?? "la nave"}`}
+      triggerLabel={`Asignar chofer a ${tituloNave}`}
       triggerClassName={triggerClassName}
       modalClassName="jornada-modal"
-      eyebrow={chofer ? "Asignar nave por el día" : "Asignar chofer por el día"}
-      title={titulo}
+      eyebrow="Asignar chofer por el día"
+      title={`${tituloNave} · ${diaTexto}`}
       subtitle="Se le asignan los servicios que tildes de esa nave en el día."
       open={abierto}
       onOpenChange={setAbierto}
     >
-      {abierto ? <Formulario dia={dia} servicios={servicios} naves={naves} choferes={choferes} choferFijo={choferFijo} naveFija={naveFija} /> : null}
+      {abierto ? <Formulario dia={dia} servicios={servicios} tituloNave={tituloNave} choferes={choferes} vehicleId={vehicleId} /> : null}
     </RowModal>
   );
 }
 
-function Formulario({ dia, servicios, naves, choferes, choferFijo, naveFija }: {
-  dia: string;
-  servicios: ServicioVista[];
-  naves: NaveVista[];
-  choferes: ChoferVista[];
-  choferFijo?: string;
-  naveFija?: string;
+function Formulario({ dia, servicios, tituloNave, choferes, vehicleId }: {
+  dia: string; servicios: ServicioVista[]; tituloNave: string; choferes: ChoferVista[]; vehicleId: string;
 }) {
   const [estado, despachar, guardando] = useActionState<AsignarChoferState, FormData>(asignarChoferANaveAction, {});
-  const [vehicleId, setVehicleId] = useState(naveFija ?? "");
-  const [driverId, setDriverId] = useState(choferFijo ?? "");
+  const [driverId, setDriverId] = useState("");
   const [buscar, setBuscar] = useState("");
   const [tildes, setTildes] = useState<Record<string, boolean>>({});
 
@@ -97,18 +71,6 @@ function Formulario({ dia, servicios, naves, choferes, choferFijo, naveFija }: {
     return enLaNave.filter((s) => suyos.some((o) => o.desde < s.hasta && s.desde < o.hasta));
   };
 
-  // Elegir la nave (desde un chofer): las que tienen algo sin chofer primero, después las que trabajan.
-  const opcionesNave = useMemo(() => {
-    const filtro = sinTildes(buscar.trim());
-    return naves
-      .map((n) => {
-        const suyos = servicios.filter((s) => s.vehicleId === n.id);
-        return { nave: n, total: suyos.length, sinChofer: suyos.filter((s) => s.asignable && !s.driverId).length, choferes: [...new Set(suyos.map((s) => s.driverId).filter(Boolean))] };
-      })
-      .filter(({ nave }) => !filtro || sinTildes(`${nave.titulo} ${nave.detalle}`).includes(filtro))
-      .sort((a, b) => Number(b.sinChofer > 0) - Number(a.sinChofer > 0) || b.total - a.total || a.nave.titulo.localeCompare(b.nave.titulo, "es", { numeric: true }));
-  }, [naves, servicios, buscar]);
-
   // Elegir el chofer (desde una nave): los que no se cruzan primero, y entre ellos los que menos manejan.
   const opcionesChofer = useMemo(() => {
     const filtro = sinTildes(buscar.trim());
@@ -119,7 +81,6 @@ function Formulario({ dia, servicios, naves, choferes, choferFijo, naveFija }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [choferes, servicios, deLaNave, buscar]);
 
-  const elegirNave = (id: string) => { setVehicleId(id); setTildes({}); };
   const elegirChofer = (id: string) => { setDriverId(id); setTildes({}); };
   const listo = Boolean(vehicleId && driverId);
   const crucesElegidos = listo ? cruces(driverId, deLaNave.filter(tildado)) : [];
@@ -137,40 +98,7 @@ function Formulario({ dia, servicios, naves, choferes, choferFijo, naveFija }: {
       <input type="hidden" name="driverId" value={driverId} />
       <input type="hidden" name="vehicleId" value={vehicleId} />
       <fieldset disabled={guardando} className="jornada-pasos">
-        {!naveFija ? (
-          <section className="jornada-paso">
-            <h3><span>1</span> Nave</h3>
-            {!vehicleId ? (
-              <>
-                <input className="jornada-buscar" type="search" placeholder="Buscar interno o patente" value={buscar} onChange={(e) => setBuscar(e.target.value)} aria-label="Buscar nave" autoFocus />
-                <ul className="jornada-opciones" role="list">
-                  {opcionesNave.map(({ nave, total, sinChofer, choferes: deOtros }) => (
-                    <li key={nave.id}>
-                      <button type="button" className="jornada-opcion" onClick={() => elegirNave(nave.id)}>
-                        <strong>{nave.titulo}</strong>
-                        <small>{nave.detalle}</small>
-                        <span className="jornada-opcion-chips">
-                          {sinChofer ? <em data-tono="alerta">{sinChofer} sin chofer</em> : null}
-                          {total ? <em>{total} {total === 1 ? "servicio" : "servicios"}</em> : <em data-tono="calmo">Sin servicios ese día</em>}
-                          {deOtros.length ? <em>{deOtros.map((id) => nombreDe(id as string)).join(", ")}</em> : null}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                  {!opcionesNave.length ? <li className="muted">No hay naves con ese interno o patente.</li> : null}
-                </ul>
-              </>
-            ) : (
-              <p className="jornada-elegido">
-                <strong>{naves.find((n) => n.id === vehicleId)?.titulo}</strong>
-                <button type="button" className="jornada-cambiar" onClick={() => { setVehicleId(""); setBuscar(""); }}>Cambiar</button>
-              </p>
-            )}
-          </section>
-        ) : null}
-
-        {!choferFijo ? (
-          <section className="jornada-paso">
+        <section className="jornada-paso">
             <h3><span>1</span> Chofer</h3>
             {!driverId ? (
               <>
@@ -197,12 +125,11 @@ function Formulario({ dia, servicios, naves, choferes, choferFijo, naveFija }: {
                 <button type="button" className="jornada-cambiar" onClick={() => { setDriverId(""); setBuscar(""); }}>Cambiar</button>
               </p>
             )}
-          </section>
-        ) : null}
+        </section>
 
         {listo ? (
           <section className="jornada-paso">
-            <h3><span>2</span> Servicios de {naves.find((n) => n.id === vehicleId)?.titulo} ese día</h3>
+            <h3><span>2</span> Servicios de {tituloNave} ese día</h3>
             {deLaNave.length ? (
               <ul className="jornada-servicios" role="list">
                 {deLaNave.map((servicio) => {
@@ -223,10 +150,10 @@ function Formulario({ dia, servicios, naves, choferes, choferFijo, naveFija }: {
                         <span className="jornada-servicio-texto">
                           <strong>{servicio.titulo}</strong>
                           <small>
-                            {AREA[servicio.area]}
+                            {ETIQUETA_AREA[servicio.area]}
                             {" · "}
                             {!servicio.asignable
-                              ? "se asigna desde Chapelco"
+                              ? "se asigna desde su tablero"
                               : servicio.driverId === driverId
                                 ? "ya es suyo"
                                 : otro

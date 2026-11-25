@@ -95,8 +95,8 @@ export function reservationToIncome(reservation: AccountingReservationRecord) {
     amountCents: reservation.totalCents,
     currency: reservation.currency,
     occurredAt: approvedPayment ? approvedPayment.updatedAt : reservation.createdAt,
-    vehicleId: reservation.schedule?.vehicle.id ?? "sin-nave",
-    vehicleName: reservation.schedule?.vehicle.name ?? "Sin nave asignada"
+    vehicleId: reservation.schedule?.vehicle?.id ?? "sin-nave",
+    vehicleName: reservation.schedule?.vehicle?.name ?? "Sin nave asignada"
   };
 }
 

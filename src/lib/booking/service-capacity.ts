@@ -39,7 +39,7 @@ export async function lugarEnSalida(tx: Tx, scheduleId: string, pedido: Pedido) 
     }
   });
   if (!schedule) throw new BookingError("SCHEDULE_NOT_FOUND", "La salida ya no existe.");
-  if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= pedido.ahora || !schedule.route.isActive || schedule.vehicle.isActive === false) {
+  if (!["OPEN", "DOCUMENTATION"].includes(schedule.status) || schedule.departureAt <= pedido.ahora || !schedule.route.isActive || !schedule.vehicle || schedule.vehicle.isActive === false) {
     throw new BookingError("SERVICE_ALREADY_STARTED", `La salida ya arrancó o se cerró: no se puede ${pedido.accion}.`);
   }
   const vivas = schedule.reservations.filter((item) => item.id !== pedido.excluir && item.status !== "CANCELLED");
