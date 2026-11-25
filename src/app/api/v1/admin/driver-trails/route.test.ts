@@ -23,6 +23,20 @@ describe("GET driver-trails", () => {
       expect(filtro.lte.getTime() - filtro.gte.getTime()).toBe(horas * 3_600_000);
     }
   );
+  it.each([
+    ["2026-11-26T02:59:00Z", "2026-11-25T03:00:00Z"],
+    ["2026-11-26T03:01:00Z", "2026-11-26T03:00:00Z"]
+  ])("lee exclusivamente la jornada argentina al pedir hoy a las %s", async (ahora, desde) => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date(ahora));
+      const response = await GET(new Request("http://localhost/api/v1/admin/driver-trails?dia=hoy"));
+      expect(response.status).toBe(200);
+      expect(findMany.mock.calls[0][0].where.recordedAt).toEqual({ gte: new Date(desde), lte: new Date(ahora) });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it.each([401, 403])("no consulta posiciones sin autorización (%s)", async status => {
     requireAdminApi.mockRejectedValueOnce({ status });
     const response = await GET(new Request("http://localhost/api/v1/admin/driver-trails"));

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleApiError } from "@/lib/api/responses";
-import { acotarHoras, cargarRecorridosResultado, VENTANA_RECORRIDO_HORAS } from "@/lib/driver/recorrido";
+import { acotarHoras, cargarRecorridosDeHoy, cargarRecorridosResultado, VENTANA_RECORRIDO_HORAS } from "@/lib/driver/recorrido";
 import { requireAdminApi } from "../_utils";
 
 /**
@@ -13,7 +13,9 @@ import { requireAdminApi } from "../_utils";
 export async function GET(request: Request) {
   try {
     await requireAdminApi(request);
-    const pedidas = new URL(request.url).searchParams.get("horas");
+    const query = new URL(request.url).searchParams;
+    if (query.get("dia") === "hoy") return NextResponse.json(await cargarRecorridosDeHoy());
+    const pedidas = query.get("horas");
     const horas = acotarHoras(pedidas ?? VENTANA_RECORRIDO_HORAS);
     const { recorridos, truncado } = await cargarRecorridosResultado(horas);
     return NextResponse.json({ recorridos, horas, truncado });

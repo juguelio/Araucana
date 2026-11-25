@@ -17,6 +17,8 @@ export type AreaDeServicio = "RUTA" | "AEROPUERTO" | "CHAPELCO" | "ESPECIAL";
 export type UnidadDeServicio = {
   vehicleId: string;
   vehicleName: string;
+  inicioAsignado?: Date;
+  finAsignado?: Date;
   internalNumber: string | null;
   driverId: string | null;
   driverName: string | null;
@@ -27,6 +29,8 @@ export type UnidadDeServicio = {
 export type ServicioDelDia = {
   id: string;
   area: AreaDeServicio;
+  rutaId?: string;
+  fechaVuelo?: string;
   /** Hora de salida (o primer ascenso); `null` si el servicio no tiene hora cargada. */
   at: Date | null;
   /** Hora estimada de cierre del servicio (llegada a destino, fin del reparto o del viaje especial). */

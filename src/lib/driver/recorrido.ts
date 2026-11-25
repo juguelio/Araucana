@@ -1,3 +1,4 @@
+import { dayRange, localDateKey } from "@/lib/operations/day-board";
 import { prisma } from "@/lib/db/prisma";
 
 /** Ventana por defecto y máximo permitido tanto en la página como en la API. */
@@ -215,6 +216,14 @@ export async function cargarRecorridosResultado(
 ): Promise<ResultadoRecorridos> {
   const acotadas = acotarHoras(horas);
   const desde = new Date(ahora.getTime() - acotadas * 60 * 60 * 1000);
+  return { ...await leerTramos(desde, ahora), horas: acotadas };
+}
+
+export function cargarRecorridosDeHoy(ahora = new Date()) {
+  return leerTramos(dayRange(localDateKey(ahora)).from, ahora);
+}
+
+async function leerTramos(desde: Date, ahora: Date) {
   const muestras = await prisma.driverLocationSample.findMany({
     where: { recordedAt: { gte: desde, lte: ahora } },
     select: SELECT_MUESTRA,
@@ -223,7 +232,6 @@ export async function cargarRecorridosResultado(
   });
   return {
     recorridos: construirRecorridos(muestras.slice(0, MAX_MUESTRAS_RECORRIDO)),
-    horas: acotadas,
     truncado: muestras.length > MAX_MUESTRAS_RECORRIDO
   };
 }

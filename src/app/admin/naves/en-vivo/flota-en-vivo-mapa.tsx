@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FlotaEnVivo } from "@/lib/driver/en-vivo";
+import { datosDelPlan, seguimiento, type PlanMapa } from "@/lib/driver/plan-mapa";
+import { localDateKey } from "@/lib/operations/day-board";
 import type { Recorrido } from "@/lib/driver/recorrido";
 import type { ServicioEvaluado } from "@/lib/driver/servicios";
 import {
@@ -54,20 +56,25 @@ function horaCorta(fecha: Date | string | null) {
 export function FlotaEnVivoMapa({
   inicial,
   recorridosIniciales,
+  fecha, planes, truncadoInicial,
   servicios = [],
   unidadInicial = null,
   unidadPedida = null
 }: {
   inicial: FlotaEnVivo;
   recorridosIniciales: Recorrido[];
+  planes: PlanMapa[];
+  fecha: string;
+  truncadoInicial: boolean;
   servicios?: ServicioEvaluado[];
   unidadInicial?: string | null;
   /** La unidad que se pidió desde el tablero de flota, con su nombre, aunque no tenga posición. */
   unidadPedida?: { id: string; nombre: string } | null;
 }) {
   const [flota, setFlota] = useState(inicial);
-  const [recorridos, setRecorridos] = useState(recorridosIniciales);
-  const [truncado, setTruncado] = useState(false);
+  const [historial, setRecorridos] = useState(recorridosIniciales);
+  const [truncado, setTruncado] = useState(truncadoInicial);
+  const [planId, setPlanId] = useState("");
   const [mostrar, setMostrar] = useState(true);
   const [seleccion, setSeleccion] = useState<string | null>(() => {
     if (!unidadInicial) return null;
@@ -84,6 +91,12 @@ export function FlotaEnVivoMapa({
   const [errorHistorial, setErrorHistorial] = useState("");
   const [reloj, setReloj] = useState(() => Date.now());
 
+  const esHoy = fecha === localDateKey(new Date(reloj));
+  const planesHoy = useMemo(() => esHoy ? planes : [], [esHoy, planes]);
+  const recorridos = useMemo(() => esHoy ? historial.filter(r => localDateKey(new Date(r.ultimaSenal)) === fecha) : [], [esHoy, historial, fecha]);
+  const planElegido = planesHoy.find(p => p.id === planId) ?? null;
+  const visibles = useMemo(() => planElegido ? [planElegido] : planesHoy, [planElegido, planesHoy]);
+
   useEffect(() => {
     if (!unidadInicial) return;
     const encontrada = flota.naves.find(
@@ -98,6 +111,8 @@ export function FlotaEnVivoMapa({
     () => unidadesActuales(flota.naves, reloj, flota.ventanaMinutos),
     [flota.naves, flota.ventanaMinutos, reloj]
   );
+
+  const estadosPlan = useMemo(() => new Map(naves.map(n => [n.vehicleId, seguimiento(n, planesHoy, reloj)])), [naves, planesHoy, reloj]);
 
   /** Metros por tramo, sumados sólo para la unidad que ese chofer tiene ahora. */
   const metrosPorUnidad = useMemo(() => {
@@ -150,8 +165,8 @@ export function FlotaEnVivoMapa({
 
   /** Un color por chofer, estable y sin repetir mientras alcance la paleta. */
   const colores = useMemo(
-    () => asignarColores([...naves.map((nave) => nave.driverId), ...recorridos.map((tramo) => tramo.driverId)]),
-    [naves, recorridos]
+    () => asignarColores([...flota.naves.map((nave) => nave.driverId), ...recorridos.map((tramo) => tramo.driverId)]),
+    [flota.naves, recorridos]
   );
 
   const seleccionada = seleccion ? naves.find((nave) => claveUnidad(nave) === seleccion) ?? null : null;
@@ -185,7 +200,7 @@ export function FlotaEnVivoMapa({
 
   const traerRecorridos = useCallback(async (senal?: AbortSignal) => {
     try {
-      const respuesta = await fetch("/api/v1/admin/driver-trails", { cache: "no-store", signal: senal });
+      const respuesta = await fetch("/api/v1/admin/driver-trails?dia=hoy", { cache: "no-store", signal: senal });
       if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
       const datos = (await respuesta.json()) as { recorridos: Recorrido[]; truncado?: boolean };
       setRecorridos(datos.recorridos);
@@ -236,7 +251,7 @@ export function FlotaEnVivoMapa({
           </span>
           <span className="flota-leyenda">
             <span className="flota-punto is-recorrido" aria-hidden="true" /> {recorridos.length} tramo
-            {recorridos.length === 1 ? "" : "s"} de recorrido
+            {recorridos.length === 1 ? "" : "s"} GPS de hoy
           </span>
           <span className="flota-en-vivo-refresco">
             {segundos < 60 ? `Actualizado hace ${segundos} s` : `Actualizado ${hace(Math.floor(segundos / 60))}`}
@@ -250,7 +265,7 @@ export function FlotaEnVivoMapa({
             aria-pressed={mostrar}
             onClick={() => setMostrar((valor) => !valor)}
           >
-            {mostrar ? "Ocultar recorridos" : "Ver recorridos"}
+            {mostrar ? "Ocultar huella GPS" : "Ver huella GPS"}
           </button>
           <button
             type="button"
@@ -315,7 +330,26 @@ export function FlotaEnVivoMapa({
 
       <div className="flota-en-vivo-grid">
         <div className="flota-mapa-col">
+          <label className="flota-selector-plan">Recorridos de hoy
+            <select value={planElegido?.id ?? ""} onChange={e => { setPlanId(e.target.value); setSeleccion(null); }}>
+              <option value="">Todos los recorridos ({planesHoy.length})</option>
+              {planesHoy.map(p => <option key={p.id} value={p.id}>{datosDelPlan(p).join(" · ")}</option>)}
+            </select>
+          </label>
+          {planElegido && <div className="flota-plan-ficha">
+            <strong>{planElegido.titulo}</strong>
+            <span>{datosDelPlan(planElegido).slice(1).join(" · ")}</span>
+            {!planElegido.tramos.length && <span>Sin trazado cargado para esta salida.</span>}
+            {planElegido.unidades.map(u => {
+              const n = naves.find(nave => nave.vehicleId === u.id);
+              return <span key={u.id}>{u.nombre} · {n ? `${ESTADO[n.estado]} · última señal ${horaSenal(n.recordedAt)}` : "Sin ubicación GPS"}</span>;
+            })}
+          </div>}
           <MapaUnidades
+            planes={visibles}
+            planesDelDia={planesHoy}
+            planElegido={planElegido}
+            estadosPlan={estadosPlan}
             naves={naves}
             recorridos={recorridos}
             mostrar={mostrar}
@@ -325,10 +359,9 @@ export function FlotaEnVivoMapa({
             colores={colores}
           />
           <p className="flota-mapa-leyenda">
-            <span><i className="inicio" aria-hidden="true" /> círculo hueco: dónde arrancó el tramo</span>
-            <span><i className="sentido" aria-hidden="true" /> flecha: para dónde fue</span>
-            <span><i className="fin" aria-hidden="true" /> punto lleno: última posición del tramo</span>
-            <span>cada unidad tiene su color, igual que en la lista</span>
+            <span><i className="plan" aria-hidden="true" /> Recorrido previsto</span>
+            <span><i className="huella" aria-hidden="true" /> Huella GPS de hoy</span>
+            <span>Las conexiones entre paradas son orientativas.</span>
           </p>
         </div>
 
@@ -374,14 +407,15 @@ export function FlotaEnVivoMapa({
                             ? `Recorrido ≈ ${distanciaVisible(fila.metros)}`
                             : "Sin recorrido todavía"}
                         </small>
-                        {fila.servicio ? (
+                        <small className={estadosPlan.get(fila.nave.vehicleId)?.alerta ? "flota-desvio" : undefined}>
+                          {estadosPlan.get(fila.nave.vehicleId)?.texto}
+                        </small>
+                        {fila.servicio && !fila.servicio.enCurso ? (
                           <small className={`flota-fila-servicio is-${fila.servicio.nivel}`}>
-                            {fila.servicio.enCurso ? "Ahora" : horaCorta(fila.servicio.at)} · {fila.servicio.titulo}
+                            {horaCorta(fila.servicio.at)} · {fila.servicio.titulo}
                             {fila.servicio.pasajeros > 0 ? ` (${fila.servicio.pasajeros} pas.)` : ""}
                           </small>
-                        ) : (
-                          <small className="flota-fila-servicio is-libre">Sin servicio próximo hoy</small>
-                        )}
+                        ) : null}
                       </span>
                     </button>
                   </li>

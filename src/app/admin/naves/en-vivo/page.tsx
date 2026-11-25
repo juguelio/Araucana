@@ -2,7 +2,8 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { cargarFlotaEnVivo, VENTANA_SENAL_MINUTOS } from "@/lib/driver/en-vivo";
-import { cargarRecorridos, VENTANA_RECORRIDO_HORAS } from "@/lib/driver/recorrido";
+import { cargarPlanesDelDia } from "@/lib/driver/planes-del-dia";
+import { cargarRecorridosDeHoy } from "@/lib/driver/recorrido";
 import { cargarDiaDeFlota, diasConActividad } from "@/lib/driver/dia";
 import { fechaLocal, rangoDelDia } from "@/lib/driver/jornada";
 import { prisma } from "@/lib/db/prisma";
@@ -36,9 +37,10 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
   const sessionUser = await getCurrentAdminOrRedirect();
   const query = (await searchParams) ?? {};
   const vista = query.vista === "dia" ? "dia" : query.vista === "servicios" ? "servicios" : "en-vivo";
-  const hoy = fechaLocal(new Date());
+  const ahora = new Date();
+  const hoy = fechaLocal(ahora);
   const fechaPedida = typeof query.fecha === "string" ? query.fecha : "";
-  const fecha = rangoDelDia(fechaPedida) ? fechaPedida : hoy;
+  const fecha = vista !== "en-vivo" && rangoDelDia(fechaPedida) ? fechaPedida : hoy;
   const unidadSeleccionada = typeof query.unidad === "string" && query.unidad.trim() ? query.unidad.trim() : null;
   const paginaServicios = Math.max(1, Number.parseInt(String(query.page ?? ""), 10) || 1);
   /** Resultado de asignar nave desde el aviso o desde la lista (server action → redirect). */
@@ -61,11 +63,12 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
 
   const [flota, recorridos, dia, dias, servicios] =
     vista === "en-vivo"
-      ? [await cargarFlotaEnVivo(), await cargarRecorridos(), null, [] as string[], await cargarServiciosDelDia(fecha)]
+      ? await Promise.all([cargarFlotaEnVivo(ahora), cargarRecorridosDeHoy(ahora), null, [] as string[], cargarServiciosDelDia(hoy)] as const)
       : vista === "dia"
-        ? [null, [], await cargarDiaDeFlota(fecha), await diasConActividad(), null]
-        : [await cargarFlotaEnVivo(), [], null, [] as string[], await cargarServiciosDelDia(fecha)];
+        ? [null, null, await cargarDiaDeFlota(fecha), await diasConActividad(), null]
+        : [await cargarFlotaEnVivo(), null, null, [] as string[], await cargarServiciosDelDia(fecha)];
 
+  const planes = vista === "en-vivo" && servicios ? await cargarPlanesDelDia(hoy, servicios) : [];
   const resumenServicios = servicios ? evaluarServiciosDelDia(servicios, flota) : null;
 
   // Naves y choferes para el modal «Asignar nave»: en Servicios del día se puede asignar
@@ -116,12 +119,12 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
 
         {vista === "en-vivo" ? (
           <details className="flota-criterios">
-            <summary>Criterios del mapa ({VENTANA_RECORRIDO_HORAS} h · lectura cada 30 s)</summary>
+            <summary>Cómo leer el mapa de hoy</summary>
             <p>
-              Muestra dónde está cada unidad y por dónde pasó en las últimas {VENTANA_RECORRIDO_HORAS} horas. Se lee
-              cada 30 segundos; después de {VENTANA_SENAL_MINUTOS} minutos sin reportar queda{" "}
-              <strong>sin señal</strong> en su última posición. La línea se corta si cambia la unidad o hay un hueco
-              de más de 10 minutos.
+              Las líneas punteadas muestran la ruta prevista y las continuas, el GPS desde la medianoche argentina.
+              Pasá el mouse o tocá un recorrido para ver la salida y su nave. La posición se actualiza cada 30 segundos. Después de {VENTANA_SENAL_MINUTOS} minutos sin reportar queda{" "}
+              <strong>sin señal</strong> en su última posición. El aviso de posible desvío aparece durante la salida cuando el GPS se aleja más de 500 m
+              de la carretera de referencia, más el margen de precisión del teléfono. Entre paradas el margen es mayor.
             </p>
           </details>
         ) : null}
@@ -133,7 +136,11 @@ export default async function NavesEnVivoPage({ searchParams }: Props) {
           <AvisoDeServicios resumen={resumenServicios ?? evaluarServiciosDelDia([], flota)} fecha={fecha} naves={opciones.naves} choferes={opciones.choferes} />
           <FlotaEnVivoMapa
             inicial={flota}
-            recorridosIniciales={recorridos ?? []}
+            key={hoy}
+            fecha={hoy}
+            planes={planes}
+            truncadoInicial={recorridos?.truncado ?? false}
+            recorridosIniciales={recorridos?.recorridos ?? []}
             servicios={resumenServicios?.evaluados ?? []}
             unidadInicial={unidadSeleccionada}
             unidadPedida={unidadPedida}

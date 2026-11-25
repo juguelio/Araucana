@@ -743,3 +743,21 @@ button.flota-fila:hover, button.flota-fila:focus-visible { background: #f1efe7; 
 }
 .srv-cambiar:hover { border-color: var(--primary); color: var(--primary); background: rgba(24,59,50,.06); }
 .srv-ancla { scroll-margin-top: 20px; }
+
+.flota-selector-plan { display: grid; gap: 5px; margin-bottom: 8px; font-weight: 700; }
+.flota-selector-plan select { width: 100%; min-width: 0; padding: 8px; font: inherit; }
+.flota-plan-ficha { display: grid; gap: 3px; margin-bottom: 8px; font-size: 13px; }
+.flota-mapa-leyenda i.plan, .flota-mapa-leyenda i.huella { width: 23px; height: 0; border-radius: 0; }
+.flota-mapa-leyenda i.plan { border-top: 3px dashed #815518; }
+.flota-mapa-leyenda i.huella { border-top: 3px solid #17664f; }
+.flota-pin.is-desvio span { outline: 4px solid #b03b21; }
+.flota-fila-texto small.flota-desvio { color: #9b351d; font-weight: 700; }
+.flota-mapa .leaflet-tooltip .flota-globo { max-width: min(310px, 65vw); white-space: normal; }
+.flota-pin span { display: grid; place-items: center; }
+.flota-pin span::after {
+  content: ""; width: 9px; height: 10px; border: 1.5px solid white; border-radius: 3px;
+  background: linear-gradient(to bottom, transparent 15%, white 15% 53%, transparent 53%);
+  box-shadow: -2px 4px 0 -3px white, 2px 4px 0 -3px white;
+}
+/* El panel SVG de referencia necesita el mismo lienzo sin límite que el overlay de Leaflet. */
+.flota-mapa .leaflet-planes-pane > svg { max-width: none; max-height: none; }

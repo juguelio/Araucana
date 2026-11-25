@@ -28,7 +28,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
 
   const [schedules, flights, chapelco, especiales] = await Promise.all([
     prisma.schedule.findMany({
-      where: { departureAt: { gte: from, lt: to } },
+      where: { departureAt: { gte: from, lt: to }, status: { not: "CANCELLED" }, route: { isActive: true } },
       orderBy: { departureAt: "asc" },
       select: {
         id: true,
@@ -52,6 +52,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       // hora de pickup, que es cuando la unidad tiene que moverse.
       where: {
         scheduledAt: { gte: new Date(from.getTime() - 8 * 3_600_000), lt: new Date(to.getTime() + 8 * 3_600_000) },
+        status: { notIn: ["CANCELLED", "DIVERTED"] },
         number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
       },
       orderBy: { scheduledAt: "asc" },
@@ -82,7 +83,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         from: true,
         to: true,
         chapelcoOperationDays: {
-          where: { serviceDate },
+          where: { serviceDate, status: { not: "CANCELLED" } },
           select: {
             id: true,
             status: true,
@@ -109,6 +110,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       select: {
         id: true,
         client: true,
+        destinationSearch: true,
         passengers: true,
         serviceDate: true,
         assignments: {
@@ -158,6 +160,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
     servicios.push({
       id: `salida-${schedule.id}`,
       area: "RUTA",
+      rutaId: schedule.routeId,
       at: schedule.departureAt,
       endsAt: schedule.arrivalAt,
       titulo: `${schedule.route.from} → ${schedule.route.to}`,
@@ -183,6 +186,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
     servicios.push({
       id: `vuelo-${flight.id}`,
       area: "AEROPUERTO",
+      fechaVuelo: localDateKey(flight.scheduledAt),
       at: cuando,
       endsAt: fin,
       titulo: `Aeropuerto · vuelo ${flight.number}`,
@@ -232,11 +236,13 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
     servicios.push({
       id: `especial-${trip.id}`,
       area: "ESPECIAL",
-      at: primera?.startsAt && primera.startsAt.toISOString().slice(0, 10) === dateKey ? primera.startsAt : null,
+      at: primera?.startsAt && localDateKey(primera.startsAt) === dateKey ? primera.startsAt : null,
       endsAt: primera?.endsAt ?? null,
       titulo: `Viaje especial · ${trip.client}`,
-      detalle: null,
+      detalle: trip.destinationSearch.trim() || null,
       unidades: trip.assignments.map((assignment) => ({
+        inicioAsignado: assignment.startsAt,
+        finAsignado: assignment.endsAt,
         vehicleId: assignment.vehicle.id,
         vehicleName: assignment.vehicle.name,
         internalNumber: assignment.vehicle.internalNumber ?? null,

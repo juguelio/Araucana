@@ -1,20 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { CircleMarker, CircleMarkerOptions, Layer, Map as LeafletMap, Marker, Polyline } from "leaflet";
+import type { Layer, LeafletMouseEvent, Map as LeafletMap, Marker } from "leaflet";
 import type { NaveEnVivo } from "@/lib/driver/en-vivo";
+import { datosDelPlan, planesEnHorario, type PlanMapa, type Punto } from "@/lib/driver/plan-mapa";
 import type { Recorrido } from "@/lib/driver/recorrido";
-import { distanciaVisible, horaSenal, nombreUnidad, puedeAnimar } from "@/lib/driver/mapa-vivo";
+import { horaSenal, nombreUnidad, puedeAnimar } from "@/lib/driver/mapa-vivo";
 import "leaflet/dist/leaflet.css";
 
 export const claveUnidad = (n: { driverId: string; vehicleId: string }) => `${n.driverId}/${n.vehicleId}`;
 const ESTADO = { "en-movimiento": "En movimiento", detenida: "Detenida", "sin-senal": "Sin señal" };
 const textoSeguro = (texto: string) => { const el = document.createElement("span"); el.textContent = texto; return el; };
 
-export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccion, encuadre, colores }: {
+function ficha(lineas: string[]) {
+  const el = document.createElement("div");
+  el.className = "flota-globo";
+  for (const linea of lineas) el.append(textoSeguro(linea));
+  return el;
+}
+
+export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccion, encuadre, colores, planes, planesDelDia, planElegido, estadosPlan }: {
   naves: NaveEnVivo[]; recorridos: Recorrido[]; mostrar: boolean; seleccion: string | null;
   onSeleccion: (clave: string) => void; encuadre: { tipo: "todas" | "recorrido"; numero: number };
   colores: Map<string, string>;
+  planes: PlanMapa[];
+  planesDelDia: PlanMapa[];
+  planElegido: PlanMapa | null;
+  estadosPlan: Map<string, { texto: string; alerta: boolean }>;
 }) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<LeafletMap | null>(null);
@@ -37,8 +49,10 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
       const map = L.map(contenedor.current, { scrollWheelZoom: false }).setView([-40.1579, -71.3534], 12);
       // OSM estándar (sin API key) y el fondo se atenúa por CSS: así quedan las calles como referencia
       // pero el color de los recorridos gana. Los mapas claros de CARTO ahora exigen clave y meten marca.
+      const capaPlanes = map.createPane("planes");
+      capaPlanes.style.zIndex = "390";
       const tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors", maxZoom: 19
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>', maxZoom: 19
       }).addTo(map);
       tiles.on("tileerror", () => { if (!cancelado) setErrorTiles(true); });
       leaflet.current = L;
@@ -77,14 +91,22 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
       globo.className = "flota-globo";
       for (const texto of [nombreUnidad(nave), nave.driverName ?? "Chofer sin nombre", ESTADO[nave.estado],
         `Última señal: ${horaSenal(nave.recordedAt)} · hace ${nave.minutosDesdeLaSenal} min`]) globo.append(textoSeguro(texto));
+      const estado = estadosPlan.get(nave.vehicleId);
+      if (estado) globo.append(textoSeguro(estado.texto));
+      const actuales = planesEnHorario(planesDelDia, nave.vehicleId, Date.now());
+      for (const p of actuales) {
+        if (actuales.length > 1) globo.append(textoSeguro(p.titulo));
+        globo.append(textoSeguro(datosDelPlan(p)[1]));
+      }
       const colorUnidad = colores.get(nave.driverId) ?? "#4f6a62";
       const icon = L.divIcon({
-        className: `flota-pin is-${nave.estado}`, html: `<span style="border-color:${colorUnidad}"></span>`,
+        className: `flota-pin is-${nave.estado}${estado?.alerta ? " is-desvio" : ""}`, html: `<span style="border-color:${colorUnidad}"></span>`,
         iconSize: [22, 22], iconAnchor: [11, 11]
       });
       let entrada = pins.current.get(key);
       if (!entrada) {
-        const marker = L.marker(posicion, { icon, title: nombreUnidad(nave) }).addTo(map).bindPopup(globo);
+        const marker = L.marker(posicion, { icon, title: nombreUnidad(nave) }).addTo(map).bindPopup(globo, { autoPan: false });
+        marker.on("mouseover", () => marker.openPopup());
         marker.on("click", () => { const actual = pins.current.get(key); if (actual) seleccionRef.current(claveUnidad(actual.dato)); });
         entrada = { marker, dato: nave };
         pins.current.set(key, entrada);
@@ -112,7 +134,8 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
         }
         entrada.dato = nave;
       }
-      entrada.marker.setOpacity(seleccion && claveUnidad(nave) !== seleccion ? 0.45 : 1);
+      const otraUnidad = planElegido && !planElegido.unidades.some(u => u.id === nave.vehicleId);
+      entrada.marker.setOpacity(otraUnidad || (seleccion && claveUnidad(nave) !== seleccion) ? 0.4 : 1);
       entrada.marker.setZIndexOffset(claveUnidad(nave) === seleccion ? 1000 : 0);
     }
     for (const [key, entrada] of pins.current) {
@@ -122,7 +145,7 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
       animaciones.current.delete(key);
       entrada.marker.remove(); pins.current.delete(key);
     }
-  }, [listo, naves, seleccion]);
+  }, [listo, naves, seleccion, colores, planesDelDia, estadosPlan, planElegido]);
 
   /**
    * Encuadre inicial una sola vez, incluyendo los recorridos: si sólo entran los puntos actuales, la
@@ -133,13 +156,45 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
     if (!listo || !mapa.current || inicial.current) return;
     const puntos: [number, number][] = [
       ...naves.map(n => [n.latitude, n.longitude] as [number, number]),
+      ...planes.flatMap(p => p.tramos.flatMap(t => t.puntos)),
       ...(mostrar ? recorridos.flatMap(r => r.puntos.map(p => p.punto)) : [])
     ];
     if (!puntos.length) return;
     mapa.current.fitBounds(puntos, { padding: [45, 45], maxZoom: 14 });
     inicial.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listo, naves, recorridos, mostrar]);
+  }, [listo, naves, recorridos, mostrar, planes]);
+
+  useEffect(() => {
+    const map = mapa.current;
+    const L = leaflet.current;
+    if (!map || !L || !listo) return;
+    const grupo = L.layerGroup().addTo(map);
+    for (const plan of planes) {
+      for (const tramo of plan.tramos) {
+        const opciones = { pane: "planes", color: "#815518", weight: 5, dashArray: tramo.vial ? "9 7" : "2 7" };
+        L.polyline(tramo.puntos, { ...opciones, color: "#fff", weight: 8, interactive: false }).addTo(grupo);
+        L.polyline(tramo.puntos, { ...opciones, interactive: false }).addTo(grupo);
+        const texto = [...datosDelPlan(plan), tramo.vial ? "Carretera de referencia" : "Conexión orientativa entre paradas"];
+        L.polyline(tramo.puntos, { pane: "planes", weight: 15, opacity: 0 })
+          .bindTooltip(() => ficha(texto), { sticky: true })
+          .bindPopup(() => ficha(texto)).addTo(grupo);
+      }
+    }
+    return () => { grupo.remove(); };
+  }, [listo, planes]);
+
+  const idPlanEnfocado = useRef("");
+  useEffect(() => {
+    if (!listo || !mapa.current || !planElegido) { idPlanEnfocado.current = ""; return; }
+    if (idPlanEnfocado.current === planElegido.id) return;
+    const puntos: Punto[] = planElegido.tramos.flatMap(t => t.puntos);
+    for (const nave of naves) {
+      if (nave.estado !== "sin-senal" && planElegido.unidades.some(u => u.id === nave.vehicleId)) puntos.push([nave.latitude, nave.longitude]);
+    }
+    if (puntos.length) mapa.current.fitBounds(puntos, { padding: [40, 40], maxZoom: 15 });
+    idPlanEnfocado.current = planElegido.id;
+  }, [listo, planElegido, naves]);
 
   useEffect(() => {
     const map = mapa.current;
@@ -150,11 +205,16 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
     if (!mostrar) return;
     for (const recorrido of recorridos) {
       if (recorrido.puntos.length < 2 || (seleccion && claveUnidad(recorrido) !== seleccion)) continue;
-      const puntos = recorrido.puntos.map(p => p.punto);
+      if (planElegido && !planElegido.unidades.some(u => u.id === recorrido.vehicleId)) continue;
+      const muestras = planElegido?.salida != null && planElegido.fin != null
+        ? recorrido.puntos.filter(p => Date.parse(p.at) >= planElegido.salida! && Date.parse(p.at) < planElegido.fin!)
+        : recorrido.puntos;
+      if (muestras.length < 2) continue;
+      const puntos = muestras.map(p => p.punto);
       const color = colores.get(recorrido.driverId) ?? "#4f6a62";
       // Un halo blanco debajo: sobre el mapa de calles el trazo solo se perdía entre rutas y etiquetas.
       const halo = L.polyline(puntos, {
-        color: "#ffffff", weight: seleccion ? 8 : 6, opacity: 0.85, lineCap: "round", lineJoin: "round"
+        interactive: false, color: "#ffffff", weight: seleccion ? 8 : 6, opacity: 0.85, lineCap: "round", lineJoin: "round"
       }).addTo(map);
       const linea = L.polyline(puntos, {
         color, weight: seleccion ? 4.5 : 3.5, opacity: 0.95, lineCap: "round", lineJoin: "round"
@@ -174,17 +234,37 @@ export function MapaUnidades({ naves, recorridos, mostrar, seleccion, onSeleccio
         })
       }).addTo(map);
       lineas.current.push(salida, llegada);
-      linea.bindTooltip(textoSeguro(`${recorrido.driverName ?? "Chofer"} · ${recorrido.internalNumber ?? recorrido.vehicleName} · ≈ ${distanciaVisible(recorrido.metros)}`), { sticky: true });
+      const nombreHuella = `Huella GPS · ${recorrido.vehicleName}`;
+      const posibles = planesDelDia.filter(plan => plan.unidades.some(u => u.id === recorrido.vehicleId));
+      linea.bindTooltip(textoSeguro(nombreHuella), { sticky: true });
+      // Una huella continua puede abarcar varias salidas. La ficha corresponde a la hora del
+      // reporte más cercano al puntero, incluso si la misma nave ahora cubre otro servicio.
+      let ultimoPunto = -1;
+      const mostrarSalida = (evento: LeafletMouseEvent) => {
+        let cercano = 0;
+        let distancia = Infinity;
+        for (const [indice, muestra] of muestras.entries()) {
+          const metros = evento.latlng.distanceTo(muestra.punto);
+          if (metros < distancia) { cercano = indice; distancia = metros; }
+        }
+        if (ultimoPunto === cercano) return;
+        ultimoPunto = cercano;
+        const servicios = planesEnHorario(posibles, recorrido.vehicleId, Date.parse(muestras[cercano].at));
+        const texto = [nombreHuella, horaSenal(muestras[cercano].at), ...servicios.flatMap(datosDelPlan)];
+        if (!servicios.length) texto.push("Sin salida asignada a esa hora");
+        linea.setTooltipContent(ficha(texto));
+      };
+      linea.on("mouseover", mostrarSalida).on("mousemove", mostrarSalida);
       linea.on("click", () => seleccionRef.current(claveUnidad(recorrido)));
       lineas.current.push(halo, linea);
     }
-  }, [listo, recorridos, seleccion, mostrar, colores]);
+  }, [listo, recorridos, seleccion, mostrar, colores, planesDelDia, planElegido]);
 
   useEffect(() => {
     if (!listo || !mapa.current || encuadre.numero === 0) return;
     const puntos: [number, number][] = encuadre.tipo === "recorrido"
       ? recorridos.filter(r => !seleccion || claveUnidad(r) === seleccion).flatMap(r => r.puntos.map(p => p.punto))
-      : naves.map(n => [n.latitude, n.longitude]);
+      : [...naves.map(n => [n.latitude, n.longitude] as Punto), ...planes.flatMap(p => p.tramos.flatMap(t => t.puntos))];
     if (puntos.length) mapa.current.fitBounds(puntos, { padding: [48, 48], maxZoom: 15, animate: false });
     // Sólo una acción del operador cambia el encuadre, nunca el polling.
     // eslint-disable-next-line react-hooks/exhaustive-deps
