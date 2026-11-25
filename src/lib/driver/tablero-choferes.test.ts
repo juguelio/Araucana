@@ -72,6 +72,12 @@ describe("línea del día (05 a 24 h)", () => {
     expect(bloque.ancho).toBeCloseTo(50);
   });
 
+  it("un servicio de 00 a 24 ocupa toda la línea", () => {
+    const bloque = bloqueEnLinea({ desde: a("00:00"), hasta: new Date(new Date(`${DIA}T00:00:00-03:00`).getTime() + 86_400_000) }, DIA)!;
+    expect(bloque.izquierda).toBe(0);
+    expect(bloque.ancho).toBeGreaterThan(99);
+  });
+
   it("corta lo que empezó antes o termina después del día, y descarta lo que queda afuera", () => {
     const madrugada = bloqueEnLinea({ desde: new Date(`2026-11-27T23:00:00-03:00`), hasta: a("06:00") }, DIA)!;
     expect(madrugada.izquierda).toBe(0);

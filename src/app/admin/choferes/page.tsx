@@ -25,6 +25,9 @@ const NOMBRE_PESTANA: Record<PestanaChoferes, string> = {
   inactivos: "Inactivos"
 };
 
+/** Mismo orden que la línea: el color no alcanza si no hay leyenda. */
+const AREAS_LEYENDA = ["SERVICIO_PUBLICO", "AEROPUERTO", "VIAJE_ESPECIAL", "CHAPELCO"] as const;
+
 const hora = new Intl.DateTimeFormat("es-AR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "America/Argentina/Salta" });
 const diaLargo = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 const diaCorto = new Intl.DateTimeFormat("es-AR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -220,6 +223,16 @@ export default async function ChoferesPage({ searchParams }: Props) {
         ))}
       </nav>
 
+      <div className="choferes-leyenda" aria-label="Color por tipo de servicio">
+        <span className="choferes-leyenda-rotulo">Color por servicio</span>
+        {AREAS_LEYENDA.map((area) => (
+          <span key={area} className="choferes-leyenda-item">
+            <i data-area={area} aria-hidden />
+            {ETIQUETA_AREA[area]}
+          </span>
+        ))}
+      </div>
+
       <div className="choferes-regla" aria-hidden>
         <span />
         <div className="choferes-regla-horas">
@@ -251,9 +264,11 @@ export default async function ChoferesPage({ searchParams }: Props) {
                         ? <><b data-tono="curso">Manejando</b> {actual.titulo} · {tituloNave(actual.vehicleId)}</>
                         : siguiente
                           ? <>Próximo {hora.format(siguiente.desde)} · {siguiente.titulo}</>
-                          : jornada.length
-                            ? <>{esHoy ? "Terminó" : jornada.length === 1 ? "1 servicio" : `${jornada.length} servicios`} · {horas(horasDeLaJornada(jornada))}</>
-                            : esHoy ? "Libre hoy" : "Libre ese día"}
+                          : jornada.length === 1
+                            ? <>{esHoy ? "Terminó" : "1 servicio"} · {horas(horasDeLaJornada(jornada))} · {jornada[0].titulo}</>
+                            : jornada.length
+                              ? <>{esHoy ? "Terminó" : `${jornada.length} servicios`} · {horas(horasDeLaJornada(jornada))}</>
+                              : esHoy ? "Libre hoy" : "Libre ese día"}
                   </span>
                 </div>
                 <span className="chofer-papeles" data-estado={fila.papeles} title={papelesTexto}>
@@ -269,6 +284,8 @@ export default async function ChoferesPage({ searchParams }: Props) {
                 {jornada.map((servicio) => {
                   const bloque = bloqueEnLinea(servicio, dia);
                   if (!bloque) return null;
+                  const cubreElDia = bloque.izquierda <= 0.5 && bloque.ancho >= 99.5;
+                  const muestraTitulo = bloque.ancho >= 18;
                   return (
                     <Link
                       key={servicio.clave}
@@ -276,6 +293,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
                       className="chofer-bloque"
                       data-area={servicio.area}
                       data-ahora={actual?.clave === servicio.clave || undefined}
+                      data-larga={cubreElDia || undefined}
                       style={{
                         left: `${bloque.izquierda}%`,
                         width: `${bloque.ancho}%`,
@@ -283,8 +301,11 @@ export default async function ChoferesPage({ searchParams }: Props) {
                         height: `calc((100% - 8px) / ${lineas.total} - ${lineas.total > 1 ? 1 : 0}px)`
                       }}
                       title={`${horario(servicio)} · ${ETIQUETA_AREA[servicio.area]} · ${servicio.titulo} · ${tituloNave(servicio.vehicleId)}`}
+                      aria-label={`${horario(servicio)} · ${ETIQUETA_AREA[servicio.area]} · ${servicio.titulo} · ${tituloNave(servicio.vehicleId)}`}
                     >
-                      <span>{hora.format(servicio.desde)}</span>
+                      <span className="chofer-bloque-hora">{cubreElDia ? "Todo el día" : hora.format(servicio.desde)}</span>
+                      {cubreElDia ? <span className="chofer-bloque-area">{ETIQUETA_AREA[servicio.area]}</span> : null}
+                      {muestraTitulo ? <span className="chofer-bloque-titulo">{servicio.titulo}</span> : null}
                     </Link>
                   );
                 })}
