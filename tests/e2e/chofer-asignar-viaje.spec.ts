@@ -14,7 +14,9 @@ const driverEmail = `chofer-${suffix}@example.com`;
 const password = `Prueba-${suffix}`;
 const driverName = `Chofer ${suffix.slice(0, 8)}`;
 const tripTitle = `Cabecera ${suffix.slice(0, 8)} → Terminal`;
+const specialClient = `Delegación ${suffix}`;
 let driverId: string, vehicleId: string, routeId: string, flightId: string, runId: string, scheduleId: string;
+let privateFlightId: string;
 
 test.beforeAll(async () => {
   await db.user.create({ data: { email: adminEmail, role: "ADMIN", isActive: true, passwordHash: await bcrypt.hash(password, 4) } });
@@ -26,9 +28,31 @@ test.beforeAll(async () => {
   await db.schedule.create({ data: { routeId, vehicleId, departureAt: new Date(day + "T15:00:00-03:00"), arrivalAt: new Date(day + "T16:00:00-03:00") } });
   flightId = (await db.flight.create({ data: { number: "AR721", origin: "Buenos Aires", scheduledAt: new Date(day + "T12:00:00-03:00") } })).id;
   runId = (await db.schoolRun.create({ data: { serviceDate: new Date(nextDay), routeName: "Traslado de personal", shift: "17:00", kind: "personal-aeropuerto" } })).id;
+  await db.specialTrip.createMany({ data: Array.from({ length: 41 }, (_, i) => ({
+    client: `${specialClient} ${String(i + 1).padStart(2, "0")}`, serviceDate: new Date(day), status: "PENDING",
+    legs: [], destinationSearch: "Lago", billingMode: "TOTAL", currency: "ARS", payments: []
+  })) });
+  await db.travelRoute.create({ data: { slug: `chapelco-${suffix}`, from: "Base", to: "Cerro", via: "", durationMin: 30,
+    priceCents: 1000, category: "REGIONAL", description: "", stops: [], bookingMode: "CHAPELCO", specialType: "CHAPELCO",
+    chapelcoOperationDays: { create: { serviceDate: new Date(day) } } } });
+  const privateFlight = await db.flight.create({ data: {
+    number: "AR723", origin: "Buenos Aires", scheduledAt: new Date(day + "T16:00:00-03:00")
+  } });
+  privateFlightId = privateFlight.id;
+  await db.reservation.create({ data: {
+    code: suffix, shortCode: suffix.slice(0, 8), bookingMode: "AIRPORT", totalCents: 1000,
+    passenger: { create: { firstName: "Ana", lastName: "Prueba", email: driverEmail, phone: "12345", documentType: "DNI", documentId: suffix } },
+    airportDetails: { create: { isPrivate: true, flightId: privateFlight.id, flightNumber: privateFlight.number,
+      direction: privateFlight.direction, serviceDate: new Date(day) } }
+  } });
 });
 
 test.afterAll(async () => {
+  await db.reservation.deleteMany({ where: { code: suffix } });
+  await db.passenger.deleteMany({ where: { email: driverEmail } });
+  if (privateFlightId) await db.flight.delete({ where: { id: privateFlightId } });
+  await db.travelRoute.deleteMany({ where: { slug: `chapelco-${suffix}` } });
+  await db.specialTrip.deleteMany({ where: { client: { startsWith: specialClient } } });
   if (runId) await db.schoolRun.delete({ where: { id: runId } });
   if (flightId) await db.flight.delete({ where: { id: flightId } });
   if (routeId) await db.travelRoute.delete({ where: { id: routeId } });
@@ -37,7 +61,7 @@ test.afterAll(async () => {
   await db.$disconnect();
 });
 
-test("elige un viaje pendiente de cualquier servicio y guarda sólo ese viaje con nave y chofer", async ({ page }) => {
+test("agrupa los viajes pendientes por rubro y asigna sólo el viaje elegido con nave y chofer", async ({ page }) => {
   test.setTimeout(120_000);
   const login = await page.request.post("/api/v1/auth/login", { data: { email: adminEmail, password } });
   expect(login.status()).toBe(200);
@@ -53,9 +77,31 @@ test("elige un viaje pendiente de cualquier servicio y guarda sólo ese viaje co
   await expect(fila.locator(".chofer-acciones").locator("button, a, summary")).toHaveCount(1);
   await trigger.click();
   const modal = page.getByRole("dialog");
-  await expect(modal.getByRole("button", { name: /AR721/ })).toBeVisible();
-  await expect(modal.getByRole("button", { name: /Traslado de personal.*Concesiones/ })).toBeVisible();
-  const schedule = modal.getByRole("button", { name: new RegExp(tripTitle) });
+  const rubro = (nombre: string) => modal.locator("summary").filter({ hasText: nombre });
+  const lista = (nombre: string) => modal.getByRole("list", { name: nombre, exact: true });
+  const buscar = modal.getByRole("searchbox", { name: "Buscar viaje" });
+  await expect(modal.locator("summary")).toHaveText(["Aeropuerto 2 viajes", "Chapelco 1 viaje", "Concesiones 1 viaje", "Servicio público 1 viaje", "Viajes especiales 41 viajes"]);
+  await rubro("Aeropuerto").click();
+  await expect(lista("Aeropuerto").getByRole("button", { name: /AR723.*Privado/ })).toBeVisible();
+  await expect(lista("Aeropuerto").getByRole("button", { name: /AR721/ })).toBeVisible();
+  await buscar.fill("viajes especiales");
+  const especiales = lista("Viajes especiales").getByRole("button");
+  await expect(modal.locator("summary")).toHaveCount(1);
+  await expect(especiales).toHaveCount(40);
+  await modal.getByRole("button", { name: "Ver más viajes" }).click();
+  await expect(especiales).toHaveCount(41);
+  await especiales.last().click();
+  await expect(modal.locator(".jornada-elegido")).toContainText(`${specialClient} 41`);
+  await modal.getByRole("button", { name: "Cambiar viaje" }).click();
+  await expect(especiales).toHaveCount(41);
+  await buscar.fill("servicio publico");
+  await modal.getByLabel("Filtrar por día").fill(nextDay);
+  await expect(modal.getByRole("status")).toHaveText("Ningún viaje coincide con la búsqueda.");
+  await buscar.fill("");
+  await expect(lista("Concesiones").getByRole("button", { name: /Traslado de personal/ })).toBeVisible();
+  await modal.getByLabel("Filtrar por día").fill("");
+  await rubro("Servicio público").click();
+  const schedule = lista("Servicio público").getByRole("button", { name: new RegExp(tripTitle) });
   await expect(schedule).toHaveCount(1);
   await expect(schedule).toContainText("08:00");
   await schedule.click();
@@ -74,8 +120,9 @@ test("elige un viaje pendiente de cualquier servicio y guarda sólo ese viaje co
   await page.getByRole("link", { name: "Volver a la ficha" }).click();
   const asignarEnFicha = page.getByRole("button", { name: `Asignar viaje a ${driverName}` });
   await asignarEnFicha.click();
-  await expect(modal.getByRole("button", { name: new RegExp(tripTitle) })).toHaveCount(0);
-  await modal.getByRole("button", { name: /AR721/ }).click();
+  await expect(rubro("Servicio público")).toHaveCount(0);
+  await rubro("Aeropuerto").click();
+  await lista("Aeropuerto").getByRole("button", { name: /AR721/ }).click();
   await modal.getByLabel("Nave para el viaje").selectOption(vehicleId);
   await modal.getByRole("button", { name: "Asignar viaje", exact: true }).click();
   await expect(modal).toBeHidden();

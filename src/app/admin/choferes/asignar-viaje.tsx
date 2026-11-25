@@ -11,11 +11,15 @@ import { asignarViajeAction, cargarViajesPendientes } from "./asignar-viaje-acti
 type Props = { dia: string; fechaTexto: string; driverId: string; nombre: string; origen: "listado" | "ficha" };
 const clave = (trip: PendingTrip) => `${trip.day}:${trip.kind}:${trip.id}`;
 const normalizar = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLocaleLowerCase("es").trim();
+const rubroPorTipo = {
+  airport: "Aeropuerto", private: "Aeropuerto", schedule: "Servicio público",
+  special: "Viajes especiales", school: "Concesiones", chapelco: "Chapelco"
+} satisfies Record<PendingTrip["kind"], string>;
 
 const hora = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Salta", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 function detalle(viaje: PendingTrip) {
   const conHora = viaje.kind === "airport" || viaje.kind === "private";
-  return [viaje.service, viaje.day.split("-").reverse().join("/"), conHora ? hora.format(viaje.startsAt) : null, viaje.detail].filter(Boolean).join(" · ");
+  return [viaje.day.split("-").reverse().join("/"), conHora ? hora.format(viaje.startsAt) : null, viaje.detail].filter(Boolean).join(" · ");
 }
 
 export function AsignarViaje(props: Props) {
@@ -57,36 +61,64 @@ export function AsignarViaje(props: Props) {
 type AlGuardar = { onSaved: (day: string) => void };
 
 function ElegirViaje({ dia, driverId, nombre, viajes, naves, onSaved }: Props & { viajes: PendingTrip[]; naves: NaveVista[] } & AlGuardar) {
-  const [seleccion, setSeleccion] = useState("");
+  const [elegido, elegir] = useState<PendingTrip | null>(null);
+  if (!viajes.length) return <p role="status">No hay viajes pendientes de nave desde el {dia.split("-").reverse().join("/")}.</p>;
+  return <>
+    <div hidden={elegido !== null}>
+      <BuscarViaje dia={dia} viajes={viajes} onElegir={elegir} />
+    </div>
+    {elegido && <div className="jornada-pasos">
+      <div className="jornada-elegido"><div><strong>{elegido.title}</strong><br /><small>{elegido.service} · {detalle(elegido)}</small></div>
+        <button type="button" className="jornada-cambiar" onClick={() => elegir(null)}>Cambiar viaje</button>
+      </div>
+      <ElegirNave viaje={elegido} driverId={driverId} nombre={nombre} naves={naves} onSaved={onSaved} />
+    </div>}
+  </>;
+}
+
+type SelectorDeViajes = { viajes: PendingTrip[]; onElegir: (viaje: PendingTrip) => void };
+
+function BuscarViaje({ dia, viajes, onElegir }: SelectorDeViajes & { dia: string }) {
   const [buscar, setBuscar] = useState("");
   const [fecha, setFecha] = useState("");
-  const [limite, setLimite] = useState(40);
-  const elegido = viajes.find((viaje) => clave(viaje) === seleccion);
-  if (!viajes.length) return <p role="status">No hay viajes pendientes de nave desde el {dia.split("-").reverse().join("/")}.</p>;
-  if (elegido) return <div className="jornada-pasos">
-    <div className="jornada-elegido"><div><strong>{elegido.title}</strong><br /><small>{detalle(elegido)}</small></div>
-      <button type="button" className="jornada-cambiar" onClick={() => setSeleccion("")}>Cambiar viaje</button>
-    </div>
-    <ElegirNave key={seleccion} viaje={elegido} driverId={driverId} nombre={nombre} naves={naves} onSaved={onSaved} />
-  </div>;
-
   const consulta = normalizar(buscar);
-  const visibles = viajes.filter((v) => (!fecha || v.day === fecha) && normalizar(`${v.title} ${detalle(v)}`).includes(consulta));
+  const porRubro = new Map<string, PendingTrip[]>();
+  for (const viaje of viajes) {
+    if (fecha && viaje.day !== fecha) continue;
+    const rubro = rubroPorTipo[viaje.kind];
+    if (consulta && !normalizar(`${viaje.title} ${viaje.service} ${detalle(viaje)} ${rubro}`).includes(consulta)) continue;
+    const grupo = porRubro.get(rubro);
+    if (grupo) grupo.push(viaje);
+    else porRubro.set(rubro, [viaje]);
+  }
+  const grupos = [...porRubro].sort(([a], [b]) => a.localeCompare(b, "es"));
   return <section className="jornada-paso">
     <h3>Viajes sin nave</h3>
     <label className="jornada-fecha">Filtrar por día
-      <input type="date" value={fecha} min={dia} onChange={(e) => { setFecha(e.target.value); setLimite(40); }} />
+      <input type="date" value={fecha} min={dia} onChange={(e) => setFecha(e.target.value)} />
     </label>
     <input type="search" className="jornada-buscar" aria-label="Buscar viaje" placeholder="Buscar por recorrido, servicio u horario"
-      autoFocus value={buscar} onChange={(e) => { setBuscar(e.target.value); setLimite(40); }} />
-    <ul className="jornada-opciones">
-      {visibles.slice(0, limite).map((v) => <li key={clave(v)}><button type="button" className="jornada-opcion" onClick={() => setSeleccion(clave(v))}>
-        <strong>{v.title}</strong><small>{detalle(v)}</small>
-      </button></li>)}
-    </ul>
-    {visibles.length > limite && <button type="button" className="ghost-button" onClick={() => setLimite(limite + 40)}>Ver más viajes</button>}
-    {!visibles.length && <p role="status">Ningún viaje coincide con la búsqueda.</p>}
+      autoFocus value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+    {grupos.length ? <div className="jornada-rubros" key={`${fecha}:${consulta}`}>
+      {grupos.map(([rubro, pendientes]) => <ViajesDelRubro key={rubro} rubro={rubro} viajes={pendientes}
+        abiertoAlInicio={Boolean(consulta || fecha) || grupos.length === 1} onElegir={onElegir} />)}
+    </div> : <p role="status">Ningún viaje coincide con la búsqueda.</p>}
   </section>;
+}
+
+function ViajesDelRubro({ rubro, viajes, abiertoAlInicio, onElegir }: SelectorDeViajes & { rubro: string; abiertoAlInicio: boolean }) {
+  const [limite, setLimite] = useState(40);
+  return <details className="jornada-rubro" open={abiertoAlInicio}>
+    <summary>{rubro} <small>{viajes.length} {viajes.length === 1 ? "viaje" : "viajes"}</small></summary>
+    <ul className="jornada-opciones" aria-label={rubro}>
+      {viajes.slice(0, limite).map((viaje) => <li key={clave(viaje)}>
+        <button type="button" className="jornada-opcion" onClick={() => onElegir(viaje)}>
+          <strong>{viaje.title}</strong><small>{viaje.kind === "private" && "Privado · "}{detalle(viaje)}</small>
+        </button>
+      </li>)}
+    </ul>
+    {viajes.length > limite && <button type="button" className="ghost-button" onClick={() => setLimite(limite + 40)}>Ver más viajes</button>}
+  </details>;
 }
 
 function ElegirNave({ viaje, driverId, nombre, naves, onSaved }: Pick<Props, "driverId" | "nombre"> & { viaje: PendingTrip; naves: NaveVista[] } & AlGuardar) {
