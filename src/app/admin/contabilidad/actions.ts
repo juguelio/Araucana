@@ -18,8 +18,10 @@ function revalidateAccountingPaths() {
   revalidatePath("/admin/reportes");
 }
 
-function noticeRedirect(path: string, notice: string): never {
-  redirect(`${path}?notice=${encodeURIComponent(notice)}`);
+/** Vuelve al mes que se estaba mirando (si vino en el formulario), con el aviso. */
+function noticeRedirect(path: string, notice: string, mes?: string): never {
+  const query = new URLSearchParams({ ...(mes && /^\d{4}-\d{2}$/.test(mes) ? { month: mes } : {}), notice });
+  redirect(`${path}?${query}`);
 }
 
 export async function createExpenseAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
@@ -40,7 +42,7 @@ export async function createExpenseAction(_state: AdminFormState, formData: Form
   }
 
   revalidateAccountingPaths();
-  noticeRedirect("/admin/contabilidad", "Egreso guardado con exito.");
+  noticeRedirect("/admin/contabilidad", "Egreso guardado.", value(formData, "volverA"));
 }
 
 export async function createSalaryPaymentAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
@@ -81,5 +83,5 @@ export async function createSalaryPaymentAction(_state: AdminFormState, formData
   }
 
   revalidateAccountingPaths();
-  noticeRedirect("/admin/contabilidad", "Pago de sueldo registrado con exito.");
+  noticeRedirect("/admin/contabilidad", "Pago de sueldo registrado.", value(formData, "volverA"));
 }

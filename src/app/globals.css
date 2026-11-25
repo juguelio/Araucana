@@ -1342,24 +1342,9 @@ svg {
   box-shadow: none;
 }
 
-.accounting-disclosure {
-  align-content: start;
-}
 
-.accounting-disclosure-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
 
-.accounting-disclosure-head h2 {
-  margin: 0;
-}
 
-.accounting-disclosure-body {
-  margin-top: 18px;
-}
 
 .report-panel h2 {
   margin: 0 0 16px;

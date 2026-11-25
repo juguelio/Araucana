@@ -161,3 +161,40 @@ export function BarraDeSemana({
     </section>
   );
 }
+
+/**
+ * La barra del mes (Contabilidad): el mismo aspecto que la del día, con un campo de mes.
+ * ‹ Anterior · MES [mes] Ver · Siguiente › · Este mes.
+ */
+export function BarraDelMes({
+  accion,
+  mes,
+  anterior,
+  siguiente,
+  esteMes,
+  children
+}: {
+  accion: string;
+  /** YYYY-MM. */
+  mes: string;
+  anterior: string;
+  siguiente: string;
+  esteMes?: string | null;
+  children?: ReactNode;
+}) {
+  return (
+    <section className="flights-toolbar modulo-barra">
+      <form className="flights-date" method="get" action={accion}>
+        <Link className="ghost-button flights-dia-paso" href={anterior} aria-label="Mes anterior">‹ Anterior</Link>
+        <label>
+          Mes
+          <input type="month" name="month" defaultValue={mes} />
+        </label>
+        <button className="button" type="submit">Ver</button>
+        <Link className="ghost-button flights-dia-paso" href={siguiente} aria-label="Mes siguiente">Siguiente ›</Link>
+        {esteMes ? <Link className="ghost-button flights-dia-paso" href={esteMes}>Este mes</Link> : null}
+      </form>
+      {children ? <div className="modulo-barra-derecha">{children}</div> : null}
+    </section>
+  );
+}
