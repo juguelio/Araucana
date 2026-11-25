@@ -21,7 +21,7 @@ import { NuevoEgreso, PagoDeSueldo } from "./modales";
 import "./contabilidad.css";
 
 type AccountingPageProps = {
-  searchParams?: Promise<{ month?: string; notice?: string; orden?: string; dir?: string; page?: string }>;
+  searchParams?: Promise<{ month?: string; notice?: string; n?: string; orden?: string; dir?: string; page?: string }>;
 };
 
 const BASE = "/admin/contabilidad";
@@ -52,6 +52,8 @@ function formatDate(date: Date) {
 export default async function AccountingPage({ searchParams }: AccountingPageProps) {
   const sessionUser = await getCurrentAdminOrRedirect();
   const params = (await searchParams) ?? {};
+  // Cambia con cada guardado (ver noticeRedirect): el modal abierto se cierra al volver.
+  const modalKey = params.n ?? params.notice ?? "";
   const period = createMonthPeriod(params.month);
   const mes = period.from.toISOString().slice(0, 7);
   const hoy = argentinaDateKey();
@@ -170,9 +172,9 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
     <AdminShell role={sessionUser.role} title="Contabilidad" eyebrow="Administración" notice={params.notice}
       action={<div className="inline-actions">
         <Link className="ghost-button" href={`/admin/reportes?month=${mes}`}>Reporte y Excel</Link>
-        <NuevoEgreso action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} />
+        <NuevoEgreso action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} />
         {usuariosParaPago.length ? (
-          <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida} trigger="Registrar pago de sueldo" triggerClassName="button" />
+          <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida} trigger="Registrar pago de sueldo" triggerClassName="button" closeKey={modalKey} />
         ) : null}
       </div>}>
       <BarraDelMes
@@ -243,7 +245,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
                     <td className="cont-accion">
                       {fila.activo ? (
                         <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida}
-                          userId={fila.userId} montoCents={fila.pendienteCents} nombre={fila.nombre}
+                          userId={fila.userId} montoCents={fila.pendienteCents} nombre={fila.nombre} closeKey={modalKey}
                           trigger={fila.estado === "pagado" || fila.estado === "de-mas" ? "Otro pago" : "Pagar"}
                           triggerClassName="ghost-button modulo-asignar" />
                       ) : null}

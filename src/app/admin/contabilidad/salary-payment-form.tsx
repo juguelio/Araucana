@@ -29,8 +29,10 @@ function userLabel(user: SalaryUser) {
   return `${user.name || user.email} · ${role}`;
 }
 
-function centsToAmount(cents: number | null) {
-  return cents ? String(cents / 100) : "";
+export function centsToAmount(cents: number | null) {
+  // El input entiende coma decimal (parseCurrencyToCents saca los puntos de miles): 79999.5
+  // tenía que viajar como «79999,5», no como «79999.5».
+  return cents ? String(cents / 100).replace(".", ",") : "";
 }
 
 export function SalaryPaymentForm({ action, users, userId, periodo, fecha, montoCents }: SalaryPaymentFormProps) {

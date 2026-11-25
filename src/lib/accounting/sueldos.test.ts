@@ -49,6 +49,15 @@ describe("sueldosDelMes", () => {
     expect(de("beto").base).toEqual({ dias: 0, salidas: 0, horas: 0 });
   });
 
+  it("la base no se pierde si el que manejó hoy figura como secretaria", () => {
+    const [fila] = sueldosDelMes(
+      [persona("hugo", "Hugo", { rol: "SECRETARY" })],
+      [],
+      [{ driverId: "hugo", dias: 3, salidas: 6, horas: 9.5 }]
+    );
+    expect(fila).toMatchObject({ rol: "SECRETARY", base: { dias: 3, salidas: 6, horas: 9.5 } });
+  });
+
   it("las inactivas aparecen sólo si tuvieron pagos o salidas ese mes", () => {
     expect(de("eli")).toMatchObject({ activo: false, estado: "parcial" });
     expect(de("fede")).toMatchObject({ activo: false, base: { dias: 2, salidas: 3, horas: 4 } });

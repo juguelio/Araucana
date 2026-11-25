@@ -20,7 +20,13 @@ function revalidateAccountingPaths() {
 
 /** Vuelve al mes que se estaba mirando (si vino en el formulario), con el aviso. */
 function noticeRedirect(path: string, notice: string, mes?: string): never {
-  const query = new URLSearchParams({ ...(mes && /^\d{4}-\d{2}$/.test(mes) ? { month: mes } : {}), notice });
+  // `n` es sólo para que el cliente sepa que volvió de un guardado y cierre el modal, aunque
+  // el aviso sea el mismo en dos pagos seguidos.
+  const query = new URLSearchParams({
+    ...(mes && /^\d{4}-\d{2}$/.test(mes) ? { month: mes } : {}),
+    notice,
+    n: Date.now().toString(36)
+  });
   redirect(`${path}?${query}`);
 }
 

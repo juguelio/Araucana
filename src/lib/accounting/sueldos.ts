@@ -76,7 +76,8 @@ export function sueldosDelMes(personas: readonly PersonaConSueldo[], pagos: read
         if (currency !== moneda) otras.set(currency, (otras.get(currency) ?? 0) + pago.amountCents);
       }
       const sueldoCents = persona.sueldoCents && persona.sueldoCents > 0 ? persona.sueldoCents : null;
-      const delChofer = persona.rol === "DRIVER" ? basePorChofer.get(persona.id) : undefined;
+      // La base es del que manejó, aunque hoy su ficha diga SECRETARY: si tiene salidas, se muestra.
+      const delChofer = basePorChofer.get(persona.id);
       return {
         userId: persona.id,
         nombre: persona.nombre,
@@ -89,7 +90,11 @@ export function sueldosDelMes(personas: readonly PersonaConSueldo[], pagos: read
         pagos: suyos.length,
         pendienteCents: sueldoCents === null ? null : Math.max(0, sueldoCents - pagadoCents),
         estado: estadoDeSueldo(sueldoCents, pagadoCents),
-        base: persona.rol === "DRIVER" ? { dias: delChofer?.dias ?? 0, salidas: delChofer?.salidas ?? 0, horas: delChofer?.horas ?? 0 } : null
+        base: delChofer
+          ? { dias: delChofer.dias, salidas: delChofer.salidas, horas: delChofer.horas }
+          : persona.rol === "DRIVER"
+            ? { dias: 0, salidas: 0, horas: 0 }
+            : null
       };
     });
 
