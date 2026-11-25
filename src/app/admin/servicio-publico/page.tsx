@@ -7,12 +7,9 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { roleCanAccess } from "@/lib/auth/roles";
 import { argentinaDateKey } from "@/lib/booking/admin-filters";
 import { listAdminSchedules } from "@/lib/booking/repository";
-import { prisma } from "@/lib/db/prisma";
-import { argentinaDayStart } from "@/lib/booking/admin-filters";
 import { isDateKey, shiftDateKey } from "@/lib/operations/day-board";
-import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
 import { lunesDe } from "@/lib/school-runs/week";
-import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, terminalDe, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
+import { agruparPorTerminal, nombreDeTerminal, resumenDeSalidas, salidasDeTerminal, TERMINALES, type TerminalClave } from "@/lib/public-service/board";
 import { AsignarUnidad, opcionesParaAsignar } from "../naves/en-vivo/asignar-unidad";
 import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
 import { ocupacionEnVentana } from "@/lib/fleet/ocupacion";
@@ -24,8 +21,6 @@ export const dynamic = "force-dynamic";
 type ServicioPublicoPageProps = {
   searchParams?: Promise<{ fecha?: string; terminal?: string; vista?: string; ok?: string; error?: string }>;
 };
-
-const mesFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
 
 const diaFormatter = new Intl.DateTimeFormat("es-AR", {
   weekday: "long",
@@ -59,25 +54,8 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
     redirect(`/admin/servicio-publico/semana?${query.toString()}`);
   }
 
-  const mesInicio = `${fecha.slice(0, 7)}-01`;
-  const [anio, mes] = fecha.slice(0, 7).split("-").map(Number);
-  const mesSiguiente = mes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(mes + 1).padStart(2, "0")}-01`;
-  const [rows, mesRows, opciones, ocupacionDelDia] = await Promise.all([
+  const [rows, opciones, ocupacionDelDia] = await Promise.all([
     listAdminSchedules({ date: fecha, activeRoutesOnly: true }),
-    prisma.schedule.findMany({
-      where: {
-        departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
-        driverId: { not: null },
-        status: { not: "CANCELLED" },
-        route: { is: { bookingMode: "SEATED", isActive: true } }
-      },
-      select: {
-        departureAt: true,
-        arrivalAt: true,
-        driver: { select: { id: true, name: true, email: true } },
-        route: { select: { from: true } }
-      }
-    }),
     opcionesParaAsignar(),
     // Qué naves y choferes están en otro servicio ese día, para marcarlos en el modal de asignar.
     cargarOcupacionDelDia(fecha)
@@ -87,17 +65,6 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
   const grupos = todosLosGrupos.filter((grupo) => (filtro ? grupo.clave === filtro : grupo.salidas.length > 0));
   const terminalesVacias = !filtro ? todosLosGrupos.filter((grupo) => grupo.salidas.length === 0) : [];
   const resumen = resumenDeSalidas(grupos.flatMap((grupo) => grupo.salidas));
-  const resumenMes = resumenPorChofer(
-    mesRows
-      .filter((row) => terminalDe(row.route.from))
-      .map((row) => ({
-        driverId: row.driver?.id ?? null,
-        driverName: row.driver ? row.driver.name?.trim() || row.driver.email : null,
-        departureAt: new Date(row.departureAt),
-        arrivalAt: new Date(row.arrivalAt)
-      }))
-  );
-  const mesLabel = mesFormatter.format(new Date(`${mesInicio}T12:00:00Z`));
   const href = (cambios: { fecha?: string; terminal?: string | null }) => {
     const busqueda = new URLSearchParams();
     const nuevaFecha = cambios.fecha ?? fecha;
@@ -163,43 +130,6 @@ export default async function ServicioPublicoPage({ searchParams }: ServicioPubl
           <strong>{diaFormatter.format(new Date(`${fecha}T12:00:00-03:00`)).replace(/^./, (letra) => letra.toUpperCase())}</strong>
           {fecha === hoy ? " · hoy" : ""} · salidas de las terminales de San Martín de los Andes, Villa Traful y Villa La Angostura.
         </p>
-
-        <details className="plain-card sp-liquidacion" open={resumenMes.length === 0}>
-          <summary>
-            <span className="sp-liquidacion-titulo">Días trabajados de {mesLabel}</span>
-            <span className="sp-liquidacion-meta">
-              <small>Base para liquidación · sólo servicio público</small>
-              <span className="sp-liquidacion-estado">{resumenMes.length ? `${resumenMes.length} ${resumenMes.length === 1 ? "chofer" : "choferes"}` : "Sin datos"}</span>
-              <span className="sp-liquidacion-chevron" aria-hidden="true">⌄</span>
-            </span>
-          </summary>
-          {resumenMes.length ? (
-            <div className="sp-tabla-wrap">
-              <table className="sp-tabla sp-tabla-mes">
-                <thead>
-                  <tr>
-                    <th>Chofer</th>
-                    <th>Días</th>
-                    <th>Salidas</th>
-                    <th>Horas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resumenMes.map((chofer) => (
-                    <tr key={chofer.driverId}>
-                      <td data-label="Chofer"><Link href={`/admin/choferes/${chofer.driverId}`}>{chofer.driverName}</Link></td>
-                      <td data-label="Días"><strong>{chofer.dias.length}</strong></td>
-                      <td data-label="Salidas">{chofer.salidas}</td>
-                      <td data-label="Horas">{formatoHoras(chofer.horas)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="sp-vacio">Todavía no hay días con chofer asignado en {mesLabel}.</p>
-          )}
-        </details>
 
         {grupos.map((grupo) => (
           <section className="plain-card sp-grupo" key={grupo.clave}>

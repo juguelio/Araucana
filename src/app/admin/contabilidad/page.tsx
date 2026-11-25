@@ -3,14 +3,19 @@ import { ACCOUNTING_CATEGORY_LABELS } from "@/lib/accounting/types";
 import { createMonthPeriod, getAccountingReport } from "@/lib/accounting/service";
 import { formatCurrency } from "@/lib/admin/salary";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
+import { argentinaDayStart } from "@/lib/booking/admin-filters";
 import { prisma } from "@/lib/db/prisma";
+import { terminalDe } from "@/lib/public-service/board";
+import { resumenPorChofer } from "@/lib/public-service/workdays";
 import { createExpenseAction, createSalaryPaymentAction } from "./actions";
 import { AccountingDisclosure } from "./accounting-disclosure";
+import { DiasTrabajados } from "./dias-trabajados";
 import { ExpenseForm } from "./expense-form";
 import { SalaryPaymentForm } from "./salary-payment-form";
 import { EncabezadoOrdenable, OrdenOculto } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
 import { hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado } from "@/lib/admin/list-order";
+import "./contabilidad.css";
 
 type AccountingPageProps = {
   searchParams?: Promise<{
@@ -28,6 +33,7 @@ const POR_PAGINA = 25;
 const COLUMNAS = ["fecha", "categoria", "monto", "nave", "persona", "nota"] as const;
 type Columna = (typeof COLUMNAS)[number];
 const POR_DEFECTO: OrdenDeListado<Columna> = { columna: "fecha", direccion: "desc" };
+const mesFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
 
 function categoriaLabel(category: string) {
   return ACCOUNTING_CATEGORY_LABELS[category as keyof typeof ACCOUNTING_CATEGORY_LABELS] ?? category;
@@ -41,7 +47,11 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   const sessionUser = await getCurrentAdminOrRedirect();
   const params = await searchParams;
   const period = createMonthPeriod(params?.month);
-  const [report, vehicles, salaryUsers] = await Promise.all([
+  // El filtro de Contabilidad es un mes UTC; para los días trabajados usamos el día argentino,
+  // igual que Servicio público, así una salida de las 22:30 cuenta en el día que salió.
+  const mesInicio = period.from.toISOString().slice(0, 10);
+  const mesSiguiente = period.to.toISOString().slice(0, 10);
+  const [report, vehicles, salaryUsers, mesRows] = await Promise.all([
     getAccountingReport({ period }),
     prisma.vehicle.findMany({
       where: { isActive: true },
@@ -66,8 +76,33 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         role: true,
         monthlySalaryCents: true
       }
+    }),
+    prisma.schedule.findMany({
+      where: {
+        departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
+        driverId: { not: null },
+        status: { not: "CANCELLED" },
+        route: { is: { bookingMode: "SEATED", isActive: true } }
+      },
+      select: {
+        departureAt: true,
+        arrivalAt: true,
+        driver: { select: { id: true, name: true, email: true } },
+        route: { select: { from: true } }
+      }
     })
   ]);
+  const resumenMes = resumenPorChofer(
+    mesRows
+      .filter((row) => terminalDe(row.route.from))
+      .map((row) => ({
+        driverId: row.driver?.id ?? null,
+        driverName: row.driver ? row.driver.name?.trim() || row.driver.email : null,
+        departureAt: new Date(row.departureAt),
+        arrivalAt: new Date(row.arrivalAt)
+      }))
+  );
+  const mesLabel = mesFormatter.format(period.from);
 
   // Los egresos del mes ya vienen enteros (el informe los suma): se ordenan y paginan en memoria.
   const filtros = params ?? {};
@@ -96,6 +131,8 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         </label>
         <button className="ghost-button" type="submit">Filtrar</button>
       </form>
+
+      <DiasTrabajados mesLabel={mesLabel} resumen={resumenMes} />
 
       <section className="admin-grid">
         <div className="admin-card">
