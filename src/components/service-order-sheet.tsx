@@ -13,7 +13,10 @@ import {
 } from "@/lib/airport/service-order";
 import { CeldaDeLaOrden, CeldaPieDeLaOrden } from "./service-order-cells";
 import { FormaDePagoEditable } from "./forma-de-pago-editable";
+import { CabeceraOrden } from "./service-order-header";
 import "./service-order-sheet.css";
+
+export { CabeceraOrden };
 
 type ServiceOrderSheetProps = {
   date: string;
@@ -31,25 +34,6 @@ type ServiceOrderSheetProps = {
 
 /** `id` HTML de una orden: lo usa el botón de imprimir para dejar sólo esa en el papel. */
 export const idDeLaOrden = (block: ServiceOrderBlock) => `orden-${block.key.replace(/[^a-zA-Z0-9_-]+/g, "-")}`;
-
-export function CabeceraOrden({ fecha, alcance, soloPantalla, subtitulo = "Traslados Aeropuerto Chapelco" }: {
-  fecha: string; alcance?: string; soloPantalla?: boolean; subtitulo?: string;
-}) {
-  return (
-    <header className={soloPantalla ? "orden-cabecera no-print" : "orden-cabecera"}>
-      <div>
-        <p className="orden-marca">La Araucana viajes S.R.L.</p>
-        <h1 className="orden-titulo">ORDEN DE SERVICIO</h1>
-        <p className="orden-subtitulo">{subtitulo}</p>
-      </div>
-      <div className="orden-fecha">
-        <span>Fecha</span>
-        <strong>{fecha}</strong>
-        {alcance ? <span className="no-print">{alcance}</span> : null}
-      </div>
-    </header>
-  );
-}
 
 export function groupAirportPair(blocks: readonly ServiceOrderBlock[]) {
   const [primera, segunda] = blocks;

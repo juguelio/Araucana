@@ -99,6 +99,7 @@ export default async function TripPage({ params, searchParams }: { params: Promi
       notice={aviso ? decodeURIComponent(aviso) : planilla ? decodeURIComponent(planilla) : cobro ? "Cobro registrado." : guardado ? "Viaje guardado." : undefined}
       action={<div className="inline-actions">
         <Link className="ghost-button" href="/admin/viajes-especiales">Volver a Viajes especiales</Link>
+        <Link className="ghost-button" href={`/admin/viajes-especiales/${id}/orden-de-servicio`}>Orden de servicio</Link>
         <Link className="button" href={`/admin/viajes-especiales/${id}/editar`}>Editar viaje</Link>
       </div>}>
       {/* Cabecera: lo que se consulta de un vistazo. Los mismos datos que abajo, resumidos. */}

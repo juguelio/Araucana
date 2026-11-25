@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { rutaSinIds, webVitalSchema } from "./vitals";
 
 describe("rutaSinIds", () => {
+  it("omite el enlace privado del viaje especial en las métricas", () => {
+    expect(rutaSinIds("/orden/viaje-especial/cuerpo.firma")).toBe("/orden/viaje-especial/:token");
+    expect(rutaSinIds("/pt/orden/viaje-especial/cuerpo.firma")).toBe("/pt/orden/viaje-especial/:token");
+  });
   it("nunca deja un código de reserva (es el enlace privado del pasajero)", () => {
     expect(rutaSinIds("/reservas/ARC-2611-A12A51B77BBEFD4589ABD2AABDCDCA14")).toBe("/reservas/:codigo");
     expect(rutaSinIds("/admin/reservas/ARC-2611-ABC?notice=ok")).toBe("/admin/reservas/:codigo");

@@ -6,6 +6,7 @@
 export function rutaSinIds(pathname: string): string {
   const limpio = pathname.split("?")[0].split("#")[0] || "/";
   return limpio
+    .replace(/(\/orden\/viaje-especial)\/[^/]+/, "$1/:token")
     .replace(/^\/reservas\/[^/]+/, "/reservas/:codigo")
     .replace(/^\/admin\/reservas\/(?!nueva(?:\/|$))[^/]+/, "/admin/reservas/:codigo")
     .replace(/^\/admin\/(rutas|naves|choferes|secretarias|usuarios)\/(?!nueva(?:\/|$))[^/]+/, "/admin/$1/:id")

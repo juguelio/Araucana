@@ -1,0 +1,125 @@
+.sheet {
+  --forest: #0e3d34;
+  --sage: #d5e1dc;
+  color: var(--orden-tinta);
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.sheet :global(.orden-cabecera) {
+  display: grid;
+  grid-template-columns: auto 1fr minmax(150px, 28%);
+  align-items: center;
+  gap: 18px;
+  margin: 0 0 20px;
+  padding: 18px 20px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--forest);
+  color: white;
+}
+.sheet :global(.orden-cabecera) img { display: block; width: 122px; height: auto; }
+.sheet :global(.orden-cabecera) img + div { text-align: center; }
+.sheet :global(.orden-titulo) { color: white; font-size: 21px; line-height: 1.2; letter-spacing: .035em; }
+.sheet :global(.orden-subtitulo) { margin-top: 3px; color: #dae8e1; font-size: 14px; }
+.sheet :global(.orden-fecha) { padding-left: 12px; border-left: 1px solid #789c90; color: #dae8e1; }
+.sheet :global(.orden-fecha) > span { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+.sheet :global(.orden-fecha) strong { color: white; font-size: 15px; line-height: 1.3; }
+
+.label, .summary dt, .assignments small, .times dt {
+  margin: 0;
+  color: #53645b;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.client { margin: 2px 0 12px; color: var(--forest); font-size: 24px; line-height: 1.22; }
+.summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.65fr;
+  gap: 10px 16px;
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--orden-zebra);
+  border-block: 1px solid var(--orden-borde);
+}
+.summary dd, .times dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+.summary dd { font-weight: 700; }
+.summary a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+.sectionTitle {
+  margin: 20px 0 0;
+  padding: 6px 12px;
+  color: var(--forest);
+  background: var(--sage);
+  border-left: 4px solid var(--orden-verde);
+  font-size: 15px;
+  break-after: avoid;
+}
+.sheet section p { margin: 3px 0; }
+.sheet section > p { margin: 10px 14px; }
+.assignments, .legs { margin: 0; }
+.assignments { list-style: none; padding: 0; }
+.assignments li {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 8px 20px;
+  padding: 11px 14px;
+}
+.assignments small, .assignments strong { display: block; }
+.assignments li + li, .legs > li + li { border-top: 1px solid var(--orden-borde); }
+.legs { padding: 0; list-style-position: inside; }
+.legs > li { padding: 10px 14px; }
+.legs > li:nth-child(even) { background: var(--orden-zebra); }
+.legs > li::marker { font-weight: 700; color: var(--orden-verde); }
+.legs h3 { display: inline; margin: 0; color: var(--forest); font-size: 16px; break-after: avoid; }
+.times { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 6px 0 0; }
+.times dd { margin: 0; }
+.legs h4 { margin: 7px 0 0; font-size: inherit; }
+.legs ul { list-style-position: outside; padding-left: 1.25em; }
+.text { white-space: pre-line; }
+.signature { display: none; }
+
+@media screen {
+  body:has(:global(.orden-publica) .sheet) > :global(.site-header) { display: none; }
+}
+
+@media screen and (max-width: 700px) {
+  .sheet :global(.orden-cabecera) { grid-template-columns: auto 1fr; padding: 14px; gap: 10px 14px; }
+  .sheet :global(.orden-cabecera) img { width: 86px; }
+  .sheet :global(.orden-cabecera) img + div { text-align: left; }
+  .sheet :global(.orden-titulo) { font-size: 17px; }
+  .sheet :global(.orden-fecha) {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    padding: 8px 0 0;
+    border: 0;
+    border-top: 1px solid #789c90;
+  }
+  .summary { grid-template-columns: 1fr 1fr; }
+  .summary > :last-child { grid-column: 1 / -1; }
+  .assignments li { grid-template-columns: 1fr; }
+}
+
+@media print {
+  @page viaje-especial { size: A4 portrait; margin: 14mm; }
+  body:has(.sheet) { page: viaje-especial; }
+  .sheet { font-size: 10.5pt; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .sheet :global(.orden-cabecera) { border-radius: 0; }
+  .assignments li, .legs > li { break-inside: avoid; }
+  .signature {
+    display: block;
+    width: 55mm;
+    margin: 16mm 0 0 auto;
+    padding-top: 2mm;
+    border-top: 1px solid var(--orden-verde);
+    color: var(--forest);
+    text-align: center;
+    break-inside: avoid;
+  }
+}
