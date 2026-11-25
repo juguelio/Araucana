@@ -92,7 +92,7 @@ export async function savePickupStartAction(formData: FormData) {
   const previousStarts = [...new Set(flights.map((flight) => (flight.pickupStartOverrideAt ? formatAuditDate(flight.pickupStartOverrideAt) : "estimado")))].join(", ");
   await auditAirport({
     actor, action: "UPDATE", entityLabel: flights.map((flight) => flight.number).join(", ").slice(0, 200),
-    summary: reset ? `Inicio de recorrida restaurado al estimado en ${flights.length} partidas del ${date}.` : `Inicio de recorrida fijado para ${flights.length} partidas del ${date}.`,
+    summary: reset ? `Inicio de recorrida restaurado al horario inicial en ${flights.length} partidas del ${date}.` : `Inicio de recorrida fijado para ${flights.length} partidas del ${date}.`,
     extra: {
       pickupStartOverrideAt: { before: previousStarts, after: start ? start.toISOString() : "estimado" },
       ...(grupo.cambio ? { recorridaCompartida: { before: "—", after: grupo.grupo ? flights.map((flight) => flight.number).join(" + ") : "separadas" } } : {})
@@ -101,7 +101,7 @@ export async function savePickupStartAction(formData: FormData) {
   revalidatePath("/admin/aeropuerto");
   revalidatePath("/admin/aeropuerto/orden-de-servicio/ver");
   revalidatePath("/reservar/[slug]", "page");
-  if (reset) finish("Se restauró el horario estimado de las partidas seleccionadas.");
+  if (reset) finish("Se restauró el horario inicial de las partidas seleccionadas.");
   // Paso 2: naves y choferes de la recorrida, en el modal de combis del vuelo desde donde se coordinó.
   irAlPasoDeNaves(date, ids, value(formData, "origen"), "Recorrida coordinada. Ahora elegí las naves y los choferes.");
 }
@@ -349,7 +349,7 @@ export async function assignVehicleAction(_state: unknown, formData: FormData): 
 
     const active = !["CANCELLED", "DIVERTED"].includes(flight.status);
     // La nave se controla al sumarla; al cambiar sólo el chofer, ya estaba en el vuelo.
-    const days = new Set([flight.scheduledAt, flight.estimatedAt, flight.pickupStartOverrideAt]
+    const days = new Set([flight.scheduledAt, flight.estimatedAt, flight.pickupStartOverrideAt ?? flight.pickupStartInitialAt]
       .flatMap((date) => date ? [localInput(date).slice(0, 10)] : []));
     const vehicleHits = active && !previous ? (await Promise.all(
       [...days].map((day) => specialConflicts(tx, { vehicleId, ...dayInterval(day) }, undefined, true))

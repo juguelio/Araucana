@@ -54,7 +54,7 @@ export async function cargarServiciosDeLaFlota(ahora: Date = new Date(), dias = 
         flight: {
           select: {
             id: true, number: true, airline: true, origin: true, destination: true, direction: true, scheduledAt: true, status: true,
-            estimatedAt: true, pickupStartOverrideAt: true
+            estimatedAt: true, pickupStartInitialAt: true, pickupStartOverrideAt: true
           }
         }
       }

@@ -74,7 +74,7 @@ export async function fleetConflicts(
       where: {
         vehicleId,
         ...(excludeAirportAssignment ? { id: { not: excludeAirportAssignment } } : {}),
-        flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }] }
+        flight: { status: { notIn: ["CANCELLED", "DIVERTED"] }, OR: [{ scheduledAt: flightRange }, { estimatedAt: flightRange }, { pickupStartOverrideAt: flightRange }, { pickupStartOverrideAt: null, pickupStartInitialAt: flightRange }] }
       },
       include: { flight: true }
     })

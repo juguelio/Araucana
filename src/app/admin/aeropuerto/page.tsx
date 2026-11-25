@@ -203,7 +203,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
     // el operador puede confirmarlo él.
     const confirmado = v.status === "LANDED" || (v.direction === "DEPARTURE" && v.status === "EN_ROUTE");
     const sinConfirmar = pasado && !confirmado;
-    const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart({ ...v, estimatedAt: snapshot.estimatedAt });
+    const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart(v);
     // Las combis de toda la recorrida: la tarjeta y su modal muestran las mismas desde cualquier vuelo.
     const recorridaDelVuelo = vueloDeLaRecorrida(v, companeros(v));
 
@@ -297,7 +297,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
               modalClassName="aero-coordinar-modal"
               eyebrow="Paso 1 de 2 · Vuelos y horario"
               title={`Coordinar recorrida · ${v.number}`}
-              subtitle="Marcá las partidas que van en la misma recorrida y la hora en que se empieza a buscar por las direcciones. Después elegís las naves y los choferes: si sale con más de una, la hoja del chofer reparte a los pasajeros por zona."
+              subtitle="Marcá las partidas que comparten la recorrida y elegí la hora de inicio. Esa hora solo cambia si la editás desde acá. Después elegís las naves y los choferes: si sale con más de una, la hoja del chofer reparte a los pasajeros por zona."
             >
               <form action={savePickupStartAction} className="reservas-modal-form aero-coordinar-form">
                 <input type="hidden" name="date" value={fecha} />
@@ -320,7 +320,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
                 </label>
                 <div className="form-actions">
                   <button className="button" type="submit" name="operation" value="save">Siguiente: naves y choferes</button>
-                  <button className="ghost-button" type="submit" name="operation" value="reset">Restaurar estimado</button>
+                  <button className="ghost-button" type="submit" name="operation" value="reset">Restaurar horario inicial</button>
                 </div>
               </form>
             </RowModal>

@@ -13,6 +13,11 @@ describe("airportServiceWindow: el tramo en que la combi y su chofer están con 
       .toEqual({ startsAt: at("12:00"), endsAt: at("15:00") });
   });
 
+  it("un adelanto anterior a la recorrida conserva el inicio previsto para la combi", () => {
+    expect(airportServiceWindow({ direction: "DEPARTURE", scheduledAt: at("14:00"), estimatedAt: at("11:00"), pickupStartInitialAt: at("11:30") }))
+      .toEqual({ startsAt: at("11:30"), endsAt: at("14:00") });
+  });
+
   it("un arribo va de media hora antes del aterrizaje (estimado si lo hay) hasta terminar el reparto", () => {
     expect(airportServiceWindow({ direction: "ARRIVAL", scheduledAt: at("14:00"), estimatedAt: at("14:40") })).toEqual({ startsAt: at("14:10"), endsAt: at("16:40") });
   });

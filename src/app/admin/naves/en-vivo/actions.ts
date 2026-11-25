@@ -63,6 +63,7 @@ export async function asignarUnidadAction(formData: FormData) {
         direction: true,
         scheduledAt: true,
         estimatedAt: true,
+        pickupStartInitialAt: true,
         pickupStartOverrideAt: true,
         pickupGroupId: true
       }

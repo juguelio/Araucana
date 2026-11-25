@@ -12,7 +12,7 @@ import { AirportPlaceSearch, type AirportSelectedPlace } from "@/components/airp
 import { googlePickupConfigured } from "@/lib/airport/google-maps";
 import type { AirportOfficePickup } from "@/lib/airport/office-pickup";
 import { isInsideAirportPickupZone, OUTSIDE_PICKUP_ZONE, type AirportCoverage, type PickupPoint } from "@/lib/airport/pickup-zone";
-import { airportPickupDateTime, airportPickupStart } from "@/lib/airport/pickup-start";
+import { airportPickupDateTime } from "@/lib/airport/pickup-start";
 import type { PickupPrecision } from "@/lib/airport/place-suggestions";
 import { MapPointAddress } from "@/components/map-point-address";
 import { isPaihuen, paihuenPickupTime } from "@/lib/airport/paihuen";
@@ -54,26 +54,10 @@ type FlightOption = {
 
 type Fare = { priceCents: number; currency: string } | null;
 
-/**
- * Inicio de la recorrida de un tramo: 2 h 30 antes de la salida del vuelo (#35), con la hora
- * estimada si el vuelo viene demorado y con la coordinada a mano si el operador la fijó.
- * Devuelve `null` en la llegada, donde no hay recorrida previa.
- */
 function inicioDeRecorrida(vuelo: FlightOption) {
-  if (vuelo.pickupStartAt) {
-    const coordinado = new Date(vuelo.pickupStartAt);
-    if (Number.isFinite(coordinado.getTime())) return coordinado;
-  }
-
-  const programado = new Date(vuelo.scheduledAt);
-  if (!Number.isFinite(programado.getTime())) return null;
-
-  return airportPickupStart({
-    direction: vuelo.direction,
-    scheduledAt: programado,
-    estimatedAt: vuelo.estimatedAt ? new Date(vuelo.estimatedAt) : null,
-    status: vuelo.status
-  });
+  if (!vuelo.pickupStartAt) return null;
+  const inicio = new Date(vuelo.pickupStartAt);
+  return Number.isFinite(inicio.getTime()) ? inicio : null;
 }
 
 type RoundTripCheckoutFormProps = {
@@ -760,14 +744,13 @@ export function RoundTripCheckoutForm({ route, fares, initialDate, initialFlight
                   cada campo abre su panel con los lugares, o con los días y los vuelos para tocar. */}
               {searchBar}
               <p className="trip-search-hint"><strong>{fraseOrden}.</strong></p>
-              {/* Con el vuelo de salida elegido, a qué hora pasa la camioneta (#206): 2 h 30 antes. */}
               {(() => {
                 const retiroPaihuen = isPaihuen(null, pickupVuelta.label, pickupVuelta.point);
                 const inicio = paihuenPickupTime(vuelta ? inicioDeRecorrida(vuelta) : null, retiroPaihuen);
                 return inicio ? (
                   <p className="trip-search-hint trip-search-pickup-time">
-                    <strong>Lo pasamos a buscar el {airportPickupDateTime.format(inicio)} h</strong>{" "}
-                    {retiroPaihuen ? "Paihuén es la primera parada, 15 minutos antes del inicio habitual." : "— la camioneta sale 2 h 30 antes del vuelo de salida."}
+                    <strong>{retiroPaihuen ? "Lo pasamos a buscar el" : "Inicio de la recorrida el"} {airportPickupDateTime.format(inicio)} h</strong>{" "}
+                    {retiroPaihuen ? "Paihuén es la primera parada, 15 minutos antes del inicio habitual." : null}
                   </p>
                 ) : null;
               })()}

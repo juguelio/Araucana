@@ -75,7 +75,7 @@ export async function vuelosDeLaRecorrida(
   const grupo = await tx.flight.findMany({
     where: { pickupGroupId: flight.pickupGroupId },
     orderBy: { scheduledAt: "asc" },
-    select: { id: true, number: true, scheduledAt: true, estimatedAt: true, direction: true, pickupStartOverrideAt: true, pickupGroupId: true }
+    select: { id: true, number: true, scheduledAt: true, estimatedAt: true, direction: true, pickupStartInitialAt: true, pickupStartOverrideAt: true, pickupGroupId: true }
   });
   return grupo.length > 1 ? grupo : solo;
 }

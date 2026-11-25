@@ -293,6 +293,8 @@ model Flight {
   direction     String        @default("ARRIVAL")
   scheduledAt   DateTime
   estimatedAt   DateTime?
+  /// Inicio que se fija al crear la partida y se recupera al restaurar el horario inicial.
+  pickupStartInitialAt  DateTime?
   pickupStartOverrideAt DateTime?
   /// Vuelos del mismo día y sentido que hace una sola camioneta en la misma vuelta («Coordinar
   /// recorrida» / «Juntar arribos»). Comparten este id y la hoja del chofer los une en una orden.

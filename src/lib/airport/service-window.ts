@@ -12,6 +12,7 @@ type FlightTimes = {
   direction: string;
   scheduledAt: Date;
   estimatedAt?: Date | null;
+  pickupStartInitialAt?: Date | null;
   pickupStartOverrideAt?: Date | null;
   status?: string;
 };
@@ -24,10 +25,11 @@ type FlightTimes = {
 export function airportServiceWindow(flight: FlightTimes): { startsAt: Date; endsAt: Date } {
   const time = horaEfectivaDelVuelo(flight);
   if (flight.direction === "DEPARTURE") {
-    const pickup = airportPickupStart({ ...flight, status: undefined })
-      ?? new Date(time.getTime() - AIRPORT_PICKUP_LEAD_MINUTES * MINUTE);
-    // Una recorrida coordinada después del vuelo no tiene sentido; no se deja que la ventana quede vacía.
-    return { startsAt: pickup < time ? pickup : new Date(time.getTime() - AIRPORT_PICKUP_LEAD_MINUTES * MINUTE), endsAt: time };
+    const pickup = airportPickupStart({ ...flight, status: undefined })!;
+    // Si un adelanto deja el vuelo antes de la recogida, conservar la ventana prevista de la combi.
+    if (time > pickup) return { startsAt: pickup, endsAt: time };
+    const plannedEnd = flight.scheduledAt > pickup ? flight.scheduledAt : new Date(+pickup + AIRPORT_PICKUP_LEAD_MINUTES * MINUTE);
+    return { startsAt: pickup, endsAt: plannedEnd };
   }
   return {
     startsAt: new Date(time.getTime() - ARRIVAL_WAIT_MINUTES * MINUTE),

@@ -20,7 +20,7 @@ export async function listDriverActivity(driverId: string): Promise<DriverActivi
       select: {
         id: true, vehicleId: true, vehicle,
         flight: { select: {
-          id: true, number: true, direction: true, status: true, scheduledAt: true, estimatedAt: true, pickupStartOverrideAt: true,
+          id: true, number: true, direction: true, status: true, scheduledAt: true, estimatedAt: true, pickupStartInitialAt: true, pickupStartOverrideAt: true,
           reservations: {
             where: { reservation: { status: { not: "CANCELLED" } } },
             distinct: ["serviceDate"],

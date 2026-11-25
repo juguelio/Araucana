@@ -60,7 +60,8 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
         number: true,
         direction: true,
         scheduledAt: true,
-        estimatedAt: true,
+        pickupStartInitialAt: true,
+        pickupStartOverrideAt: true,
         assignments: {
           select: {
             id: true,
@@ -169,7 +170,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
   }
 
   for (const flight of flights) {
-    const hora = airportPickupStart(flight as never);
+    const hora = airportPickupStart(flight);
     const cuando = hora instanceof Date && !Number.isNaN(hora.getTime()) ? hora : flight.scheduledAt;
     // El servicio es cuando hay que buscar al pasajero, no la hora de despegue.
     if (cuando < from || cuando >= to) continue;

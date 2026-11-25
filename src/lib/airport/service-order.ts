@@ -66,6 +66,7 @@ export type ServiceOrderReservationInput = {
     direction: string;
     scheduledAt: Date;
     estimatedAt: Date | null;
+    pickupStartInitialAt?: Date | null;
     pickupStartOverrideAt: Date | null;
     /** Vuelos que hace la misma camioneta en la misma vuelta: la hoja los une en una orden. */
     pickupGroupId?: string | null;
@@ -476,7 +477,7 @@ export function buildServiceOrderBlocks(
         ? (airportPickupStart({
             direction,
             scheduledAt: scheduledAt ?? new Date(0),
-            estimatedAt,
+            pickupStartInitialAt: reserva.flight?.pickupStartInitialAt,
             pickupStartOverrideAt: reserva.flight?.pickupStartOverrideAt ?? null
           }) ?? vueloAt ?? new Date(0))
         : (vueloAt ?? new Date(0));

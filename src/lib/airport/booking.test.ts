@@ -140,25 +140,14 @@ describe("corte de reservas de salidas", () => {
     expect(motivoNoReservable(salida(), 10, new Date("2030-01-01T09:20:00Z"), 0, 15)).toMatch(/cierran 15 min antes/i);
   });
 
-  it("con demora la recorrida se corre con el horario estimado", () => {
-    const demorado = salida("2030-01-01T12:00:00Z", {
-      status: "DELAYED",
-      estimatedAt: new Date("2030-01-01T15:00:00Z"),
+  it.each(["11:00", "15:00"])("con despegue estimado a las %s el corte sigue al inicio guardado", (hora) => {
+    const vuelo = salida("2030-01-01T13:00:00Z", {
+      estimatedAt: new Date(`2030-01-01T${hora}:00Z`),
+      pickupStartInitialAt: new Date("2030-01-01T09:30:00Z"),
       source: "API"
     });
-    // Recorrida real 12:30Z: a las 10:00 todavía se puede reservar, aunque con el programado ya habría arrancado.
-    expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T10:00:00Z"))).toBeNull();
-    expect(motivoNoReservable(demorado, 10, new Date("2030-01-01T12:45:00Z"))).toMatch(/recorrida ya arrancó/i);
-  });
-
-  it("con un adelanto informado cierra antes: el avión sale más temprano y la recorrida también", () => {
-    const adelantado = salida("2030-01-01T12:00:00Z", {
-      estimatedAt: new Date("2030-01-01T11:00:00Z"),
-      source: "API"
-    });
-    // Recorrida real 08:30Z (una hora antes de la programada): a las 08:45 ya no se puede reservar.
-    expect(motivoNoReservable(adelantado, 10, new Date("2030-01-01T08:00:00Z"))).toBeNull();
-    expect(motivoNoReservable(adelantado, 10, new Date("2030-01-01T08:45:00Z"))).toMatch(/recorrida ya arrancó/i);
+    expect(motivoNoReservable(vuelo, 10, new Date("2030-01-01T09:29:00Z"))).toBeNull();
+    expect(motivoNoReservable(vuelo, 10, new Date("2030-01-01T09:30:00Z"))).toMatch(/recorrida ya arrancó/i);
   });
 
   it("un vuelo que ya salió sigue avisando eso, no la recorrida", () => {

@@ -22,7 +22,7 @@ describe("hora efectiva del vuelo", () => {
     expect(corrioElHorario(demorado)).toBe(true);
   });
 
-  it("con adelanto también: el avión sale antes y la recorrida se adelanta", () => {
+  it("con adelanto también se actualiza la hora del vuelo", () => {
     const adelantado = vuelo("2026-11-12T18:15:00Z", "2026-11-12T17:45:00Z");
     expect(horaEfectivaDelVuelo(adelantado).toISOString()).toBe("2026-11-12T17:45:00.000Z");
   });

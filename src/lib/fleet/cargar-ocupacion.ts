@@ -39,7 +39,7 @@ export async function cargarOcupacionDelDia(dia: string): Promise<Ocupacion[]> {
       },
       select: {
         id: true, vehicleId: true, driverId: true, flightId: true, privateReservationId: true,
-        flight: { select: { number: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartOverrideAt: true, status: true } }
+        flight: { select: { number: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartInitialAt: true, pickupStartOverrideAt: true, status: true } }
       }
     }),
     prisma.chapelcoVehicleDuty.findMany({

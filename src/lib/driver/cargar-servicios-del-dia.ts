@@ -34,7 +34,7 @@ export async function cargarServiciosDelDia(dia: string): Promise<ServicioDelDia
       },
       select: {
         id: true, vehicleId: true, driverId: true, flightId: true,
-        flight: { select: { number: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartOverrideAt: true, status: true } }
+        flight: { select: { number: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartInitialAt: true, pickupStartOverrideAt: true, status: true } }
       }
     }),
     prisma.specialTripAssignment.findMany({

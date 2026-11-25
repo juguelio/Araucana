@@ -124,6 +124,7 @@ export function motivoNoReservable(
     actualAt?: Date | null;
     direction?: string;
     number?: string;
+    pickupStartInitialAt?: Date | null;
     pickupStartOverrideAt?: Date | null;
   },
   disponible: number,
@@ -158,14 +159,7 @@ export function motivoNoReservable(
   // Salidas (#55): la combi arranca la recorrida 2 h 30 antes del vuelo (o la hora coordinada a
   // mano). Desde ese momento ya no se puede reservar: el pasajero no tendría cómo subirse.
   if (vuelo.direction === "DEPARTURE") {
-    const arranqueRecorrida = airportPickupStart({
-      direction: "DEPARTURE",
-      // Con demora la recorrida se corre con el horario vigente, no con el programado.
-      scheduledAt: vuelo.scheduledAt,
-      estimatedAt: vuelo.estimatedAt,
-      pickupStartOverrideAt: vuelo.pickupStartOverrideAt ?? null,
-      status: vuelo.status
-    });
+    const arranqueRecorrida = airportPickupStart({ ...vuelo, direction: vuelo.direction });
     if (arranqueRecorrida && arranqueRecorrida.getTime() - corteSalidaMinutos * 60_000 <= ahora.getTime()) {
       return corteSalidaMinutos > 0
         ? `Las reservas cierran ${corteSalidaMinutos} min antes de que arranque la recorrida.`

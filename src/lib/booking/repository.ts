@@ -191,7 +191,7 @@ type ReservationRecord = {
     pickupLatitude?: number | null;
     pickupLongitude?: number | null;
     pickupNotes?: string | null;
-    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
+    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartInitialAt?: Date | null; pickupStartOverrideAt?: Date | null } | null;
   } | null;
 };
 
@@ -525,6 +525,7 @@ function mapReservation(reservation: ReservationRecord): ReservationDetailDto {
                 scheduledAt: reservation.airportDetails.flight.scheduledAt,
                 estimatedAt: reservation.airportDetails.flight.estimatedAt,
                 status: reservation.airportDetails.flight.status,
+                pickupStartInitialAt: reservation.airportDetails.flight.pickupStartInitialAt,
                 pickupStartOverrideAt: reservation.airportDetails.flight.pickupStartOverrideAt ?? null
               }
             : null
@@ -686,7 +687,7 @@ async function tramoCompanero(client: BookingTransactionClient, roundTripId: str
           pickupAddress: true,
           pickupNotes: true,
           flight: {
-            select: { scheduledAt: true, estimatedAt: true, status: true, pickupStartOverrideAt: true }
+            select: { scheduledAt: true, estimatedAt: true, status: true, pickupStartInitialAt: true, pickupStartOverrideAt: true }
           }
         }
       }

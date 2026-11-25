@@ -28,6 +28,11 @@ test.afterAll(async () => { await db.$disconnect(); });
 test("cada partida abre su modal, suma otra partida y fija la hora de la recorrida", async ({ page }) => {
   await db.rateLimitHit.deleteMany();
   expect((await page.request.post("/api/v1/auth/login", { data: { email, password } })).status()).toBe(200);
+  // La fuente corrige la hora programada y después informa una demora.
+  await db.flight.update({ where: { id: vuelos.a.id }, data: {
+    scheduledAt: new Date(`${date}T15:45:00-03:00`),
+    estimatedAt: new Date(`${date}T16:00:00-03:00`)
+  } });
   await page.goto(`/admin/aeropuerto?date=${date}`);
   // Ya no hay una sección suelta para coordinar: está en cada vuelo.
   await expect(page.getByText("Coordinar inicio de recorrida")).toHaveCount(0);
@@ -40,6 +45,7 @@ test("cada partida abre su modal, suma otra partida y fija la hora de la recorri
   await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos.a.number) })).toBeChecked();
   await expect(modal.getByRole("checkbox", { name: new RegExp(vuelos.b.number) })).not.toBeChecked();
   await modal.getByRole("checkbox", { name: new RegExp(vuelos.b.number) }).check();
+  await expect(modal.getByLabel("Hora en que los busca")).toHaveValue(`${date}T12:45`);
   await modal.getByLabel("Hora en que los busca").fill(`${date}T12:10`);
   await page.screenshot({ path: "/tmp/araucana-coordinar-modal.png" });
   await modal.getByRole("button", { name: "Siguiente: naves y choferes" }).click();
@@ -54,4 +60,11 @@ test("cada partida abre su modal, suma otra partida y fija la hora de la recorri
   const guardados = await db.flight.findMany({ where: { id: { in: [vuelos.a.id, vuelos.b.id] } }, select: { pickupStartOverrideAt: true } });
   for (const vuelo of guardados) expect(vuelo.pickupStartOverrideAt?.toISOString()).toBe(new Date(`${date}T12:10:00-03:00`).toISOString());
   await expect(page.locator(`#vuelo-${vuelos.b.id}`)).toContainText(`Recorrida 12:10 con ${vuelos.a.number}`);
+
+  await db.flight.update({ where: { id: vuelos.a.id }, data: { estimatedAt: new Date(`${date}T14:50:00-03:00`) } });
+  await page.reload();
+  await page.locator(`#vuelo-${vuelos.a.id}`).getByRole("button", { name: `Coordinar recorrida del ${vuelos.a.number}` }).click();
+  await expect(modal.getByLabel("Hora en que los busca")).toHaveValue(`${date}T12:10`);
+  await modal.getByRole("button", { name: "Restaurar horario inicial" }).click();
+  await expect(page.locator(`#vuelo-${vuelos.a.id} .flight-info-recorrida`)).toContainText("12:45");
 });

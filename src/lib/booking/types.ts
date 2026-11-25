@@ -123,6 +123,7 @@ export type ReservationDetailDto = {
         scheduledAt: Date;
         estimatedAt?: Date | null;
         status: string;
+        pickupStartInitialAt?: Date | null;
         pickupStartOverrideAt?: Date | null;
       } | null;
     } | null;
@@ -193,7 +194,7 @@ export type ReservationDetailDto = {
     pickupLatitude?: number | null;
     pickupLongitude?: number | null;
     pickupNotes?: string | null;
-    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartOverrideAt?: Date | null } | null;
+    flight?: { scheduledAt: Date; estimatedAt: Date | null; status: string; pickupStartInitialAt?: Date | null; pickupStartOverrideAt?: Date | null } | null;
   } | null;
 };
 

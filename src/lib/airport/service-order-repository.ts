@@ -56,6 +56,7 @@ export async function getAirportServiceOrderReservations(
               direction: true,
               scheduledAt: true,
               estimatedAt: true,
+              pickupStartInitialAt: true,
               pickupStartOverrideAt: true,
               pickupGroupId: true,
               // Las naves del vuelo: con dos o más, la orden se parte por nave.
@@ -115,6 +116,7 @@ export async function getAirportServiceOrderReservations(
               direction: detalle.flight.direction,
               scheduledAt: detalle.flight.scheduledAt,
               estimatedAt: detalle.flight.estimatedAt,
+              pickupStartInitialAt: detalle.flight.pickupStartInitialAt,
               pickupStartOverrideAt: detalle.flight.pickupStartOverrideAt,
               pickupGroupId: detalle.flight.pickupGroupId,
               vehicles: detalle.flight.assignments.filter(a => detalle.isPrivate ? a.privateReservationId === reserva.id : !a.privateReservationId).map((asignacion) => ({

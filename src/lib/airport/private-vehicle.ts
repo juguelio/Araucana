@@ -4,13 +4,13 @@ import { lockFleet, specialConflicts } from "@/lib/special-trips/conflicts";
 import { butacasParaAeropuerto } from "./capacity";
 import { airportServiceWindow } from "./service-window";
 
-type FlightRun = Pick<Flight, "id" | "pickupGroupId" | "scheduledAt" | "estimatedAt" | "pickupStartOverrideAt" | "direction">;
+type FlightRun = Pick<Flight, "id" | "pickupGroupId" | "scheduledAt" | "estimatedAt" | "pickupStartInitialAt" | "pickupStartOverrideAt" | "direction">;
 
 /** Se verifica bajo el bloqueo de la nave, antes de asignarla a otro traslado. */
 export async function airportVehicleBusy(tx: Prisma.TransactionClient, vehicleId: string, flights: FlightRun[], privateBooking: boolean) {
   const assignments = await tx.airportVehicleAssignment.findMany({
     where: { vehicleId, ...(privateBooking ? {} : { privateReservationId: { not: null } }), flight: { status: { notIn: ["CANCELLED", "DIVERTED"] } } },
-    select: { flight: { select: { id: true, pickupGroupId: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartOverrideAt: true } } }
+    select: { flight: { select: { id: true, pickupGroupId: true, direction: true, scheduledAt: true, estimatedAt: true, pickupStartInitialAt: true, pickupStartOverrideAt: true } } }
   });
   return assignments.some(({ flight }) => {
     const busy = airportServiceWindow(flight);
