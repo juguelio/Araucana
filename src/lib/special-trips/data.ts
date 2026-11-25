@@ -44,11 +44,15 @@ export const tripPointSchema = z.object({
   date: z.string().refine((value) => value === "" || dateOnly(value) !== null),
   amount: z.string().trim().refine((value) => value === "" || parseMoney(value) !== null)
 });
-export const legSchema = z.object({
+// El tramo es un JSON libre en la base y el cliente ya cargó datos que la app no conoce
+// (`mapPoints`, las coordenadas del mapa). Sin `.passthrough()` zod las descarta al parsear y el
+// próximo guardado desde el panel las borra sin aviso (#459).
+const legBase = z.object({
   origin: line, destination: line, country: z.enum(["AR", "CL", "AR_CL"]), stops: line,
   points: z.array(tripPointSchema).max(50).optional(),
   zone: z.enum(timezones), arrivalZone: z.enum(timezones).optional(), departure: line, arrival: line, included: z.boolean(), description: z.string().max(4000)
 });
+export const legSchema = legBase.passthrough();
 export const assignmentSchema = z.object({ vehicleId: line.min(1), driverId: line, start: line, end: line });
 export const paymentKinds = { DEPOSIT: "Seña", PAYMENT: "Pago" } as const;
 export const paymentSchema = z.object({
@@ -57,7 +61,7 @@ export const paymentSchema = z.object({
   id: z.string().uuid().optional()
 });
 export const MAX_TRIP_PAYMENTS = 100;
-export type Leg = z.infer<typeof legSchema>;
+export type Leg = z.infer<typeof legBase>;
 export type TripPoint = z.infer<typeof tripPointSchema>;
 
 export function pointsForLeg(leg: Pick<Leg, "points" | "stops">): TripPoint[] {
