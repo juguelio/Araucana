@@ -9,6 +9,7 @@ import {
   type AccountingEntryInput,
   type AccountingExpenseRecord,
   type AccountingGroup,
+  type AccountingIncomeItem,
   type AccountingPeriod,
   type AccountingReport,
   type AccountingReservationRecord
@@ -77,7 +78,7 @@ function sortedGroups(groups: Map<string, AccountingGroup>) {
   });
 }
 
-export function reservationToIncome(reservation: AccountingReservationRecord) {
+export function reservationToIncome(reservation: AccountingReservationRecord): AccountingIncomeItem | null {
   const approvedPayment = reservation.payment?.status === "APPROVED" ? reservation.payment : null;
   const isConfirmed = reservation.status === "CONFIRMED";
 
@@ -85,8 +86,16 @@ export function reservationToIncome(reservation: AccountingReservationRecord) {
     return null;
   }
 
+  let check: AccountingIncomeItem["check"] = "matched";
+  if (!approvedPayment) check = "missing";
+  else if (reservation.status === "CANCELLED") check = "cancelled";
+  else if (approvedPayment.currency !== reservation.currency) check = "currency";
+  else if (approvedPayment.amountCents !== reservation.totalCents) check = "amount";
+
   return {
     id: reservation.id,
+    check,
+    approvedPayment: approvedPayment ? { amountCents: approvedPayment.amountCents, currency: approvedPayment.currency } : null,
     source: "reservation" as const,
     code: reservation.code,
     description: `${reservation.code} · ${reservation.schedule?.route.from ?? reservation.route?.from ?? "Ruta"} a ${
@@ -254,6 +263,8 @@ export async function getAccountingReport(options: {
         payment: {
           select: {
             status: true,
+            amountCents: true,
+            currency: true,
             updatedAt: true
           }
         },

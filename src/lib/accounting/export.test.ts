@@ -10,6 +10,8 @@ function report(): AccountingReport {
       {
         id: "r1",
         source: "reservation",
+        check: "amount",
+        approvedPayment: { amountCents: 1_499_999, currency: "ARS" },
         code: "ARC-2611-ABC",
         description: "ARC-2611-ABC · San Martin a Chapelco",
         amountCents: 1_500_000,
@@ -75,7 +77,7 @@ describe("workbook contable", () => {
     const { workbook } = await cargar();
     const ingresos = workbook.getWorksheet("Ingresos");
 
-    expect(ingresos?.getRow(1).values).toEqual([undefined, "Fecha", "Reserva", "Descripción", "Nave", "Importe", "Moneda"]);
+    expect(ingresos?.getRow(1).values).toEqual([undefined, "Fecha", "Reserva", "Descripción", "Nave", "Importe", "Moneda", "Control", "Pago aprobado", "Moneda del pago"]);
     expect(ingresos?.views[0]).toMatchObject({ state: "frozen", ySplit: 1 });
     expect(ingresos?.autoFilter).toBeTruthy();
   });
@@ -88,6 +90,9 @@ describe("workbook contable", () => {
     expect(typeof fila?.getCell(5).value).toBe("number");
     expect(fila?.getCell(5).value).toBe(15_000);
     expect(fila?.getCell(1).value).toBeInstanceOf(Date);
+    expect(fila?.getCell(7).value).toBe("Diferencia de importe");
+    expect(fila?.getCell(8).value).toBe(14999.99);
+    expect(fila?.getCell(9).value).toBe("ARS");
     expect(String(fila?.getCell(5).numFmt)).toContain("#,##0.00");
   });
 

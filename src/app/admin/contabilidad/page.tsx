@@ -17,11 +17,12 @@ import { prisma } from "@/lib/db/prisma";
 import { terminalDe } from "@/lib/public-service/board";
 import { formatoHoras, resumenPorChofer } from "@/lib/public-service/workdays";
 import { createExpenseAction, createSalaryPaymentAction } from "./actions";
+import { ControlIngresos } from "./control-ingresos";
 import { NuevoEgreso, PagoDeSueldo } from "./modales";
 import "./contabilidad.css";
 
 type AccountingPageProps = {
-  searchParams?: Promise<{ month?: string; notice?: string; n?: string; orden?: string; dir?: string; page?: string }>;
+  searchParams?: Promise<{ month?: string; control?: string; ingresosPage?: string; notice?: string; n?: string; orden?: string; dir?: string; page?: string }>;
 };
 
 const BASE = "/admin/contabilidad";
@@ -134,7 +135,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
     const s = totalesSueldos.find((total) => total.moneda === moneda);
     const sufijo = varias ? ` (${moneda})` : "";
     return [
-      { rotulo: `Ingresos${sufijo}`, valor: formatCurrency(t.incomeCents, moneda) },
+      { rotulo: `Ingresos${sufijo}`, valor: formatCurrency(t.incomeCents, moneda), href: "#control-ingresos" },
       { rotulo: `Egresos${sufijo}`, valor: formatCurrency(t.expenseCents, moneda) },
       { rotulo: `Saldo${sufijo}`, valor: formatCurrency(t.incomeCents - t.expenseCents, moneda), alerta: t.incomeCents - t.expenseCents < 0 },
       {
@@ -191,6 +192,8 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         <strong>{mesLabel.replace(/^./, (letra) => letra.toUpperCase())}</strong> · los ingresos son las reservas pagadas o confirmadas del mes;
         los egresos, lo que se cargó acá (incluidos los sueldos pagados en el mes).
       </p>
+
+      <ControlIngresos ingresos={report.incomes} mes={mes} filtro={params.control} pagina={params.ingresosPage} />
 
       <section className="plain-card admin-section cont-sueldos" id="sueldos" aria-labelledby="cont-sueldos-titulo">
         <header className="cont-seccion-cabeza">

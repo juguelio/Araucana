@@ -53,3 +53,9 @@
   .cont-categorias-lista .cont-barra { grid-column: 1 / -1; grid-row: 2; }
   .cont-sueldos-total { min-width: 0; width: 100%; }
 }
+
+.cont-control-filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.cont-control-filtros a { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.cont-control-filtros [aria-current] { background: var(--primary-deep); color: white; }
+#control-ingresos { scroll-margin-top: 140px; }
+#control-ingresos td a { text-decoration: underline; }

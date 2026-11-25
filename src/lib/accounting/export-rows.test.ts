@@ -24,6 +24,8 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
       {
         id: "r1",
         source: "reservation",
+        check: "missing",
+        approvedPayment: null,
         code: "ARC-1",
         description: "ARC-1 · San Martin a Chapelco",
         amountCents: 1_500_000,
@@ -35,6 +37,8 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
       {
         id: "r2",
         source: "reservation",
+        check: "missing",
+        approvedPayment: null,
         code: "ARC-2",
         description: "ARC-2 · Villa Traful a San Martin",
         amountCents: 100_000,

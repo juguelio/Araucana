@@ -60,7 +60,7 @@ describe("accounting service", () => {
   it("turns approved payments into automatic income", () => {
     const income = reservationToIncome(reservation({
       payment: {
-        status: "APPROVED",
+        status: "APPROVED", amountCents: 100_000, currency: "ARS",
         updatedAt: new Date("2026-05-05T09:00:00.000Z")
       }
     }));
@@ -76,9 +76,20 @@ describe("accounting service", () => {
     expect(income?.occurredAt.toISOString()).toBe("2026-05-05T09:00:00.000Z");
   });
 
+  it.each([
+    ["CONFIRMED", "ARS", 100_000, "matched"],
+    ["CONFIRMED", "ARS", 90_000, "amount"],
+    ["CONFIRMED", "USD", 100_000, "currency"],
+    ["CANCELLED", "ARS", 100_000, "cancelled"]
+  ] as const)("controla %s con %s y %i sin modificar el ingreso", (status, currency, amountCents, check) => {
+    const income = reservationToIncome(reservation({ status, payment: { status: "APPROVED", currency, amountCents, updatedAt: new Date() } }));
+    expect(income).toMatchObject({ amountCents: 100_000, currency: "ARS", check, approvedPayment: { currency, amountCents } });
+  });
+
   it("turns confirmed reservations without approved payments into automatic income", () => {
     const income = reservationToIncome(reservation({ status: "CONFIRMED" }));
 
+    expect(income).toMatchObject({ check: "missing", approvedPayment: null });
     expect(income?.occurredAt.toISOString()).toBe("2026-05-03T12:00:00.000Z");
   });
 
@@ -93,7 +104,7 @@ describe("accounting service", () => {
         reservation({
           id: "res-1",
           totalCents: 120_000,
-          payment: { status: "APPROVED", updatedAt: new Date("2026-05-03T12:00:00.000Z") }
+          payment: { status: "APPROVED", amountCents: 100_000, currency: "ARS", updatedAt: new Date("2026-05-03T12:00:00.000Z") }
         }),
         reservation({
           id: "res-2",

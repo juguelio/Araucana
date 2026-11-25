@@ -45,6 +45,8 @@ export type AccountingReservationRecord = {
   currency: string;
   createdAt: Date;
   payment: {
+    amountCents: number;
+    currency: string;
     status: string;
     updatedAt: Date;
   } | null;
@@ -85,7 +87,17 @@ export type AccountingExpenseRecord = {
   } | null;
 };
 
+export const INCOME_CHECK_LABELS = {
+  matched: "Coincide con pago aprobado",
+  missing: "Sin pago aprobado",
+  amount: "Diferencia de importe",
+  currency: "Monedas distintas",
+  cancelled: "Cancelada con pago aprobado"
+} as const;
+
 export type AccountingIncomeItem = {
+  check: keyof typeof INCOME_CHECK_LABELS;
+  approvedPayment: { amountCents: number; currency: string } | null;
   id: string;
   source: "reservation";
   code: string;

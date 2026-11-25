@@ -1,4 +1,4 @@
-import { ACCOUNTING_CATEGORY_LABELS, type AccountingCategory, type AccountingReport } from "./types";
+import { INCOME_CHECK_LABELS, ACCOUNTING_CATEGORY_LABELS, type AccountingCategory, type AccountingReport } from "./types";
 
 /**
  * Armado de las hojas del Excel contable, sin dependencias de escritura: filas planas
@@ -146,7 +146,7 @@ export function buildExportSheets(report: AccountingReport, meta: ExportMeta): E
     resumen.push([
       text("Atención"),
       text(
-        `El período tiene ${monedas.length} monedas (${monedas.join(", ")}). Esta hoja no las suma entre sí; la pantalla sí lo hace.`
+        `El período tiene ${monedas.length} monedas (${monedas.join(", ")}). Los totales se presentan por moneda.`
       )
     ]);
   }
@@ -162,7 +162,10 @@ export function buildExportSheets(report: AccountingReport, meta: ExportMeta): E
       text(income.description),
       text(income.vehicleName),
       money(income.amountCents),
-      text(income.currency || "ARS")
+      text(income.currency || "ARS"),
+      text(INCOME_CHECK_LABELS[income.check]),
+      income.approvedPayment ? money(income.approvedPayment.amountCents) : { v: null },
+      text(income.approvedPayment?.currency ?? "")
     ]);
 
   const gastos: ExportCell[][] = report.expenses
@@ -229,10 +232,10 @@ export function buildExportSheets(report: AccountingReport, meta: ExportMeta): E
     },
     {
       name: "Ingresos",
-      header: ["Fecha", "Reserva", "Descripción", "Nave", "Importe", "Moneda"],
-      widths: [12, 32, 52, 26, 14, 10],
+      header: ["Fecha", "Reserva", "Descripción", "Nave", "Importe", "Moneda", "Control", "Pago aprobado", "Moneda del pago"],
+      widths: [12, 32, 52, 26, 14, 10, 32, 17, 16],
       rows: ingresos,
-      rightColumns: [4]
+      rightColumns: [4, 7]
     },
     {
       name: "Gastos",
