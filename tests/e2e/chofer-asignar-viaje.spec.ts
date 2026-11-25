@@ -46,11 +46,11 @@ test("elige un viaje pendiente de cualquier servicio y guarda sólo ese viaje co
     await page.context().addCookies([{ domain: new URL(login.url()).hostname, path: "/", name: "araucana_session", value: token, httpOnly: true }]);
   }
   await page.goto(`/admin/choferes?dia=${day}&vista=libres`);
-  const trigger = page.getByRole("button", { name: `Asignar nave a ${driverName}` });
+  const trigger = page.getByRole("button", { name: `Asignar viaje a ${driverName}` });
   const fila = page.locator("li.chofer").filter({ hasText: driverName });
   const hoja = fila.getByRole("link", { name: "Ver hoja de ruta" });
-  await expect(hoja).toBeVisible();
-  await expect(fila.locator(".chofer-acciones").locator("button, a, summary")).toHaveCount(2);
+  await expect(hoja).toHaveCount(0);
+  await expect(fila.locator(".chofer-acciones").locator("button, a, summary")).toHaveCount(1);
   await trigger.click();
   const modal = page.getByRole("dialog");
   await expect(modal.getByRole("button", { name: /AR721/ })).toBeVisible();
@@ -64,6 +64,7 @@ test("elige un viaje pendiente de cualquier servicio y guarda sólo ese viaje co
   await expect(page.getByText("Viaje asignado al chofer con la nave elegida.")).toBeVisible();
   expect(await db.schedule.findUnique({ where: { id: scheduleId }, select: { vehicleId: true, driverId: true } })).toEqual({ driverId, vehicleId });
   expect(await db.schoolRun.findUnique({ where: { id: runId }, select: { driverId: true, vehicleId: true } })).toEqual({ driverId: null, vehicleId: null });
+  await expect(trigger).toHaveCount(0);
   await expect(hoja).toBeVisible();
   await expect(hoja).toHaveAttribute("href", `/admin/choferes/${driverId}/ordenes?fecha=${day}`);
   await fila.getByRole("link", { name: driverName, exact: true }).click();

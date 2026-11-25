@@ -22,7 +22,6 @@ export function AsignarViaje(props: Props) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const [opciones, setOpciones] = useState<Awaited<ReturnType<typeof cargarViajesPendientes>> | null>(null);
-  const etiqueta = props.origen === "listado" ? "Asignar nave" : "Asignar viaje";
   const [cargando, iniciarCarga] = useTransition();
   function cargar() {
     iniciarCarga(async () => {
@@ -44,7 +43,7 @@ export function AsignarViaje(props: Props) {
     router.push(`${destino}?${params}`);
   }
   return (
-    <RowModal trigger={etiqueta} triggerLabel={`${etiqueta} a ${props.nombre}`}
+    <RowModal trigger="Asignar viaje" triggerLabel={`Asignar viaje a ${props.nombre}`}
       triggerClassName="ghost-button choferes-asignar" modalClassName="jornada-modal" eyebrow={props.fechaTexto}
       title={`Asignar viaje a ${props.nombre}`} open={open} onOpenChange={abrir}>
       {open && (cargando

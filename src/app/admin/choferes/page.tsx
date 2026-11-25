@@ -326,12 +326,12 @@ export default async function ChoferesPage({ searchParams }: Props) {
                   ) : null}
                 </div>
                 <div className="chofer-acciones">
-                  {puedeAsignar && chofer.isActive && (
+                  {puedeAsignar && chofer.isActive && jornada.length === 0 && (
                     <AsignarViaje origen="listado" dia={dia} fechaTexto={fechaTexto} driverId={chofer.id} nombre={fila.nombre} />
                   )}
-                  <Link className="button choferes-asignar" href={`/admin/choferes/${chofer.id}/ordenes?fecha=${dia}`} prefetch={false}>
+                  {(jornada.length > 0 || !chofer.isActive) && <Link className="button choferes-asignar" href={`/admin/choferes/${chofer.id}/ordenes?fecha=${dia}`} prefetch={false}>
                     Ver hoja de ruta
-                  </Link>
+                  </Link>}
                 </div>
               </div>
             </li>
