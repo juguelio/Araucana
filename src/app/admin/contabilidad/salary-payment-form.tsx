@@ -22,6 +22,8 @@ type SalaryPaymentFormProps = {
   periodo?: string;
   fecha?: string;
   montoCents?: number | null;
+  /** La sección de Contabilidad desde la que se abrió: al guardar se vuelve a ella. */
+  seccion?: string;
 };
 
 function userLabel(user: SalaryUser) {
@@ -35,7 +37,7 @@ export function centsToAmount(cents: number | null) {
   return cents ? String(cents / 100).replace(".", ",") : "";
 }
 
-export function SalaryPaymentForm({ action, users, userId, periodo, fecha, montoCents }: SalaryPaymentFormProps) {
+export function SalaryPaymentForm({ action, users, userId, periodo, fecha, montoCents, seccion }: SalaryPaymentFormProps) {
   const [state, formAction] = useActionState(action, initialAdminFormState);
   const [selectedUserId, setSelectedUserId] = useState(userId ?? users[0]?.id ?? "");
   const selectedUser = useMemo(
@@ -51,6 +53,7 @@ export function SalaryPaymentForm({ action, users, userId, periodo, fecha, monto
     <form className="admin-form-grid" action={formAction}>
       <AdminFormAlert state={state} />
       {periodo ? <input type="hidden" name="volverA" value={periodo} /> : null}
+      {seccion ? <input type="hidden" name="volverSeccion" value={seccion} /> : null}
       <label className="span-2">
         Persona
         <select name="userId" required value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>

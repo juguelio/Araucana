@@ -102,6 +102,8 @@ export function reservationToIncome(reservation: AccountingReservationRecord) {
     driverId: driver?.id ?? null,
     driverName: driver ? driver.name?.trim() || driver.email : null,
     routeLabel: `${routeFrom} a ${routeTo}`,
+    routeFrom,
+    routeTo,
     status: reservation.status,
     paymentStatus: reservation.payment?.status ?? null
   };

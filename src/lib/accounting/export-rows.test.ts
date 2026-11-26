@@ -34,6 +34,8 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
         driverId: "d1",
         driverName: "Hugo",
         routeLabel: "San Martin a Chapelco",
+        routeFrom: "San Martin",
+        routeTo: "Chapelco",
         status: "CONFIRMED",
         paymentStatus: "APPROVED"
       },
@@ -50,6 +52,8 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
         driverId: null,
         driverName: null,
         routeLabel: "Villa Traful a San Martin",
+        routeFrom: "Villa Traful",
+        routeTo: "San Martin",
         status: "CONFIRMED",
         paymentStatus: "APPROVED"
       }

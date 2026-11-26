@@ -25,6 +25,8 @@ function ingreso(overrides: Partial<AccountingIncomeItem> = {}): AccountingIncom
     driverId: "d1",
     driverName: "Hugo",
     routeLabel: "San Martin a Chapelco",
+    routeFrom: "San Martin",
+    routeTo: "Chapelco",
     status: "CONFIRMED",
     paymentStatus: "APPROVED",
     ...overrides

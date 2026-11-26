@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { SECCIONES } from "@/lib/accounting/secciones";
 import { createAccountingEntry, parseAccountingEntryInput } from "@/lib/accounting/service";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
@@ -18,12 +19,13 @@ function revalidateAccountingPaths() {
   revalidatePath("/admin/reportes");
 }
 
-/** Vuelve al mes que se estaba mirando (si vino en el formulario), con el aviso. */
-function noticeRedirect(path: string, notice: string, mes?: string): never {
+/** Vuelve al mes y a la sección que se estaban mirando (si vinieron en el formulario), con el aviso. */
+function noticeRedirect(path: string, notice: string, mes?: string, seccion?: string): never {
   // `n` es sólo para que el cliente sepa que volvió de un guardado y cierre el modal, aunque
   // el aviso sea el mismo en dos pagos seguidos.
   const query = new URLSearchParams({
     ...(mes && /^\d{4}-\d{2}$/.test(mes) ? { month: mes } : {}),
+    ...(seccion && seccion !== "resumen" && (SECCIONES as readonly string[]).includes(seccion) ? { seccion } : {}),
     notice,
     n: Date.now().toString(36)
   });
@@ -48,7 +50,7 @@ export async function createExpenseAction(_state: AdminFormState, formData: Form
   }
 
   revalidateAccountingPaths();
-  noticeRedirect("/admin/contabilidad", "Egreso guardado.", value(formData, "volverA"));
+  noticeRedirect("/admin/contabilidad", "Egreso guardado.", value(formData, "volverA"), value(formData, "volverSeccion"));
 }
 
 export async function createSalaryPaymentAction(_state: AdminFormState, formData: FormData): Promise<AdminFormState> {
@@ -89,5 +91,5 @@ export async function createSalaryPaymentAction(_state: AdminFormState, formData
   }
 
   revalidateAccountingPaths();
-  noticeRedirect("/admin/contabilidad", "Pago de sueldo registrado.", value(formData, "volverA"));
+  noticeRedirect("/admin/contabilidad", "Pago de sueldo registrado.", value(formData, "volverA"), value(formData, "volverSeccion"));
 }
