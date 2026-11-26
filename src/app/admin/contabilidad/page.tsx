@@ -6,10 +6,35 @@ import { BarraDelMes, Cifras, type Cifra } from "@/components/modulo/modulo";
 import { totalsByCurrency } from "@/lib/accounting/export-rows";
 import { createMonthPeriod, getAccountingReport } from "@/lib/accounting/service";
 import {
+  COLUMNAS_DE_INGRESOS,
+  COLUMNAS_DE_LIQUIDACIONES,
+  ORDEN_DE_INGRESOS,
+  ORDEN_DE_INGRESOS_POR_DEFECTO,
+  ORDEN_DE_LIQUIDACIONES,
+  ORDEN_DE_LIQUIDACIONES_POR_DEFECTO,
+  TAMANOS_DE_PAGINA,
+  filtrarIngresos,
+  filtrarLiquidaciones,
+  leerColumnasDeIngresos,
+  leerColumnasDeLiquidaciones,
+  leerTamanoDePagina,
+  ordenarIngresos,
+  ordenarLiquidaciones,
+  periodoDeIngresos,
+  type ColumnaDeIngreso,
+  type ColumnaDeLiquidacion,
+  type EstadoDeSueldoFiltro,
+  type OrdenDeIngreso,
+  type OrdenDeLiquidacion,
+  type VistaDeIngresos
+} from "@/lib/accounting/list-filters";
+import {
   ETIQUETA_ESTADO_SUELDO, fechaPorDefecto, mesVecino, sueldosDelMes, totalesDeSueldos, type PersonaConSueldo
 } from "@/lib/accounting/sueldos";
 import { ACCOUNTING_CATEGORY_LABELS } from "@/lib/accounting/types";
-import { hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado } from "@/lib/admin/list-order";
+import {
+  hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado
+} from "@/lib/admin/list-order";
 import { formatCurrency } from "@/lib/admin/salary";
 import { getCurrentAdminOrRedirect } from "@/lib/auth/admin";
 import { argentinaDateKey, argentinaDayStart } from "@/lib/booking/admin-filters";
@@ -21,7 +46,7 @@ import { NuevoEgreso, PagoDeSueldo } from "./modales";
 import "./contabilidad.css";
 
 type AccountingPageProps = {
-  searchParams?: Promise<{ month?: string; notice?: string; n?: string; orden?: string; dir?: string; page?: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const BASE = "/admin/contabilidad";
@@ -31,6 +56,31 @@ const COLUMNAS = ["fecha", "categoria", "monto", "nave", "persona", "nota"] as c
 type Columna = (typeof COLUMNAS)[number];
 const POR_DEFECTO: OrdenDeListado<Columna> = { columna: "fecha", direccion: "desc" };
 const mesFormatter = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric", timeZone: "UTC" });
+const fechaCortaFormatter = new Intl.DateTimeFormat("es-AR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
+const VISTA_ETIQUETA: Record<VistaDeIngresos, string> = { mes: "Mes", semana: "Semana", dia: "Día", rango: "Desde/hasta" };
+
+function etiquetaDeIngreso(ingreso: { status: string; paymentStatus: string | null }) {
+  if (ingreso.status === "CANCELLED") {
+    return ingreso.paymentStatus === "APPROVED" ? "Cancelada con pago" : "Cancelada";
+  }
+  if (ingreso.status === "CONFIRMED") {
+    return ingreso.paymentStatus === "APPROVED" ? "Pago aprobado" : "Confirmada";
+  }
+  return "Pendiente";
+}
+
+function CamposOcultos({ params, omitir = [] }: { params: Record<string, string | string[] | undefined>; omitir?: string[] }) {
+  return (
+    <>
+      {Object.entries(params).flatMap(([clave, valor]) => {
+        if (clave === "notice" || clave === "n" || omitir.includes(clave) || !valor) return [];
+        return Array.isArray(valor)
+          ? valor.map((item, indice) => <input key={`${clave}-${indice}`} type="hidden" name={clave} value={item} />)
+          : [<input key={clave} type="hidden" name={clave} value={valor} />];
+      })}
+    </>
+  );
+}
 
 function categoriaLabel(category: string) {
   return ACCOUNTING_CATEGORY_LABELS[category as keyof typeof ACCOUNTING_CATEGORY_LABELS] ?? category;
@@ -52,9 +102,10 @@ function formatDate(date: Date) {
 export default async function AccountingPage({ searchParams }: AccountingPageProps) {
   const sessionUser = await getCurrentAdminOrRedirect();
   const params = (await searchParams) ?? {};
+  const texto = (valor: string | string[] | undefined) => typeof valor === "string" ? valor : undefined;
   // Cambia con cada guardado (ver noticeRedirect): el modal abierto se cierra al volver.
-  const modalKey = params.n ?? params.notice ?? "";
-  const period = createMonthPeriod(params.month);
+  const modalKey = texto(params.n) ?? texto(params.notice) ?? "";
+  const period = createMonthPeriod(texto(params.month));
   const mes = period.from.toISOString().slice(0, 7);
   const hoy = argentinaDateKey();
   const mesDeHoy = hoy.slice(0, 7);
@@ -63,8 +114,10 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   const mesInicio = period.from.toISOString().slice(0, 10);
   const mesSiguiente = period.to.toISOString().slice(0, 10);
 
-  const [report, vehicles, personas, pagos, mesRows] = await Promise.all([
+  const periodoIngresos = periodoDeIngresos(params);
+  const [report, incomeReport, vehicles, personas, pagos, mesRows] = await Promise.all([
     getAccountingReport({ period }),
+    getAccountingReport({ period: periodoIngresos.period }),
     prisma.vehicle.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.user.findMany({
       where: { role: { in: ["DRIVER", "SECRETARY"] } },
@@ -79,25 +132,48 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
     prisma.schedule.findMany({
       where: {
         departureAt: { gte: argentinaDayStart(mesInicio), lt: argentinaDayStart(mesSiguiente) },
-        driverId: { not: null },
+        OR: [{ driverId: { not: null } }, { extraUnits: { some: { driverId: { not: null } } } }],
         status: { not: "CANCELLED" },
         route: { is: { bookingMode: "SEATED", isActive: true } }
       },
-      select: { departureAt: true, arrivalAt: true, driver: { select: { id: true, name: true, email: true } }, route: { select: { from: true } } }
+      select: {
+        departureAt: true, arrivalAt: true, driver: { select: { id: true, name: true, email: true } },
+        extraUnits: { select: { driver: { select: { id: true, name: true, email: true } } } }, route: { select: { from: true } }
+      }
     })
   ]);
 
   const resumenMes = resumenPorChofer(
     mesRows
       .filter((row) => terminalDe(row.route.from))
-      .map((row) => ({
-        driverId: row.driver?.id ?? null,
-        driverName: row.driver ? row.driver.name?.trim() || row.driver.email : null,
-        departureAt: new Date(row.departureAt),
-        arrivalAt: new Date(row.arrivalAt)
-      }))
+      .flatMap((row) => {
+        const asignados = [row.driver, ...row.extraUnits.map((unit) => unit.driver)];
+        const unicos = new Map(asignados.filter((driver) => driver !== null).map((driver) => [driver.id, driver]));
+        return Array.from(unicos.values(), (driver) => ({
+          driverId: driver.id,
+          driverName: driver.name?.trim() || driver.email,
+          departureAt: new Date(row.departureAt),
+          arrivalAt: new Date(row.arrivalAt)
+        }));
+      })
   );
   const mesLabel = mesFormatter.format(period.from);
+  const cargas = report.expenses.filter((entry) => entry.category === "FUEL");
+  const porNave = new Map<string, { nave: string; moneda: string; centavos: number }>();
+  for (const carga of cargas) {
+    const key = JSON.stringify([carga.vehicle?.id ?? null, carga.currency]);
+    const grupo = porNave.get(key) ?? { nave: carga.vehicle?.name ?? "Sin nave asignada", moneda: carga.currency, centavos: 0 };
+    grupo.centavos += carga.amountCents;
+    porNave.set(key, grupo);
+  }
+  const totalesCombustible = [...porNave.values()].reduce<Array<{ moneda: string; centavos: number }>>((totales, grupo) => {
+    const total = totales.find((item) => item.moneda === grupo.moneda);
+    if (total) total.centavos += grupo.centavos;
+    else totales.push({ moneda: grupo.moneda, centavos: grupo.centavos });
+    return totales;
+  }, []);
+  const importeConMoneda = (cents: number, currency: string) =>
+    new Intl.NumberFormat("es-AR", { style: "currency", currency, currencyDisplay: "code" }).format(cents / 100);
 
   // Sueldos del mes: lo pactado, lo pagado para el período y la base de servicio público.
   const conSueldo: PersonaConSueldo[] = personas.map((persona) => ({
@@ -123,6 +199,58 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   const usuariosParaPago = personas
     .filter((persona) => persona.isActive)
     .map((persona) => ({ id: persona.id, name: persona.name, email: persona.email, role: persona.role, monthlySalaryCents: persona.monthlySalaryCents }));
+
+  const tamanoPagina = leerTamanoDePagina(params.pageSize);
+  const hrefCon = (cambios: Record<string, string | undefined>, borrar: string[] = []) => {
+    const query = new URLSearchParams();
+    for (const [clave, valor] of Object.entries(params)) {
+      if (typeof valor !== "string" || !valor || clave === "notice" || clave === "n" || borrar.includes(clave)) continue;
+      query.set(clave, valor);
+    }
+    for (const [clave, valor] of Object.entries(cambios)) {
+      if (valor) query.set(clave, valor);
+    }
+    return `${BASE}?${query.toString()}`;
+  };
+
+  // Ingresos: período independiente del mes de sueldos para poder mirar una semana o un rango.
+  const ordenIngresos = leerOrden<OrdenDeIngreso>(ORDEN_DE_INGRESOS, ORDEN_DE_INGRESOS_POR_DEFECTO, {
+    orden: texto(params.ordenIngresos), dir: texto(params.dirIngresos)
+  });
+  const ingresosFiltrados = ordenarIngresos(
+    filtrarIngresos(incomeReport.incomes, { q: texto(params.qIngresos), driverId: texto(params.driverId) }),
+    ordenIngresos
+  );
+  const paginaIngresos = paginar(ingresosFiltrados, leerPagina(params.pageIngresos), tamanoPagina);
+  const columnasIngresos = leerColumnasDeIngresos(params.colsIngresos);
+  const setColumnasIngresos = new Set<ColumnaDeIngreso>(columnasIngresos);
+  const choferesDeIngresos = [...new Map(
+    incomeReport.incomes
+      .filter((ingreso) => ingreso.driverId)
+      .map((ingreso) => [ingreso.driverId!, ingreso.driverName ?? "Chofer sin nombre"])
+  ).entries()].sort((a, b) => a[1].localeCompare(b[1], "es"));
+  const hayIngresosSinChofer = incomeReport.incomes.some((ingreso) => !ingreso.driverId);
+  const totalesIngresos = totalsByCurrency(incomeReport);
+
+  // Liquidaciones: el mes sigue siendo el período del sueldo; la tabla se ordena, filtra y pagina.
+  const ordenLiquidaciones = leerOrden<OrdenDeLiquidacion>(ORDEN_DE_LIQUIDACIONES, ORDEN_DE_LIQUIDACIONES_POR_DEFECTO, {
+    orden: texto(params.ordenSueldos), dir: texto(params.dirSueldos)
+  });
+  const estadosDeSueldo = Object.keys(ETIQUETA_ESTADO_SUELDO) as Exclude<EstadoDeSueldoFiltro, "todos">[];
+  const estadoParametro = texto(params.estadoSueldo);
+  const estadoSueldo: EstadoDeSueldoFiltro = estadoParametro && estadosDeSueldo.includes(estadoParametro as Exclude<EstadoDeSueldoFiltro, "todos">)
+    ? (estadoParametro as Exclude<EstadoDeSueldoFiltro, "todos">)
+    : "todos";
+  const rolSueldo = texto(params.rolSueldo) === "DRIVER" || texto(params.rolSueldo) === "SECRETARY"
+    ? texto(params.rolSueldo) as "DRIVER" | "SECRETARY"
+    : "todos";
+  const liquidaciones = ordenarLiquidaciones(
+    filtrarLiquidaciones(sueldos, { q: texto(params.qSueldos), rol: rolSueldo, estado: estadoSueldo }),
+    ordenLiquidaciones
+  );
+  const paginaLiquidaciones = paginar(liquidaciones, leerPagina(params.pageSueldos), tamanoPagina);
+  const columnasLiquidaciones = leerColumnasDeLiquidaciones(params.colsSueldos);
+  const setColumnasLiquidaciones = new Set<ColumnaDeLiquidacion>(columnasLiquidaciones);
 
   // Cifras por moneda: nunca se suman pesos con dólares (antes «Saldo» los mezclaba).
   const totales = totalsByCurrency(report);
@@ -151,8 +279,9 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   const mayorDe = (moneda: string) => Math.max(1, ...categorias.filter((g) => g.currency === moneda).map((g) => g.amountCents));
 
   // Los egresos del mes ya vienen enteros (el informe los suma): se ordenan y paginan en memoria.
-  const orden = leerOrden(COLUMNAS, POR_DEFECTO, params);
-  const egresos = ordenarEnMemoria(report.expenses, orden, {
+  const orden = leerOrden<Columna>(COLUMNAS, POR_DEFECTO, { orden: texto(params.orden), dir: texto(params.dir) });
+  const soloCombustible = texto(params.gasto) === "combustible";
+  const egresos = ordenarEnMemoria(soloCombustible ? cargas : report.expenses, orden, {
     fecha: (entry) => entry.occurredAt,
     categoria: (entry) => categoriaLabel(entry.category),
     // Montos de monedas distintas no se comparan: primero la moneda, después el importe.
@@ -167,9 +296,42 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   );
   const fechaSugerida = fechaPorDefecto(mes, hoy);
   const fichaDe = (fila: (typeof sueldos)[number]) => (fila.rol === "DRIVER" ? `/admin/choferes/${fila.userId}` : `/admin/secretarias/${fila.userId}`);
+  const hrefVista = (vista: VistaDeIngresos) => hrefCon(
+    {
+      vista,
+      ...(vista === "mes" ? { month: mes } : {}),
+      ...(vista === "semana" ? { semana: periodoIngresos.semana } : {}),
+      ...(vista === "dia" ? { dia: periodoIngresos.dia } : {}),
+      ...(vista === "rango" ? { desde: periodoIngresos.desde, hasta: periodoIngresos.hasta } : {})
+    },
+    ["vista", "semana", "dia", "desde", "hasta", "pageIngresos"]
+  );
+  const hrefTamano = (filas: number) => hrefCon({ pageSize: String(filas) }, ["page", "pageIngresos", "pageSueldos"]);
+  const encabezadoIngreso = (etiqueta: string, columna: OrdenDeIngreso) => (
+    <EncabezadoOrdenable
+      etiqueta={etiqueta}
+      columna={columna}
+      orden={ordenIngresos}
+      base={BASE}
+      params={params}
+      clavePagina="pageIngresos"
+      clavesOrden={{ orden: "ordenIngresos", dir: "dirIngresos" }}
+    />
+  );
+  const encabezadoLiquidacion = (etiqueta: string, columna: OrdenDeLiquidacion) => (
+    <EncabezadoOrdenable
+      etiqueta={etiqueta}
+      columna={columna}
+      orden={ordenLiquidaciones}
+      base={BASE}
+      params={params}
+      clavePagina="pageSueldos"
+      clavesOrden={{ orden: "ordenSueldos", dir: "dirSueldos" }}
+    />
+  );
 
   return (
-    <AdminShell role={sessionUser.role} title="Contabilidad" eyebrow="Administración" notice={params.notice}
+    <AdminShell role={sessionUser.role} title="Contabilidad" eyebrow="Administración" notice={texto(params.notice)}
       action={<div className="inline-actions">
         <Link className="ghost-button" href={`/admin/reportes?month=${mes}`}>Reporte y Excel</Link>
         <NuevoEgreso action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} />
@@ -192,6 +354,163 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         los egresos, lo que se cargó acá (incluidos los sueldos pagados en el mes).
       </p>
 
+      <section className="plain-card admin-section" id="combustible" aria-labelledby="cont-combustible-titulo">
+        <header className="cont-seccion-cabeza">
+          <div>
+            <h2 id="cont-combustible-titulo">Combustible del mes</h2>
+            {totalesCombustible.length ? totalesCombustible.map((total) => (
+              <strong key={total.moneda} className="cont-importe-combustible">{importeConMoneda(total.centavos, total.moneda)}</strong>
+            )) : <p className="muted">Sin gastos de combustible registrados en {mesLabel}.</p>}
+          </div>
+          <NuevoEgreso combustible action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} />
+        </header>
+        {cargas.length ? (
+          <details>
+            <summary>Gasto por nave</summary>
+            <ul>
+              {[...porNave.values()]
+                .sort((a, b) => a.moneda.localeCompare(b.moneda) || b.centavos - a.centavos)
+                .map((grupo, indice) => <li key={`${grupo.nave}-${grupo.moneda}-${indice}`}>{grupo.nave} · {importeConMoneda(grupo.centavos, grupo.moneda)}</li>)}
+            </ul>
+            <Link href={`${BASE}?month=${mes}&gasto=combustible#egresos`}>Ver movimientos de combustible ({cargas.length})</Link>
+          </details>
+        ) : null}
+      </section>
+
+      <section className="plain-card admin-section cont-ingresos" id="ingresos" aria-labelledby="cont-ingresos-titulo">
+        <header className="cont-seccion-cabeza">
+          <div>
+            <h2 id="cont-ingresos-titulo">Ingresos</h2>
+            <p className="muted">
+              Reservas pagadas o confirmadas del período elegido. Se pueden ver por mes, semana, día o desde/hasta;
+              la fecha es la del pago aprobado o, si todavía no hay pago, la de la reserva.
+            </p>
+          </div>
+          <div className="cont-ingresos-total">
+            <span className="muted">{periodoIngresos.period.label}</span>
+            {totalesIngresos.map((total) => (
+              <strong key={total.currency}>{formatCurrency(total.incomeCents, total.currency)}</strong>
+            ))}
+          </div>
+        </header>
+
+        <nav className="cont-vistas" aria-label="Ver ingresos por">
+          {(["mes", "semana", "dia", "rango"] as const).map((vista) => (
+            <Link
+              key={vista}
+              href={hrefVista(vista)}
+              className="cont-vista"
+              data-active={periodoIngresos.vista === vista ? "true" : undefined}
+              aria-current={periodoIngresos.vista === vista ? "page" : undefined}
+            >
+              {VISTA_ETIQUETA[vista]}
+            </Link>
+          ))}
+        </nav>
+
+        <form className="cont-filtros" action={BASE} method="get">
+          <CamposOcultos
+            params={params}
+            omitir={["vista", "month", "semana", "dia", "desde", "hasta", "qIngresos", "driverId", "pageIngresos"]}
+          />
+          <input type="hidden" name="vista" value={periodoIngresos.vista} />
+          {periodoIngresos.vista !== "mes" ? <input type="hidden" name="month" value={mes} /> : null}
+          <div className="cont-filtros-campos">
+            {periodoIngresos.vista === "mes" ? (
+              <label>Mes<input type="month" name="month" defaultValue={periodoIngresos.mes} /></label>
+            ) : null}
+            {periodoIngresos.vista === "semana" ? (
+              <label>Semana de<input type="date" name="semana" defaultValue={periodoIngresos.semana} /></label>
+            ) : null}
+            {periodoIngresos.vista === "dia" ? (
+              <label>Día<input type="date" name="dia" defaultValue={periodoIngresos.dia} /></label>
+            ) : null}
+            {periodoIngresos.vista === "rango" ? (
+              <>
+                <label>Desde<input type="date" name="desde" defaultValue={periodoIngresos.desde} /></label>
+                <label>Hasta<input type="date" name="hasta" defaultValue={periodoIngresos.hasta} /></label>
+              </>
+            ) : null}
+            <label>Buscar<input type="search" name="qIngresos" defaultValue={texto(params.qIngresos)} placeholder="Código, chofer o ruta" /></label>
+            <label>Chofer
+              <select name="driverId" defaultValue={texto(params.driverId) ?? ""}>
+                <option value="">Todos</option>
+                {choferesDeIngresos.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
+                {hayIngresosSinChofer ? <option value="sin-chofer">Sin chofer</option> : null}
+              </select>
+            </label>
+          </div>
+          <div className="cont-filtros-acciones">
+            <button className="button" type="submit">Aplicar</button>
+            <Link className="ghost-button" href={`${BASE}?month=${mes}`}>Limpiar</Link>
+          </div>
+        </form>
+
+        <details className="cont-columnas">
+          <summary>Columnas</summary>
+          <form action={BASE} method="get" className="cont-columnas-form">
+            <CamposOcultos params={params} omitir={["colsIngresos", "pageIngresos"]} />
+            <div className="cont-columnas-lista">
+              {COLUMNAS_DE_INGRESOS.map((columna) => (
+                <label key={columna.id}>
+                  <input type="checkbox" name="colsIngresos" value={columna.id} defaultChecked={setColumnasIngresos.has(columna.id)} />
+                  {columna.etiqueta}
+                </label>
+              ))}
+            </div>
+            <button className="ghost-button" type="submit">Aplicar columnas</button>
+          </form>
+        </details>
+
+        <div className="cont-tabla-scroll">
+          <table className="data-table cont-tabla cont-tabla-ingresos">
+            <thead>
+              <tr>
+                {setColumnasIngresos.has("fecha") ? encabezadoIngreso("Fecha", "fecha") : null}
+                {setColumnasIngresos.has("reserva") ? encabezadoIngreso("Reserva", "reserva") : null}
+                {setColumnasIngresos.has("chofer") ? encabezadoIngreso("Chofer", "chofer") : null}
+                {setColumnasIngresos.has("ruta") ? encabezadoIngreso("Ruta", "ruta") : null}
+                {setColumnasIngresos.has("nave") ? encabezadoIngreso("Nave", "nave") : null}
+                {setColumnasIngresos.has("monto") ? encabezadoIngreso("Monto", "monto") : null}
+                {setColumnasIngresos.has("estado") ? encabezadoIngreso("Estado", "estado") : null}
+              </tr>
+            </thead>
+            <tbody>
+              {paginaIngresos.items.map((ingreso) => (
+                <tr key={ingreso.id}>
+                  {setColumnasIngresos.has("fecha") ? <td>{formatDate(ingreso.occurredAt)}</td> : null}
+                  {setColumnasIngresos.has("reserva") ? <td><strong>{ingreso.code}</strong></td> : null}
+                  {setColumnasIngresos.has("chofer") ? (
+                    <td>
+                      {ingreso.driverId ? <Link href={`/admin/choferes/${ingreso.driverId}`}>{ingreso.driverName ?? "Chofer sin nombre"}</Link> : <span className="muted">Sin chofer</span>}
+                    </td>
+                  ) : null}
+                  {setColumnasIngresos.has("ruta") ? <td>{ingreso.routeLabel}</td> : null}
+                  {setColumnasIngresos.has("nave") ? <td>{ingreso.vehicleName}</td> : null}
+                  {setColumnasIngresos.has("monto") ? <td className="cont-monto">{formatCurrency(ingreso.amountCents, ingreso.currency)}</td> : null}
+                  {setColumnasIngresos.has("estado") ? <td><span className="cont-estado">{etiquetaDeIngreso(ingreso)}</span></td> : null}
+                </tr>
+              ))}
+              {!paginaIngresos.items.length ? (
+                <tr><td className="muted" colSpan={Math.max(1, columnasIngresos.length)}>No hay ingresos para este período.</td></tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+        <Paginador
+          page={paginaIngresos.page}
+          totalPages={paginaIngresos.totalPages}
+          total={paginaIngresos.total}
+          desde={paginaIngresos.desde}
+          hasta={paginaIngresos.hasta}
+          hrefPagina={(numero) => hrefDePagina(BASE, params, numero, "pageIngresos")}
+          etiqueta="ingresos"
+          pageSize={tamanoPagina}
+          tamanos={TAMANOS_DE_PAGINA}
+          hrefTamano={hrefTamano}
+        />
+      </section>
+
       <section className="plain-card admin-section cont-sueldos" id="sueldos" aria-labelledby="cont-sueldos-titulo">
         <header className="cont-seccion-cabeza">
           <div>
@@ -208,40 +527,97 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
             </div>
           ))}
         </header>
-        {sueldos.length ? (
+
+        <form className="cont-filtros cont-filtros-sueldos" action={BASE} method="get">
+          <CamposOcultos params={params} omitir={["month", "qSueldos", "rolSueldo", "estadoSueldo", "pageSueldos"]} />
+          <input type="hidden" name="month" value={mes} />
+          <div className="cont-filtros-campos">
+            <label>Buscar<input type="search" name="qSueldos" defaultValue={texto(params.qSueldos)} placeholder="Nombre" /></label>
+            <label>Rol
+              <select name="rolSueldo" defaultValue={rolSueldo}>
+                <option value="todos">Todos</option>
+                <option value="DRIVER">Choferes</option>
+                <option value="SECRETARY">Secretarias</option>
+              </select>
+            </label>
+            <label>Estado
+              <select name="estadoSueldo" defaultValue={estadoSueldo}>
+                <option value="todos">Todos</option>
+                {estadosDeSueldo.map((estado) => <option key={estado} value={estado}>{ETIQUETA_ESTADO_SUELDO[estado]}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="cont-filtros-acciones">
+            <button className="button" type="submit">Aplicar</button>
+            <Link className="ghost-button" href={`${BASE}?month=${mes}`}>Limpiar</Link>
+          </div>
+        </form>
+
+        <details className="cont-columnas">
+          <summary>Columnas</summary>
+          <form action={BASE} method="get" className="cont-columnas-form">
+            <CamposOcultos params={params} omitir={["colsSueldos", "pageSueldos"]} />
+            <div className="cont-columnas-lista">
+              {COLUMNAS_DE_LIQUIDACIONES.map((columna) => (
+                <label key={columna.id}>
+                  <input type="checkbox" name="colsSueldos" value={columna.id} defaultChecked={setColumnasLiquidaciones.has(columna.id)} />
+                  {columna.etiqueta}
+                </label>
+              ))}
+            </div>
+            <button className="ghost-button" type="submit">Aplicar columnas</button>
+          </form>
+        </details>
+
+        {liquidaciones.length ? (
           <div className="cont-tabla-scroll">
-            <table className="data-table embedded-table cont-sueldos-tabla">
+            <table className="data-table embedded-table cont-sueldos-tabla cont-liquidaciones-tabla">
               <thead>
                 <tr>
-                  <th scope="col">Persona</th>
-                  <th scope="col" className="cont-num">Días</th>
-                  <th scope="col" className="cont-num">Salidas</th>
-                  <th scope="col" className="cont-num">Horas</th>
-                  <th scope="col" className="cont-num">Sueldo</th>
-                  <th scope="col" className="cont-num">Pagado</th>
-                  <th scope="col" className="cont-num">Falta</th>
-                  <th scope="col">Estado</th>
+                  {setColumnasLiquidaciones.has("persona") ? encabezadoLiquidacion("Persona", "persona") : null}
+                  {setColumnasLiquidaciones.has("dias") ? encabezadoLiquidacion("Días", "dias") : null}
+                  {setColumnasLiquidaciones.has("salidas") ? encabezadoLiquidacion("Salidas", "salidas") : null}
+                  {setColumnasLiquidaciones.has("horas") ? encabezadoLiquidacion("Horas", "horas") : null}
+                  {setColumnasLiquidaciones.has("sueldo") ? encabezadoLiquidacion("Sueldo", "sueldo") : null}
+                  {setColumnasLiquidaciones.has("pagado") ? encabezadoLiquidacion("Pagado", "pagado") : null}
+                  {setColumnasLiquidaciones.has("falta") ? encabezadoLiquidacion("Falta", "falta") : null}
+                  {setColumnasLiquidaciones.has("estado") ? encabezadoLiquidacion("Estado", "estado") : null}
                   <th scope="col"><span className="sr-only">Acciones</span></th>
                 </tr>
               </thead>
               <tbody>
-                {sueldos.map((fila) => (
+                {paginaLiquidaciones.items.map((fila) => (
                   <tr key={fila.userId} data-estado={fila.estado}>
-                    <td data-label="Persona">
-                      <Link href={fichaDe(fila)}>{fila.nombre}</Link>
-                      <small>{fila.rol === "DRIVER" ? "Chofer" : "Secretaria"}{fila.activo ? "" : " · inactivo"}</small>
-                    </td>
-                    {/* Base de servicio público (sólo choferes): lo que #457 trajo desde Servicio público. */}
-                    <td data-label="Días" className="cont-num">{fila.base ? <strong>{fila.base.dias}</strong> : <span className="muted">—</span>}</td>
-                    <td data-label="Salidas" className="cont-num">{fila.base ? fila.base.salidas : <span className="muted">—</span>}</td>
-                    <td data-label="Horas" className="cont-num">{fila.base ? formatoHoras(fila.base.horas) : <span className="muted">—</span>}</td>
-                    <td data-label="Sueldo" className="cont-num">{fila.sueldoCents ? formatCurrency(fila.sueldoCents, fila.moneda) : <Link className="cont-falta-dato" href={fichaDe(fila)}>Cargar en la ficha</Link>}</td>
-                    <td data-label="Pagado" className="cont-num">
-                      {fila.pagadoCents ? formatCurrency(fila.pagadoCents, fila.moneda) : "—"}
-                      {fila.pagosEnOtraMoneda.map((otro) => <small key={otro.currency}>+ {formatCurrency(otro.amountCents, otro.currency)} en otra moneda</small>)}
-                    </td>
-                    <td data-label="Falta" className="cont-num"><strong>{fila.pendienteCents ? formatCurrency(fila.pendienteCents, fila.moneda) : fila.pendienteCents === 0 ? "—" : "?"}</strong></td>
-                    <td data-label="Estado"><span className="cont-estado" data-estado={fila.estado}>{ETIQUETA_ESTADO_SUELDO[fila.estado]}</span></td>
+                    {setColumnasLiquidaciones.has("persona") ? (
+                      <td data-label="Persona">
+                        <Link href={fila.rol === "DRIVER" ? `/admin/contabilidad/choferes?chofer=${fila.userId}&month=${mes}` : fichaDe(fila)}>{fila.nombre}</Link>
+                        <small>{fila.rol === "DRIVER" ? "Chofer" : "Secretaria"}{fila.activo ? "" : " · inactivo"}</small>
+                      </td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("dias") ? (
+                      <td data-label="Días" className="cont-num">{fila.base ? <strong>{fila.base.dias}</strong> : <span className="muted">—</span>}</td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("salidas") ? (
+                      <td data-label="Salidas" className="cont-num">{fila.base ? fila.base.salidas : <span className="muted">—</span>}</td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("horas") ? (
+                      <td data-label="Horas" className="cont-num">{fila.base ? formatoHoras(fila.base.horas) : <span className="muted">—</span>}</td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("sueldo") ? (
+                      <td data-label="Sueldo" className="cont-num">{fila.sueldoCents ? formatCurrency(fila.sueldoCents, fila.moneda) : <Link className="cont-falta-dato" href={fichaDe(fila)}>Cargar en la ficha</Link>}</td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("pagado") ? (
+                      <td data-label="Pagado" className="cont-num">
+                        {fila.pagadoCents ? formatCurrency(fila.pagadoCents, fila.moneda) : "—"}
+                        {fila.pagosEnOtraMoneda.map((otro) => <small key={otro.currency}>+ {formatCurrency(otro.amountCents, otro.currency)} en otra moneda</small>)}
+                      </td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("falta") ? (
+                      <td data-label="Falta" className="cont-num"><strong>{fila.pendienteCents ? formatCurrency(fila.pendienteCents, fila.moneda) : fila.pendienteCents === 0 ? "—" : "?"}</strong></td>
+                    ) : null}
+                    {setColumnasLiquidaciones.has("estado") ? (
+                      <td data-label="Estado"><span className="cont-estado" data-estado={fila.estado}>{ETIQUETA_ESTADO_SUELDO[fila.estado]}</span></td>
+                    ) : null}
                     <td className="cont-accion">
                       {fila.activo ? (
                         <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida}
@@ -256,8 +632,20 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
             </table>
           </div>
         ) : (
-          <p className="muted">No hay choferes ni secretarias activos. Cargalos desde Choferes o Secretarias para liquidar sus sueldos.</p>
+          <p className="muted">No hay choferes ni secretarias que coincidan con el filtro. Probá limpiar la búsqueda o cargar una ficha.</p>
         )}
+        <Paginador
+          page={paginaLiquidaciones.page}
+          totalPages={paginaLiquidaciones.totalPages}
+          total={paginaLiquidaciones.total}
+          desde={paginaLiquidaciones.desde}
+          hasta={paginaLiquidaciones.hasta}
+          hrefPagina={(numero) => hrefDePagina(BASE, params, numero, "pageSueldos")}
+          etiqueta="liquidaciones"
+          pageSize={tamanoPagina}
+          tamanos={TAMANOS_DE_PAGINA}
+          hrefTamano={hrefTamano}
+        />
       </section>
 
       <section className="plain-card admin-section cont-categorias" aria-labelledby="cont-categorias-titulo">
@@ -279,11 +667,12 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         )}
       </section>
 
-      <section className="plain-card admin-section" aria-labelledby="cont-egresos-titulo">
+      <section className="plain-card admin-section" id="egresos" aria-labelledby="cont-egresos-titulo">
         <header className="cont-seccion-cabeza">
-          <h2 id="cont-egresos-titulo">Egresos de {mesLabel}</h2>
-          <span className="muted">{report.expenses.length} {report.expenses.length === 1 ? "movimiento" : "movimientos"}</span>
+          <h2 id="cont-egresos-titulo">{soloCombustible ? "Movimientos de combustible" : "Egresos"} de {mesLabel}</h2>
+          <span className="muted">{egresos.length} {egresos.length === 1 ? "movimiento" : "movimientos"}</span>
         </header>
+        {soloCombustible ? <Link href={`${BASE}?month=${mes}#egresos`}>Ver todos los egresos</Link> : null}
         <div className="cont-tabla-scroll">
           <table className="data-table embedded-table">
             <thead>
@@ -301,15 +690,15 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
                 <tr key={entry.id}>
                   <td>{formatDate(entry.occurredAt)}</td>
                   <td>{categoriaLabel(entry.category)}{entry.salaryPeriod ? <small className="muted"> · período {entry.salaryPeriod.split("-").reverse().join("/")}</small> : null}</td>
-                  <td>{formatCurrency(entry.amountCents, entry.currency)}</td>
+                  <td>{entry.category === "FUEL" ? importeConMoneda(entry.amountCents, entry.currency) : formatCurrency(entry.amountCents, entry.currency)}</td>
                   <td>{entry.vehicle?.name ?? "—"}</td>
                   <td>{entry.user?.name ?? entry.user?.email ?? "—"}</td>
                   <td>{entry.notes ?? "—"}</td>
                 </tr>
               ))}
-              {report.expenses.length === 0 ? (
+              {egresos.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Todavía no hay egresos cargados en {mesLabel}.</td>
+                  <td colSpan={6}>Todavía no hay {soloCombustible ? "gastos de combustible" : "egresos"} cargados en {mesLabel}.</td>
                 </tr>
               ) : null}
             </tbody>

@@ -15,7 +15,7 @@ export const ACCOUNTING_CATEGORY_LABELS: Record<AccountingCategory, string> = {
   SECRETARY_SALARY: "Sueldo secretaria",
   DRIVER_SALARY: "Sueldo chofer",
   REPAIR: "Arreglo",
-  FUEL: "Nafta",
+  FUEL: "Combustible",
   INSURANCE: "Seguro",
   TOLL: "Peaje",
   CLEANING: "Limpieza",
@@ -62,6 +62,11 @@ export type AccountingReservationRecord = {
       from: string;
       to: string;
     };
+    driver?: {
+      id: string;
+      name: string | null;
+      email: string;
+    } | null;
   } | null;
 };
 
@@ -95,6 +100,12 @@ export type AccountingIncomeItem = {
   occurredAt: Date;
   vehicleId: string;
   vehicleName: string;
+  /** Chofer asignado a la salida; null si la reserva no tiene horario o la salida no tiene chofer. */
+  driverId: string | null;
+  driverName: string | null;
+  routeLabel: string;
+  status: string;
+  paymentStatus: string | null;
 };
 
 export type AccountingGroup = {

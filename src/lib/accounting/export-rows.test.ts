@@ -30,7 +30,12 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
         currency: "ARS",
         occurredAt: new Date("2026-11-05T10:00:00.000Z"),
         vehicleId: "v1",
-        vehicleName: "Araucana 24"
+        vehicleName: "Araucana 24",
+        driverId: "d1",
+        driverName: "Hugo",
+        routeLabel: "San Martin a Chapelco",
+        status: "CONFIRMED",
+        paymentStatus: "APPROVED"
       },
       {
         id: "r2",
@@ -41,7 +46,12 @@ function report(overrides: Partial<AccountingReport> = {}): AccountingReport {
         currency: "USD",
         occurredAt: new Date("2026-11-06T10:00:00.000Z"),
         vehicleId: "v2",
-        vehicleName: "Sprinter"
+        vehicleName: "Sprinter",
+        driverId: null,
+        driverName: null,
+        routeLabel: "Villa Traful a San Martin",
+        status: "CONFIRMED",
+        paymentStatus: "APPROVED"
       }
     ],
     expenses: [
@@ -130,7 +140,7 @@ describe("export contable: hojas", () => {
     const gastos = buildExportSheets(report(), meta)[2];
 
     expect(gastos.header).toContain("Categoría");
-    expect(gastos.rows.map((row) => row[1]?.v)).toEqual(["Nafta", "Sueldo chofer"]);
+    expect(gastos.rows.map((row) => row[1]?.v)).toEqual(["Combustible", "Sueldo chofer"]);
     expect(gastos.rows[0][4]).toEqual({ v: 500, fmt: "money" });
   });
 

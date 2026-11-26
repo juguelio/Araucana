@@ -16,7 +16,12 @@ function report(): AccountingReport {
         currency: "ARS",
         occurredAt: new Date("2026-11-05T10:00:00.000Z"),
         vehicleId: "v1",
-        vehicleName: "Araucana 24"
+        vehicleName: "Araucana 24",
+        driverId: "d1",
+        driverName: "Hugo",
+        routeLabel: "San Martin a Chapelco",
+        status: "CONFIRMED",
+        paymentStatus: "APPROVED"
       }
     ],
     expenses: [

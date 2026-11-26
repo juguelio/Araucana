@@ -8,6 +8,7 @@ import { initialAdminFormState, type AdminFormState } from "../form-state";
 type ExpenseFormAction = (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
 
 type ExpenseFormProps = {
+  combustible?: boolean;
   action: ExpenseFormAction;
   vehicles: Array<{
     id: string;
@@ -19,7 +20,7 @@ type ExpenseFormProps = {
   fecha?: string;
 };
 
-export function ExpenseForm({ action, vehicles, mes, fecha }: ExpenseFormProps) {
+export function ExpenseForm({ combustible, action, vehicles, mes, fecha }: ExpenseFormProps) {
   const [state, formAction] = useActionState(action, initialAdminFormState);
   const today = fecha ?? new Date().toISOString().slice(0, 10);
 
@@ -27,7 +28,7 @@ export function ExpenseForm({ action, vehicles, mes, fecha }: ExpenseFormProps) 
     <form className="admin-form-grid" action={formAction}>
       <AdminFormAlert state={state} />
       {mes ? <input type="hidden" name="volverA" value={mes} /> : null}
-      <label>
+      {combustible ? <input type="hidden" name="category" value="FUEL" /> : <label>
         Categoría
         <select name="category" required>
           {EXPENSE_CATEGORIES.map((category) => (
@@ -36,7 +37,7 @@ export function ExpenseForm({ action, vehicles, mes, fecha }: ExpenseFormProps) 
             </option>
           ))}
         </select>
-      </label>
+      </label>}
       <label>
         Monto
         <input name="amount" inputMode="decimal" placeholder="Ej: 85000" required />

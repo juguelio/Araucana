@@ -126,7 +126,7 @@ describe("accounting service", () => {
     ]);
     expect(report.expensesByCategory).toEqual([
       { id: "DRIVER_SALARY", label: "Sueldo chofer", amountCents: 70_000, currency: "ARS" },
-      { id: "FUEL", label: "Nafta", amountCents: 40_000, currency: "ARS" }
+      { id: "FUEL", label: "Combustible", amountCents: 40_000, currency: "ARS" }
     ]);
     expect(report.salariesByPerson).toEqual([
       { id: "user-1", label: "Chofer", amountCents: 70_000, currency: "ARS" }
@@ -143,8 +143,8 @@ describe("accounting service", () => {
     });
 
     expect(report.expensesByCategory).toEqual([
-      { id: "FUEL", label: "Nafta", amountCents: 50_000, currency: "ARS" },
-      { id: "FUEL", label: "Nafta", amountCents: 30_000, currency: "USD" }
+      { id: "FUEL", label: "Combustible", amountCents: 50_000, currency: "ARS" },
+      { id: "FUEL", label: "Combustible", amountCents: 30_000, currency: "USD" }
     ]);
     expect(report.expensesByVehicle).toEqual([
       { id: "veh-1", label: "Araucana 24", amountCents: 50_000, currency: "ARS" },

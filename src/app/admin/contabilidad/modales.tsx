@@ -8,7 +8,8 @@ import { SalaryPaymentForm } from "./salary-payment-form";
 type Accion = (state: AdminFormState, formData: FormData) => Promise<AdminFormState>;
 
 /** «Agregar egreso» como modal (antes un desplegable al medio de la página). */
-export function NuevoEgreso({ action, vehicles, mes, fecha, mesLabel, closeKey }: {
+export function NuevoEgreso({ combustible = false, action, vehicles, mes, fecha, mesLabel, closeKey }: {
+  combustible?: boolean;
   action: Accion;
   vehicles: { id: string; name: string }[];
   mes: string;
@@ -16,10 +17,11 @@ export function NuevoEgreso({ action, vehicles, mes, fecha, mesLabel, closeKey }
   mesLabel: string;
   closeKey?: string;
 }) {
+  const trigger = combustible ? "Cargar combustible" : "Agregar egreso";
   return (
-    <RowModal trigger="Agregar egreso" triggerLabel="Agregar egreso" triggerClassName="ghost-button" modalClassName="cont-modal" closeKey={closeKey}
-      eyebrow="Contabilidad" title="Nuevo egreso" subtitle={`Se suma a ${mesLabel} si la fecha cae en ese mes.`}>
-      <ExpenseForm action={action} vehicles={vehicles} mes={mes} fecha={fecha} />
+    <RowModal trigger={trigger} triggerLabel={trigger} triggerClassName="ghost-button" modalClassName="cont-modal" closeKey={closeKey}
+      eyebrow="Contabilidad" title={combustible ? "Gasto de combustible" : "Nuevo egreso"} subtitle={`Se suma a ${mesLabel} si la fecha cae en ese mes.`}>
+      <ExpenseForm combustible={combustible} action={action} vehicles={vehicles} mes={mes} fecha={fecha} />
     </RowModal>
   );
 }

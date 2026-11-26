@@ -12,6 +12,8 @@ type EncabezadoOrdenableProps<Col extends string> = {
   params: Record<string, string | string[] | undefined>;
   /** Nombre del parámetro de página del listado (se borra al ordenar: vuelve a la página 1). */
   clavePagina?: string;
+  /** Nombres de los parámetros de orden/dirección cuando hay más de un listado en la página. */
+  clavesOrden?: { orden?: string; dir?: string };
   className?: string;
 };
 
@@ -21,7 +23,7 @@ type EncabezadoOrdenableProps<Col extends string> = {
  * `aria-sort` le dice el estado a los lectores de pantalla.
  */
 export function EncabezadoOrdenable<Col extends string>({
-  etiqueta, columna, orden, base, params, clavePagina, className
+  etiqueta, columna, orden, base, params, clavePagina, clavesOrden, className
 }: EncabezadoOrdenableProps<Col>) {
   const flecha = flechaDeOrden(orden, columna);
   const siguiente = alternarOrden(orden, columna);
@@ -29,7 +31,7 @@ export function EncabezadoOrdenable<Col extends string>({
     <th aria-sort={ariaSortDe(orden, columna)} className={className}>
       <Link
         className="orden-col"
-        href={hrefConOrden(base, params, siguiente, clavePagina)}
+        href={hrefConOrden(base, params, siguiente, clavePagina, clavesOrden)}
         title={`Ordenar por ${etiqueta.toLowerCase()} (${siguiente.direccion === "asc" ? "de menor a mayor" : "de mayor a menor"})`}
       >
         {etiqueta}
