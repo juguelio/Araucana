@@ -85,18 +85,25 @@ export function reservationToIncome(reservation: AccountingReservationRecord) {
     return null;
   }
 
+  const routeFrom = reservation.schedule?.route.from ?? reservation.route?.from ?? "Ruta";
+  const routeTo = reservation.schedule?.route.to ?? reservation.route?.to ?? "sin datos";
+  const driver = reservation.schedule?.driver ?? null;
+
   return {
     id: reservation.id,
     source: "reservation" as const,
     code: reservation.code,
-    description: `${reservation.code} · ${reservation.schedule?.route.from ?? reservation.route?.from ?? "Ruta"} a ${
-      reservation.schedule?.route.to ?? reservation.route?.to ?? "sin datos"
-    }`,
+    description: `${reservation.code} · ${routeFrom} a ${routeTo}`,
     amountCents: reservation.totalCents,
     currency: reservation.currency,
     occurredAt: approvedPayment ? approvedPayment.updatedAt : reservation.createdAt,
     vehicleId: reservation.schedule?.vehicle?.id ?? "sin-nave",
-    vehicleName: reservation.schedule?.vehicle?.name ?? "Sin nave asignada"
+    vehicleName: reservation.schedule?.vehicle?.name ?? "Sin nave asignada",
+    driverId: driver?.id ?? null,
+    driverName: driver ? driver.name?.trim() || driver.email : null,
+    routeLabel: `${routeFrom} a ${routeTo}`,
+    status: reservation.status,
+    paymentStatus: reservation.payment?.status ?? null
   };
 }
 
@@ -275,6 +282,13 @@ export async function getAccountingReport(options: {
               select: {
                 from: true,
                 to: true
+              }
+            },
+            driver: {
+              select: {
+                id: true,
+                name: true,
+                email: true
               }
             }
           }

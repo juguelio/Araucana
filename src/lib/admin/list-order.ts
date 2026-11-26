@@ -72,15 +72,18 @@ export function hrefConOrden(
   base: string,
   params: Record<string, string | string[] | undefined>,
   orden: OrdenDeListado,
-  clavePagina = "page"
+  clavePagina = "page",
+  claves: { orden?: string; dir?: string } = {}
 ): string {
+  const claveOrden = claves.orden ?? "orden";
+  const claveDir = claves.dir ?? "dir";
   const query = new URLSearchParams();
   for (const [clave, valor] of Object.entries(params)) {
     if (typeof valor !== "string" || !valor || clave === "notice" || clave === clavePagina) continue;
     query.set(clave, valor);
   }
-  query.set("orden", orden.columna);
-  query.set("dir", orden.direccion);
+  query.set(claveOrden, orden.columna);
+  query.set(claveDir, orden.direccion);
   return `${base}?${query.toString()}`;
 }
 

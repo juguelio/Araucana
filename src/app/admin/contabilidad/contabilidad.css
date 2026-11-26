@@ -12,6 +12,30 @@
 .cont-barra span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
 .cont-sueldos-total { display: grid; gap: 6px; min-width: 240px; font-size: 13px; font-weight: 700; }
 
+/* Ingresos por período: mismas pestañas, filtros y columnas que el resto de los listados. */
+.cont-ingresos { margin-bottom: 16px; }
+.cont-ingresos-total { display: grid; gap: 4px; text-align: right; font-size: 18px; font-variant-numeric: tabular-nums; }
+.cont-ingresos-total strong { font-size: 20px; }
+.cont-vistas { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 12px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2, #f6f0e5); width: fit-content; }
+.cont-vista { padding: 6px 12px; border-radius: 8px; color: var(--ink); font-size: 13px; font-weight: 700; text-decoration: none; }
+.cont-vista:hover { background: var(--surface); }
+.cont-vista[data-active="true"] { background: var(--primary); color: #fff; }
+.cont-filtros { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin: 0 0 10px; }
+.cont-filtros-campos { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; }
+.cont-filtros label { display: grid; gap: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 700; }
+.cont-filtros input, .cont-filtros select { min-height: 34px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+.cont-filtros input[type="search"] { min-width: 200px; }
+.cont-filtros-acciones { display: flex; gap: 8px; align-items: center; }
+.cont-columnas { margin: 0 0 10px; font-size: 13px; }
+.cont-columnas summary { width: fit-content; cursor: pointer; color: var(--primary-deep); font-weight: 700; }
+.cont-columnas-form { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2, #f6f0e5); }
+.cont-columnas-lista { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.cont-columnas-lista label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink); font-size: 13px; }
+.cont-tabla-ingresos td { vertical-align: middle; }
+.cont-tabla-ingresos .cont-monto { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cont-tabla-ingresos td[data-label="Reserva"] strong { font-variant-numeric: tabular-nums; }
+.cont-importe-combustible { display: block; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+
 .cont-sueldos-tabla td { vertical-align: middle; }
 /* Nueve columnas: celdas más justas para que todo entre a 1280 px sin scroll. */
 .cont-sueldos-tabla th, .cont-sueldos-tabla td { padding-left: 8px; padding-right: 8px; }

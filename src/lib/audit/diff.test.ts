@@ -77,7 +77,7 @@ describe("lectura en pantalla", () => {
     ]);
     expect(auditChangeLines({ totalCents: { before: 100000, after: 250000 } })[0].after).toContain("2.500");
     expect(auditChangeLines({ category: { before: null, after: "FUEL" }, occurredAt: { before: null, after: "2026-11-16T00:00:00.000Z" } }))
-      .toMatchObject([{ after: "Nafta" }, { after: "16/11/2026" }]);
+      .toMatchObject([{ after: "Combustible" }, { after: "16/11/2026" }]);
     expect(auditChangeLines(null)).toEqual([]);
   });
 });
