@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { EncabezadoOrdenable } from "@/components/admin-list/encabezado-ordenable";
 import { Paginador } from "@/components/admin-list/paginador";
-import { BarraDelMes, Cifras, type Cifra } from "@/components/modulo/modulo";
+import { BarraDelMes, ChipsDeFiltro, Cifras, SelectorDeVista, type Cifra } from "@/components/modulo/modulo";
 import { totalsByCurrency } from "@/lib/accounting/export-rows";
 import { createMonthPeriod, getAccountingReport } from "@/lib/accounting/service";
 import {
@@ -31,6 +31,7 @@ import {
 import {
   ETIQUETA_ESTADO_SUELDO, fechaPorDefecto, mesVecino, sueldosDelMes, totalesDeSueldos, type PersonaConSueldo
 } from "@/lib/accounting/sueldos";
+import { ETIQUETA_SECCION, SECCIONES, codigoCorto, rutaCorta, seccionDeContabilidad, type Seccion } from "@/lib/accounting/secciones";
 import { ACCOUNTING_CATEGORY_LABELS } from "@/lib/accounting/types";
 import {
   hrefDePagina, leerOrden, leerPagina, ordenarEnMemoria, paginar, type OrdenDeListado
@@ -90,12 +91,21 @@ function formatDate(date: Date) {
   return date.toLocaleDateString("es-AR", { timeZone: "UTC" });
 }
 
+/** «20/11»: el año ya está en el período elegido; el completo queda en el `title`. */
+function fechaCorta(date: Date) {
+  return fechaCortaFormatter.format(date);
+}
+
 /**
- * Contabilidad: el trabajo del mes (rediseño del 25-nov, sobre #457). Arriba, el mes y cuánto entró,
- * cuánto salió y cuánto falta pagar de sueldos —por moneda, sin sumar pesos con dólares—. Después
- * «Sueldos del mes»: cada chofer y secretaria con lo pactado, lo pagado para ese período y lo que
- * falta, más la base de días, salidas y horas de servicio público de cada chofer (el bloque que
- * #457 trajo desde Servicio público). Al final, en qué se fueron los egresos y la lista.
+ * Contabilidad: el trabajo del mes (25-nov sobre #457; secciones el 26-nov, sobre #461). Arriba, el
+ * selector Resumen · Ingresos · Sueldos · Egresos, el mes y cuánto entró, cuánto salió y cuánto falta
+ * pagar de sueldos —por moneda, sin sumar pesos con dólares—. Abajo, una sección por vez:
+ *
+ * - Resumen: los sueldos que faltan pagar (con «Pagar» a mano), los últimos ingresos y en qué se
+ *   fueron los egresos, con combustible por nave. Cada bloque lleva a su sección.
+ * - Ingresos: la tabla de #461 (período, filtros, columnas, orden y páginas), en un renglón por reserva.
+ * - Sueldos: lo pactado, lo pagado para el período, lo que falta y la base de servicio público.
+ * - Egresos: la lista, con el chip «Combustible» (antes era una tarjeta aparte).
  *
  * Los agrupados por nave y la exportación a Excel siguen en Reportes.
  */
@@ -113,6 +123,9 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
   // igual que Servicio público, así una salida de las 22:30 cuenta en el día que salió.
   const mesInicio = period.from.toISOString().slice(0, 10);
   const mesSiguiente = period.to.toISOString().slice(0, 10);
+  const seccion = seccionDeContabilidad(params);
+  const hrefSeccion = (destino: Seccion, mesDestino = mes) =>
+    `${BASE}?month=${mesDestino}${destino === "resumen" ? "" : `&seccion=${destino}`}`;
 
   const periodoIngresos = periodoDeIngresos(params);
   const [report, incomeReport, vehicles, personas, pagos, mesRows] = await Promise.all([
@@ -269,7 +282,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         rotulo: s && s.personasPendientes ? `Sueldos por pagar · ${s.personasPendientes} ${s.personasPendientes === 1 ? "persona" : "personas"}${sufijo}` : `Sueldos por pagar${sufijo}`,
         valor: s && s.pendienteCents ? formatCurrency(s.pendienteCents, moneda) : "Nada pendiente",
         alerta: Boolean(s?.pendienteCents),
-        href: "#sueldos"
+        href: hrefSeccion("sueldos")
       }
     ];
   };
@@ -330,60 +343,166 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
     />
   );
 
+
+  // Resumen: lo que pide atención primero (sueldos), lo último que entró y en qué se fue la plata.
+  const porPagar = sueldos.filter((fila) => fila.activo && (fila.estado === "pendiente" || fila.estado === "parcial" || fila.estado === "sin-sueldo"));
+  const ultimosIngresos = [...report.incomes].sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime()).slice(0, 5);
+  const ingresosSinChofer = report.incomes.filter((ingreso) => !ingreso.driverId).length;
+  const navesDeCombustible = [...porNave.values()].sort((a, b) => a.moneda.localeCompare(b.moneda) || b.centavos - a.centavos);
+  const ver = (texto: string, destino: Seccion) => <Link className="cont-ver-todo" href={hrefSeccion(destino)}>{texto} →</Link>;
+  const pagoDe = (fila: (typeof sueldos)[number], trigger: string, triggerClassName = "ghost-button modulo-asignar") => (
+    <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida}
+      userId={fila.userId} montoCents={fila.pendienteCents} nombre={fila.nombre} closeKey={modalKey}
+      trigger={trigger} triggerClassName={triggerClassName} seccion={seccion} />
+  );
+  const mesConMayuscula = mesLabel.replace(/^./, (letra) => letra.toUpperCase());
+
   return (
     <AdminShell role={sessionUser.role} title="Contabilidad" eyebrow="Administración" notice={texto(params.notice)}
       action={<div className="inline-actions">
         <Link className="ghost-button" href={`/admin/reportes?month=${mes}`}>Reporte y Excel</Link>
-        <NuevoEgreso action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} />
+        <NuevoEgreso action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} seccion={seccion} />
         {usuariosParaPago.length ? (
-          <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida} trigger="Registrar pago de sueldo" triggerClassName="button" closeKey={modalKey} />
+          <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida} trigger="Registrar pago de sueldo" triggerClassName="button" closeKey={modalKey} seccion={seccion} />
         ) : null}
       </div>}>
+      <SelectorDeVista
+        opciones={SECCIONES.map((id) => ({ id, etiqueta: ETIQUETA_SECCION[id], href: hrefSeccion(id) }))}
+        actual={seccion}
+      />
       <BarraDelMes
         accion={BASE}
         mes={mes}
-        anterior={`${BASE}?month=${mesVecino(mes, -1)}`}
-        siguiente={`${BASE}?month=${mesVecino(mes, 1)}`}
-        esteMes={mes !== mesDeHoy ? `${BASE}?month=${mesDeHoy}` : null}
+        anterior={hrefSeccion(seccion, mesVecino(mes, -1))}
+        siguiente={hrefSeccion(seccion, mesVecino(mes, 1))}
+        esteMes={mes !== mesDeHoy ? hrefSeccion(seccion, mesDeHoy) : null}
+        ocultos={{ seccion: seccion === "resumen" ? null : seccion }}
       />
       <div className="cont-cifras">
         {monedas.map((moneda) => <Cifras key={moneda} etiqueta={`Resumen de ${mesLabel}${varias ? ` en ${moneda}` : ""}`} cifras={cifrasDe(moneda)} />)}
       </div>
-      <p className="muted flights-note">
-        <strong>{mesLabel.replace(/^./, (letra) => letra.toUpperCase())}</strong> · los ingresos son las reservas pagadas o confirmadas del mes;
-        los egresos, lo que se cargó acá (incluidos los sueldos pagados en el mes).
-      </p>
 
-      <section className="plain-card admin-section" id="combustible" aria-labelledby="cont-combustible-titulo">
-        <header className="cont-seccion-cabeza">
-          <div>
-            <h2 id="cont-combustible-titulo">Combustible del mes</h2>
-            {totalesCombustible.length ? totalesCombustible.map((total) => (
-              <strong key={total.moneda} className="cont-importe-combustible">{importeConMoneda(total.centavos, total.moneda)}</strong>
-            )) : <p className="muted">Sin gastos de combustible registrados en {mesLabel}.</p>}
+      {seccion === "resumen" ? (
+        <>
+          <p className="muted flights-note">
+            <strong>{mesConMayuscula}</strong> · los ingresos son las reservas pagadas o confirmadas del mes;
+            los egresos, lo que se cargó acá (incluidos los sueldos pagados en el mes).
+          </p>
+          <div className="cont-resumen">
+            <section className="plain-card admin-section cont-bloque" aria-labelledby="cont-r-sueldos">
+              <header className="cont-bloque-cabeza">
+                <h2 id="cont-r-sueldos">Sueldos por pagar</h2>
+                {ver(`Ver los ${sueldos.length} sueldos`, "sueldos")}
+              </header>
+              {totalesSueldos.map((total) => (
+                <div key={total.moneda} className="cont-sueldos-total">
+                  <span>Pagado {formatCurrency(total.pagadoCents, total.moneda)} de {formatCurrency(total.pactadoCents, total.moneda)}</span>
+                  <div className="cont-barra" aria-hidden><span style={{ width: `${total.pactadoCents ? Math.min(100, (total.pagadoCents / total.pactadoCents) * 100) : 0}%` }} /></div>
+                </div>
+              ))}
+              {porPagar.length ? (
+                <ul className="cont-lista" role="list">
+                  {porPagar.slice(0, 6).map((fila) => (
+                    <li key={fila.userId} data-estado={fila.estado}>
+                      <span className="cont-lista-quien">
+                        <strong>{fila.nombre}</strong>
+                        <small>{fila.rol === "DRIVER" ? "Chofer" : "Secretaria"} · {ETIQUETA_ESTADO_SUELDO[fila.estado]}</small>
+                      </span>
+                      {fila.estado === "sin-sueldo" ? (
+                        <Link className="cont-falta-dato" href={fichaDe(fila)}>Cargar en la ficha</Link>
+                      ) : (
+                        <>
+                          <strong className="cont-num">{formatCurrency(fila.pendienteCents ?? 0, fila.moneda)}</strong>
+                          {pagoDe(fila, "Pagar")}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="cont-vacio">Están todos pagos para {mesLabel}.</p>
+              )}
+              {porPagar.length > 6 ? <p className="muted cont-mas">Y {porPagar.length - 6} más en Sueldos.</p> : null}
+            </section>
+
+            <section className="plain-card admin-section cont-bloque" aria-labelledby="cont-r-ingresos">
+              <header className="cont-bloque-cabeza">
+                <h2 id="cont-r-ingresos">Ingresos</h2>
+                {ver(`Ver los ${report.incomes.length} ingresos`, "ingresos")}
+              </header>
+              <p className="cont-bloque-dato">
+                {report.incomes.length} {report.incomes.length === 1 ? "reserva pagada o confirmada" : "reservas pagadas o confirmadas"}
+                {ingresosSinChofer ? <> · <span className="muted">{ingresosSinChofer} sin chofer</span></> : null}
+              </p>
+              {ultimosIngresos.length ? (
+                <ul className="cont-lista" role="list" aria-label="Últimos ingresos">
+                  {ultimosIngresos.map((ingreso) => (
+                    <li key={ingreso.id}>
+                      <span className="cont-lista-fecha" title={formatDate(ingreso.occurredAt)}>{fechaCorta(ingreso.occurredAt)}</span>
+                      <span className="cont-lista-quien">
+                        <strong>{rutaCorta(ingreso.routeFrom, ingreso.routeTo)}</strong>
+                        <small title={ingreso.code}>{codigoCorto(ingreso.code)} · {etiquetaDeIngreso(ingreso)}</small>
+                      </span>
+                      <strong className="cont-num">{formatCurrency(ingreso.amountCents, ingreso.currency)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="cont-vacio">Todavía no hay ingresos en {mesLabel}.</p>
+              )}
+            </section>
+
+            <section className="plain-card admin-section cont-bloque cont-bloque-ancho" aria-labelledby="cont-r-egresos">
+              <header className="cont-bloque-cabeza">
+                <h2 id="cont-r-egresos">En qué se fueron los egresos</h2>
+                {ver(`Ver los ${report.expenses.length} egresos`, "egresos")}
+              </header>
+              <div className="cont-egresos-resumen">
+                {categorias.length ? (
+                  <ul className="cont-categorias-lista" role="list">
+                    {categorias.map((grupo) => (
+                      <li key={`${grupo.id}-${grupo.currency}`}>
+                        <span>{grupo.label}{varias ? ` (${grupo.currency})` : ""}</span>
+                        <div className="cont-barra" aria-hidden><span style={{ width: `${(grupo.amountCents / mayorDe(grupo.currency)) * 100}%` }} /></div>
+                        <strong>{formatCurrency(grupo.amountCents, grupo.currency)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="cont-vacio">Todavía no hay egresos cargados en {mesLabel}.</p>
+                )}
+                <div className="cont-combustible" id="combustible">
+                  <h3>Combustible por nave</h3>
+                  {navesDeCombustible.length ? (
+                    <ul role="list">
+                      {navesDeCombustible.map((grupo, indice) => (
+                        <li key={`${grupo.nave}-${grupo.moneda}-${indice}`}>
+                          <span>{grupo.nave}</span>
+                          <strong className="cont-num">{importeConMoneda(grupo.centavos, grupo.moneda)}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="muted">Sin cargas de combustible en {mesLabel}.</p>
+                  )}
+                  <div className="cont-combustible-pie">
+                    {cargas.length ? <Link href={`${BASE}?month=${mes}&seccion=egresos&gasto=combustible`}>Ver las {cargas.length} cargas</Link> : null}
+                    <NuevoEgreso combustible action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} seccion={seccion} />
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
-          <NuevoEgreso combustible action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} />
-        </header>
-        {cargas.length ? (
-          <details>
-            <summary>Gasto por nave</summary>
-            <ul>
-              {[...porNave.values()]
-                .sort((a, b) => a.moneda.localeCompare(b.moneda) || b.centavos - a.centavos)
-                .map((grupo, indice) => <li key={`${grupo.nave}-${grupo.moneda}-${indice}`}>{grupo.nave} · {importeConMoneda(grupo.centavos, grupo.moneda)}</li>)}
-            </ul>
-            <Link href={`${BASE}?month=${mes}&gasto=combustible#egresos`}>Ver movimientos de combustible ({cargas.length})</Link>
-          </details>
-        ) : null}
-      </section>
+        </>
+      ) : null}
 
+      {seccion === "ingresos" ? (
       <section className="plain-card admin-section cont-ingresos" id="ingresos" aria-labelledby="cont-ingresos-titulo">
         <header className="cont-seccion-cabeza">
           <div>
             <h2 id="cont-ingresos-titulo">Ingresos</h2>
             <p className="muted">
-              Reservas pagadas o confirmadas del período elegido. Se pueden ver por mes, semana, día o desde/hasta;
-              la fecha es la del pago aprobado o, si todavía no hay pago, la de la reserva.
+              Reservas pagadas o confirmadas. La fecha es la del pago aprobado o, si todavía no hay pago, la de la reserva.
             </p>
           </div>
           <div className="cont-ingresos-total">
@@ -411,14 +530,13 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         <form className="cont-filtros" action={BASE} method="get">
           <CamposOcultos
             params={params}
-            omitir={["vista", "month", "semana", "dia", "desde", "hasta", "qIngresos", "driverId", "pageIngresos"]}
+            omitir={["seccion", "vista", "month", "semana", "dia", "desde", "hasta", "qIngresos", "driverId", "pageIngresos"]}
           />
+          <input type="hidden" name="seccion" value="ingresos" />
           <input type="hidden" name="vista" value={periodoIngresos.vista} />
-          {periodoIngresos.vista !== "mes" ? <input type="hidden" name="month" value={mes} /> : null}
+          {/* El mes lo elige la barra de arriba: acá no se repite el campo. */}
+          <input type="hidden" name="month" value={mes} />
           <div className="cont-filtros-campos">
-            {periodoIngresos.vista === "mes" ? (
-              <label>Mes<input type="month" name="month" defaultValue={periodoIngresos.mes} /></label>
-            ) : null}
             {periodoIngresos.vista === "semana" ? (
               <label>Semana de<input type="date" name="semana" defaultValue={periodoIngresos.semana} /></label>
             ) : null}
@@ -442,14 +560,15 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
           </div>
           <div className="cont-filtros-acciones">
             <button className="button" type="submit">Aplicar</button>
-            <Link className="ghost-button" href={`${BASE}?month=${mes}`}>Limpiar</Link>
+            <Link className="ghost-button" href={hrefSeccion("ingresos")}>Limpiar</Link>
           </div>
         </form>
 
         <details className="cont-columnas">
           <summary>Columnas</summary>
           <form action={BASE} method="get" className="cont-columnas-form">
-            <CamposOcultos params={params} omitir={["colsIngresos", "pageIngresos"]} />
+            <CamposOcultos params={params} omitir={["seccion", "colsIngresos", "pageIngresos"]} />
+            <input type="hidden" name="seccion" value="ingresos" />
             <div className="cont-columnas-lista">
               {COLUMNAS_DE_INGRESOS.map((columna) => (
                 <label key={columna.id}>
@@ -468,27 +587,29 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
               <tr>
                 {setColumnasIngresos.has("fecha") ? encabezadoIngreso("Fecha", "fecha") : null}
                 {setColumnasIngresos.has("reserva") ? encabezadoIngreso("Reserva", "reserva") : null}
-                {setColumnasIngresos.has("chofer") ? encabezadoIngreso("Chofer", "chofer") : null}
                 {setColumnasIngresos.has("ruta") ? encabezadoIngreso("Ruta", "ruta") : null}
+                {setColumnasIngresos.has("chofer") ? encabezadoIngreso("Chofer", "chofer") : null}
                 {setColumnasIngresos.has("nave") ? encabezadoIngreso("Nave", "nave") : null}
-                {setColumnasIngresos.has("monto") ? encabezadoIngreso("Monto", "monto") : null}
                 {setColumnasIngresos.has("estado") ? encabezadoIngreso("Estado", "estado") : null}
+                {setColumnasIngresos.has("monto") ? encabezadoIngreso("Monto", "monto") : null}
               </tr>
             </thead>
             <tbody>
               {paginaIngresos.items.map((ingreso) => (
                 <tr key={ingreso.id}>
-                  {setColumnasIngresos.has("fecha") ? <td>{formatDate(ingreso.occurredAt)}</td> : null}
-                  {setColumnasIngresos.has("reserva") ? <td><strong>{ingreso.code}</strong></td> : null}
+                  {setColumnasIngresos.has("fecha") ? <td data-label="Fecha" className="cont-c-fecha" title={formatDate(ingreso.occurredAt)}>{fechaCorta(ingreso.occurredAt)}</td> : null}
+                  {setColumnasIngresos.has("reserva") ? <td data-label="Reserva" className="cont-c-reserva"><span className="cont-codigo" title={ingreso.code}>{codigoCorto(ingreso.code)}</span></td> : null}
+                  {setColumnasIngresos.has("ruta") ? <td data-label="Ruta" className="cont-c-ruta" title={ingreso.routeLabel}>{rutaCorta(ingreso.routeFrom, ingreso.routeTo)}</td> : null}
                   {setColumnasIngresos.has("chofer") ? (
-                    <td>
+                    <td data-label="Chofer" className="cont-c-chofer">
                       {ingreso.driverId ? <Link href={`/admin/choferes/${ingreso.driverId}`}>{ingreso.driverName ?? "Chofer sin nombre"}</Link> : <span className="muted">Sin chofer</span>}
                     </td>
                   ) : null}
-                  {setColumnasIngresos.has("ruta") ? <td>{ingreso.routeLabel}</td> : null}
-                  {setColumnasIngresos.has("nave") ? <td>{ingreso.vehicleName}</td> : null}
-                  {setColumnasIngresos.has("monto") ? <td className="cont-monto">{formatCurrency(ingreso.amountCents, ingreso.currency)}</td> : null}
-                  {setColumnasIngresos.has("estado") ? <td><span className="cont-estado">{etiquetaDeIngreso(ingreso)}</span></td> : null}
+                  {setColumnasIngresos.has("nave") ? (
+                    <td data-label="Nave" className="cont-c-nave">{ingreso.vehicleId === "sin-nave" ? <span className="muted">—</span> : ingreso.vehicleName}</td>
+                  ) : null}
+                  {setColumnasIngresos.has("estado") ? <td data-label="Estado" className="cont-c-estado"><span className="cont-estado" data-ingreso={ingreso.status === "CANCELLED" ? "cancelada" : ingreso.paymentStatus === "APPROVED" ? "pagada" : "confirmada"}>{etiquetaDeIngreso(ingreso)}</span></td> : null}
+                  {setColumnasIngresos.has("monto") ? <td data-label="Monto" className="cont-monto cont-c-monto">{formatCurrency(ingreso.amountCents, ingreso.currency)}</td> : null}
                 </tr>
               ))}
               {!paginaIngresos.items.length ? (
@@ -510,7 +631,9 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
           hrefTamano={hrefTamano}
         />
       </section>
+      ) : null}
 
+      {seccion === "sueldos" ? (
       <section className="plain-card admin-section cont-sueldos" id="sueldos" aria-labelledby="cont-sueldos-titulo">
         <header className="cont-seccion-cabeza">
           <div>
@@ -529,7 +652,8 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         </header>
 
         <form className="cont-filtros cont-filtros-sueldos" action={BASE} method="get">
-          <CamposOcultos params={params} omitir={["month", "qSueldos", "rolSueldo", "estadoSueldo", "pageSueldos"]} />
+          <CamposOcultos params={params} omitir={["seccion", "month", "qSueldos", "rolSueldo", "estadoSueldo", "pageSueldos"]} />
+          <input type="hidden" name="seccion" value="sueldos" />
           <input type="hidden" name="month" value={mes} />
           <div className="cont-filtros-campos">
             <label>Buscar<input type="search" name="qSueldos" defaultValue={texto(params.qSueldos)} placeholder="Nombre" /></label>
@@ -549,14 +673,15 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
           </div>
           <div className="cont-filtros-acciones">
             <button className="button" type="submit">Aplicar</button>
-            <Link className="ghost-button" href={`${BASE}?month=${mes}`}>Limpiar</Link>
+            <Link className="ghost-button" href={hrefSeccion("sueldos")}>Limpiar</Link>
           </div>
         </form>
 
         <details className="cont-columnas">
           <summary>Columnas</summary>
           <form action={BASE} method="get" className="cont-columnas-form">
-            <CamposOcultos params={params} omitir={["colsSueldos", "pageSueldos"]} />
+            <CamposOcultos params={params} omitir={["seccion", "colsSueldos", "pageSueldos"]} />
+            <input type="hidden" name="seccion" value="sueldos" />
             <div className="cont-columnas-lista">
               {COLUMNAS_DE_LIQUIDACIONES.map((columna) => (
                 <label key={columna.id}>
@@ -619,12 +744,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
                       <td data-label="Estado"><span className="cont-estado" data-estado={fila.estado}>{ETIQUETA_ESTADO_SUELDO[fila.estado]}</span></td>
                     ) : null}
                     <td className="cont-accion">
-                      {fila.activo ? (
-                        <PagoDeSueldo action={createSalaryPaymentAction} users={usuariosParaPago} mes={mes} fecha={fechaSugerida}
-                          userId={fila.userId} montoCents={fila.pendienteCents} nombre={fila.nombre} closeKey={modalKey}
-                          trigger={fila.estado === "pagado" || fila.estado === "de-mas" ? "Otro pago" : "Pagar"}
-                          triggerClassName="ghost-button modulo-asignar" />
-                      ) : null}
+                      {fila.activo ? pagoDe(fila, fila.estado === "pagado" || fila.estado === "de-mas" ? "Otro pago" : "Pagar") : null}
                     </td>
                   </tr>
                 ))}
@@ -647,34 +767,49 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
           hrefTamano={hrefTamano}
         />
       </section>
+      ) : null}
 
-      <section className="plain-card admin-section cont-categorias" aria-labelledby="cont-categorias-titulo">
-        <header className="cont-seccion-cabeza">
-          <h2 id="cont-categorias-titulo">En qué se fueron los egresos</h2>
-        </header>
-        {categorias.length ? (
-          <ul className="cont-categorias-lista" role="list">
-            {categorias.map((grupo) => (
-              <li key={`${grupo.id}-${grupo.currency}`}>
-                <span>{grupo.label}{varias ? ` (${grupo.currency})` : ""}</span>
-                <div className="cont-barra" aria-hidden><span style={{ width: `${(grupo.amountCents / mayorDe(grupo.currency)) * 100}%` }} /></div>
-                <strong>{formatCurrency(grupo.amountCents, grupo.currency)}</strong>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Todavía no hay egresos cargados en {mesLabel}.</p>
-        )}
-      </section>
-
+      {seccion === "egresos" ? (
       <section className="plain-card admin-section" id="egresos" aria-labelledby="cont-egresos-titulo">
         <header className="cont-seccion-cabeza">
-          <h2 id="cont-egresos-titulo">{soloCombustible ? "Movimientos de combustible" : "Egresos"} de {mesLabel}</h2>
-          <span className="muted">{egresos.length} {egresos.length === 1 ? "movimiento" : "movimientos"}</span>
+          <div>
+            <h2 id="cont-egresos-titulo">{soloCombustible ? "Combustible" : "Egresos"} de {mesLabel}</h2>
+            <p className="muted">{egresos.length} {egresos.length === 1 ? "movimiento" : "movimientos"}</p>
+          </div>
+          <ChipsDeFiltro
+            etiqueta="Tipo de egreso"
+            actual={soloCombustible ? "combustible" : "todos"}
+            filtros={[
+              { id: "todos", etiqueta: "Todos", cuenta: report.expenses.length, href: hrefSeccion("egresos") },
+              { id: "combustible", etiqueta: "Combustible", cuenta: cargas.length, href: `${hrefSeccion("egresos")}&gasto=combustible` }
+            ]}
+          />
         </header>
-        {soloCombustible ? <Link href={`${BASE}?month=${mes}#egresos`}>Ver todos los egresos</Link> : null}
+        {soloCombustible ? (
+          <div className="cont-combustible cont-combustible-barra">
+            <div>
+              <h3>Por nave</h3>
+              {navesDeCombustible.length ? (
+                <ul role="list">
+                  {navesDeCombustible.map((grupo, indice) => (
+                    <li key={`${grupo.nave}-${grupo.moneda}-${indice}`}>
+                      <span>{grupo.nave}</span>
+                      <strong className="cont-num">{importeConMoneda(grupo.centavos, grupo.moneda)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="muted">Sin cargas de combustible en {mesLabel}.</p>}
+            </div>
+            <div className="cont-combustible-pie">
+              {totalesCombustible.map((total) => (
+                <strong key={total.moneda} className="cont-importe-combustible">{importeConMoneda(total.centavos, total.moneda)}</strong>
+              ))}
+              <NuevoEgreso combustible action={createExpenseAction} vehicles={vehicles} mes={mes} fecha={fechaSugerida} mesLabel={mesLabel} closeKey={modalKey} seccion={seccion} />
+            </div>
+          </div>
+        ) : null}
         <div className="cont-tabla-scroll">
-          <table className="data-table embedded-table">
+          <table className="data-table embedded-table cont-tabla-egresos">
             <thead>
               <tr>
                 {encabezado("Fecha", "fecha")}
@@ -688,12 +823,12 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
             <tbody>
               {pagina.items.map((entry) => (
                 <tr key={entry.id}>
-                  <td>{formatDate(entry.occurredAt)}</td>
-                  <td>{categoriaLabel(entry.category)}{entry.salaryPeriod ? <small className="muted"> · período {entry.salaryPeriod.split("-").reverse().join("/")}</small> : null}</td>
-                  <td>{entry.category === "FUEL" ? importeConMoneda(entry.amountCents, entry.currency) : formatCurrency(entry.amountCents, entry.currency)}</td>
-                  <td>{entry.vehicle?.name ?? "—"}</td>
-                  <td>{entry.user?.name ?? entry.user?.email ?? "—"}</td>
-                  <td>{entry.notes ?? "—"}</td>
+                  <td data-label="Fecha" className="cont-c-fecha" title={formatDate(entry.occurredAt)}>{fechaCorta(entry.occurredAt)}</td>
+                  <td data-label="Categoría" className="cont-c-categoria">{categoriaLabel(entry.category)}{entry.salaryPeriod ? <small className="muted"> · período {entry.salaryPeriod.split("-").reverse().join("/")}</small> : null}</td>
+                  <td data-label="Monto" className="cont-num cont-c-monto">{entry.category === "FUEL" ? importeConMoneda(entry.amountCents, entry.currency) : formatCurrency(entry.amountCents, entry.currency)}</td>
+                  <td data-label="Nave" className="cont-c-nave">{entry.vehicle?.name ?? <span className="muted">—</span>}</td>
+                  <td data-label="Persona" className="cont-c-persona">{entry.user?.name ?? entry.user?.email ?? <span className="muted">—</span>}</td>
+                  <td data-label="Nota" className="cont-c-nota">{entry.notes ?? <span className="muted">—</span>}</td>
                 </tr>
               ))}
               {egresos.length === 0 ? (
@@ -706,6 +841,7 @@ export default async function AccountingPage({ searchParams }: AccountingPagePro
         </div>
         <Paginador {...pagina} hrefPagina={(n) => hrefDePagina(BASE, params, n)} etiqueta="egresos" />
       </section>
+      ) : null}
     </AdminShell>
   );
 }

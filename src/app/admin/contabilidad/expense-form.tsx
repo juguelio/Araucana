@@ -18,9 +18,11 @@ type ExpenseFormProps = {
   mes?: string;
   /** Fecha sugerida: hoy si es el mes que se mira; si no, el último día de ese mes. */
   fecha?: string;
+  /** La sección de Contabilidad desde la que se abrió: al guardar se vuelve a ella. */
+  seccion?: string;
 };
 
-export function ExpenseForm({ combustible, action, vehicles, mes, fecha }: ExpenseFormProps) {
+export function ExpenseForm({ combustible, action, vehicles, mes, fecha, seccion }: ExpenseFormProps) {
   const [state, formAction] = useActionState(action, initialAdminFormState);
   const today = fecha ?? new Date().toISOString().slice(0, 10);
 
@@ -28,6 +30,7 @@ export function ExpenseForm({ combustible, action, vehicles, mes, fecha }: Expen
     <form className="admin-form-grid" action={formAction}>
       <AdminFormAlert state={state} />
       {mes ? <input type="hidden" name="volverA" value={mes} /> : null}
+      {seccion ? <input type="hidden" name="volverSeccion" value={seccion} /> : null}
       {combustible ? <input type="hidden" name="category" value="FUEL" /> : <label>
         Categoría
         <select name="category" required>

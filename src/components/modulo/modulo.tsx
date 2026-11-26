@@ -172,6 +172,7 @@ export function BarraDelMes({
   anterior,
   siguiente,
   esteMes,
+  ocultos = {},
   children
 }: {
   accion: string;
@@ -180,6 +181,8 @@ export function BarraDelMes({
   anterior: string;
   siguiente: string;
   esteMes?: string | null;
+  /** Los demás parámetros que se conservan al elegir otro mes (por ejemplo, la sección). */
+  ocultos?: Record<string, string | null | undefined>;
   children?: ReactNode;
 }) {
   return (
@@ -190,6 +193,7 @@ export function BarraDelMes({
           Mes
           <input type="month" name="month" defaultValue={mes} />
         </label>
+        {Object.entries(ocultos).map(([clave, valor]) => (valor ? <input key={clave} type="hidden" name={clave} value={valor} /> : null))}
         <button className="button" type="submit">Ver</button>
         <Link className="ghost-button flights-dia-paso" href={siguiente} aria-label="Mes siguiente">Siguiente ›</Link>
         {esteMes ? <Link className="ghost-button flights-dia-paso" href={esteMes}>Este mes</Link> : null}

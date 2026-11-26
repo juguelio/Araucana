@@ -104,6 +104,9 @@ export type AccountingIncomeItem = {
   driverId: string | null;
   driverName: string | null;
   routeLabel: string;
+  /** Origen y destino por separado, para mostrar la ruta corta en la tabla. */
+  routeFrom: string;
+  routeTo: string;
   status: string;
   paymentStatus: string | null;
 };
