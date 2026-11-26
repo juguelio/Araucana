@@ -28,6 +28,7 @@ export function ControlIngresos({ ingresos, mes, filtro, pagina }: Props) {
     <nav className="cont-control-filtros" aria-label="Filtrar ingresos">
       <Link aria-current={!todos ? "page" : undefined} href={href(false)}>Para revisar ({pendientes.length})</Link>
       <Link aria-current={todos ? "page" : undefined} href={href(true)}>Todos ({ingresos.length})</Link>
+      <Link href={"/admin/contabilidad/conciliacion?month=" + mes}>Cotejar con el banco</Link>
       <a href={"/admin/reportes/export?month=" + mes} download>Descargar Excel del mes</a>
     </nav>
     {lista.total ? <><div className="cont-tabla-scroll"><table className="data-table embedded-table"><thead><tr>
