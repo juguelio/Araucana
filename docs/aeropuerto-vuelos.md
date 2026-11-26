@@ -14,7 +14,7 @@ El flujo de GitHub Actions **Programación de vuelos de Chapelco** consulta los 
 | MANUAL / PASAJERO | Carga del operador o vuelo privado declarado por un pasajero. |
 | ESTIMADO | Proyección histórica de versiones anteriores. Está excluida de las reservas nuevas. |
 
-Para JetSMART se consulta su tablero oficial durante la primera semana. Después se usa la programación mensual por ruta de FlightInformation y, si falta esa grilla, las ofertas fechadas de Almundo. Cada oferta debe identificar el operador, el número y el tramo directo. Una oferta permite incorporar o actualizar ese vuelo. Sólo una grilla completa permite retirar servicios ausentes.
+Para JetSMART se consulta su tablero oficial durante la primera semana. Después se usa la programación mensual por ruta de FlightInformation y, si falta esa grilla, las ofertas fechadas de Almundo. Cada oferta debe identificar el operador, el número y el tramo directo. Una oferta permite incorporar un vuelo o actualizar un horario que todavía depende de ofertas. Un horario ya respaldado por una grilla completa conserva esa prioridad cuando la grilla deja de estar disponible. Sólo una grilla completa permite retirar servicios ausentes.
 
 La conciliación compara cada fecha, sentido, aerolínea y aeropuerto con la cobertura validada de la fuente. Una consulta incompleta deja pendiente esa parte de la grilla. Los cambios de programación conservan la referencia de las reservas existentes. Para atender un vuelo marcado «Revisar», abrí su tarjeta en Aeropuerto y verificá el traslado y las reservas vinculadas antes de coordinarlo.
 

@@ -111,19 +111,22 @@ function parsePayload(payload, today) {
     if (f.date <= today) continue;
     dates.add(f.date);
     const identity = key(f.date, f.direction, n);
+    const scope = coverage.get(key(f.date, f.direction, carrier) + '|' + other);
+    const calendarUrl = `https://www.flightinformation.com/${f.origin}-${f.destination}`;
+    const commercialUrl = typeof f.url === 'string' && f.url.startsWith('https://interturis.almundo.com.ar/');
+    const offer =
+      f.source === 'ITINERARIO' && (commercialUrl || (scope !== 'ITINERARIO' && f.url !== calendarUrl));
+    // A complete calendar determines both presence and absence in its own scope.
+    if (f.source === 'ITINERARIO' && (scope === OFFICIAL[carrier] || (offer && scope))) continue;
     const previous = flights.get(identity);
-    if (previous && previous.source === f.source) {
+    if (previous && previous.source === f.source && previous.offer === offer) {
       requireValue(
         previous.origin === f.origin && previous.destination === f.destination && previous.time === f.time,
         `Horarios contradictorios para ${identity} en ${f.source}.`,
       );
       continue;
     }
-    if (
-      f.source === 'ITINERARIO' &&
-      (previous || coverage.get(key(f.date, f.direction, carrier) + '|' + other) === OFFICIAL[carrier])
-    )
-      continue;
+    if (previous && f.source === 'ITINERARIO' && (previous.source !== 'ITINERARIO' || offer)) continue;
     flights.set(identity, {
       number: n,
       date: f.date,
@@ -132,6 +135,7 @@ function parsePayload(payload, today) {
       origin: f.origin,
       destination: f.destination,
       source: f.source,
+      offer,
     });
   }
   return { flights, coverage, days: [...dates].sort() };
@@ -164,15 +168,17 @@ function onRoute(row) {
     : null;
 }
 function lastSource(row) {
-  if (!WITHDRAWN.has(row.source)) return row.source;
+  if (!WITHDRAWN.has(row.source)) {
+    return row.source === 'ITINERARIO' && row.externalId?.startsWith('OFERTA@') ? 'OFERTA' : row.source;
+  }
   if (!row.externalId?.startsWith(withdrawnPrefix)) return null;
   return row.externalId.slice(withdrawnPrefix.length);
 }
 const operational = (row) => row.status === 'SCHEDULED' && !row.estimatedAt && !row.actualAt;
-function withdraw(row) {
+function withdraw(row, evidence = lastSource(row)) {
   const after = snapshot(row);
   after.source = attached(row) ? 'REVISAR' : 'RETIRADO';
-  after.externalId = withdrawnPrefix + lastSource(row);
+  after.externalId = withdrawnPrefix + evidence;
   return after;
 }
 export function planSchedules(payload, rows, now = new Date()) {
@@ -201,6 +207,13 @@ export function planSchedules(payload, rows, now = new Date()) {
     }
     if (
       row &&
+      f.offer &&
+      (WITHDRAWN.has(row.source) || PUBLISHED.has(row.source)) &&
+      lastSource(row) !== 'OFERTA'
+    )
+      continue;
+    if (
+      row &&
       f.source === 'ITINERARIO' &&
       (lastSource(row) === OFFICIAL[f.number.slice(0, 2)] || (WITHDRAWN.has(row.source) && !lastSource(row)))
     ) {
@@ -215,7 +228,7 @@ export function planSchedules(payload, rows, now = new Date()) {
       destination: f.destination,
       source: f.source,
       scheduledAt: iso(`${f.date}T${f.time}:00-03:00`),
-      externalId: `PROG@${f.date}@${f.number}@${f.direction}`,
+      externalId: `${f.offer ? 'OFERTA' : 'PROG'}@${f.date}@${f.number}@${f.direction}`,
       lastCheckedAt: before?.lastCheckedAt ?? null,
     };
     if (before && MUTABLE.every((field) => before[field] === after[field])) continue;
@@ -235,14 +248,27 @@ export function planSchedules(payload, rows, now = new Date()) {
         break;
       }
       if (WITHDRAWN.has(row.source)) {
-        if (row.source === 'RETIRADO' && attached(row))
+        const before = snapshot(row);
+        const after = { ...before };
+        if (row.source === 'RETIRADO' && attached(row)) after.source = 'REVISAR';
+        if (source === OFFICIAL[carrier] || ['OFERTA', 'ESTIMADO'].includes(lastSource(row))) {
+          after.externalId = withdrawnPrefix + source;
+        }
+        if (before.source !== after.source || before.externalId !== after.externalId) {
           changes.push(
-            change(row.id, row.direction, snapshot(row), { ...snapshot(row), source: 'REVISAR' }, 'REVIEW'),
+            change(
+              row.id,
+              row.direction,
+              before,
+              after,
+              before.source === after.source ? 'UPDATE' : 'REVIEW',
+            ),
           );
+        }
         continue;
       }
       if (source === 'ITINERARIO' && row.source !== 'ESTIMADO' && row.source !== 'ITINERARIO') continue;
-      const after = withdraw(row);
+      const after = withdraw(row, source);
       changes.push(
         change(
           row.id,
