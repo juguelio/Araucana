@@ -180,7 +180,7 @@ it("usa OpenStreetMap cuando el geocoder comercial no devuelve la calle", async 
     }] }))
     .mockResolvedValueOnce(Response.json([]))
     .mockResolvedValueOnce(Response.json([]))
-    .mockResolvedValueOnce(Response.json([{ lat: "-40.1541652", lon: "-71.3417013" }]));
+    .mockResolvedValueOnce(Response.json([{ lat: "-40.1541652", lon: "-71.3417013", class: "highway", display_name: "Avenida De Prueba, San Martín de los Andes" }]));
   vi.stubGlobal("fetch", fetchProvider);
 
   const [suggestion] = await suggestAirportPlaces("av de prueba 1600", new AbortController().signal);
@@ -353,4 +353,16 @@ it("prefiere el punto del nomenclador antes que el interpolado del proveedor (#3
   const matches = await suggestAirportPlaces("Belgrano 440", new AbortController().signal);
   expect(matches).toHaveLength(1);
   expect(matches[0]).toMatchObject({ source: "georef", point: [-40.1522, -71.3439] });
+});
+
+it("usa la cuadra verificada de Belgrano 437 si el proveedor devuelve Villa Lolog", async () => {
+  vi.stubEnv("AIRPORT_GEOCODER_URL", "https://us1.locationiq.com/v1/search");
+  vi.stubEnv("AIRPORT_GEOCODER_KEY", "test-key");
+  vi.stubGlobal("fetch", vi.fn()
+    .mockResolvedValueOnce(Response.json([{ display_name: "437, Belgrano, Villa Lolog", lat: "-40.05", lon: "-71.4" }]))
+    .mockResolvedValueOnce(Response.json({ direcciones: [] })));
+  const label = "Belgrano 437, San Martín de los Andes";
+  await expect(suggestAirportPlaces(label, new AbortController().signal)).resolves.toEqual([
+    { label, source: "municipal", precision: "street", approximate: true, point: [-40.1528451, -71.3513691] }
+  ]);
 });
