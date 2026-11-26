@@ -10,6 +10,7 @@
  * Todo es puro (sin base de datos) para poder probarlo.
  */
 
+import { extremoDelVuelo } from "@/lib/airport/airports";
 import { statusLabel as estadoDeVuelo } from "@/lib/airport/flights";
 import { statuses as ESTADO_VIAJE_ESPECIAL } from "@/lib/special-trips/data";
 
@@ -162,7 +163,7 @@ export function recorridosDeNave(fuentes: FuentesDeRecorridos): Recorrido[] {
       hasta: null,
       soloDia: false,
       titulo: `${llegada ? "Arribo" : "Salida"} vuelo ${vuelo.number}${vuelo.airline ? ` (${vuelo.airline})` : ""}`,
-      detalle: llegada ? `Desde ${vuelo.origin}` : `Hacia ${vuelo.destination}`,
+      detalle: `${llegada ? "Desde" : "Hacia"} ${extremoDelVuelo(vuelo)}`,
       chofer: nombreDeChofer(asignacion.driver),
       estado: vuelo.status ? estadoDeVuelo(vuelo.status) : null,
       href: `/admin/aeropuerto?date=${diaLocal(vuelo.scheduledAt)}`

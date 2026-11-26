@@ -35,13 +35,16 @@ function pendingRuns(flights: RunFlight[], day: string, upcoming: boolean): Pend
   const groups = new Map<string, RunFlight[]>();
   const byDay = new Map<string, RunFlight[]>();
   for (const flight of flights) {
+    if (flight.source === "ESTIMADO" && !flight.reservations.length && !flight.assignments.length) continue;
     const date = localDateKey(flight.scheduledAt);
     const sameDay = byDay.get(date) ?? [];
     sameDay.push(flight);
     byDay.set(date, sameDay);
   }
   for (const sameDay of byDay.values()) {
-    const visible = vuelosParaElTablero(sameDay).tablero.filter(f => !["CANCELLED", "DIVERTED"].includes(f.status));
+    const { tablero, fantasma } = vuelosParaElTablero(sameDay);
+    const visible = [...tablero, ...fantasma.filter(f => f.reservations.length || f.assignments.length)]
+      .filter(f => !["CANCELLED", "DIVERTED"].includes(f.status));
     const visibleFlights = new Set(visible.map(f => f.id));
     const visibleGroups = new Set(visible.map(f => f.pickupGroupId ?? f.id));
     for (const flight of sameDay) {
@@ -82,7 +85,8 @@ function pendingRuns(flights: RunFlight[], day: string, upcoming: boolean): Pend
 }
 
 function directionLabel(flight: RunFlight) {
-  return flight.direction === "DEPARTURE" ? "Alojamientos → Aeropuerto Chapelco" : "Aeropuerto Chapelco → alojamientos";
+  const tramo = flight.direction === "DEPARTURE" ? "Alojamientos → Aeropuerto Chapelco" : "Aeropuerto Chapelco → alojamientos";
+  return flight.source === "REVISAR" ? `${tramo} · Revisar vuelo` : tramo;
 }
 
 async function readPendingRuns(client: Pick<Prisma.TransactionClient, "flight">, day: string, upcoming = false) {
@@ -93,6 +97,7 @@ async function readPendingRuns(client: Pick<Prisma.TransactionClient, "flight">,
   const adjacentDays = { gte: new Date(+from - 86_400_000), lt: upcoming ? undefined : new Date(+to + 86_400_000) };
   const flights = await client.flight.findMany({
     where: {
+      source: { not: "RETIRADO" },
       number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] },
       OR: [{ scheduledAt: adjacentDays }, { estimatedAt: range }, { pickupStartOverrideAt: range }, { pickupStartInitialAt: range }]
     },
@@ -105,6 +110,7 @@ async function readPendingRuns(client: Pick<Prisma.TransactionClient, "flight">,
   const otherDays = new Set(distantFlights.map(f => localDateKey(f.scheduledAt)));
   const rest = await client.flight.findMany({
     where: {
+      source: { not: "RETIRADO" },
       id: { notIn: distantFlights.map(f => f.id) }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] },
       OR: [...otherDays].map(date => {
         const { from, to } = dayRange(date);

@@ -74,7 +74,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       }
     }),
     prisma.flight.findMany({
-      where: { scheduledAt: { gte: from, lt: to }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] } },
+      where: { scheduledAt: { gte: from, lt: to }, source: { not: "RETIRADO" }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] } },
       orderBy: { scheduledAt: "asc" },
       include: {
         reservations: { include: { reservation: { select: { passengerCount: true, status: true } } } },
@@ -137,6 +137,7 @@ export default async function DayBoardPage({ searchParams }: PageProps) {
       scheduledAt: flight.scheduledAt,
       estimatedAt: flight.estimatedAt,
       pickupStart: airportPickupStart(flight),
+      source: flight.source,
       status: flight.status,
       passengers: pasajerosOcupados(flight.reservations.map((detail) => detail.reservation)),
       units: flight.assignments.map((assignment) => ({

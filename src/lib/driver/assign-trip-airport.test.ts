@@ -57,6 +57,17 @@ describe("asignación de traslados de aeropuerto desde Choferes", () => {
     expect(await listPendingAirportTrips("2026-11-26")).toEqual([]);
   });
 
+  it("conserva los clientes de un vuelo por revisar y los de una proyección histórica", async () => {
+    mocks.flights.mockResolvedValue([
+      { ...flight, source: "REVISAR", reservations: [{ ...privateReservation, isPrivate: false }] },
+      { ...flight, id: "antiguo", source: "ESTIMADO", reservations: [privateReservation] }
+    ]);
+    expect(await listPendingAirportTrips(day)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "vuelo-1", detail: expect.stringContaining("Revisar vuelo · 6 pax") }),
+      expect.objectContaining({ id: "r1", kind: "private" })
+    ]));
+  });
+
   it("lista todos los días futuros en una lectura y usa el día operativo de cada traslado", async () => {
     const future = "2027-04-06";
     mocks.flights.mockResolvedValue([

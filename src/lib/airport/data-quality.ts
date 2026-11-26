@@ -21,6 +21,7 @@ export function reliableEstimate(flight: FlightEvidence): Date | null {
 }
 
 export function flightEvidenceWarning(flight: FlightEvidence, now: Date): string | null {
+  if (flight.source === "REVISAR") return "Revisar este vuelo con la aerolínea antes de coordinar el traslado.";
   if (flight.source === "FIDS") {
     if (!flight.lastCheckedAt || airportLocalDay(flight.lastCheckedAt) < airportLocalDay(flight.scheduledAt)) {
       return "Fecha sin confirmar: este tablero sin fecha se leyó antes del día asignado al vuelo.";
@@ -34,7 +35,20 @@ export function flightEvidenceWarning(flight: FlightEvidence, now: Date): string
   return null;
 }
 
+export const fuentesRetiradas = ["RETIRADO", "REVISAR"];
+export const fuentesSinOferta = [...fuentesRetiradas, "ESTIMADO"];
+export const avisoItinerario = "Horario de itinerario · pendiente de confirmación";
+
+export function esHorarioPublicado(source: string) {
+  return source === "AR_OFICIAL" || source === "JA_OFICIAL" || source === "ITINERARIO";
+}
+
 export function flightSourceLabel(source?: string) {
+  if (source === "AR_OFICIAL") return "Programación de Aerolíneas Argentinas";
+  if (source === "JA_OFICIAL") return "Programación de JetSMART";
+  if (source === "ITINERARIO") return avisoItinerario;
+  if (source === "REVISAR") return "Pendiente de revisión por Operaciones";
+  if (source === "RETIRADO") return "Retirado de la oferta";
   if (source === "API") return "AirLabs · horario con fecha";
   if (source === "FIDS") return "Tablero del aeropuerto · fecha inferida";
   if (source === "MANUAL") return "Carga manual · sin seguimiento automático garantizado";

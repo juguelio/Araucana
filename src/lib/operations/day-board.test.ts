@@ -54,6 +54,11 @@ describe("salidas del día (issue #174)", () => {
     expect(row).toMatchObject({ missingVehicle: false, status: "Cancelado", href: "/admin/aeropuerto?date=2026-11-17#vuelo-f1" });
   });
 
+  it("identifica los traslados con clientes pendientes de verificar", () => {
+    const row = flightRow({ id: "f1", number: "AR1652", direction: "ARRIVAL", source: "REVISAR", scheduledAt: at("12:15"), estimatedAt: null, pickupStart: null, status: "SCHEDULED", passengers: 2, units: [] }, "2026-11-17");
+    expect(row).toMatchObject({ status: "Revisar vuelo", passengers: 2, serviceId: "f1" });
+  });
+
   it("Chapelco y viajes especiales: falta chofer si alguna unidad no lo tiene", () => {
     const { rows } = buildDayBoard({
       dateKey: "2026-11-17",

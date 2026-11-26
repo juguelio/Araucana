@@ -37,7 +37,7 @@ export async function aeropuertoAsignado(driverId: string, desde: Date, hasta: D
   // La salida de un vuelo de madrugada puede empezar la noche anterior.
   const diaAntes = new Date(+desde - 86400000);
   const diaDespues = new Date(+hasta + 86400000);
-  const filtro = { status: { notIn: ["CANCELLED", "DIVERTED"] }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] } };
+  const filtro = { status: { notIn: ["CANCELLED", "DIVERTED"] }, source: { not: "RETIRADO" }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] } };
   const propios = await prisma.flight.findMany({
     where: { ...filtro, scheduledAt: { gte: diaAntes, lt: diaDespues }, assignments: { some: { driverId } } },
     select: { id: true, pickupGroupId: true }

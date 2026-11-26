@@ -3,6 +3,7 @@
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { PrivateAirportChoiceContext } from "../private-airport-context";
+import { avisoItinerario } from "@/lib/airport/data-quality";
 import { tramoDeVuelo } from "@/lib/airport/airports";
 import { airlineName } from "@/lib/airport/airlines";
 import { AirlineBadge } from "@/components/airline-badge";
@@ -29,6 +30,7 @@ export type VueloOpcion = {
   number: string;
   airline: string | null;
   origin?: string | null;
+  source?: string;
   scheduledAt: string;
   estimatedAt: string | null;
   available: number;
@@ -514,6 +516,7 @@ export function TripSearchBar({
                   <span className="trip-search-flight-text">
                     <b>Vuelo {vuelo.number}</b>
                     {detalle ? <small>{detalle}</small> : null}
+                    {vuelo.source === "ITINERARIO" ? <small>{avisoItinerario}</small> : null}
                   </span>
                   <span className="trip-search-flight-seats">
                     {elegido ? "✓ Elegido" : privatePlace ? "Elegir vuelo" : `${vuelo.available} ${vuelo.available === 1 ? "lugar" : "lugares"}`}

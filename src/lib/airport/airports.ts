@@ -51,13 +51,16 @@ export function aeropuertoLabel(codigo: string | null | undefined): string | nul
   return NOMBRES[code] ?? (codigo ?? "").trim();
 }
 
-/**
- * Aeropuerto del otro extremo del vuelo, con la preposición que corresponde.
- *
- * Ojo: `Flight.origin` guarda el aeropuerto del **otro extremo** en las dos direcciones —en una
- * salida desde CPC ahí está el destino—, así que se nombra según el sentido en vez de asumir que
- * siempre es un origen.
- */
+/** Las salidas antiguas guardan el destino en origin y algunas conservan CPC como destination. */
+export function extremoDelVuelo(vuelo: { direction: string; origin: string; destination?: string | null }): string {
+  if (vuelo.direction !== "DEPARTURE") return vuelo.origin;
+  const remoto = [vuelo.destination, vuelo.origin].find(lugar =>
+    lugar?.trim() && lugar.trim() !== "—" && !/\b(?:CPC|CHAPELCO)\b/i.test(lugar)
+  );
+  return remoto?.trim() ?? "—";
+}
+
+/** La opción de reserva ya trae el aeropuerto del otro extremo en origin. */
 export function tramoDeVuelo(vuelo: {
   direction: "ARRIVAL" | "DEPARTURE";
   origin: string | null | undefined;

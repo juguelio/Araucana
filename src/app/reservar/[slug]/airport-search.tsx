@@ -23,7 +23,7 @@ export type FlightOption = {
   pickupStartAt?: string | null;
   pickupStartCoordinated?: boolean;
   status: string;
-  /** "API" = dato real; "ESTIMADO" = patrón proyectado (AirLabs no publica horarios futuros). */
+  /** Procedencia de la programación o de la lectura operativa. */
   source?: string;
   available: number;
   bookable: boolean;

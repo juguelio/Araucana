@@ -4,7 +4,7 @@ import { listAirportFlights } from "@/lib/airport/booking";
 import { asegurarVuelosRealesDelDia } from "@/lib/airport/freshness";
 import { prisma } from "@/lib/db/prisma";
 
-/** Vuelos del día para el flujo público del aeropuerto (sólo lectura, datos cacheados de AirLabs). */
+/** Vuelos del día para el flujo público del aeropuerto (programación publicada y estado operativo). */
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);

@@ -94,6 +94,14 @@ beforeEach(() => {
 });
 
 describe("reserva de aeropuerto con vuelo privado", () => {
+  it.each(["RETIRADO", "REVISAR"])("el formulario de vuelo privado tampoco permite reabrir un vuelo %s", async source => {
+    mocks.findManyFlights.mockResolvedValue([{ ...vueloPrivadoCreado, source }]);
+    await expect(createAirportReservation(pedido)).rejects.toMatchObject({ code: "SCHEDULE_CLOSED" });
+    expect(mocks.createFlight).not.toHaveBeenCalled();
+    expect(mocks.createReservation).not.toHaveBeenCalled();
+    expect(mocks.createPayment).not.toHaveBeenCalled();
+  });
+
   it("crea el vuelo marcado como cargado por el pasajero y la reserva queda atada a él", async () => {
     await createAirportReservation(pedido);
 

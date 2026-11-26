@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { elegirAutoritativa, elegirSuperviviente, type FilaDeVuelo } from "./dedupe";
+import { esHorarioPublicado, flightEvidenceWarning, fuentesRetiradas, reliableEstimate } from "./data-quality";
 
 /**
  * Unificación de una fila repetida de JetSMART (issue #76).
@@ -75,6 +76,7 @@ export async function unificarFilasDeVuelo(
     }
 
     const filas = await tx.flight.findMany({ where: { id: { in: grupo } }, select: CAMPOS });
+    if (filas.some(f => fuentesRetiradas.includes(f.source))) return { borrados: [] as string[], eventos: 0, queda: null };
     const prioridad = filas.map(comoPrioridad);
     const sobreviviente = elegirSuperviviente(prioridad);
     if (!sobreviviente) return { borrados: [] as string[], eventos: 0, queda: null };
@@ -112,20 +114,29 @@ export async function unificarFilasDeVuelo(
     const destino = filas.find((f) => f.id === sobreviviente.id);
     // Sólo se copia si desapareció la fila de la que se copia y no quedó ninguna protegida: así no
     // aparecen dos filas con el mismo número, horario y sentido.
-    if (fuente && destino && fuente.id !== destino.id && borrados.includes(fuente.id) && borrados.length === perdedores.length) {
+    if (fuente && destino && borrados.length > 0 && borrados.length === perdedores.length) {
+      // La publicación define el horario y los aeropuertos. Una lectura operativa más reciente
+      // puede pertenecer a un duplicado que acaba de eliminarse o a la propia fila que sobrevive.
+      const integradas = filas.filter(f => f.id === destino.id || borrados.includes(f.id));
+      if (!integradas.some(f => f.id === fuente.id)) return { borrados, eventos, queda: destino.id };
+      const operativa = esHorarioPublicado(fuente.source)
+        ? integradas.filter(f => f.lastCheckedAt && (esHorarioPublicado(f.source) || f.source === "API" || f.source === "FIDS") &&
+            !flightEvidenceWarning(f, new Date())).sort((a, b) => Number(b.lastCheckedAt) - Number(a.lastCheckedAt))[0] ?? fuente
+        : fuente;
+      if (fuente.id === destino.id && operativa.id === destino.id) return { borrados, eventos, queda: destino.id };
       await tx.flight.update({
         where: { id: destino.id },
         data: {
-          status: fuente.status,
+          status: operativa.status,
           scheduledAt: fuente.scheduledAt,
-          estimatedAt: fuente.estimatedAt,
-          actualAt: fuente.actualAt,
+          estimatedAt: reliableEstimate(operativa),
+          actualAt: operativa.actualAt,
           source: fuente.source,
           externalId: fuente.externalId,
           airline: fuente.airline,
           origin: fuente.origin,
           destination: fuente.destination,
-          lastCheckedAt: fuente.lastCheckedAt,
+          lastCheckedAt: operativa.lastCheckedAt,
           notes: destino.notes ?? fuente.notes,
           pickupStartOverrideAt: destino.pickupStartOverrideAt ?? fuente.pickupStartOverrideAt,
           // Si el duplicado estaba en una recorrida compartida, el que queda sigue en ella.

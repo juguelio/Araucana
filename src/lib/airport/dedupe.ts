@@ -11,7 +11,7 @@ import { jetSmartCanonicalNumber } from "./flights";
  * - Nunca se borra una fila con reservas o combis asignadas. Si hay más de una con reservas, se
  *   dejan todas y se informa: mover reservas de un vuelo a otro lo decide una persona.
  * - Se conserva la fila con reservas o combis; si ninguna tiene, la de la fuente más confiable
- *   (tablero del aeropuerto > API > carga manual > pasajero > proyección) y, a igualdad, la
+ *   (programación publicada, tablero, API, carga manual, pasajero, proyección) y, a igualdad, la
  *   actualizada más recientemente (el patrón más nuevo).
  * - La fila que queda se guarda con el número JA.
  */
@@ -36,9 +36,9 @@ export type PlanDeUnificacion = {
   conReservasRepetidas: Array<{ number: string; direction: string; dia: string; ids: string[] }>;
 };
 
-const RANGO_FUENTE: Record<string, number> = { FIDS: 0, API: 1, MANUAL: 2, PASAJERO: 3, ESTIMADO: 4 };
+const RANGO_FUENTE: Record<string, number> = { AR_OFICIAL: -2, JA_OFICIAL: -2, ITINERARIO: -1, FIDS: 0, API: 1, MANUAL: 2, PASAJERO: 3, ESTIMADO: 4 };
 
-/** Menor es más confiable: el tablero manda, la proyección es la última opción. */
+/** Prioridad de la fuente del horario programado, de menor a mayor valor. */
 export const rangoDeFuente = (source: string) => RANGO_FUENTE[source] ?? 5;
 const rango = rangoDeFuente;
 const ocupada = (f: FilaDeVuelo) => f.reservas > 0 || f.combis > 0;

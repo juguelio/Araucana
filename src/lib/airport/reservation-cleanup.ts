@@ -1,3 +1,4 @@
+import { fuentesRetiradas } from "./data-quality";
 import { prisma } from "@/lib/db/prisma";
 import { recordAuditBestEffort } from "@/lib/audit/record";
 import { withShortCode } from "@/lib/audit/reservation";
@@ -41,7 +42,7 @@ export async function reconciliarReservasDeVuelosPasados(
       id: true,
       code: true,
       shortCode: true,
-      airportDetails: { select: { flight: { select: { scheduledAt: true } } } },
+      airportDetails: { select: { flight: { select: { scheduledAt: true, source: true } } } },
       payment: { select: { status: true } }
     }
   });
@@ -56,8 +57,8 @@ export async function reconciliarReservasDeVuelosPasados(
       confirmar.push(reserva.id);
       continue;
     }
-    const vuelo = reserva.airportDetails?.flight?.scheduledAt;
-    if (vuelo && vuelo < limite) cancelar.push(reserva.id);
+    const vuelo = reserva.airportDetails?.flight;
+    if (vuelo && !fuentesRetiradas.includes(vuelo.source) && vuelo.scheduledAt < limite) cancelar.push(reserva.id);
   }
 
   if (confirmar.length > 0) {

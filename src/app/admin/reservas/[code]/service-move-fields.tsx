@@ -1,5 +1,6 @@
 "use client";
 
+import { avisoItinerario } from "@/lib/airport/data-quality";
 import { useEffect, useState } from "react";
 import { FieldError } from "../../form-ui";
 import type { ServiceMove } from "./editar/service-options";
@@ -14,6 +15,7 @@ export type ServiceMoveDraft =
 type VueloDelDia = {
   id: string;
   number: string;
+  source?: string;
   direction: "ARRIVAL" | "DEPARTURE";
   airline: string | null;
   scheduledAt: string;
@@ -135,6 +137,7 @@ function VueloFields({ service, disabled, error, onChange }: Props & { service: 
             return (
               <option key={vuelo.id} value={vuelo.id} disabled={!actual && !disponible}>
                 {vuelo.direction === "ARRIVAL" ? "Arribo" : "Salida"} {vuelo.number}{vuelo.airline ? ` (${vuelo.airline})` : ""} · {hora.format(new Date(vuelo.scheduledAt))}
+                {vuelo.source === "ITINERARIO" ? ` · ${avisoItinerario}` : ""}
                 {actual ? " (actual)" : disponible ? (service.isPrivate ? "" : ` · ${vuelo.available} libres`) : ` · ${vuelo.reason ?? "no disponible"}`}
               </option>
             );

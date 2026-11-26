@@ -53,7 +53,7 @@ export async function cargarServiciosDelDia(dateKey = localDateKey(new Date())):
       where: {
         scheduledAt: { gte: new Date(from.getTime() - 8 * 3_600_000), lt: new Date(to.getTime() + 8 * 3_600_000) },
         status: { notIn: ["CANCELLED", "DIVERTED"] },
-        number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
+        source: { not: "RETIRADO" }, number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
       },
       orderBy: { scheduledAt: "asc" },
       select: {

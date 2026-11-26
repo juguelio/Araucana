@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aeropuertoLabel, tramoDeVuelo } from "./airports";
+import { aeropuertoLabel, extremoDelVuelo, tramoDeVuelo } from "./airports";
 
 describe("aeropuertoLabel", () => {
   it("nombra los aeropuertos conocidos, sin importar mayúsculas ni espacios", () => {
@@ -37,5 +37,17 @@ describe("tramoDeVuelo", () => {
   it("sin aeropuerto no inventa un tramo", () => {
     expect(tramoDeVuelo({ direction: "ARRIVAL", origin: null })).toBeNull();
     expect(tramoDeVuelo({ direction: "DEPARTURE", origin: "—" })).toBeNull();
+  });
+});
+
+describe("aeropuerto del otro extremo", () => {
+  it.each([
+    ["ARRIVAL", "AEP", "CPC", "AEP"],
+    ["DEPARTURE", "CPC", "EZE", "EZE"],
+    ["DEPARTURE", "AEP", "Aeropuerto Chapelco (CPC)", "AEP"],
+    ["DEPARTURE", "EZE", "EZE", "EZE"],
+    ["DEPARTURE", "CPC", "—", "—"]
+  ])("%s con %s y %s", (direction, origin, destination, esperado) => {
+    expect(extremoDelVuelo({ direction, origin, destination })).toBe(esperado);
   });
 });

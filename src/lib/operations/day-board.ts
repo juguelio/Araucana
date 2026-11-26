@@ -102,6 +102,7 @@ export type ScheduleInput = {
 export type FlightInput = {
   id: string;
   number: string;
+  source?: string;
   direction: string;
   scheduledAt: Date;
   estimatedAt: Date | null;
@@ -252,7 +253,7 @@ export function flightRow(flight: FlightInput, dateKey: string): BoardRow {
     ...crewFlags(flight.passengers, units, flight.passengers > 0 && flight.status !== "CANCELLED"),
     programmed: false,
     units,
-    status: FLIGHT_STATUS[flight.status] ?? null,
+    status: flight.source === "REVISAR" ? "Revisar vuelo" : FLIGHT_STATUS[flight.status] ?? null,
     href: `/admin/aeropuerto?date=${dateKey}#vuelo-${flight.id}`,
     editHref: `/admin/aeropuerto/${flight.id}/editar`
   };

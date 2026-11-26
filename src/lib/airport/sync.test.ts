@@ -14,6 +14,40 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 describe("sincronización con fuentes de distinta calidad", () => {
+  it.each(["RETIRADO", "REVISAR"])("mantiene fuera de la oferta un vuelo %s aun con lecturas en vivo", async source => {
+    const bloqueado = { ...live, id: "protegido", source, _count: { reservations: 1, assignments: 1 } };
+    m.api.mockResolvedValueOnce({ flights: [live], error: null });
+    m.findFirst.mockResolvedValueOnce(bloqueado);
+    m.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([bloqueado]);
+    m.fids.mockResolvedValueOnce({ flights: [{ number: live.number, airlineCode: "JA", scheduled: "12:22", city: "AEP", statusText: "En vuelo" }], error: null });
+    await syncAirportFlights();
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.createMany).not.toHaveBeenCalled();
+    expect(m.delete).not.toHaveBeenCalled();
+    expect(m.obs.mock.calls[0][0].data[0].syncOutcome).toBe("PENDIENTE_DE_CONFIRMACION");
+  });
+
+  it("una hora temprana que FIDS anticipa para mañana queda sólo como observación", async () => {
+    vi.setSystemTime(new Date("2026-11-14T22:00:00Z"));
+    m.fids.mockResolvedValueOnce({ flights: [{ number: "AR1652", airlineCode: "AR", scheduled: "08:00", city: "AEP", statusText: "Programado" }], error: null });
+    await syncAirportFlights();
+    expect(m.createMany).not.toHaveBeenCalled();
+    expect(m.update).not.toHaveBeenCalled();
+    expect(m.obs.mock.calls[0][0].data[0]).toMatchObject({ localDay: "2026-11-15", syncOutcome: "FECHA_FUTURA_INFERIDA" });
+  });
+
+  it("la lectura del día actualiza el estado y conserva el horario y los aeropuertos publicados", async () => {
+    const previo = { ...live, id: "publicado", source: "JA_OFICIAL", scheduledAt: new Date("2026-11-14T16:00:00Z"), status: "SCHEDULED" };
+    m.findFirst.mockResolvedValueOnce(previo);
+    m.api.mockResolvedValueOnce({ flights: [live], error: null });
+    await syncAirportFlights();
+    const data = m.update.mock.calls[0][0].data;
+    expect(data).toMatchObject({ status: "EN_ROUTE", scheduledAt: previo.scheduledAt });
+    expect(data).not.toHaveProperty("source");
+    expect(data).not.toHaveProperty("origin");
+    expect(data).not.toHaveProperty("destination");
+  });
+
   it("reemplaza el aterrizaje FIDS erróneo y el horario viejo con una lectura API fechada", async () => {
     m.api.mockResolvedValueOnce({ flights: [live], error: null });
     m.findFirst.mockResolvedValueOnce({ ...live, id: "existing", source: "FIDS", status: "LANDED", scheduledAt: new Date("2026-11-14T15:05:00Z") });

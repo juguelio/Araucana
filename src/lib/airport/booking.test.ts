@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, motivoNoReservable, pasajerosOcupados, proyeccionSinConfirmar, rangoDelDia } from "./booking";
+import { butacasParaAeropuerto, capacidadDeVuelo, combisSugeridas, motivoNoReservable, pasajerosOcupados, rangoDelDia } from "./booking";
 import { defaultAirportExtras } from "./extras";
 
 const vuelo = (status: string, iso = "2030-01-01T12:00:00Z") => ({ status, scheduledAt: new Date(iso) });
@@ -20,6 +20,12 @@ describe("reserva de aeropuerto", () => {
 
   it("un vuelo demorado sigue siendo reservable", () => {
     expect(motivoNoReservable(vuelo("DELAYED"), 12, ahora)).toBeNull();
+  });
+
+  it.each(["AR_OFICIAL", "JA_OFICIAL", "ITINERARIO"])("respeta el cupo existente de un vuelo publicado por %s", (source) => {
+    const publicado = { ...vuelo("SCHEDULED"), source };
+    expect(motivoNoReservable(publicado, 1, ahora)).toBeNull();
+    expect(motivoNoReservable(publicado, 0, ahora)).toMatch(/sin lugares/i);
   });
 
   it("con demora manda el horario estimado: no bloquea antes de que el avión llegue o salga", () => {
@@ -166,35 +172,8 @@ describe("corte de reservas de salidas", () => {
   });
 });
 
-describe("proyección desmentida por el día (#353)", () => {
-  const proyectado = {
-    status: "SCHEDULED", scheduledAt: new Date("2030-01-01T12:00:00Z"),
-    source: "ESTIMADO", direction: "ARRIVAL" as const, number: "AR1652"
-  };
-  const real = (number: string, direction = "ARRIVAL") => ({ number, direction, source: "API" });
-
-  it("en un día sin datos reales la proyección se sigue vendiendo", () => {
-    expect(motivoNoReservable(proyectado, 10, ahora, 0, 0, [{ ...proyectado, direction: "ARRIVAL" }])).toBeNull();
-  });
-
-  it("si el día tiene datos reales y ninguno la confirma, no se puede reservar y el motivo lo dice", () => {
-    const delDia = [real("AR1657"), real("JA3181"), real("AR1658"), real("AR1659")];
-    expect(proyeccionSinConfirmar(proyectado, delDia)).toBe(true);
-    expect(motivoNoReservable(proyectado, 10, ahora, 0, 0, delDia))
-      .toBe("El vuelo no está confirmado por la aerolínea para ese día.");
-  });
-
-  it("si una fila real confirma número y sentido, la proyección no estorba", () => {
-    const delDia = [real("AR 1652")];
-    expect(proyeccionSinConfirmar(proyectado, delDia)).toBe(false);
-    expect(motivoNoReservable(proyectado, 10, ahora, 0, 0, delDia)).toBeNull();
-  });
-
-  it("el sentido importa: un arribo real no confirma una salida proyectada", () => {
-    expect(proyeccionSinConfirmar({ ...proyectado, direction: "DEPARTURE" }, [real("AR1652", "ARRIVAL")])).toBe(true);
-  });
-
-  it("una fila no proyectada nunca se bloquea por este motivo", () => {
-    expect(proyeccionSinConfirmar({ ...proyectado, source: "API" }, [real("JA3181")])).toBe(false);
+describe("oferta de vuelos con programación fechada", () => {
+  it.each(["ESTIMADO", "RETIRADO", "REVISAR"])("bloquea reservas de una fila %s aun con cupo", (source) => {
+    expect(motivoNoReservable({ source, status: "SCHEDULED", scheduledAt: new Date("2030-01-01T12:00:00Z") }, 10, ahora)).not.toBeNull();
   });
 });

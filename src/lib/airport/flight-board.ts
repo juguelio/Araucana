@@ -26,13 +26,8 @@ export const MARGEN_SIN_CONFIRMAR_MIN = 240;
 export type VueloConHorario = FlightEvidence;
 
 /**
- * ¿El vuelo lo inventó el sistema? Cuando ninguna fuente lo confirma, el sync lo fabrica a partir del
- * historico y lo guarda con `source = "ESTIMADO"` y `lastCheckedAt` en null. El horario es plausible,
- * asi que la tarjeta se cuela en la grilla como una mas, suma en el contador y hasta puede llevar
- * pasajeros encima. No es un vuelo del dia: es una proyeccion.
- *
- * Si alguna fuente llego a verificarlo (`lastCheckedAt` con valor), deja de ser proyeccion y vuelve a
- * contar: el dato ya no salio de una corazonada.
+ * Las versiones anteriores proyectaban horarios desde el historial. El panel identifica estas
+ * filas por la fuente y la ausencia de una lectura operativa.
  */
 export function esProyeccion(vuelo: Pick<VueloConHorario, "source" | "lastCheckedAt">): boolean {
   return vuelo.source === "ESTIMADO" && !vuelo.lastCheckedAt;
@@ -43,9 +38,8 @@ export function esProyeccion(vuelo: Pick<VueloConHorario, "source" | "lastChecke
  *
  * - Si alguna fuente confirmó al menos un vuelo ese día, las proyecciones quedan afuera: en un día
  *   con datos reales, una proyección es un vuelo fantasma (AR1653 del 17/11, reportado dos veces).
- * - Si ningún vuelo del día está confirmado —todos los días futuros, porque AirLabs sólo publica
- *   el día en curso—, las proyecciones son la grilla que el pasajero ve y reserva: se muestran,
- *   marcadas como estimadas. Ocultarlas dejaba el panel vacío para cualquier fecha futura.
+ * - Cuando sólo quedan proyecciones históricas, el panel puede mostrarlas para revisión de
+ *   Operaciones. El selector de reservas excluye todas las filas ESTIMADO.
  */
 export function vuelosParaElTablero<T extends Pick<VueloConHorario, "source" | "lastCheckedAt">>(
   vuelos: readonly T[]

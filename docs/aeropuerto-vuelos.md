@@ -1,117 +1,34 @@
-# Vuelos del aeropuerto: de dónde salen y cómo se corrigen
+# Programación y operación de los vuelos de Chapelco
 
-Documento de operación para quien toque este módulo. Describe el sistema tal como está, no como
-debería estar: si algo de acá no coincide con el código, el código manda y hay que actualizar esto.
+## Próximos 35 días
 
-## Las tres fuentes
+El flujo de GitHub Actions **Programación de vuelos de Chapelco** consulta los servicios entre Buenos Aires (Aeroparque y Ezeiza) y Chapelco. Está programado para las 06:23 de Argentina desde `main` y admite ejecución manual. Cada registro identifica número de vuelo, sentido, fecha local, aeropuerto de origen, aeropuerto de destino y hora en Chapelco. La base guarda los instantes en UTC y el panel los muestra en hora argentina.
 
-| Fuente | Qué trae | Cuándo |
-|---|---|---|
-| **AirLabs** (`provider.ts`) | Programación oficial de la aerolínea para CPC (SAZY). | El día en curso y, a veces, el siguiente. No publica semanas futuras. |
-| **Tablero del aeropuerto** (`fids.ts`) | Scraping de los tableros públicos de arribos y salidas: hora, estima y estado («En Vuelo», «Aterrizó», «Demorado»). | El día en curso. |
-| **Carga manual** (`MANUAL`) | Vuelos que no están en ninguna de las dos, como American Jet. | Cuando el operador lo carga. |
-
-Cada fila de `Flight` guarda su origen en `source`.
-
-## Jerarquía entre fuentes
-
-```
-FIDS  >  API  >  MANUAL  >  ESTIMADO
-```
-
-`FIDS` es la vista autorizada del día: si el tablero del aeropuerto ya tiene la fila, AirLabs **no la
-pisa** (`sync.ts`, al procesar la API). Esto es deliberado, porque el tablero es lo que ve el pasajero
-en la pantalla del aeropuerto el día del vuelo.
-
-`ESTIMADO` es siempre una proyección nuestra, nunca un dato de una fuente.
-
-## Qué hace una corrida del sync
-
-1. **Unifica JetSMART**: el tablero publica `WJ3182` y la API `JA3182`; se colapsan a `JA`.
-2. **Por día y por sentido**, pide a AirLabs y crea o actualiza, salvo que la fila sea `FIDS`.
-3. **Trae el tablero** del día y, si difiere, corrige la grilla futura del **mismo día de la semana**.
-4. **Cuenta los vuelos reales del día**: si un día tiene datos de la API, no se proyecta ese día.
-5. **Proyecta** hasta 30 días: repite el patrón de cada vuelo según su propia frecuencia.
-6. **Corrige** las filas `ESTIMADO` futuras que quedaron con la hora de otro día.
-7. **Limpia** proyecciones de días que ya consiguieron datos reales.
-
-## Registro de observaciones (modo sombra)
-
-Cada corrida guarda en `FlightObservation` lo que dijo cada fuente, tal como vino (`observations.ts`):
-
-- **AirLabs crudo**, antes de normalizar: incluye los códigos compartidos (`codeshareOf` = `cs_flight_iata`) y
-  los WJ que la normalización descarta.
-- **Tablero**, antes de cualquier descarte, con `dayInferred = true` porque el tablero no trae fecha.
-- `syncOutcome`: qué hizo el sync con la lectura (`ACTUALIZADO`, `CREADO`, `ESTADO_SOBRE_API`,
-  `DESCARTADO_GEMELO`, `DESCARTADO_CODIGO_COMPARTIDO`, …) y `flightId`, la fila a la que la aplicó.
-- `matcherFlightId` / `matchLevel`: qué fila habría elegido el asociador (`observation-match.ts`) por
-  identidad de vuelo: **aerolínea que opera + número canónico + día local + sentido**. Si difiere de lo que
-  hizo el sync, o hay dos filas del mismo vuelo, queda en `discrepancy`.
-
-No cambia nada de `Flight`: sirve para medir duplicados y diferencias entre fuentes antes de que el
-asociador decida. Todas las lecturas de una corrida comparten `syncRunId`. Si no se puede guardar, el sync
-sigue igual.
-
-```sql
--- discrepancias de los últimos días
-select "localDay", source, "rawNumber", "syncOutcome", "matchLevel", discrepancy
-from "FlightObservation" where discrepancy is not null order by "observedAt" desc limit 50;
-
--- lo que dijo cada fuente del mismo vuelo
-select "matchKey", source, "scheduledAt", status, "rawStatus", "observedAt"
-from "FlightObservation" where "localDay" = '2026-11-18' order by "matchKey", "observedAt";
-```
-
-## Cuándo corre
-
-No hay cron. Se dispara cuando alguien consulta los vuelos del día en el sitio
-(`/api/v1/airport/flights`), con un tope de **30 minutos** entre corridas y **12 por día**
-(`freshness.ts`). El botón **«Actualizar vuelos»** del panel corre el sync sin ese tope.
-
-Ojo: el disparo automático anota su corrida en `airport.lastSync`; el botón no. Mirar ese registro
-para saber si el sync corrió da falsos negativos.
-
-## Cómo se proyecta
-
-La proyección es **por vuelo**, no por día. Cada servicio se repite según su propia frecuencia:
-
-- Si el mismo día de la semana tiene dato real, se usa esa hora.
-- Si el vuelo se vio en días consecutivos, se considera servicio diario y se proyecta cualquier día.
-- Si se vio en varios días salteados y el objetivo no es uno de ellos, no se proyecta
-  (martes/jueves/sábado de American Jet).
-- Si sólo hay una muestra, se asume diario.
-
-## Reglas que costaron un reporte del cliente
-
-- **No copiar el reloj del vuelo de hoy a toda la grilla futura.** JetSMART no sale a la misma hora
-  todos los días. Fue el bug del JA3182 del 15-nov.
-- **Las `ESTIMADO` no cuentan como evidencia del patrón**, o la grilla mala se valida a sí misma.
-- **No tocar una fila con reservas o combi asignada**: ahí la hora la decide el operador.
-- **El control de duplicados va por aerolínea.** Comparar sólo sentido y ±25 minutos hacía que el
-  AJ325 de Neuquén bloqueara el AR1657 de Aeroparque, que es otro servicio, otra ruta y otra empresa.
-
-## Vuelos que no se ofrecen
-
-`offered-flights.ts` tiene la lista `VUELOS_QUE_NO_SE_OFRECEN`. Los vuelos de esa lista siguen
-existiendo en la base y en la hoja del día —el registro del aeropuerto es real y el chofer lo
-necesita— pero no se listan al pasajero, no se muestran en el panel del día y no se proyectan.
-
-Hoy tiene los American Jet a Neuquén (AJ324, AJ325, AJ328, AJ329), fuera de la oferta por pedido del
-cliente. Volver a ofrecerlos es borrar el número de la lista.
-
-## Dónde se ve cada cosa
-
-| Pantalla | Query |
+| Fuente en Flight | Significado para Operaciones |
 |---|---|
-| Reserva del pasajero | `listAirportFlights` (`booking.ts`) |
-| Panel del día | `admin/aeropuerto/page.tsx` |
-| Hoja del chofer | `getAirportServiceOrderReservations` (reservas, no vuelos) |
+| AR_OFICIAL | Vuelo publicado en el calendario de Aerolíneas Argentinas. |
+| JA_OFICIAL | Vuelo publicado por JetSMART. |
+| ITINERARIO | Horario de itinerario pendiente de confirmación por la aerolínea. Ese aviso también aparece al elegir el vuelo. |
+| RETIRADO | Servicio retirado de la oferta. |
+| REVISAR | El vuelo requiere revisión y conserva sus reservas, asignaciones o datos de coordinación. Aparece en Aeropuerto, en «Por verificar». No admite nuevas reservas. |
+| MANUAL / PASAJERO | Carga del operador o vuelo privado declarado por un pasajero. |
+| ESTIMADO | Proyección histórica de versiones anteriores. Está excluida de las reservas nuevas. |
 
-## Verificación rápida
+Para JetSMART se consulta su tablero oficial durante la primera semana. Después se usa la programación mensual por ruta de FlightInformation y, si falta esa grilla, las ofertas fechadas de Almundo. Cada oferta debe identificar el operador, el número y el tramo directo. Una oferta permite incorporar o actualizar ese vuelo. Sólo una grilla completa permite retirar servicios ausentes.
 
-```bash
-# la grilla que ve el pasajero
-curl -s "https://araucana.vercel.app/api/v1/airport/flights?slug=aeropuerto-chapelco-sma&date=2026-11-24" | jq '.flights[] | {number, scheduledAt, source}'
-```
+La conciliación compara cada fecha, sentido, aerolínea y aeropuerto con la cobertura validada de la fuente. Una consulta incompleta deja pendiente esa parte de la grilla. Los cambios de programación conservan la referencia de las reservas existentes. Para atender un vuelo marcado «Revisar», abrí su tarjeta en Aeropuerto y verificá el traslado y las reservas vinculadas antes de coordinarlo.
 
-Las horas se muestran en **UTC-3**. La base guarda UTC.
+## Día de operación
+
+La consulta de vuelos de hoy, desde el sitio o el panel, puede refrescar las lecturas de AirLabs y del tablero oficial del aeropuerto. Por defecto transcurren al menos 30 minutos entre corridas automáticas y hay un máximo de 12 por día.
+
+- AirLabs aporta horario con fecha y estado operativo. Una lectura comercial que sólo indica «Programado» requiere evidencia adicional para incorporar un vuelo ausente de la programación.
+- El tablero FIDS muestra las horas y el estado. Una hora que se interpreta como del día siguiente queda en el historial de observaciones. Los estados del día pueden actualizarse sin reemplazar el horario publicado por una aerolínea.
+- Los vuelos JetSMART con códigos JA y WJ se agrupan por número canónico, fecha local y sentido. Las filas retiradas y las pendientes de revisión conservan su historial.
+- El listado de vuelos excluidos de la oferta, incluidos los American Jet de Neuquén, está en `src/lib/airport/offered-flights.ts`.
+
+## Seguimiento
+
+`FlightObservation` conserva las lecturas del día de AirLabs y FIDS. Usá `syncRunId` para agrupar una corrida, `syncOutcome` para ver si se aplicó una lectura y `flightId` para encontrar el vuelo. `FECHA_FUTURA_INFERIDA` identifica una hora del tablero interpretada como futura. `PENDIENTE_DE_CONFIRMACION` identifica una lectura que necesita otra confirmación para modificar la oferta.
+
+El selector público y el alta administrativa consultan `listAirportFlights`. Las reservas compartidas y privadas vuelven a validar el vuelo en el servidor al guardarse. En el panel, «Revisar» mantiene accesibles los datos del traslado para Operaciones.

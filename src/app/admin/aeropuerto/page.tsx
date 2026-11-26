@@ -1,5 +1,6 @@
 import { cargarOcupacionDelDia } from "@/lib/fleet/cargar-ocupacion";
-import { flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
+import { esHorarioPublicado, flightEvidenceWarning, flightSourceLabel, reliableEstimate } from "@/lib/airport/data-quality";
+import { aeropuertoLabel, extremoDelVuelo } from "@/lib/airport/airports";
 import Link from "next/link";
 import { AdminShell } from "@/components/admin-shell";
 import { DriverSheetLabel } from "@/components/driver-sheet-label";
@@ -94,6 +95,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
     where: {
       scheduledAt: { gte: desde, lt: hasta },
       // Neuquén está fuera de la oferta por pedido del cliente (14-nov): no se opera ni se muestra.
+      source: { not: "RETIRADO" },
       number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
     },
     orderBy: { scheduledAt: "asc" },
@@ -109,7 +111,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
 
   // En un día con vuelos confirmados, una proyeccion es un vuelo fantasma: no entra al tablero y, si
   // tiene reservas encima, se avisa abajo como reserva a reasignar. En un día sin ningún vuelo
-  // confirmado (los futuros), las proyecciones son la grilla que se reserva y sí se muestran.
+  // confirmado se conservan como referencia histórica para Operaciones.
   const { tablero: vuelosDelTablero, fantasma } = vuelosParaElTablero(vuelos);
   const imprevistos = vuelosDelTablero.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
   const visibles = soloAlerta ? imprevistos : vuelosDelTablero;
@@ -190,7 +192,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const tarjeta = (v: VueloDelDia, pasado = false) => {
     const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) };
     const evidenceWarning = flightEvidenceWarning(v, ahora);
-    const alerta = needsAttention(snapshot);
+    const alerta = Boolean(evidenceWarning) || needsAttention(snapshot);
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
     const privadas = v.reservations.filter(r => r.isPrivate && r.reservation.status !== "CANCELLED");
     const comunes = ocupados - privadas.reduce((total, r) => total + r.reservation.passengerCount, 0);
@@ -198,6 +200,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
     const faltanCombis = comunes > capacidad;
     const estima = snapshot.estimatedAt && hhmm(snapshot.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(snapshot.estimatedAt) : null;
     const extra = flightSourceLabel(v.source);
+    const ciudad = aeropuertoLabel(extremoDelVuelo(v)) ?? "—";
     // Sin confirmación de la fuente: el vuelo ya pasó su hora y nadie dijo que aterrizó o salió.
     // En el pie tiene que verse —si no parece que aterrizó y nadie lo chequeó— y mientras siga así
     // el operador puede confirmarlo él.
@@ -225,7 +228,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
             </span>
           </div>
           <span className="pill pill-estado" data-tono={tonoDelEstado(snapshot)}>
-            {sinConfirmar ? "Pasó · sin confirmar" : evidenceWarning ? "A verificar" : v.source === "ESTIMADO" ? "Sin confirmar" : v.source === "MANUAL" && v.status === "SCHEDULED" ? "Sin estado en vivo" : statusDetail(snapshot)}
+            {v.source === "REVISAR" ? "Revisar" : sinConfirmar ? "Pasó · sin confirmar" : evidenceWarning ? "A verificar" : v.source === "ESTIMADO" ? "Sin confirmar" : esHorarioPublicado(v.source) && v.status === "SCHEDULED" ? "Programado" : v.source === "MANUAL" && v.status === "SCHEDULED" ? "Sin estado en vivo" : statusDetail(snapshot)}
           </span>
           <span className="flight-pax">
             <strong>{comunes}</strong>
@@ -278,7 +281,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
               Recorrida {v.pickupStartOverrideAt ? "coordinada" : "estimada"}: {airportPickupDateTime.format(pickupStart)}
             </span>
           ) : null}
-          <span className="muted flight-info-origen" title={v.origin}>{v.origin}</span>
+          <span className="muted flight-info-origen" title={ciudad}>{ciudad}</span>
           </div>
           <div className="flight-card-actions">
           {ocupados > 0 ? (

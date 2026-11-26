@@ -1,3 +1,4 @@
+import { extremoDelVuelo } from "./airports";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { airportLocalDay } from "./data-quality";
@@ -14,6 +15,8 @@ import { asociarLectura, discrepancia, numeroCanonico, type FilaCandidata } from
  */
 
 export type ResultadoDelSync =
+  | "PENDIENTE_DE_CONFIRMACION"
+  | "FECHA_FUTURA_INFERIDA"
   | "PENDIENTE"
   | "CREADO"
   | "ACTUALIZADO"
@@ -131,8 +134,8 @@ export async function guardarObservaciones(
       const hasta = new Date(new Date(`${ordenados[ordenados.length - 1]}T00:00:00-03:00`).getTime() + 86400000);
       filas = (await prisma.flight.findMany({
         where: { scheduledAt: { gte: desde, lt: hasta } },
-        select: { id: true, number: true, airline: true, origin: true, direction: true, scheduledAt: true }
-      })) ?? [];
+        select: { id: true, number: true, airline: true, origin: true, destination: true, direction: true, scheduledAt: true }
+      }) ?? []).map(f => ({ ...f, origin: extremoDelVuelo(f) }));
     }
 
     // Una fila que el sync aplicó y después borró en la misma corrida (unificación, limpieza de

@@ -1,5 +1,7 @@
 "use client";
 
+import { avisoItinerario } from "@/lib/airport/data-quality";
+import { tramoDeVuelo } from "@/lib/airport/airports";
 import { PrivateAirportContext } from "../private-airport-context";
 import { separarVuelosDelSelector } from "@/lib/airport/flight-selector";
 import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
@@ -141,7 +143,9 @@ function formatShortCode(code: string) {
 /** Las opciones de un sentido que hoy se pueden reservar. */
 function descripcionVuelo(vuelo: FlightOption) {
   const partes = [vuelo.number, hhmm(vuelo.estimatedAt ?? vuelo.scheduledAt)];
-  if (vuelo.origin) partes.push(vuelo.origin);
+  const tramo = tramoDeVuelo({ direction: vuelo.direction, origin: vuelo.origin });
+  if (tramo) partes.push(tramo);
+  if (vuelo.source === "ITINERARIO") partes.push(avisoItinerario);
   return partes.join(" · ");
 }
 

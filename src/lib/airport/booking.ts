@@ -1,7 +1,8 @@
 import { privateDestination, type PrivateTransfer } from "./private-transfer";
 import { assignPrivateVehicle } from "./private-vehicle";
 import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
-import { flightEvidenceWarning, reliableEstimate } from "./data-quality";
+import { flightEvidenceWarning, reliableEstimate, fuentesSinOferta, fuentesRetiradas } from "./data-quality";
+import { extremoDelVuelo } from "./airports";
 import { roundTripOrderValid } from "./round-trip-summary";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -76,7 +77,7 @@ export type AirportFlightOption = {
   pickupStartAt: Date | null;
   pickupStartCoordinated: boolean;
   status: string;
-  /** "API" = dato real de la aerolínea; "ESTIMADO" = patrón proyectado; "MANUAL" = cargado a mano. */
+  /** Procedencia de la programación o de la lectura operativa. */
   source: string;
   occupied: number;
   capacity: number;
@@ -90,22 +91,6 @@ export type AirportFlightOption = {
 /** Suma de pasajeros vivos de una reserva (las canceladas no ocupan lugar). */
 export function pasajerosOcupados(reservas: Array<{ passengerCount: number; status: string }>): number {
   return reservas.filter((r) => r.status !== "CANCELLED").reduce((total, r) => total + r.passengerCount, 0);
-}
-
-/** Fila del día tal como se necesita para decidir si una proyección está confirmada. */
-export type VueloDelDia = { number: string; direction: string; source: string };
-
-/**
- * ¿Una fila proyectada (`ESTIMADO`) quedó desmentida por el día? Si el día ya tiene datos reales y
- * ninguno la confirma por número+sentido, la proyección no prueba que el vuelo opere (#353). En días
- * sin datos reales devuelve `false`: ahí la proyección es lo único que hay y se sigue ofreciendo.
- */
-export function proyeccionSinConfirmar(vuelo: VueloDelDia, delDia: VueloDelDia[]) {
-  if (vuelo.source !== "ESTIMADO") return false;
-  const reales = delDia.filter((fila) => fila.source !== "ESTIMADO");
-  if (!reales.length) return false;
-  const clave = claveDeVuelo(vuelo.number);
-  return !reales.some((fila) => claveDeVuelo(fila.number) === clave && fila.direction === vuelo.direction);
 }
 
 /**
@@ -130,13 +115,10 @@ export function motivoNoReservable(
   disponible: number,
   ahora: Date = new Date(),
   corteArriboMinutos = 0,
-  corteSalidaMinutos = 0,
-  /** Día completo, para saber si una proyección quedó desmentida por datos reales (#353). */
-  delDia?: VueloDelDia[]
+  corteSalidaMinutos = 0
 ): string | null {
-  if (vuelo.number && delDia && proyeccionSinConfirmar({ number: vuelo.number, direction: vuelo.direction ?? "ARRIVAL", source: vuelo.source ?? "" }, delDia)) {
-    return "El vuelo no está confirmado por la aerolínea para ese día.";
-  }
+  if (vuelo.source === "ESTIMADO") return "Horario estimado sin programación publicada.";
+  if (vuelo.source && fuentesRetiradas.includes(vuelo.source)) return "Vuelo fuera de la programación disponible.";
   if (flightEvidenceWarning({ ...vuelo, estimatedAt: vuelo.estimatedAt ?? null }, ahora)) return "Datos del vuelo pendientes de verificación. Consultanos antes de reservar.";
   if (vuelo.status === "CANCELLED") return "El vuelo está cancelado.";
   if (vuelo.status === "DIVERTED") return "El vuelo fue desviado.";
@@ -149,7 +131,7 @@ export function motivoNoReservable(
   const referencia = horaEfectivaDelVuelo(vuelo);
   if (referencia <= ahora) {
     // Un horario proyectado no prueba que el vuelo haya pasado: no se afirma eso al pasajero.
-    if (vuelo.source === "ESTIMADO") return "Horario estimado ya pasado.";
+
     // En un arribo el avión ya llegó: decir "ya salió" sería hablar de otro momento del viaje.
     return vuelo.direction === "ARRIVAL" ? "El vuelo ya llegó." : "El vuelo ya salió.";
   }
@@ -189,6 +171,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       ...(input.direction ? { direction: input.direction } : {}),
       scheduledAt: { gte: desde, lt: hasta },
       // El cliente pidió sacar Neuquén por ahora: el vuelo existe, pero no se ofrece.
+      source: { notIn: fuentesSinOferta },
       number: { notIn: [...VUELOS_QUE_NO_SE_OFRECEN] }
     },
     orderBy: { scheduledAt: "asc" },
@@ -198,22 +181,18 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
     }
   });
 
-  // Contexto del día: una proyección sólo se puede vender si el día no tiene datos reales que la
-  // desmientan (#353). Se calcula una vez con las filas de ese día.
-  const delDia = vuelos.map((v) => ({ number: v.number, direction: v.direction, source: v.source }));
-
   return vuelos.map((v) => {
     const ocupados = pasajerosOcupados(v.reservations.filter(r => !r.isPrivate).map((r) => r.reservation));
     const compartidas = v.assignments.filter(a => !a.privateReservationId);
     const capacidad = capacidadDeVuelo(compartidas.map((a) => ({ seats: a.vehicle.seats.length })));
     const disponible = Math.max(capacidad - ocupados, 0);
-    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes, delDia);
+    const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes);
     return {
       id: v.id,
       number: v.number,
       direction: v.direction === "DEPARTURE" ? ("DEPARTURE" as const) : ("ARRIVAL" as const),
       airline: v.airline,
-      origin: v.origin,
+      origin: extremoDelVuelo(v),
       scheduledAt: v.scheduledAt,
       estimatedAt: reliableEstimate(v),
       pickupStartAt: flightEvidenceWarning(v, ahora) && !v.pickupStartOverrideAt ? null : airportPickupStart(v),
@@ -223,7 +202,7 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
       occupied: ocupados,
       capacity: capacidad,
       available: disponible,
-      privateBookable: motivoNoReservable(v, 1, ahora, arrivalCutoffMinutes, departureCutoffMinutes, delDia) === null,
+      privateBookable: motivoNoReservable(v, 1, ahora, arrivalCutoffMinutes, departureCutoffMinutes) === null,
       bookable: motivo === null,
       reason: motivo,
       vehicles: compartidas.map((a) => ({
@@ -344,7 +323,9 @@ async function buscarVueloDelTramo(
     },
     include: incluirCupo
   });
-  let vuelo = candidatos.find((v) => claveDeVuelo(v.number) === numero && v.direction === tramo.direction) ?? null;
+  const delVuelo = candidatos.filter((v) => claveDeVuelo(v.number) === numero && v.direction === tramo.direction);
+  // Una fila histórica puede coexistir con la publicada. Se conserva para sus pasajeros actuales.
+  let vuelo = delVuelo.find((v) => !fuentesSinOferta.includes(v.source)) ?? delVuelo[0] ?? null;
 
   // Vuelo privado (charter, avión particular): si otro pasajero del mismo avión ya lo cargó
   // ese día se reutiliza su vuelo —y su cupo—; si no, se crea marcado como cargado por el

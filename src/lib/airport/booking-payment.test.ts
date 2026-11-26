@@ -53,7 +53,7 @@ beforeEach(() => {
       assignments: []
     }
   ]);
-  mocks.findFirstRoute.mockResolvedValue({ id: "ruta-1" });
+  mocks.findFirstRoute.mockResolvedValue({ id: "ruta-1", priceCents: 2500000, currency: "ARS" });
   mocks.createPassenger.mockResolvedValue({ id: "pax-1" });
   mocks.createReservation.mockResolvedValue({
     id: "res-1",
@@ -74,7 +74,9 @@ beforeEach(() => {
 });
 
 describe("reserva de aeropuerto: pago pendiente", () => {
-  it("crea el pago manual pendiente con el total de la reserva", async () => {
+  it.each(["AR_OFICIAL", "JA_OFICIAL", "ITINERARIO"])("conserva tarifa, pasajero y vuelo al reservar desde %s", async (source) => {
+    const [vuelo] = await mocks.findManyFlights();
+    mocks.findManyFlights.mockResolvedValue([{ ...vuelo, source }]);
     await createAirportReservation({
       routeSlug: "aeropuerto-chapelco-sma",
       flightNumber: "AR1656",
@@ -92,6 +94,10 @@ describe("reserva de aeropuerto: pago pendiente", () => {
       }
     });
 
+    expect(mocks.createReservation.mock.calls[0][0].data).toMatchObject({
+      totalCents: 5000000, currency: "ARS", passengerCount: 2, passengerId: "pax-1",
+      airportDetails: { create: { flightId: "vuelo-1", direction: "ARRIVAL" } }
+    });
     expect(mocks.createPayment).toHaveBeenCalledTimes(1);
     const data = mocks.createPayment.mock.calls[0][0].data;
     expect(data.reservationId).toBe("res-1");

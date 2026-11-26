@@ -64,6 +64,13 @@ describe("reconciliarReservasDeVuelosPasados", () => {
     });
   });
 
+  it("el horario de un vuelo pendiente de revisión no vence la reserva del pasajero", async () => {
+    m.findMany.mockResolvedValue([{ ...reserva("revisar", "PENDING", hace3Dias),
+      airportDetails: { flight: { source: "REVISAR", scheduledAt: hace3Dias } } }]);
+    expect(await reconciliarReservasDeVuelosPasados(ahora)).toEqual({ confirmadas: 0, canceladas: 0 });
+    expect(m.updateMany).not.toHaveBeenCalled();
+  });
+
   it("cancela la reserva impaga cuyo vuelo ya pasó", async () => {
     m.findMany.mockResolvedValue([reserva("impaga", "PENDING", hace3Dias)]);
 
