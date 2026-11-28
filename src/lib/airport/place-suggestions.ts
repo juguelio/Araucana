@@ -8,7 +8,8 @@ import {
 } from "./place-search-area";
 import type { PickupPoint } from "./pickup-zone";
 import { lookupStreetAddresses } from "./street-address-lookup";
-import { suggestMunicipalLodgings, withMunicipalLodgings } from "./lodging-catalogue";
+import { getVerifiedLodgingLocation } from "./lodging-locations";
+import { municipalLodgings, suggestMunicipalLodgings, withMunicipalLodgings } from "./lodging-catalogue";
 
 /**
  * Cuánto se sabe del punto. `approximate` solo no distingue "la fuente ubicó la
@@ -61,6 +62,8 @@ const locationIqResponse = z.array(z.object({
 }));
 
 const nominatimStreetResponse = z.array(z.object({
+  display_name: z.string(),
+  class: z.string(),
   lat: z.coerce.number().pipe(latitude),
   lon: z.coerce.number().pipe(longitude)
 }));
@@ -139,10 +142,10 @@ async function lookupNamedPlaces(query: string, requestSignal: AbortSignal): Pro
   }
 }
 
-async function nominatimStreetPoint(street: string, requestSignal: AbortSignal): Promise<{ point: PickupPoint | null; answered: boolean }> {
+async function nominatimStreetPoint(street: string, city: string, requestSignal: AbortSignal): Promise<{ point: PickupPoint | null; answered: boolean }> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.search = new URLSearchParams({
-    q: `${street}, ${airportSearchLocality}`,
+    q: `${street}, ${city}`,
     format: "jsonv2",
     limit: "1",
     countrycodes: "ar"
@@ -158,7 +161,9 @@ async function nominatimStreetPoint(street: string, requestSignal: AbortSignal):
   });
   if (!response.ok) return { point: null, answered: false };
   const [place] = nominatimStreetResponse.parse(await response.json());
-  return { point: place ? [place.lat, place.lon] : null, answered: true };
+  const valid = place?.class === "highway" && matchesLocality(place.display_name, city)
+    && streetKey(place.display_name.split(",")[0]) === streetKey(street);
+  return { point: valid ? [place.lat, place.lon] : null, answered: true };
 }
 
 /**
@@ -166,18 +171,19 @@ async function nominatimStreetPoint(street: string, requestSignal: AbortSignal):
  * Primero el geocoder comercial de la app y, si no la conoce o está limitado,
  * OpenStreetMap. Se cachea para no repetir la consulta por cada búsqueda.
  */
-async function lookupStreetPoint(street: string, requestSignal: AbortSignal): Promise<PickupPoint | null> {
-  const key = streetKey(street);
+async function lookupStreetPoint(street: string, city: string, requestSignal: AbortSignal): Promise<PickupPoint | null> {
+  const key = `${streetKey(street)},${normalizePlaceText(city)}`;
   const cached = streetPointCache.get(key);
   if (cached && Date.now() - cached.at < cached.ttl) return cached.point;
 
-  const named = await lookupNamedPlaces(street, requestSignal).catch(() => []);
+  const named = await lookupNamedPlaces(`${street}, ${city}`, requestSignal).catch(() => []);
   const match = named.find((candidate) => candidate.point
-    && streetKey(candidate.label.split(",")[0]) === key);
+    && candidate.approximate && matchesLocality(candidate.label, city)
+    && streetKey(candidate.label.split(",")[0]) === streetKey(street));
   let point = match?.point ?? null;
   let answered = Boolean(match);
   if (!point) {
-    const nominatim = await nominatimStreetPoint(street, requestSignal)
+    const nominatim = await nominatimStreetPoint(street, city, requestSignal)
       .catch(() => ({ point: null, answered: false }));
     point = nominatim.point;
     answered ||= nominatim.answered;
@@ -250,12 +256,41 @@ const nunezStreetReference = {
   coordinateSourceUrl: "https://www.openstreetmap.org/way/169405015"
 };
 
+function matchesLocality(label: string, city: string) {
+  return label.split(",").slice(1).some((part) => normalizePlaceText(part) === normalizePlaceText(city));
+}
+
+function nearbyDowntownReference(street: string, number: string, city: string): AirportPlaceSuggestion | null {
+  if (normalizePlaceText(city) !== normalizePlaceText(airportSearchLocality) || !/^\d+$/.test(number)) return null;
+  const height = Number(number);
+  let nearest: PickupPoint | null = null;
+  let distance = Infinity;
+  for (const lodging of municipalLodgings) {
+    if (lodging.zone !== "Centro") continue;
+    const match = /^(.+?)\s+(?:n[.º°o]*\s*)?(\d+)\b/iu.exec(lodging.address);
+    if (!match || streetKey(match[1]) !== streetKey(street)) continue;
+    const other = Number(match[2]);
+    const difference = Math.abs(height - other);
+    if (Math.floor(other / 100) !== Math.floor(height / 100) || difference >= distance) continue;
+    const location = getVerifiedLodgingLocation(lodging);
+    if (!location || location.precision === "street") continue;
+    nearest = location.point;
+    distance = difference;
+  }
+  return nearest ? { label: `${street} ${number}, ${city}`, point: nearest, source: "municipal", approximate: true, precision: "street" } : null;
+}
+
 async function suggestStreetAddress(name: string, context: string, address: NonNullable<ReturnType<typeof splitStreetAddress>>, signal: AbortSignal) {
-  const locality = context || airportSearchLocality;
+  const locality = context.split(",")[0].trim() || airportSearchLocality;
+  const nearby = nearbyDowntownReference(address.street, address.number, locality);
+  // Las calles homónimas pueden compartir municipio. Una cuadra verificada permite
+  // descartar un punto a kilómetros de esa altura incluso si la etiqueta coincide.
+  const plausible = (point: PickupPoint | null) => !nearby?.point || (point !== null
+    && Math.abs(point[0] - nearby.point[0]) < 0.01 && Math.abs(point[1] - nearby.point[1]) < 0.015);
   const street = normalizePlaceText(address.street);
   const named = await lookupNamedPlaces(`${name}, ${locality}`, signal).catch((error: unknown) => error);
   const exact = Array.isArray(named)
-    ? named.filter((match) => matchesStreetNumber(match.label, street, address.number))
+    ? named.filter((match) => plausible(match.point) && matchesLocality(match.label, locality) && matchesStreetNumber(match.label, street, address.number))
     : [];
   const exactos = exact.filter((match) => match.precision === "exact" && !match.approximate);
   // Un punto «interpolado» del proveedor no decide antes que el nomenclador municipal (#361): si no hay
@@ -274,19 +309,20 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
   // cualquier resultado y una consulta inventada terminaba mostrando otra calle como dirección válida.
   const relevant = sameStreet;
   for (const match of relevant) {
+    if (normalizePlaceText(match.localidad_censal.nombre) !== normalizePlaceText(locality)) continue;
     if (String(match.altura.valor) !== address.number || signal.aborted) continue;
     const officialStreet = match.calle.nombre.toLocaleLowerCase("es").replace(/\b\p{L}/gu, (letter) => letter.toLocaleUpperCase("es"));
     const { nombre: city } = match.localidad_censal;
     const label = `${officialStreet} ${address.number}, ${city}`;
     const { lat, lon } = match.ubicacion;
-    if (lat !== null && lon !== null) {
+    if (lat !== null && lon !== null && plausible([lat, lon])) {
       suggestions.push({ label, point: [lat, lon], source: "georef", approximate: true, precision: "interpolated" });
       continue;
     }
 
     const candidates = await lookupNamedPlaces(label, signal).catch(() => []);
     const canonical = normalizePlaceText(officialStreet);
-    const canonicalExact = candidates.filter((candidate) => matchesStreetNumber(candidate.label, canonical, address.number));
+    const canonicalExact = candidates.filter((candidate) => plausible(candidate.point) && matchesLocality(candidate.label, city) && matchesStreetNumber(candidate.label, canonical, address.number));
     if (canonicalExact.length) {
       suggestions.push(...canonicalExact);
       continue;
@@ -302,12 +338,12 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
         : { ...nunezStreetReference, label, source: "georef", approximate: true, precision: "street" });
       continue;
     }
-    const local = localStreetReference(officialStreet, address.number, city);
+    const local = nearby ?? localStreetReference(officialStreet, address.number, city);
     if (local) {
       suggestions.push(local);
       continue;
     }
-    const reference = candidates.find((candidate) => candidate.approximate
+    const reference = candidates.find((candidate) => candidate.approximate && matchesLocality(candidate.label, city)
       && normalizePlaceText(candidate.label.split(",")[0]) === canonical);
     if (reference) {
       suggestions.push({ ...reference, label, approximate: true, precision: "street" });
@@ -315,7 +351,7 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
     }
     // La altura exacta no está en ningún geocoder, pero la calle puede estarlo:
     // se ancla el pin sobre el eje para que el operador lo arrastre hasta la altura.
-    const streetPoint = await lookupStreetPoint(officialStreet, signal);
+    const streetPoint = await lookupStreetPoint(officialStreet, city, signal);
     if (streetPoint) {
       suggestions.push({ label, point: streetPoint, source: "georef", approximate: true, precision: "street" });
       continue;
@@ -326,6 +362,7 @@ async function suggestStreetAddress(name: string, context: string, address: NonN
   }
   if (!suggestions.length && !signal.aborted) {
     // Respaldo: el punto interpolado del proveedor, pero sólo si el nomenclador no aportó nada mejor.
+    if (nearby) return [nearby];
     if (exact.length) return exact;
     if (knownStreet) return [knownStreet];
     if (!Array.isArray(named)) throw named;
