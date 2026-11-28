@@ -7,7 +7,7 @@ import { getCurrentReservationsUserOrRedirect } from "@/lib/auth/admin";
 import { prisma } from "@/lib/db/prisma";
 import {
   argentina, assignmentSchema, billingModes, dateOnly, legSchema, localDateTime, MAX_TRIP_PAYMENTS, parseMoney,
-  paymentSchema, statuses, tripPaymentTotals
+  paymentSchema, statuses, tripPaymentTotals, type Leg
 } from "@/lib/special-trips/data";
 import { conflictKey, fleetConflicts, lockFleet, recordAcceptance, type FleetConflict } from "@/lib/special-trips/conflicts";
 import { leerRango } from "@/lib/special-trips/rango";
@@ -54,7 +54,8 @@ export async function saveTrip(id: string | null, version: string | null, _state
       }
       throw new TripError("Revisá los datos de los recorridos.");
     }
-    const legs = parsedLegs.data;
+    // Los campos del tramo que la app valida, más lo que el cliente haya cargado de más (#459).
+    const legs: Leg[] = parsedLegs.data;
     for (const leg of legs) {
       if ((!leg.origin || !leg.destination) && !leg.description.trim()) throw new TripError("Ingresá origen y destino o una descripción para cada tramo.");
       const departure = localDateTime(leg.departure, leg.zone);
