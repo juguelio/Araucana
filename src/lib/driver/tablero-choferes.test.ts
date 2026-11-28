@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  bloqueEnLinea, carriles, enCurso, entraEnPestanaChoferes, horasDeLaJornada, iniciales, jornadaDe, leerPestanaChoferes,
+  bloqueEnLinea, carriles, limitesDeLinea, posicionDeAhora, enCurso, entraEnPestanaChoferes, horasDeLaJornada, iniciales, jornadaDe, leerPestanaChoferes,
   navesDeLaJornada, preseleccion, proximo, serviciosDeLaNave, type ServicioDelDia
 } from "./tablero-choferes";
 
@@ -129,5 +129,26 @@ describe("carriles de la línea", () => {
     expect(total).toBe(2);
     expect([carril.get("a"), carril.get("b"), carril.get("c")]).toEqual([0, 1, 0]);
     expect(carriles([]).total).toBe(1);
+  });
+});
+
+describe("ahora en la línea", () => {
+  const limites = limitesDeLinea(DIA);
+
+  it("la línea va de 05:00 a 24:00 de Argentina", () => {
+    expect(new Date(limites.inicio).toISOString()).toBe("2026-11-28T08:00:00.000Z");
+    expect(new Date(limites.fin).toISOString()).toBe("2026-11-29T03:00:00.000Z");
+  });
+
+  it("ahora, en porcentaje con un decimal", () => {
+    expect(posicionDeAhora(a("05:00").getTime(), limites)).toBe(0);
+    expect(posicionDeAhora(a("14:30").getTime(), limites)).toBe(50);
+    expect(posicionDeAhora(a("12:29").getTime(), limites)).toBe(39.4);
+    expect(posicionDeAhora(limites.fin, limites)).toBe(100);
+  });
+
+  it("fuera de la línea no hay dónde marcarlo", () => {
+    expect(posicionDeAhora(a("04:59").getTime(), limites)).toBeNull();
+    expect(posicionDeAhora(limites.fin + 60_000, limites)).toBeNull();
   });
 });

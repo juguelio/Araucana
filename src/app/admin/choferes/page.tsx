@@ -6,11 +6,12 @@ import { roleCanAccess } from "@/lib/auth/roles";
 import { prisma } from "@/lib/db/prisma";
 import { cargarServiciosDelDia } from "@/lib/driver/cargar-servicios-del-dia";
 import {
-  ETIQUETA_AREA, LINEA_DESDE_HORA, LINEA_HASTA_HORA, PESTANAS_CHOFERES, bloqueEnLinea, carriles, enCurso, entraEnPestanaChoferes,
+  ETIQUETA_AREA, LINEA_DESDE_HORA, LINEA_HASTA_HORA, PESTANAS_CHOFERES, bloqueEnLinea, carriles, enCurso, entraEnPestanaChoferes, limitesDeLinea,
   horasDeLaJornada, iniciales, jornadaDe, leerPestanaChoferes, navesDeLaJornada, proximo, type PestanaChoferes, type ServicioDelDia
 } from "@/lib/driver/tablero-choferes";
 import { tituloDeNave } from "@/lib/fleet/titulo-de-nave";
 import { isDateKey, localDateKey, shiftDateKey } from "@/lib/operations/day-board";
+import { HoraDeAhora, MarcaDeAhora, TableroConReloj } from "./reloj-del-tablero";
 import { AsignarJornada, type ChoferVista, type ServicioVista } from "./asignar-jornada";
 import { AsignarViaje } from "./asignar-viaje";
 import "./choferes.css";
@@ -133,8 +134,8 @@ export default async function ChoferesPage({ searchParams }: Props) {
     return `/admin/choferes${consulta ? `?${consulta}` : ""}`;
   };
 
+  const limitesDelDia = limitesDeLinea(dia);
   const horasDeLinea = Array.from({ length: (LINEA_HASTA_HORA - LINEA_DESDE_HORA) / 3 + 1 }, (_, i) => LINEA_DESDE_HORA + 1 + i * 3).filter((h) => h < LINEA_HASTA_HORA);
-  const lineaAhora = esHoy ? bloqueEnLinea({ desde: ahora, hasta: new Date(ahora.getTime() + 60_000) }, dia) : null;
 
   return (
     <AdminShell
@@ -144,11 +145,12 @@ export default async function ChoferesPage({ searchParams }: Props) {
       notice={texto("notice") || undefined}
       action={<Link className="button" href="/admin/choferes/nueva">Crear chofer</Link>}
     >
+      <TableroConReloj activo={esHoy} inicio={limitesDelDia.inicio} fin={limitesDelDia.fin} ahoraInicial={ahora.getTime()}>
       <nav className="choferes-dia" aria-label="Día">
         <Link className="choferes-dia-flecha" href={enlace({ dia: shiftDateKey(dia, -1) })} aria-label="Día anterior">‹</Link>
         <div className="choferes-dia-texto">
           <strong>{diaLargo.format(new Date(`${dia}T12:00:00Z`))}</strong>
-          <span>{esHoy ? "Hoy" : dia === shiftDateKey(hoy, 1) ? "Mañana" : dia === shiftDateKey(hoy, -1) ? "Ayer" : dia.split("-").reverse().join("/")}</span>
+          <span>{esHoy ? <>Hoy<HoraDeAhora antes=" · " /></> : dia === shiftDateKey(hoy, 1) ? "Mañana" : dia === shiftDateKey(hoy, -1) ? "Ayer" : dia.split("-").reverse().join("/")}</span>
         </div>
         <Link className="choferes-dia-flecha" href={enlace({ dia: shiftDateKey(dia, 1) })} aria-label="Día siguiente">›</Link>
         {!esHoy ? <Link className="ghost-button choferes-dia-hoy" href={enlace({ dia: null })}>Volver a hoy</Link> : null}
@@ -235,6 +237,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
           {horasDeLinea.map((h) => (
             <span key={h} style={{ left: `${((h - LINEA_DESDE_HORA) / (LINEA_HASTA_HORA - LINEA_DESDE_HORA)) * 100}%` }}>{String(h).padStart(2, "0")}</span>
           ))}
+          <MarcaDeAhora />
         </div>
       </div>
 
@@ -291,6 +294,9 @@ export default async function ChoferesPage({ searchParams }: Props) {
                       data-ahora={actual?.clave === servicio.clave || undefined}
                       data-larga={cubreElDia || undefined}
                       style={{
+                        // Para el avance y el «ya terminó» (ver reloj-del-tablero): números sin unidad.
+                        ["--izq" as string]: bloque.izquierda,
+                        ["--ancho" as string]: bloque.ancho,
                         left: `${bloque.izquierda}%`,
                         width: `${bloque.ancho}%`,
                         top: `calc(4px + (100% - 8px) * ${lineas.carril.get(servicio.clave) ?? 0} / ${lineas.total})`,
@@ -305,7 +311,6 @@ export default async function ChoferesPage({ searchParams }: Props) {
                     </Link>
                   );
                 })}
-                {lineaAhora ? <i className="chofer-linea-ahora" style={{ left: `${lineaAhora.izquierda}%` }} /> : null}
               </div>
 
               <div className="chofer-pie">
@@ -347,6 +352,7 @@ export default async function ChoferesPage({ searchParams }: Props) {
               : pestana === "documentacion" ? "Todos los choferes activos tienen los papeles al día." : "No hay choferes en esta vista."}
         </p>
       ) : null}
+      </TableroConReloj>
     </AdminShell>
   );
 }

@@ -201,7 +201,6 @@
   background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 19 - 1px), rgba(26, 37, 34, .05) calc(100% / 19 - 1px), rgba(26, 37, 34, .05) calc(100% / 19)), #f6f0e3;
 }
 .chofer-linea-marca { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--line-strong); }
-.chofer-linea-ahora { position: absolute; top: -4px; bottom: -4px; z-index: 1; width: 2px; border-radius: 2px; background: var(--accent); }
 .chofer-bloque {
   position: absolute;
   --area-actual: var(--area-publico);
@@ -234,9 +233,69 @@
   background: color-mix(in srgb, var(--area-actual) 13%, var(--surface));
   color: color-mix(in srgb, var(--area-actual) 72%, #000);
 }
-.chofer-bloque[data-ahora] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
 .chofer-bloque:hover { filter: brightness(1.15); }
 .chofer-bloque:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* === Ahora (28-nov): sin línea que cruce las filas ===
+   `--ahora` (0–100) la pone TableroConReloj sólo el día de hoy, y corre sola. Tres señales:
+   la pastilla en la regla, la sombra de lo que ya pasó en cada línea y el avance de cada servicio. */
+.choferes-regla-ahora {
+  position: absolute;
+  top: -3px;
+  left: calc(var(--ahora) * 1%);
+  z-index: 1;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+.choferes-regla-ahora::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-bottom: 0;
+  border-top-color: var(--ink);
+}
+/* Lo que ya pasó del día: apenas más oscuro, debajo de los servicios. */
+.choferes-tiempo[data-hoy] .chofer-linea::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--ahora) * 1%);
+  border-radius: 8px 0 0 8px;
+  background: rgba(26, 37, 34, .07);
+  box-shadow: inset -1px 0 0 rgba(26, 37, 34, .12);
+  pointer-events: none;
+}
+/* Lo que terminó, más claro (1 si sigue o no empezó; .5 si ya terminó). */
+.choferes-tiempo[data-hoy] .chofer-bloque {
+  opacity: calc(1 - .5 * clamp(0, (var(--ahora) - var(--izq) - var(--ancho)) * 100, 1));
+}
+/* Cuánto lleva cada servicio: una barrita abajo, del color del texto del bloque. */
+.choferes-tiempo[data-hoy] .chofer-bloque::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: calc(clamp(0, (var(--ahora) - var(--izq)) / var(--ancho), 1) * 100%);
+  height: 3px;
+  background: currentColor;
+  opacity: .55;
+  pointer-events: none;
+}
+/* En una jornada larga (banda clara con texto oscuro) el avance es un tinte de toda la altura,
+   debajo del texto: una barrita ahí parecería un subrayado. */
+.choferes-tiempo[data-hoy] .chofer-bloque[data-larga]::after { top: 0; height: auto; z-index: -1; background: var(--area-actual); opacity: .16; }
+.chofer-bloque[data-larga] { isolation: isolate; }
 
 .chofer-pie { display: contents; }
 .chofer-naves { grid-area: naves; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 26px; }

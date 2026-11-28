@@ -89,9 +89,25 @@ export function horasDeLaJornada(jornada: readonly ServicioDelDia[]): number {
 export const LINEA_DESDE_HORA = 5;
 export const LINEA_HASTA_HORA = 24;
 
+/** Dónde empieza y termina la línea de ese día, en milisegundos (05:00 y 24:00 de Argentina). */
+export function limitesDeLinea(dia: string): { inicio: number; fin: number } {
+  return {
+    inicio: new Date(`${dia}T${String(LINEA_DESDE_HORA).padStart(2, "0")}:00:00-03:00`).getTime(),
+    fin: new Date(`${dia}T00:00:00-03:00`).getTime() + LINEA_HASTA_HORA * 3_600_000
+  };
+}
+
+/**
+ * Dónde cae «ahora» en la línea, en porcentaje con un decimal; null antes de las 05 o después de
+ * las 24 (no hay dónde marcarlo). Lo usan la pastilla de la regla y la sombra de lo que ya pasó.
+ */
+export function posicionDeAhora(ahora: number, limites: { inicio: number; fin: number }): number | null {
+  if (ahora < limites.inicio || ahora > limites.fin) return null;
+  return Math.round(((ahora - limites.inicio) / (limites.fin - limites.inicio)) * 1000) / 10;
+}
+
 export function bloqueEnLinea(servicio: Pick<ServicioDelDia, "desde" | "hasta">, dia: string): { izquierda: number; ancho: number } | null {
-  const inicio = new Date(`${dia}T${String(LINEA_DESDE_HORA).padStart(2, "0")}:00:00-03:00`).getTime();
-  const fin = new Date(`${dia}T00:00:00-03:00`).getTime() + LINEA_HASTA_HORA * 3_600_000;
+  const { inicio, fin } = limitesDeLinea(dia);
   const desde = Math.max(servicio.desde.getTime(), inicio);
   const hasta = Math.min(servicio.hasta.getTime(), fin);
   if (hasta <= desde) return null;
