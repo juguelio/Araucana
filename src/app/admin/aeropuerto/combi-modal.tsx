@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
-import { butacasParaAeropuerto, capacidadDeVuelo, pasajerosOcupados } from "@/lib/airport/booking";
+import { butacasParaAeropuerto } from "@/lib/airport/capacity";
+import { cupoDeRecorrida } from "@/lib/airport/recorrida-capacity";
 import { prisma } from "@/lib/db/prisma";
 import { FleetAssignmentForm } from "../fleet-assignment-form";
 import { RowModal } from "../reservas/row-modal";
@@ -90,7 +91,7 @@ export function vueloDeLaRecorrida(vuelo: VueloConCombis, companeros: VueloConCo
   return { ...vuelo, assignments, reservations: [...vuelo.reservations, ...companeros.flatMap((otro) => otro.reservations)] };
 }
 
-export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLabel, triggerClassName, resetKey, volverAOrden, recorrida = [], paso, ocupacion = [] }: {
+export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLabel, triggerClassName, resetKey, volverAOrden, recorrida = [], paso, ocupacion = [], cupo }: {
   vuelo: VueloConCombis;
   naves: NaveElegible[];
   choferes: ChoferElegible[];
@@ -109,14 +110,14 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   paso?: { listoHref: string };
   /** Lo que ocupa naves y choferes ese día (`cargarOcupacionDelDia`), para marcar quién está libre. */
   ocupacion?: Ocupacion[];
+  cupo?: { ocupados: number; lugaresAsignados: number; naves: number };
 }) {
   const compartidas = vuelo.assignments.filter(a => !a.privateReservationId);
   const privadas = vuelo.reservations.filter(r => r.flightId === vuelo.id && r.isPrivate && r.reservation.status !== "CANCELLED");
   const gruposPrivados = privadas.map(r => ({
     detalle: r, asignaciones: vuelo.assignments.filter(a => a.privateReservationId === r.reservationId)
   }));
-  const ocupados = pasajerosOcupados(vuelo.reservations.filter(r => !r.isPrivate).map(r => r.reservation));
-  const capacidad = capacidadDeVuelo(compartidas.map((a) => ({ seats: a.vehicle.seats.length })));
+  const { ocupados, lugaresAsignados: capacidad, naves: cantidadNaves } = cupo ?? cupoDeRecorrida([vuelo]);
   // Si la combi tiene un chofer que ya no está activo, se sigue mostrando para no borrarlo sin querer.
   const choferesCon = (actual: Chofer | null) =>
     actual && !choferes.some((chofer) => chofer.id === actual.id)
@@ -143,6 +144,10 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   }
   const resumen = (asignaciones: VueloConCombis["assignments"]) => asignaciones.length ? asignaciones.map(estado).join(" / ") : estado();
   const resumenPublico = resumen(compartidas);
+  const refuerzo = recorrida.length > 0 && faltan > 0;
+  const detalleCupo = `${ocupados} ${ocupados === 1 ? "pasajero" : "pasajeros"} · ${cantidadNaves ? `${capacidad} lugares en las combis asignadas` : "sin combi asignada"}`;
+  const detalleFaltantes = faltan === 1 ? "falta 1 lugar" : `faltan ${faltan} lugares`;
+  const resumenCupo = faltan ? `${detalleCupo} · ${detalleFaltantes}` : detalleCupo;
   const selectorPublico = (
     <>
       {compartidas.length ? (
@@ -184,7 +189,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
           choferes={choferes}
           ocupacionNaves={ocupacionNaves}
           ocupacionChoferes={ocupacionChoferes}
-          lugaresQueFaltan={compartidas.length ? faltan || null : ocupados || null}
+          lugaresQueFaltan={faltan || null}
           seatsLabel="lugares para aeropuerto"
           boton={compartidas.length ? "Sumar nave" : "Asignar"}
         />
@@ -196,13 +201,13 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
     <RowModal
       key={`combi-${vuelo.id}-${resetKey}-${vuelo.assignments.map(a => a.id + a.vehicleId + (a.driverId ?? "")).join("/")}`}
       trigger={gruposPrivados.length ? <>
-        <span><strong>Pública</strong> · {resumenPublico}</span>
+        <span><strong>Pública</strong> · {refuerzo ? "Asignar refuerzo" : resumenPublico}</span>
         {gruposPrivados.map(({ detalle, asignaciones }) => <span key={detalle.id}>
           <strong>Privada{gruposPrivados.length > 1 ? ` · ${detalle.reservation.shortCode}` : ""}</strong> · {resumen(asignaciones)}
         </span>)}
       </> : trigger}
       triggerLabel={gruposPrivados.length ? [
-        `Asignar naves y choferes del ${vuelo.number}`, `Pública · ${resumenPublico}`,
+        refuerzo ? triggerLabel : `Asignar naves y choferes del ${vuelo.number}`, `Pública · ${resumenPublico}`,
         ...gruposPrivados.map(({ detalle, asignaciones }) => `Privada ${detalle.reservation.shortCode} · ${resumen(asignaciones)}`)
       ].join(". ") : triggerLabel}
       triggerClassName={gruposPrivados.length ? `${triggerClassName} aero-flota-mixta` : triggerClassName}
@@ -210,7 +215,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
       defaultOpen={Boolean(paso)}
       eyebrow={paso ? "Paso 2 de 2 · Naves y choferes" : `${vuelo.direction === "ARRIVAL" ? "Arribo" : "Partida"} ${hhmm.format(vuelo.scheduledAt)}`}
       title={recorrida.length ? `Combis de la recorrida ${vuelos}` : gruposPrivados.length ? `Naves y choferes del ${vuelo.number}` : `Combi del ${vuelo.number}`}
-      subtitle={gruposPrivados.length ? undefined : `${ocupados} ${ocupados === 1 ? "pasajero" : "pasajeros"} · ${vuelo.assignments.length ? `${capacidad} lugares en las combis asignadas` : "sin combi asignada"}`}
+      subtitle={gruposPrivados.length ? undefined : resumenCupo}
     >
       {paso ? (
         <p className="muted">
@@ -265,7 +270,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
         </details>;
       })}
       {gruposPrivados.length ? <section className="aero-tipo-traslado" aria-label="Traslado público">
-        <h3>Traslado público</h3><p>{resumenPublico} · {ocupados} pax</p>
+        <h3>Traslado público</h3><p>{refuerzo ? resumenCupo : `${resumenPublico} · ${ocupados} pax`}</p>
         {selectorPublico}
       </section> : selectorPublico}
       {paso ? (

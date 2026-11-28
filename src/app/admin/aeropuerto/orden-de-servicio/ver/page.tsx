@@ -11,6 +11,7 @@ import { RecorridoEditable } from "@/components/recorrido-editable";
 import { ServiceOrderMap } from "@/components/service-order-map";
 import { getAirportServiceOrder } from "@/lib/airport/service-order-data";
 import {
+  bloqueSinNaveAsignada,
   esOrdenElegida,
   filtrarPorNave,
   ordenesDelVuelo,
@@ -131,7 +132,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
     const propias = vuelo
       ? block.vehicle
         ? vuelo.assignments.filter((a) => a.vehicleId === block.vehicle!.vehicleId)
-        : block.vehicleCount > 1 ? [] : vuelo.assignments
+        : bloqueSinNaveAsignada(block) ? [] : vuelo.assignments
       : [];
     return (
       <>
@@ -149,7 +150,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
             recorrida={otros.map((otro) => otro.number)}
             trigger={propias.length
               ? `Nave y chofer: ${propias.map((a) => `${a.vehicle.name} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}`).join(" · ")}`
-              : block.vehicleCount > 1 ? "Pasajeros sin nave: asignar otra nave" : "Asignar nave y chofer"}
+              : bloqueSinNaveAsignada(block) ? "Pasajeros sin nave: asignar otra nave" : "Asignar nave y chofer"}
             triggerLabel={`${vuelo.assignments.length ? "Cambiar" : "Asignar"} nave y chofer del ${vuelosDeLaOrden.map((item) => item.number).join(" + ")}`}
             triggerClassName="ghost-button"
           />
@@ -179,7 +180,7 @@ export default async function VerOrdenDeServicioPage({ searchParams }: VerOrdenP
         date={date}
         flightId={block.flightId}
         assignmentId={block.vehicle?.assignmentId ?? null}
-        editable={!(block.vehicleCount > 1 && !block.vehicle)}
+        editable={!bloqueSinNaveAsignada(block)}
         naves={navesPorVuelo.get(block.flightId) ?? []}
         columnas={SERVICE_ORDER_COLUMNS}
         filas={block.passengers.map((pasajero) => ({ code: pasajero.code, celdas: serviceOrderRow(pasajero) }))}

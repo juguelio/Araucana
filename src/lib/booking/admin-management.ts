@@ -15,7 +15,8 @@ import { segmentPrice } from "./segment-fares";
 import { lugarEnChapelco, lugarEnSalida, lugarEnVuelo } from "./service-capacity";
 import { adminPassengerPatchSchema, referredBySchema } from "./validation";
 import { normalizePassengerDocument, passengerDocumentError } from "./passenger-contact";
-import { capacidadDeVuelo, pasajerosOcupados, motivoNoReservable, rangoDelDia } from "@/lib/airport/booking";
+import { motivoNoReservable, rangoDelDia } from "@/lib/airport/booking";
+import { incluirCupoDelVuelo, leerCupoDeRecorrida } from "@/lib/airport/recorrida-capacity";
 import { argentinaDateKey } from "./admin-filters";
 import { chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import { diffRecords, hasChanges } from "@/lib/audit/diff";
@@ -211,12 +212,7 @@ export async function manageReservation(code: string, command: ReservationOperat
             const details = await tx.airportReservationDetails.findUnique({
               where: { reservationId: id },
               include: {
-                flight: {
-                  include: {
-                    reservations: { where: { isPrivate: false }, select: { reservation: { select: { passengerCount: true, status: true } } } },
-                    assignments: { where: { privateReservationId: null }, select: { vehicle: { select: { seats: { select: { id: true } } } } } }
-                  }
-                }
+                flight: { include: incluirCupoDelVuelo }
               }
             });
             if (!details) {
@@ -236,13 +232,14 @@ export async function manageReservation(code: string, command: ReservationOperat
               const extras = await getAirportExtras(tx);
               const closed = motivoNoReservable({ ...vuelo, direction: details.direction }, 1, ahora, extras.arrivalCutoffMinutes, extras.departureCutoffMinutes);
               if (closed) throw new BookingError("SERVICE_ALREADY_STARTED", closed);
-              const ocupados = pasajerosOcupados(vuelo.reservations.map((item) => item.reservation));
-              const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
-              if (!details.isPrivate && !hayLugar(capacidad, ocupados, reservation.passengerCount)) {
-                throw new BookingError(
-                  "CAPACITY_FULL",
-                  `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva ocupa ${reservation.passengerCount}.`
-                );
+              if (!details.isPrivate) {
+                const { capacidad, ocupados, disponibles } = await leerCupoDeRecorrida(tx, vuelo, id);
+                if (!hayLugar(capacidad, ocupados, reservation.passengerCount)) {
+                  throw new BookingError(
+                    "CAPACITY_FULL",
+                    `No hay lugar en ese vuelo: quedan ${disponibles} lugares y la reserva ocupa ${reservation.passengerCount}.`
+                  );
+                }
               }
             } else if (servicioYaPaso(details.serviceDate, ahora)) {
               throw new BookingError("SERVICE_ALREADY_STARTED", "El servicio ya pasó: no se puede restituir la reserva.");
@@ -494,26 +491,18 @@ export async function manageReservation(code: string, command: ReservationOperat
                 ? await tx.airportReservationDetails.findUnique({
                     where: { reservationId: id },
                     include: {
-                      flight: {
-                        include: {
-                          reservations: { where: { isPrivate: false }, select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
-                          assignments: { where: { privateReservationId: null }, select: { vehicle: { select: { seats: { select: { id: true } } } } } }
-                        }
-                      }
+                      flight: { include: incluirCupoDelVuelo }
                     }
                   })
                 : null;
               const vuelo = detalles?.flight;
-              // Sin nave asignada no hay tope duro: la combi se define más cerca del vuelo.
-              if (vuelo && vuelo.assignments.length > 0) {
-                const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
-                const ocupados = pasajerosOcupados(
-                  vuelo.reservations.map((item) => item.reservation).filter((item) => item.id !== id)
-                );
-                if (!hayLugar(capacidad, ocupados, passengerCount)) {
+              if (vuelo && !detalles?.isPrivate) {
+                const { naves, capacidad, ocupados, disponibles } = await leerCupoDeRecorrida(tx, vuelo, id);
+                // Un vuelo suelto sin nave conserva la edición sin tope que ya usaba el panel.
+                if ((naves > 0 || vuelo.pickupGroupId) && !hayLugar(capacidad, ocupados, passengerCount)) {
                   throw new BookingError(
                     "CAPACITY_FULL",
-                    `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y la reserva quedaría con ${passengerCount}.`
+                    `No hay lugar en ese vuelo: quedan ${disponibles} lugares y la reserva quedaría con ${passengerCount}.`
                   );
                 }
               }

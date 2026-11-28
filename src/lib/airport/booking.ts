@@ -1,3 +1,5 @@
+import { butacasParaAeropuerto } from "./capacity";
+import { CAPACIDAD_POR_VUELO, cargarMiembrosDeRecorridas, cupoDeRecorrida, incluirCupoDelVuelo, leerCupoDeRecorrida } from "./recorrida-capacity";
 import { privateDestination, type PrivateTransfer } from "./private-transfer";
 import { assignPrivateVehicle } from "./private-vehicle";
 import { isPaihuen, PAIHUEN_UNIT_CENTS } from "@/lib/airport/paihuen";
@@ -39,25 +41,8 @@ import {
  * Los vuelos se leen de la tabla `Flight` (cacheada desde AirLabs), nunca pegándole a la API
  * en cada visita.
  */
-
-/** Capacidad que se asume mientras no hay ninguna combi asignada a ese vuelo. */
-export const CAPACIDAD_POR_VUELO = 24;
-
-import { butacasParaAeropuerto } from "./capacity";
-export { BUTACAS_PARA_EQUIPAJE, UNIDAD_GRANDE_DESDE } from "./capacity";
-export { butacasParaAeropuerto };
-
-
-/**
- * Las combis se asignan según la cantidad de reservas y se pueden cambiar hasta último momento,
- * así que el cupo del vuelo = suma de las butacas que cada combi vende para el aeropuerto
- * (`butacasParaAeropuerto`). Si no hay ninguna, se asume una combi de referencia para que las
- * reservas puedan entrar.
- */
-export function capacidadDeVuelo(combis: Array<{ seats: number }>): number {
-  if (combis.length === 0) return CAPACIDAD_POR_VUELO;
-  return combis.reduce((total, c) => total + butacasParaAeropuerto(c.seats), 0);
-}
+export { BUTACAS_PARA_EQUIPAJE, UNIDAD_GRANDE_DESDE, butacasParaAeropuerto } from "./capacity";
+export { CAPACIDAD_POR_VUELO, capacidadDeVuelo, pasajerosOcupados } from "./recorrida-capacity";
 
 /** Cuántas combis conviene tener: una por cada 24 reservas (redondeo hacia arriba). */
 export function combisSugeridas(ocupados: number): number {
@@ -87,11 +72,6 @@ export type AirportFlightOption = {
   reason: string | null;
   vehicles: Array<{ id: string; name: string; seats: number; driver: string | null }>;
 };
-
-/** Suma de pasajeros vivos de una reserva (las canceladas no ocupan lugar). */
-export function pasajerosOcupados(reservas: Array<{ passengerCount: number; status: string }>): number {
-  return reservas.filter((r) => r.status !== "CANCELLED").reduce((total, r) => total + r.passengerCount, 0);
-}
 
 /**
  * ¿Se puede reservar este vuelo? Devuelve el motivo cuando no.
@@ -181,11 +161,10 @@ export async function listAirportFlights(input: { date: string; direction?: Flig
     }
   });
 
+  const miembros = await cargarMiembrosDeRecorridas(prisma, vuelos);
   return vuelos.map((v) => {
-    const ocupados = pasajerosOcupados(v.reservations.filter(r => !r.isPrivate).map((r) => r.reservation));
     const compartidas = v.assignments.filter(a => !a.privateReservationId);
-    const capacidad = capacidadDeVuelo(compartidas.map((a) => ({ seats: a.vehicle.seats.length })));
-    const disponible = Math.max(capacidad - ocupados, 0);
+    const { ocupados, capacidad, disponibles: disponible } = cupoDeRecorrida(miembros(v));
     const motivo = motivoNoReservable(v, disponible, ahora, arrivalCutoffMinutes, departureCutoffMinutes);
     return {
       id: v.id,
@@ -306,10 +285,6 @@ async function buscarVueloDelTramo(
   const privado = tramo.privateFlight;
   validarVueloPrivado(tramo);
 
-  const incluirCupo = {
-    reservations: { where: { isPrivate: false }, include: { reservation: { select: { passengerCount: true, status: true } } } },
-    assignments: { where: { privateReservationId: null }, include: { vehicle: { include: { seats: true } } } }
-  };
   const candidatos = await tx.flight.findMany({
     where: {
       ...(tramo.privateTransfer?.flightId && { id: tramo.privateTransfer.flightId }),
@@ -321,7 +296,7 @@ async function buscarVueloDelTramo(
         ...(jetSmartCanonicalNumber(tramo.flightNumber) ? [{ number: numero }] : [])
       ]
     },
-    include: incluirCupo
+    include: incluirCupoDelVuelo
   });
   const delVuelo = candidatos.filter((v) => claveDeVuelo(v.number) === numero && v.direction === tramo.direction);
   // Una fila histórica puede coexistir con la publicada. Se conserva para sus pasajeros actuales.
@@ -335,7 +310,7 @@ async function buscarVueloDelTramo(
     const canonico = jetSmartCanonicalNumber(privado.number);
     const delMismoSentido = await tx.flight.findMany({
       where: { scheduledAt: { gte: desde, lt: hasta }, direction: tramo.direction },
-      include: incluirCupo
+      include: incluirCupoDelVuelo
     });
     vuelo =
       elegirVueloExistente(delMismoSentido, privado.number, horario) ??
@@ -351,15 +326,13 @@ async function buscarVueloDelTramo(
           notes: "Vuelo privado cargado por el pasajero al reservar.",
           createdBy: "pasajero"
         },
-        include: incluirCupo
+        include: incluirCupoDelVuelo
       }));
   }
   if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "Flight not found for that date");
 
-  const ocupados = pasajerosOcupados(vuelo.reservations.map((r) => r.reservation));
-  const capacidad = capacidadDeVuelo(vuelo.assignments.map((a) => ({ seats: a.vehicle.seats.length })));
-  const disponible = Math.max(capacidad - ocupados, 0);
-  const motivo = motivoNoReservable(vuelo, tramo.privateTransfer ? 1 : disponible, new Date(), corteArriboMinutos, corteSalidaMinutos);
+  const disponible = tramo.privateTransfer ? 1 : (await leerCupoDeRecorrida(tx, vuelo)).disponibles;
+  const motivo = motivoNoReservable(vuelo, disponible, new Date(), corteArriboMinutos, corteSalidaMinutos);
   if (motivo) {
     throw new BookingError(motivo.includes("lugares") ? "CAPACITY_FULL" : "SCHEDULE_CLOSED", motivo);
   }

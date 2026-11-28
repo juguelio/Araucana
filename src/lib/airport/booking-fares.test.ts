@@ -26,12 +26,13 @@ vi.mock("./pickup-zone-settings", () => ({ getAirportCoverage: async () => setti
 
 vi.mock("@/lib/db/prisma", () => ({
   prisma: {
+    flight: { findMany: (...a: unknown[]) => mocks.findManyFlights(...a) },
     travelRoute: { findUnique: (...a: unknown[]) => mocks.findUniqueRoute(...a) },
     $transaction: (...a: unknown[]) => mocks.transaction(...a)
   }
 }));
 
-const { createAirportReservation } = await import("./booking");
+const { createAirportReservation, listAirportFlights } = await import("./booking");
 
 const pasajero = {
   firstName: "Ana",
@@ -231,4 +232,60 @@ it.each(["ARRIVAL", "DEPARTURE"])("cobra y registra el adicional de Paihuén por
     totalCents: 8_600_000, airportDetails: { create: { paihuenUnitCents: 1_300_000 } }
   });
   expect(mocks.createPayment.mock.calls[0][0].data.amountCents).toBe(8_600_000);
+});
+
+describe("cupo de dos vuelos que comparten recorrida", () => {
+  const combi = { id: "asig-a", vehicleId: "combi-1", vehicle: { name: "Trafic", seats: Array.from({ length: 19 }, (_, id) => ({ id })) } };
+  type Detalle = { reservationId: string; isPrivate?: boolean; reservation: { passengerCount: number; status: string } };
+  const vuelo = (id: string, number: string, pasajeros: number, extra = {}) => ({
+    id, number, pickupGroupId: "recorrida", direction: "ARRIVAL", status: "SCHEDULED", source: "MANUAL",
+    scheduledAt: new Date("2030-01-01T18:45:00Z"), estimatedAt: null,
+    assignments: [combi], reservations: [
+      { reservationId: `reserva-${id}`, reservation: { passengerCount: pasajeros, status: "CONFIRMED" } }
+    ] as Detalle[],
+    ...extra
+  });
+  const fecha = "2030-01-01";
+
+  function preparar(elegido: ReturnType<typeof vuelo>, companero: ReturnType<typeof vuelo>) {
+    mocks.findManyFlights.mockResolvedValueOnce([elegido]).mockResolvedValueOnce([elegido, companero]);
+  }
+
+  it("la consulta pública cuenta una sola combi y los pasajeros de los dos vuelos", async () => {
+    const primero = vuelo("vuelo-1", "AR1656", 6);
+    const segundo = vuelo("vuelo-2", "AR1658", 8);
+    preparar(primero, segundo);
+    expect(await listAirportFlights({ date: fecha })).toMatchObject([
+      { occupied: 14, capacity: 15, available: 1, bookable: true, privateBookable: true }
+    ]);
+    expect(mocks.findManyFlights).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { pickupGroupId: { in: ["recorrida"] } }
+    }));
+  });
+
+  it.each([false, true])("el alta rechaza exceder el cupo compartido (fromAdmin=%s)", async (fromAdmin) => {
+    preparar(vuelo("vuelo-1", "AR1656", 6), vuelo("vuelo-2", "AR1658", 8));
+    await expect(reserva({}, fromAdmin)).rejects.toMatchObject({ code: "CAPACITY_FULL" });
+    expect(mocks.createReservation).not.toHaveBeenCalled();
+  });
+
+  it("agregar una nave distinta vuelve a habilitar lugares", async () => {
+    preparar(vuelo("vuelo-1", "AR1656", 12), vuelo("vuelo-2", "AR1658", 12, {
+      assignments: [combi, { ...combi, id: "asig-b", vehicleId: "combi-2" }]
+    }));
+    await expect(reserva()).resolves.toMatchObject({ id: "res-1" });
+  });
+
+  it("el cupo provisorio sin combi se cuenta una sola vez y no usa traslados privados o cancelados", async () => {
+    const primero = vuelo("vuelo-1", "AR1656", 11, { assignments: [] });
+    const segundo = vuelo("vuelo-2", "AR1658", 12, { assignments: [] });
+    segundo.reservations.push({ reservationId: "cancelada", reservation: { passengerCount: 7, status: "CANCELLED" } });
+    preparar(primero, { ...segundo, reservations: [
+      ...segundo.reservations,
+      { reservationId: "privada", isPrivate: true, reservation: { passengerCount: 10, status: "CONFIRMED" } }
+    ] });
+    expect(await listAirportFlights({ date: fecha })).toMatchObject([
+      { occupied: 23, capacity: 24, available: 1, bookable: true }
+    ]);
+  });
 });

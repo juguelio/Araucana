@@ -7,7 +7,8 @@
  * mensaje que termina en `quedan N lugares y la reserva {ocupa|quedaría con} M`.
  */
 import { getAirportExtras } from "@/lib/airport/extras-settings";
-import { capacidadDeVuelo, motivoNoReservable, pasajerosOcupados } from "@/lib/airport/booking";
+import { motivoNoReservable } from "@/lib/airport/booking";
+import { incluirCupoDelVuelo, leerCupoDeRecorrida } from "@/lib/airport/recorrida-capacity";
 import { chapelcoActiveReservationStatuses } from "@/lib/chapelco/constants";
 import type { Prisma } from "@prisma/client";
 import { BookingError, firstAvailableSeat } from "./repository";
@@ -55,14 +56,11 @@ export async function lugarEnSalida(tx: Tx, scheduleId: string, pedido: Pedido) 
   return { schedule, seatId: seat?.id ?? null, seatNumber: seat?.number ?? null };
 }
 
-/** Vuelo no cancelado, todavía reservable y con lugar en las naves asignadas (sin naves no hay tope). */
+/** Vuelo no cancelado, todavía reservable y con lugar en las naves asignadas. */
 export async function lugarEnVuelo(tx: Tx, flightId: string, pedido: Pedido, privada = false) {
   const vuelo = await tx.flight.findUnique({
     where: { id: flightId },
-    include: {
-      reservations: { where: { isPrivate: false }, select: { reservation: { select: { id: true, passengerCount: true, status: true } } } },
-      assignments: { where: { privateReservationId: null }, select: { vehicle: { select: { seats: { select: { id: true } } } } } }
-    }
+    include: incluirCupoDelVuelo
   });
   if (!vuelo) throw new BookingError("FLIGHT_NOT_FOUND", "El vuelo ya no existe.");
   if (vuelo.status === "CANCELLED" || vuelo.status === "DIVERTED") {
@@ -77,15 +75,14 @@ export async function lugarEnVuelo(tx: Tx, flightId: string, pedido: Pedido, pri
   const extras = await getAirportExtras(tx);
   const cerrado = motivoNoReservable(vuelo, 1, pedido.ahora, extras.arrivalCutoffMinutes, extras.departureCutoffMinutes);
   if (cerrado) throw new BookingError("SERVICE_ALREADY_STARTED", cerrado);
-  const ocupados = pasajerosOcupados(
-    vuelo.reservations.map((item) => item.reservation).filter((item) => item.id !== pedido.excluir)
-  );
-  const capacidad = capacidadDeVuelo(vuelo.assignments.map((item) => ({ seats: item.vehicle.seats.length })));
-  if (!privada && !hayLugar(capacidad, ocupados, pedido.pasajeros)) {
-    throw new BookingError(
-      "CAPACITY_FULL",
-      `No hay lugar en ese vuelo: quedan ${lugaresLibres(capacidad, ocupados)} lugares y ${pedido.frase(pedido.pasajeros)}.`
-    );
+  if (!privada) {
+    const { capacidad, ocupados, disponibles } = await leerCupoDeRecorrida(tx, vuelo, pedido.excluir);
+    if (!hayLugar(capacidad, ocupados, pedido.pasajeros)) {
+      throw new BookingError(
+        "CAPACITY_FULL",
+        `No hay lugar en ese vuelo: quedan ${disponibles} lugares y ${pedido.frase(pedido.pasajeros)}.`
+      );
+    }
   }
   return vuelo;
 }

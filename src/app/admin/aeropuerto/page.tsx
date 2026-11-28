@@ -6,7 +6,8 @@ import { AdminShell } from "@/components/admin-shell";
 import { DriverSheetLabel } from "@/components/driver-sheet-label";
 import { AirlineBadge } from "@/components/airline-badge";
 import { airlineName } from "@/lib/airport/airlines";
-import { capacidadDeVuelo, combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
+import { combisSugeridas, pasajerosOcupados } from "@/lib/airport/booking";
+import { cargarMiembrosDeRecorridas, cupoDeRecorrida } from "@/lib/airport/recorrida-capacity";
 import { separarVuelosDelTablero, vuelosParaElTablero } from "@/lib/airport/flight-board";
 import { reservasFantasmaDelDia, reservasFantasmaPorVuelo } from "@/lib/airport/fantasma";
 import { changeKindLabel, FLIGHT_STATUSES, needsAttention, statusDetail } from "@/lib/airport/flights";
@@ -103,17 +104,30 @@ export default async function AirportPage({ searchParams }: PageProps) {
   });
 
   // Naves y choferes para el modal de la combi (los mismos que en la orden de servicio).
-  const [{ naves, choferes }, ocupacion] = await Promise.all([
+  const [{ naves, choferes }, ocupacion, miembrosDeRecorrida] = await Promise.all([
     opcionesDeCombi(),
     // Qué naves y choferes están en otro servicio ese día, para marcarlos en el modal de la combi.
-    cargarOcupacionDelDia(fecha)
+    cargarOcupacionDelDia(fecha),
+    cargarMiembrosDeRecorridas(prisma, vuelos)
   ]);
 
   // En un día con vuelos confirmados, una proyeccion es un vuelo fantasma: no entra al tablero y, si
   // tiene reservas encima, se avisa abajo como reserva a reasignar. En un día sin ningún vuelo
   // confirmado se conservan como referencia histórica para Operaciones.
   const { tablero: vuelosDelTablero, fantasma } = vuelosParaElTablero(vuelos);
-  const imprevistos = vuelosDelTablero.filter((v) => flightEvidenceWarning(v, ahora) || needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) }));
+  const cupos = new Map(vuelosDelTablero.map((vuelo) => {
+    const miembros = miembrosDeRecorrida(vuelo);
+    const cupo = cupoDeRecorrida(miembros);
+    return [vuelo.id, { ...cupo, compartida: miembros.length > 1, faltan: Math.max(0, cupo.ocupados - cupo.lugaresAsignados) }];
+  }));
+  const requiereRefuerzo = (vueloId: string) => {
+    const cupo = cupos.get(vueloId);
+    return Boolean(cupo?.compartida && cupo.faltan > 0);
+  };
+  const imprevistos = vuelosDelTablero.filter((v) =>
+    requiereRefuerzo(v.id) || flightEvidenceWarning(v, ahora) ||
+    needsAttention({ status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) })
+  );
   const visibles = soloAlerta ? imprevistos : vuelosDelTablero;
   const conEvento = await prisma.flightEvent.findMany({
     where: { flight: { scheduledAt: { gte: desde, lt: hasta } } },
@@ -192,12 +206,12 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const tarjeta = (v: VueloDelDia, pasado = false) => {
     const snapshot = { status: v.status, scheduledAt: v.scheduledAt, estimatedAt: reliableEstimate(v) };
     const evidenceWarning = flightEvidenceWarning(v, ahora);
-    const alerta = Boolean(evidenceWarning) || needsAttention(snapshot);
+    const alerta = requiereRefuerzo(v.id) || Boolean(evidenceWarning) || needsAttention(snapshot);
     const ocupados = pasajerosOcupados(v.reservations.map((r) => r.reservation));
     const privadas = v.reservations.filter(r => r.isPrivate && r.reservation.status !== "CANCELLED");
-    const comunes = ocupados - privadas.reduce((total, r) => total + r.reservation.passengerCount, 0);
-    const capacidad = capacidadDeVuelo(v.assignments.filter(a => !a.privateReservationId).map((a) => ({ seats: a.vehicle.seats.length })));
-    const faltanCombis = comunes > capacidad;
+    const comunes = pasajerosOcupados(v.reservations.filter((r) => !r.isPrivate).map((r) => r.reservation));
+    const cupo = cupos.get(v.id)!;
+    const faltanCombis = !cupo.compartida && cupo.naves > 0 && comunes > cupo.lugaresAsignados;
     const estima = snapshot.estimatedAt && hhmm(snapshot.estimatedAt) !== hhmm(v.scheduledAt) ? hhmm(snapshot.estimatedAt) : null;
     const extra = flightSourceLabel(v.source);
     const ciudad = aeropuertoLabel(extremoDelVuelo(v)) ?? "—";
@@ -208,7 +222,14 @@ export default async function AirportPage({ searchParams }: PageProps) {
     const sinConfirmar = pasado && !confirmado;
     const pickupStart = evidenceWarning && !v.pickupStartOverrideAt ? null : airportPickupStart(v);
     // Las combis de toda la recorrida: la tarjeta y su modal muestran las mismas desde cualquier vuelo.
-    const recorridaDelVuelo = vueloDeLaRecorrida(v, companeros(v));
+    const otrosVuelos = companeros(v);
+    const recorridaDelVuelo = vueloDeLaRecorrida(v, otrosVuelos);
+    const pedidoRefuerzo = cupo.compartida && cupo.faltan > 0;
+    const sugeridas = combisSugeridas(ocupados);
+    const estadoCombis = ocupados > 0 ? `sin combi · conviene ${sugeridas} ${sugeridas === 1 ? "combi" : "combis"}` : "sin combi asignada";
+    const textoCombi = recorridaDelVuelo.assignments.length ? combisCortas(recorridaDelVuelo) : estadoCombis;
+    const accionCombi = recorridaDelVuelo.assignments.length
+      ? `Cambiar combi del ${v.number}: ${combisDelVuelo(recorridaDelVuelo)}` : `Asignar combi al ${v.number}`;
 
     return (
       <article id={`vuelo-${v.id}`} className="flight-card" data-alerta={alerta} data-pasado={pasado ? "true" : undefined} key={v.id}>
@@ -232,7 +253,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
           </span>
           <span className="flight-pax">
             <strong>{comunes}</strong>
-            <span className="muted">/{capacidad} lugares{privadas.length ? " compartidos" : ""}</span>
+            <span className="muted">{cupo.compartida ? " pax en este vuelo" : `/${cupo.capacidad} lugares${privadas.length ? " compartidos" : ""}`}</span>
           </span>
         </div>
 
@@ -247,7 +268,11 @@ export default async function AirportPage({ searchParams }: PageProps) {
             un renglón de datos (combi, recorrida, origen) y uno de acciones del mismo tamaño. */}
         <div className="flight-foot">
           <div className="flight-info">
-          {faltanCombis && v.assignments.length > 0 ? <span className="pill pill-alerta pill-combi">falta combi</span> : null}
+          {faltanCombis ? <span className="pill pill-alerta pill-combi">falta combi</span> : null}
+          {cupo.compartida && <span className={cupo.faltan ? "pill pill-alerta" : "muted"}>
+            Recorrida · {cupo.ocupados} pax · {cupo.lugaresAsignados} lugares asignados
+            {cupo.faltan > 0 && ` · ${cupo.faltan === 1 ? "falta 1 lugar" : `faltan ${cupo.faltan} lugares`}`}
+          </span>}
           {/* La combi del vuelo se asigna desde su propio botón: «sin combi» (o las combis que ya tiene)
               abre un modal con el buscador de naves, en vez del menú «Gestionar vuelo». */}
           <CombiDelVueloModal
@@ -256,17 +281,12 @@ export default async function AirportPage({ searchParams }: PageProps) {
             choferes={choferes}
             resetKey={params?.notice ?? ""}
             ocupacion={ocupacion}
-            recorrida={companeros(v).map((otro) => otro.number)}
+            recorrida={otrosVuelos.map((otro) => otro.number)}
+            cupo={cupo}
             paso={!pasado && params?.naves === v.id ? { listoHref: `/admin/aeropuerto?date=${fecha}` } : undefined}
-            trigger={
-              recorridaDelVuelo.assignments.length === 0
-                ? ocupados > 0
-                  ? `sin combi · conviene ${combisSugeridas(ocupados)} ${combisSugeridas(ocupados) === 1 ? "combi" : "combis"}`
-                  : "sin combi asignada"
-                : combisCortas(recorridaDelVuelo)
-            }
-            triggerLabel={recorridaDelVuelo.assignments.length === 0 ? `Asignar combi al ${v.number}` : `Cambiar combi del ${v.number}: ${combisDelVuelo(recorridaDelVuelo)}`}
-            triggerClassName={`pill pill-combi aero-combi-boton${recorridaDelVuelo.assignments.length ? " aero-combi-ok" : ocupados > 0 ? " pill-alerta" : " aero-combi-vacia"}`}
+            trigger={pedidoRefuerzo ? "Asignar refuerzo" : textoCombi}
+            triggerLabel={pedidoRefuerzo ? `Asignar refuerzo a la recorrida del ${v.number}` : accionCombi}
+            triggerClassName={`pill pill-combi aero-combi-boton${pedidoRefuerzo ? " pill-alerta" : recorridaDelVuelo.assignments.length ? " aero-combi-ok" : ocupados > 0 ? " pill-alerta" : " aero-combi-vacia"}`}
           />
           {companeros(v).length ? (
             // En una recorrida, un solo dato: con qué vuelos va y, en las partidas, a qué hora arranca.

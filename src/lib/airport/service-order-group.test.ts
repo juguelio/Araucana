@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockTimeLabel, buildServiceOrderBlocks, esOrdenElegida, filtrarPorNave, ordenesDelVuelo, type ServiceOrderReservationInput, type ServiceOrderVehicle } from "./service-order";
+import { blockTimeLabel, bloqueSinNaveAsignada, buildServiceOrderBlocks, esOrdenElegida, filtrarPorNave, ordenesDelVuelo, referenciaDeLaOrden, SIN_NAVE, type ServiceOrderReservationInput, type ServiceOrderVehicle } from "./service-order";
 
 const nave = (assignmentId: string, vehicleId = "trafic"): ServiceOrderVehicle => ({ assignmentId, vehicleId, name: "Trafic 1", seats: 15, driver: "Rosa" });
 
@@ -32,6 +32,32 @@ describe("una sola camioneta para varios vuelos: la hoja los une en una orden", 
     // Cada pasajero lleva su vuelo, para que el chofer sepa a cuál va.
     expect(orden.passengers.map((p) => p.name).sort()).toEqual(["Ana Paz · AR1650", "Beto Paz · JA3046", "Ceci Paz · AR1650"]);
     expect(blockTimeLabel(orden, { sinRecorrida: true })).toBe("OUT AR1650 despegue 14:00 + JA3046 despegue 14:40 · Trafic 1 · Rosa");
+  });
+
+  it("con una única combi llena, la orden pendiente conserva el grupo que no entra", () => {
+    const reservas = [
+      reserva("Ana", ar, { passengerCount: 12, assignmentId: "asig-f-ar" }),
+      reserva("Beto", ja, { passengerCount: 12, assignmentId: "asig-f-ja" })
+    ];
+    const blocks = buildServiceOrderBlocks(reservas);
+    const asignada = blocks.find((block) => block.vehicle);
+    const pendiente = blocks.find(bloqueSinNaveAsignada);
+
+    expect(blocks).toHaveLength(2);
+    expect(asignada?.passengers.map((p) => p.code)).toEqual(["Ana"]);
+    expect(pendiente?.passengers.map((p) => p.code)).toEqual(["Beto"]);
+    expect(referenciaDeLaOrden(pendiente!).vehicle).toBe(SIN_NAVE);
+    expect(filtrarPorNave(blocks, "asig-f-ar")).toEqual([asignada]);
+
+    const conRefuerzo = (vuelo: typeof ar) => ({
+      ...vuelo, vehicles: [nave(`asig-${vuelo.id}`), nave(`refuerzo-${vuelo.id}`, "refuerzo")]
+    });
+    const reforzadas = buildServiceOrderBlocks([
+      reserva("Ana", conRefuerzo(ar), { passengerCount: 12, assignmentId: "asig-f-ar" }),
+      reserva("Beto", conRefuerzo(ja), { passengerCount: 12, assignmentId: "asig-f-ja" })
+    ]);
+    expect(reforzadas.some(bloqueSinNaveAsignada)).toBe(false);
+    expect(reforzadas.flatMap((block) => block.passengers.map((p) => p.code)).sort()).toEqual(["Ana", "Beto"]);
   });
 
   it("si un vuelo de la vuelta está demorado, el rótulo muestra también la hora programada", () => {

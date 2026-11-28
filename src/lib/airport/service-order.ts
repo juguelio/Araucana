@@ -377,7 +377,7 @@ function ordenarResto(pasajeros: ServiceOrderPassenger[], direction: ServiceOrde
  * que no están ubicados llenan el lugar que sobre. Lo que no entra en ninguna queda en la orden «sin nave»:
  * nunca se cae un pasajero de la hoja.
  */
-export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: ServiceOrderVehicle[]) {
+export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: ServiceOrderVehicle[], respetarCupoFijo = false) {
   const porNave = new Map<string, ServiceOrderPassenger[]>(naves.map((nave) => [nave.assignmentId, []]));
   const sinNave: ServiceOrderPassenger[] = [];
   const libres = new Map(naves.map((nave) => [nave.assignmentId, nave.seats > 0 ? nave.seats : Number.POSITIVE_INFINITY]));
@@ -386,9 +386,10 @@ export function repartirEnNaves(pasajeros: ServiceOrderPassenger[], naves: Servi
   const sinUbicar: ServiceOrderPassenger[] = [];
 
   for (const pasajero of pasajeros) {
-    if (pasajero.assignmentId && porNave.has(pasajero.assignmentId)) {
+    const lugares = pasajero.assignmentId ? libres.get(pasajero.assignmentId) : undefined;
+    if (pasajero.assignmentId && lugares !== undefined && (!respetarCupoFijo || lugares >= pasajero.seats)) {
       porNave.get(pasajero.assignmentId)?.push(pasajero);
-      libres.set(pasajero.assignmentId, (libres.get(pasajero.assignmentId) ?? 0) - pasajero.seats);
+      libres.set(pasajero.assignmentId, lugares - pasajero.seats);
       if (pasajero.pickup) fijas.get(pasajero.assignmentId)?.push(pasajero.pickup);
     } else if (pasajero.pickup) {
       ubicados.push(pasajero);
@@ -550,24 +551,28 @@ export function buildServiceOrderBlocks(
     // La recorrida usa los extremos del traslado y respeta el orden manual. Los que no tienen
     // ubicación en el mapa van al final, sin inventar un punto para ellos.
     const recorrida = ordenDeLaRecorrida(grupo.passengers, grupo.direction, oficina);
+    const naveUnica = vehicles.length === 1 ? vehicles[0] : null;
+    const separaFaltantes = grupo.flightIds.length > 1 && naveUnica !== null &&
+      naveUnica.seats > 0 && lugaresDe(recorrida) > naveUnica.seats;
     const orden = (vehicle: ServiceOrderVehicle | null, passengers: ServiceOrderPassenger[]): ServiceOrderBlock => ({
       ...grupo,
       key: `${flightKey}:${vehicle?.assignmentId ?? SIN_NAVE}`,
       vehicle,
+      scopedVehicle: separaFaltantes,
       operationAt: paihuenPickupTime(grupo.operationAt, grupo.direction === "DEPARTURE" && passengers.some(retiroPaihuen)),
       passengers,
       totalCents: totalDe(passengers),
       manualOrder: passengers.some((pasajero) => pasajero.routePosition !== null)
     });
 
-    if (!vehicles.length || (vehicles.length === 1 && !grupo.privateOrderId)) {
+    if (!vehicles.length || (naveUnica && !grupo.privateOrderId && !separaFaltantes)) {
       ordenes.push(orden(vehicles[0] ?? null, recorrida));
       continue;
     }
 
     // Cada nave hace su propia recorrida: el reparto es por zona y después se ordena la de cada una.
     const { porNave, sinNave } = grupo.privateOrderId
-      ? repartirParadasPrivadas(recorrida, vehicles) : repartirEnNaves(recorrida, vehicles);
+      ? repartirParadasPrivadas(recorrida, vehicles) : repartirEnNaves(recorrida, vehicles, grupo.flightIds.length > 1);
     for (const nave of vehicles) {
       const pasajeros = ordenDeLaRecorrida(porNave.get(nave.assignmentId) ?? [], grupo.direction, oficina);
       if (pasajeros.length || incluirVacias) ordenes.push(orden(nave, pasajeros));
@@ -577,7 +582,9 @@ export function buildServiceOrderBlocks(
 
   // `sort` es estable: las naves de un mismo vuelo quedan en el orden en que se asignaron.
   const vuelosConPrivada = new Set(ordenes.filter(order => order.privateOrderId).flatMap(order => order.flightIds));
-  for (const order of ordenes) order.scopedVehicle = order.flightIds.some(id => vuelosConPrivada.has(id));
+  for (const order of ordenes) {
+    order.scopedVehicle = order.scopedVehicle || order.flightIds.some(id => vuelosConPrivada.has(id));
+  }
   return ordenes.sort((a, b) => a.operationAt.getTime() - b.operationAt.getTime());
 }
 
@@ -612,11 +619,17 @@ export function filtrarPorNave(blocks: ServiceOrderBlock[], vehicle: string | nu
   return blocks.filter(block => (block.privateOrderId && vehicle === `privada-${block.privateOrderId}`) || referenciaDeLaOrden(block).vehicle === vehicle || block.vehicle?.vehicleId === vehicle || block.vehicle?.assignmentId === vehicle);
 }
 
+/** Orden con pasajeros pendientes de ubicar en un servicio que ya tiene alguna nave. */
+export function bloqueSinNaveAsignada(block: ServiceOrderBlock) {
+  return !block.privateOrderId && !block.vehicle &&
+    (block.vehicleCount > 1 || (block.vehicleCount === 1 && Boolean(block.scopedVehicle)));
+}
+
 /** «Sprinter 1910 · Juan»: la nave y el chofer, para el rótulo y el nombre del archivo. */
 export function naveDeLaOrden(block: ServiceOrderBlock) {
   if (block.privateOrderId) return ["Privada", block.vehicle?.name ?? "nave pendiente", block.vehicle?.driver].filter(Boolean).join(" · ");
   if (block.vehicle) return [block.vehicle.name, block.vehicle.driver].filter(Boolean).join(" · ");
-  return block.vehicleCount > 1 ? "sin nave asignada" : null;
+  return bloqueSinNaveAsignada(block) ? "sin nave asignada" : null;
 }
 
 function conNave(block: ServiceOrderBlock) {
@@ -701,7 +714,7 @@ export function serviceOrderRow(pasajero: ServiceOrderPassenger): string[] {
 
 /** «Total OUT 1671 · Sprinter 1910»: el pie de cada orden. */
 export function tituloDelTotal(block: ServiceOrderBlock) {
-  const nave = block.vehicle?.name ?? (block.vehicleCount > 1 ? "sin nave" : null);
+  const nave = block.vehicle?.name ?? (bloqueSinNaveAsignada(block) ? "sin nave" : null);
   return `Total ${block.heading} ${block.flightNumber}${nave ? ` · ${nave}` : ""}`;
 }
 
