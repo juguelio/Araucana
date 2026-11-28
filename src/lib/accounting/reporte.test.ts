@@ -53,6 +53,13 @@ describe("periodoAnterior", () => {
     expect(anterior.to.toISOString().slice(0, 10)).toBe("2026-11-10");
     expect(anterior.nombre).toBe("los 7 días anteriores");
   });
+
+  it("un rango que cubre el mes entero compara contra la misma cantidad de días, no contra el mes anterior", () => {
+    const anterior = periodoAnterior(createRangePeriod("2026-11-01", "2026-11-30"), false);
+    expect(anterior.from.toISOString().slice(0, 10)).toBe("2026-10-02");
+    expect(anterior.to.toISOString().slice(0, 10)).toBe("2026-11-01");
+    expect(anterior.nombre).toBe("los 30 días anteriores");
+  });
 });
 
 describe("variación", () => {
@@ -76,8 +83,9 @@ describe("variación", () => {
 });
 
 describe("rutas y partes", () => {
+  const ingreso = (routeFrom: string, routeTo: string, amountCents: number, currency = "ARS") => ({ routeFrom, routeTo, amountCents, currency });
+
   it("agrupa por ruta corta y moneda, las que más facturan primero", () => {
-    const ingreso = (routeFrom: string, routeTo: string, amountCents: number, currency = "ARS") => ({ routeFrom, routeTo, amountCents, currency });
     expect(rutasQueMasFacturan([
       ingreso("San Martín de los Andes", "Villa Traful", 100),
       ingreso("Aeropuerto Chapelco", "San Martín de los Andes", 300),
@@ -85,7 +93,19 @@ describe("rutas y partes", () => {
       ingreso("San Martín de los Andes", "Villa Traful", 10, "USD")
     ], 2)).toEqual([
       { ruta: "Aerop. Chapelco → San Martín", moneda: "ARS", reservas: 1, ingresosCents: 300 },
-      { ruta: "San Martín → Villa Traful", moneda: "ARS", reservas: 2, ingresosCents: 250 }
+      { ruta: "San Martín → Villa Traful", moneda: "ARS", reservas: 2, ingresosCents: 250 },
+      { ruta: "San Martín → Villa Traful", moneda: "USD", reservas: 1, ingresosCents: 10 }
+    ]);
+  });
+
+  it("corta por moneda y no pierde una ruta en USD detrás de muchas en ARS", () => {
+    const ingresos = Array.from({ length: 8 }, (_, i) => ingreso(`Ruta ${i}`, "Destino", (i + 1) * 1000));
+    ingresos.push(ingreso("Ruta USD", "Destino", 50, "USD"));
+    const rutas = rutasQueMasFacturan(ingresos, 2);
+    expect(rutas.map((r) => `${r.moneda}:${r.ruta}`)).toEqual([
+      "ARS:Ruta 7 → Destino",
+      "ARS:Ruta 6 → Destino",
+      "USD:Ruta USD → Destino"
     ]);
   });
 

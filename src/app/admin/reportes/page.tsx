@@ -62,7 +62,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const desde = hayRango ? params.from! : `${mes}-01`;
   const hasta = hayRango ? params.to! : new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10);
   const period = hayRango ? createRangePeriod(desde, hasta) : createMonthPeriod(mes);
-  const anterior = periodoAnterior(period);
+  const anterior = periodoAnterior(period, !hayRango);
   const vehicleId = params.vehicleId || undefined;
 
   const [vehicles, report, reportAnterior] = await Promise.all([
@@ -308,7 +308,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             <ul className="rep-rutas" role="list">
               {rutas.map((ruta) => (
                 <li key={`${ruta.ruta}-${ruta.moneda}`}>
-                  <span className="rep-rutas-nombre">{ruta.ruta}</span>
+                  <span className="rep-rutas-nombre">{ruta.ruta}{varias ? ` (${ruta.moneda})` : ""}</span>
                   <small>{ruta.reservas} {ruta.reservas === 1 ? "reserva" : "reservas"}</small>
                   <div className="rep-barra" aria-hidden><span style={{ width: `${(ruta.ingresosCents / mayorRuta(ruta.moneda)) * 100}%` }} /></div>
                   <strong>{formatCurrency(ruta.ingresosCents, ruta.moneda)}</strong>

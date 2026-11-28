@@ -89,11 +89,11 @@ const clave = (fecha: Date) => fecha.toISOString().slice(0, 10);
 
 /**
  * El período anterior para comparar: si es un mes entero, el mes anterior; si es un rango, los mismos
- * días inmediatamente antes (del 10 al 16 → del 3 al 9).
+ * días inmediatamente antes (del 10 al 16 → del 3 al 9). `esMes` se pasa explícito: un rango que
+ * cubre un mes calendario (1/11–30/11) también termina el día 1 del mes siguiente, pero debe comparar
+ * contra la misma cantidad de días, no contra el mes anterior.
  */
-export function periodoAnterior(periodo: AccountingPeriod): AccountingPeriod & { nombre: string } {
-  const esMes = periodo.from.getUTCDate() === 1 && periodo.to.getUTCDate() === 1
-    && (periodo.to.getUTCMonth() - periodo.from.getUTCMonth() + 12) % 12 === 1;
+export function periodoAnterior(periodo: AccountingPeriod, esMes = esMesCalendario(periodo)): AccountingPeriod & { nombre: string } {
   if (esMes) {
     const from = new Date(Date.UTC(periodo.from.getUTCFullYear(), periodo.from.getUTCMonth() - 1, 1));
     const nombre = MESES[from.getUTCMonth()];
@@ -103,6 +103,11 @@ export function periodoAnterior(periodo: AccountingPeriod): AccountingPeriod & {
   const anterior = createRangePeriod(clave(new Date(periodo.from.getTime() - largo)), clave(new Date(periodo.from.getTime() - DIA)));
   const dias = Math.round(largo / DIA);
   return { ...anterior, nombre: `los ${dias} días anteriores` };
+}
+
+function esMesCalendario(periodo: AccountingPeriod) {
+  return periodo.from.getUTCDate() === 1 && periodo.to.getUTCDate() === 1
+    && (periodo.to.getUTCMonth() - periodo.from.getUTCMonth() + 12) % 12 === 1;
 }
 
 /** Cuánto cambió, en % redondeado; null si antes no hubo nada para comparar. */
@@ -124,7 +129,11 @@ export function textoDeVariacion(actualCents: number, anteriorCents: number, nom
 
 export type RutaFacturada = { ruta: string; moneda: string; reservas: number; ingresosCents: number };
 
-/** Las rutas que más facturan en el período (por moneda), con cuántas reservas. */
+/**
+ * Las rutas que más facturan en el período, por moneda, con cuántas reservas. Se cortan `cuantas`
+ * por moneda: ordenar todo junto por centavos compararía importes de monedas distintas y podría
+ * dejar afuera una ruta en USD sólo porque hay muchas rutas en ARS.
+ */
 export function rutasQueMasFacturan(ingresos: readonly Pick<AccountingIncomeItem, "routeFrom" | "routeTo" | "currency" | "amountCents">[], cuantas = 6): RutaFacturada[] {
   const porRuta = new Map<string, RutaFacturada>();
   for (const ingreso of ingresos) {
@@ -136,7 +145,15 @@ export function rutasQueMasFacturan(ingresos: readonly Pick<AccountingIncomeItem
     actual.ingresosCents += ingreso.amountCents;
     porRuta.set(k, actual);
   }
-  return [...porRuta.values()].sort((a, b) => b.ingresosCents - a.ingresosCents || a.ruta.localeCompare(b.ruta, "es")).slice(0, cuantas);
+  const porMoneda = new Map<string, RutaFacturada[]>();
+  for (const fila of porRuta.values()) {
+    porMoneda.set(fila.moneda, [...(porMoneda.get(fila.moneda) ?? []), fila]);
+  }
+  return [...porMoneda.entries()]
+    .sort(([a], [b]) => (a === "ARS" ? -1 : b === "ARS" ? 1 : a.localeCompare(b)))
+    .flatMap(([, filas]) => filas
+      .sort((a, b) => b.ingresosCents - a.ingresosCents || a.ruta.localeCompare(b.ruta, "es"))
+      .slice(0, cuantas));
 }
 
 /** La parte de cada grupo sobre el total de su moneda, en % (para las barras). */
