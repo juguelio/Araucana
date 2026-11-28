@@ -499,7 +499,10 @@ export async function manageReservation(code: string, command: ReservationOperat
               if (vuelo && !detalles?.isPrivate) {
                 const { naves, capacidad, ocupados, disponibles } = await leerCupoDeRecorrida(tx, vuelo, id);
                 // Un vuelo suelto sin nave conserva la edición sin tope que ya usaba el panel.
-                if ((naves > 0 || vuelo.pickupGroupId) && !hayLugar(capacidad, ocupados, passengerCount)) {
+                // Bajar la cantidad nunca ocupa un lugar nuevo: si la recorrida ya está sobrevendida,
+                // el operador tiene que poder corregir la reserva para resolverla.
+                const baja = passengerCount < reservation.passengerCount;
+                if ((naves > 0 || vuelo.pickupGroupId) && !baja && !hayLugar(capacidad, ocupados, passengerCount)) {
                   throw new BookingError(
                     "CAPACITY_FULL",
                     `No hay lugar en ese vuelo: quedan ${disponibles} lugares y la reserva quedaría con ${passengerCount}.`

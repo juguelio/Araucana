@@ -118,7 +118,7 @@ export default async function AirportPage({ searchParams }: PageProps) {
   const cupos = new Map(vuelosDelTablero.map((vuelo) => {
     const miembros = miembrosDeRecorrida(vuelo);
     const cupo = cupoDeRecorrida(miembros);
-    return [vuelo.id, { ...cupo, compartida: miembros.length > 1, faltan: Math.max(0, cupo.ocupados - cupo.lugaresAsignados) }];
+    return [vuelo.id, { ...cupo, compartida: miembros.length > 1 }];
   }));
   const requiereRefuerzo = (vueloId: string) => {
     const cupo = cupos.get(vueloId);

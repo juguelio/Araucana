@@ -110,14 +110,14 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   paso?: { listoHref: string };
   /** Lo que ocupa naves y choferes ese día (`cargarOcupacionDelDia`), para marcar quién está libre. */
   ocupacion?: Ocupacion[];
-  cupo?: { ocupados: number; lugaresAsignados: number; naves: number };
+  cupo?: { ocupados: number; capacidad: number; lugaresAsignados: number; naves: number; faltan?: number };
 }) {
   const compartidas = vuelo.assignments.filter(a => !a.privateReservationId);
   const privadas = vuelo.reservations.filter(r => r.flightId === vuelo.id && r.isPrivate && r.reservation.status !== "CANCELLED");
   const gruposPrivados = privadas.map(r => ({
     detalle: r, asignaciones: vuelo.assignments.filter(a => a.privateReservationId === r.reservationId)
   }));
-  const { ocupados, lugaresAsignados: capacidad, naves: cantidadNaves } = cupo ?? cupoDeRecorrida([vuelo]);
+  const { ocupados, capacidad, lugaresAsignados, naves: cantidadNaves, faltan: faltanDelCupo } = cupo ?? cupoDeRecorrida([vuelo]);
   // Si la combi tiene un chofer que ya no está activo, se sigue mostrando para no borrarlo sin querer.
   const choferesCon = (actual: Chofer | null) =>
     actual && !choferes.some((chofer) => chofer.id === actual.id)
@@ -137,7 +137,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   const tramo = { desde: ventana.startsAt, hasta: ventana.endsAt };
   const ocupacionNaves = ocupacionEnVentana(ocupacion, "nave", tramo, propios);
   const ocupacionChoferes = ocupacionEnVentana(ocupacion, "chofer", tramo, propios);
-  const faltan = Math.max(0, ocupados - capacidad);
+  const faltan = faltanDelCupo ?? Math.max(0, ocupados - capacidad);
 
   function estado(a?: VueloConCombis["assignments"][number]) {
     return a ? `${tituloDeNave(a.vehicle)} · ${a.driver ? nombreDeChofer(a.driver) : "sin chofer"}` : "Sin nave asignada";
@@ -145,7 +145,7 @@ export function CombiDelVueloModal({ vuelo, naves, choferes, trigger, triggerLab
   const resumen = (asignaciones: VueloConCombis["assignments"]) => asignaciones.length ? asignaciones.map(estado).join(" / ") : estado();
   const resumenPublico = resumen(compartidas);
   const refuerzo = recorrida.length > 0 && faltan > 0;
-  const detalleCupo = `${ocupados} ${ocupados === 1 ? "pasajero" : "pasajeros"} · ${cantidadNaves ? `${capacidad} lugares en las combis asignadas` : "sin combi asignada"}`;
+  const detalleCupo = `${ocupados} ${ocupados === 1 ? "pasajero" : "pasajeros"} · ${cantidadNaves ? `${lugaresAsignados} lugares en las combis asignadas` : "sin combi asignada"}`;
   const detalleFaltantes = faltan === 1 ? "falta 1 lugar" : `faltan ${faltan} lugares`;
   const resumenCupo = faltan ? `${detalleCupo} · ${detalleFaltantes}` : detalleCupo;
   const selectorPublico = (

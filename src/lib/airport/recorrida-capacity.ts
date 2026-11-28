@@ -44,7 +44,7 @@ export function cupoDeRecorrida(vuelos: readonly VueloConCupo[], excluirReservaI
   ])).values()];
   const capacidad = capacidadDeVuelo(naves);
   const lugaresAsignados = naves.length ? capacidad : 0;
-  return { ocupados, capacidad, lugaresAsignados, naves: naves.length, disponibles: Math.max(0, capacidad - ocupados) };
+  return { ocupados, capacidad, lugaresAsignados, naves: naves.length, disponibles: Math.max(0, capacidad - ocupados), faltan: Math.max(0, ocupados - capacidad) };
 }
 
 type ClienteDeVuelos = Pick<Prisma.TransactionClient, "flight">;

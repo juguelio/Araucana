@@ -11,7 +11,7 @@ const tx = vi.hoisted(() => ({
   schedule: { findUnique: vi.fn() },
   vehicle: { findMany: vi.fn() },
   travelRoute: { findUnique: vi.fn(), findFirst: vi.fn() },
-  flight: { findUnique: vi.fn() },
+  flight: { findUnique: vi.fn(), findMany: vi.fn() },
   auditLog: { create: vi.fn() }
 }));
 
@@ -791,6 +791,55 @@ describe("cantidad de pasajeros y adicionales en la edición (#267)", () => {
 
     await expect(manageReservation(code, { operation: "edit", passenger: {}, sportsLuggageCount: 1 }))
       .rejects.toMatchObject({ code: "RESERVATION_LOCKED" });
+  });
+});
+
+describe("edición de cantidad en una recorrida compartida", () => {
+  const futuro = new Date(Date.now() + 5 * 24 * 3600 * 1000);
+  const asientos = Array.from({ length: 15 }, (_, i) => ({ id: `s${i}` }));
+  const fila = (reservationId: string, passengerCount: number) => ({
+    id: `vuelo-${reservationId}`,
+    number: `AR${reservationId}`,
+    pickupGroupId: "recorrida",
+    direction: "ARRIVAL",
+    status: "SCHEDULED",
+    source: "MANUAL",
+    scheduledAt: futuro,
+    estimatedAt: null,
+    reservations: [{ reservationId, reservation: { passengerCount, status: "CONFIRMED" } }],
+    assignments: [{ vehicleId: "combi", vehicle: { seats: asientos } }]
+  });
+
+  it("deja bajar pasajeros aunque la recorrida ya esté sobrevendida", async () => {
+    tx.reservation.findUnique.mockResolvedValue({
+      ...pending,
+      bookingMode: "AIRPORT",
+      passengerCount: 12,
+      halfFareCount: 0,
+      freeFareCount: 0,
+      routeId: "route",
+      scheduleId: null,
+      totalCents: 120000,
+      airportDetails: {
+        flightId: "vuelo-reservation",
+        isPrivate: false,
+        direction: "ARRIVAL",
+        sportsLuggageCount: 0,
+        sportsLuggageUnitCents: 0,
+        zoneExtraCents: 0
+      }
+    });
+    tx.airportReservationDetails.findUnique.mockResolvedValue({
+      flightId: "vuelo-reservation",
+      isPrivate: false,
+      flight: fila("reservation", 12)
+    });
+    tx.flight.findMany.mockResolvedValue([fila("reservation", 12), fila("otra", 12)]);
+    tx.travelRoute.findUnique.mockResolvedValue({ priceCents: 10000, from: "A", to: "B", stops: [] });
+
+    await manageReservation(code, { operation: "edit", passenger: {}, passengerCount: 11 });
+
+    expect(tx.reservation.update).toHaveBeenCalledWith({ where: { id: pending.id }, data: { passengerCount: 11 } });
   });
 });
 
