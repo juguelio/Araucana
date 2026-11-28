@@ -89,7 +89,14 @@ export function BarraDelDia({
   );
 }
 
-export type Cifra = { rotulo: string; valor: number | string; alerta?: boolean; href?: string };
+export type Cifra = {
+  rotulo: string;
+  valor: number | string;
+  alerta?: boolean;
+  href?: string;
+  /** Una línea chica debajo del valor (por ejemplo, la comparación con el período anterior). */
+  detalle?: string | null;
+};
 
 export function Cifras({ cifras, etiqueta = "Resumen del día" }: { cifras: Cifra[]; etiqueta?: string }) {
   return (
@@ -98,6 +105,7 @@ export function Cifras({ cifras, etiqueta = "Resumen del día" }: { cifras: Cifr
         <div key={cifra.rotulo} data-alerta={Boolean(cifra.alerta)}>
           <dt>{cifra.rotulo}</dt>
           <dd>{cifra.href ? <Link href={cifra.href}>{cifra.valor}</Link> : cifra.valor}</dd>
+          {cifra.detalle ? <dd className="modulo-cifra-detalle">{cifra.detalle}</dd> : null}
         </div>
       ))}
     </dl>

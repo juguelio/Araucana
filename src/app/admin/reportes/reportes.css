@@ -1,0 +1,79 @@
+/* === Reportes (26-nov): el período entero y comparado ===
+   Mismas piezas que Contabilidad (`modulo-*`): selector, barra del mes y cifras. Debajo, el resultado
+   por nave (tabla) y tres bloques con barras: categorías, sueldos pagados y rutas. */
+
+.rep-nave-form { display: flex; align-items: center; gap: 8px; }
+.rep-nave-form label { display: block; }
+.rep-nave-form select { min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font: inherit; font-size: 14px; color: var(--ink); max-width: 240px; }
+.rep-nave-activa { margin: -4px 0 14px; padding: 10px 14px; border-radius: 12px; background: var(--primary-soft); color: var(--primary-deep); font-size: 14px; }
+.rep-nave-activa a { margin-left: 6px; font-weight: 800; color: inherit; }
+.rep-cifras { display: grid; gap: 4px; }
+.rep-nota { max-width: 90ch; }
+
+.rep-bloque { display: grid; gap: 14px; }
+.rep-cabeza { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.rep-cabeza h2 { margin: 0; font-size: 1.2rem; }
+.rep-cabeza p { margin: 0; font-size: 13px; flex-basis: 100%; }
+.rep-ver { color: var(--primary-deep); font-size: 13px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.rep-ver:hover { text-decoration: underline; }
+.rep-vacio { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--primary-soft); color: var(--primary-deep); font-size: 14px; font-weight: 700; }
+
+/* Resultado por nave */
+.rep-tabla { box-shadow: none; }
+.rep-tabla th, .rep-tabla td { padding: 10px 12px; white-space: nowrap; }
+.rep-tabla thead th { font-size: 12px; }
+.rep-tabla .rep-num { text-align: right; font-variant-numeric: tabular-nums; }
+.rep-tabla tbody th, .rep-tabla tfoot th { font-size: 15px; font-weight: 700; letter-spacing: 0; text-transform: none; text-align: left; color: var(--ink); }
+.rep-tabla tbody th a { color: var(--primary-deep); text-decoration: none; }
+.rep-tabla tbody th a:hover { text-decoration: underline; }
+.rep-tabla tbody th small { color: var(--ink-muted); font-weight: 700; }
+.rep-tabla tr[data-especial] th, .rep-tabla tr[data-especial] td { color: var(--ink-muted); font-style: italic; }
+.rep-tabla tr[data-especial]:first-of-type th, .rep-tabla tbody tr[data-especial] + tr:not([data-especial]) th { border-top: 0; }
+.rep-tabla tbody tr:not([data-especial]) + tr[data-especial] > * { border-top: 2px solid var(--line); }
+.rep-tabla tr[data-negativo] .rep-c-resultado strong { color: var(--accent-deep, #a33); }
+.rep-tabla tfoot th, .rep-tabla tfoot td { border-top: 2px solid var(--ink); font-weight: 800; background: var(--surface-2, #f6f0e5); }
+.rep-tabla tfoot th { text-align: left; }
+
+/* Barras */
+.rep-grilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; margin-top: 16px; }
+.rep-grilla .admin-section { margin: 0; }
+.rep-bloque-ancho { grid-column: 1 / -1; }
+.rep-barras, .rep-rutas { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.rep-barras li { display: grid; grid-template-columns: minmax(0, 1fr) 7.5em; gap: 4px 12px; align-items: center; font-size: 14px; }
+.rep-barras li > strong { text-align: right; font-variant-numeric: tabular-nums; }
+.rep-barras li .rep-barra { grid-column: 1; }
+.rep-barras li small { color: var(--ink-muted); font-size: 12px; font-weight: 700; text-align: right; }
+.rep-barra { height: 8px; border-radius: 999px; background: var(--surface-2, #efe7d8); overflow: hidden; }
+.rep-barra span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.rep-rutas li { display: grid; grid-template-columns: minmax(0, 17em) 6.5em minmax(80px, 1fr) 8em; gap: 4px 14px; align-items: center; font-size: 14px; }
+.rep-rutas-nombre { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rep-rutas small { color: var(--ink-muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.rep-rutas strong { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+@media (max-width: 760px) {
+  .rep-nave-form { width: 100%; }
+  .rep-nave-form label { flex: 1; min-width: 0; }
+  .rep-nave-form select { width: 100%; max-width: none; }
+  .rep-grilla { grid-template-columns: minmax(0, 1fr); }
+  .rep-cifras .modulo-cifras { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .rep-cifras .modulo-cifras > div { min-width: 0; }
+  .rep-cifras .modulo-cifras dd { font-size: 20px; overflow-wrap: anywhere; }
+  .rep-cifras .modulo-cifras dd.modulo-cifra-detalle { font-size: 11px; }
+
+  /* Resultado por nave: una tarjeta por nave; arriba el nombre y el resultado. */
+  .rep-tabla thead { display: none; }
+  .rep-tabla, .rep-tabla tbody, .rep-tabla tfoot { display: block; width: 100%; }
+  .rep-tabla tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .rep-tabla tr > * { display: block; padding: 0 !important; border: 0 !important; background: none !important; white-space: normal; }
+  .rep-tabla tr > th { grid-column: 1 / 3; }
+  .rep-tabla .rep-c-resultado { grid-column: 3; grid-row: 1; }
+  .rep-tabla tr > td:not(.rep-c-resultado) { font-size: 12px; text-align: left; }
+  .rep-tabla tr > td:not(.rep-c-resultado)::before { content: attr(data-label) " "; display: block; color: var(--ink-muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-style: normal; }
+  .rep-tabla tfoot tr { border-bottom: 0; border-top: 2px solid var(--ink); margin-top: 4px; }
+
+  .rep-rutas li { grid-template-columns: minmax(0, 1fr) auto; }
+  .rep-rutas-nombre { grid-column: 1; grid-row: 1; white-space: normal; }
+  .rep-rutas li strong { grid-column: 2; grid-row: 1; }
+  .rep-rutas li small { grid-column: 1 / -1; grid-row: 2; }
+  .rep-rutas li .rep-barra { grid-column: 1 / -1; grid-row: 3; }
+}
